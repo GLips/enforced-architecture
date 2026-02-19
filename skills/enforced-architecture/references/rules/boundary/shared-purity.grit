@@ -1,0 +1,66 @@
+# ─── boundary/shared-purity ──────────────────────────────────────────
+#
+# Tag:      boundary
+# Mechanism: GritQL (per-file, real-time)
+# Blocking: Yes
+#
+# Prevents: Shared utility modules (non-UI) importing ANY application
+#           module via @/ paths. Shared utilities are the absolute
+#           bottom of the dependency graph. They may only import from
+#           each other (via relative paths) and from external packages.
+#           Any @/ import from shared/ creates an upward dependency
+#           that makes the utility non-portable and creates potential
+#           circular dependency chains.
+#
+# Applies:  Top-level files in src/shared/*.{ts,tsx} EXCEPT:
+#           - src/shared/ui/** (governed by shared-ui-purity instead)
+#           - Test files
+#
+# Error:    "Shared utility modules must be pure — they cannot import
+#            app modules via @/ paths. Only external package imports
+#            are allowed."
+#
+# ── Adapt ─────────────────────────────────────────────────────────────
+#
+# 1. Shared directory path (the `$filename <:` inclusion line):
+#    Adjust to match where your project places shared utilities.
+#    Examples:
+#      .*/src/shared/[^/]+\.[tj]sx?$  — top-level files only (this template)
+#      .*/src/shared/.*               — all files including subdirectories
+#      .*/src/lib/.*                   — if you call shared utilities "lib"
+#      .*/src/utils/.*                 — if you call shared utilities "utils"
+#
+# 2. Shared UI exclusion:
+#    The default excludes shared/ui/ because those files have their
+#    own purity rule (shared-ui-purity) that is more permissive
+#    (allows importing from shared/ itself via @/ paths). If your
+#    shared UI lives elsewhere, adjust the exclusion pattern.
+#
+# 3. Import pattern breadth:
+#    The default blocks ALL @/ imports. This is the strictest
+#    possible rule. If your project allows shared utilities to import
+#    specific app modules (e.g., @/env.client for config), narrow
+#    the match by adding negation patterns:
+#      ! $source <: r"\"@/env\.client\""
+#
+# ──────────────────────────────────────────────────────────────────────
+
+file(name=$filename, body=$program) where {
+    $filename <: r".*/src/shared/[^/]+\.[tj]sx?$",
+
+    # --- Exclusions ---
+    ! $filename <: r".*\.test\.[tj]sx?$|.*\.integration\.test\.[tj]sx?$|.*__tests__.*|.*src/test/.*",
+    ! $filename <: r".*/src/shared/ui/.*",
+
+    $program <: contains bubble or {
+        `import $_ from $source`,
+        `export $_ from $source`,
+        `export * from $source`
+    } as $import where {
+        $source <: r"\"@/.*\"",
+        register_diagnostic(
+            span = $import,
+            message = "Shared utility modules must be pure — they cannot import app modules via @/ paths. Only external package imports are allowed."
+        )
+    }
+}

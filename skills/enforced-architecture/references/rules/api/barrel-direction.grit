@@ -1,0 +1,61 @@
+# ─── api/barrel-direction ────────────────────────────────────────────
+#
+# Tag:      api
+# Mechanism: GritQL (per-file, real-time)
+# Blocking: Yes
+#
+# Prevents: Client-safe barrel files (index.ts) importing from the
+#           server-only barrel (server.ts). The server barrel extends
+#           the client-safe API; the reverse pulls server-only code
+#           into client bundles through the barrel, causing bundler
+#           errors in SSR frameworks with server/client splitting.
+#
+#           This is a one-directional rule:
+#           - server.ts MAY re-export from index.ts (superset pattern)
+#           - index.ts MUST NOT import from server.ts
+#
+# Applies:  Barrel index.ts files in domains/ and features/ only.
+#           Matched by path pattern: src/(domains|features)/<name>/index.ts
+#
+# Error:    "Barrel index.ts must not import from server.ts. Server
+#            modules extend the client-safe API; the reverse creates
+#            bundler-breaking server-only leakage into client bundles."
+#
+# ── Adapt ────────────────────────────────────────────────────────────
+#
+# 1. Barrel file location pattern (the `$filename <:` line):
+#    Adjust to match where your project places barrel files.
+#    Examples:
+#      .*/src/(?:domains|features)/[^/]+/index\.[tj]sx?$  — standard (this template)
+#      .*/src/features/[^/]+/index\.[tj]sx?$              — no domains layer
+#      .*/src/modules/[^/]+/index\.[tj]sx?$               — if modules instead of features
+#
+# 2. Server barrel name:
+#    If your project uses a different name for the server-only barrel,
+#    adjust the import match patterns ("./server").
+#    Examples:
+#      "./server"        — standard (this template)
+#      "./server-only"   — alternative naming
+#
+# 3. Additional top-level directories:
+#    If other top-level directories use the barrel pattern (e.g.,
+#    shared/ with server barrels), add them to the filename pattern.
+#
+# ─────────────────────────────────────────────────────────────────────
+
+file(name=$filename, body=$program) where {
+    # Only apply to barrel index files in domains and features
+    $filename <: r".*/src/(?:domains|features)/[^/]+/index\.[tj]sx?$",
+
+    $program <: contains bubble or {
+        `import $_ from "./server"`,
+        `export $_ from "./server"`,
+        `export * from "./server"`,
+        `import("./server")`
+    } as $import where {
+        register_diagnostic(
+            span = $import,
+            message = "Barrel index.ts must not import from server.ts. Server modules extend the client-safe API; the reverse creates bundler-breaking server-only leakage into client bundles."
+        )
+    }
+}

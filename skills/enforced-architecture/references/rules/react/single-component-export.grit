@@ -1,0 +1,86 @@
+# ─── react/single-component-export ───────────────────────────────────
+#
+# Tag:      react
+# Mechanism: GritQL (per-file, real-time)
+# Blocking: Yes
+#
+# Prevents: Multiple exported React components defined in a single file.
+#           Each component file should export one component. Multiple
+#           exports signal that the file is doing too much — components
+#           should be split into separate files for:
+#           - Independent testing and code review
+#           - Clear ownership and discoverability
+#           - Better tree-shaking and bundle splitting
+#           - Preventing files from growing without bound
+#
+#           Compound components via Object.assign (e.g.,
+#           Tabs.Panel, Tabs.List) are fine because they represent
+#           a single conceptual component with sub-parts.
+#
+# Applies:  All .tsx files EXCEPT:
+#           - Test files and scripts
+#           - Index/barrel files (re-exports are not definitions)
+#
+# Error:    "Multiple exported components in one file. Each component
+#            should have its own file. If these are sub-components of
+#            a compound component, use Object.assign to namespace them
+#            under a single export."
+#
+# ── Adapt ─────────────────────────────────────────────────────────────
+#
+# 1. File extension scope:
+#    This rule targets .tsx files only. Adjust if your project uses
+#    .jsx or has components in .ts files (uncommon but possible with
+#    createElement calls).
+#
+# 2. Barrel file exclusion:
+#    The default excludes index.tsx files since they typically re-export
+#    rather than define components. Adjust the pattern if your project
+#    uses a different barrel naming convention.
+#
+# 3. Component detection heuristic:
+#    This rule matches exported function declarations and exported
+#    arrow functions whose names start with an uppercase letter (React
+#    component naming convention). If your project has non-component
+#    exports that follow PascalCase (e.g., exported classes, type
+#    constructors), you may see false positives — add exclusions or
+#    consider making the rule non-blocking.
+#
+# ──────────────────────────────────────────────────────────────────────
+
+# NOTE: GritQL per-file rules cannot count across multiple matches
+# within the same file. This rule uses a structural heuristic: it
+# flags the SECOND exported component-like function it encounters.
+# The pattern matches an exported function with a PascalCase name
+# and requires that the file contains at least one OTHER such export.
+
+file(name=$filename, body=$program) where {
+    # --- Only apply to .tsx component files ---
+    $filename <: r".*\.tsx$",
+
+    # --- Global exclusions (shared across all rules) ---
+    ! $filename <: r".*\.test\.[tj]sx?$|.*\.integration\.test\.[tj]sx?$|.*__tests__.*|.*src/test/.*",
+    ! $filename <: r".*/scripts/.*",
+
+    # --- Exclude barrel files ---
+    ! $filename <: r".*/index\.tsx$",
+
+    # GritQL backtick patterns do not support $... spread metavariables
+    # for matching arbitrary parameter lists or function bodies. Instead,
+    # we match exported function declarations using $_ wildcards. The
+    # pattern `export function $name1($_) { $_ }` matches exported
+    # functions with a single-expression body and params — sufficient
+    # for detecting PascalCase component exports in most codebases.
+    # For more robust detection, consider a CI script that counts exports.
+    $program <: contains bubble `export function $name1($_) { $_ }` as $first where {
+        $name1 <: r"[A-Z].*",
+        $program <: contains `export function $name2($_) { $_ }` where {
+            $name2 <: r"[A-Z].*",
+            ! $name2 <: $name1
+        },
+        register_diagnostic(
+            span = $first,
+            message = "Multiple exported components in one file. Each component should have its own file. If these are sub-components of a compound component, use Object.assign to namespace them under a single export."
+        )
+    }
+}

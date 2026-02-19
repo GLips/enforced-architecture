@@ -1,0 +1,71 @@
+# ─── api/domain-public-api ───────────────────────────────────────────
+#
+# Tag:      api
+# Mechanism: GritQL (per-file, real-time)
+# Blocking: Yes
+#
+# Prevents: Deep imports into domain internals, bypassing the public
+#           API barrel. Domains expose their API through `index.ts`
+#           (client-safe) and optionally `server.ts` (server-only).
+#           Any import matching `@/domains/<name>/<path>` where <path>
+#           is not exactly `server` is a violation. Without this rule,
+#           consumers couple to internal file layout, making domain
+#           restructuring impossible without cascading import changes.
+#
+# Applies:  All src/** files EXCEPT:
+#           - Files inside the domains/ directory itself (internal
+#             imports within a domain are unrestricted)
+#           - Test files and scripts
+#
+# Error:    "Import from domain public API only:
+#            @/domains/<domain> or @/domains/<domain>/server.
+#            Deep imports into domain internals are not allowed."
+#
+# ── Adapt ────────────────────────────────────────────────────────────
+#
+# 1. Domain directory path (the exclusion pattern on line with `! $filename`):
+#    Adjust if your project uses a different name for the domains layer.
+#    Examples:
+#      .*/src/domains/.*     — standard (this template)
+#      .*/src/domain/.*      — singular naming
+#      .*/src/core/.*        — if you call domains "core"
+#
+# 2. Import source pattern (the `$source <:` line):
+#    Adjust to match your domain import alias.
+#    Examples:
+#      @/domains/   — standard (this template)
+#      @/domain/    — singular naming
+#      @/core/      — if you call domains "core"
+#
+# 3. Server barrel exception (the `! $source <:` line):
+#    If your project does not use server-only barrels for domains,
+#    remove the exception. If your project uses a different name
+#    (e.g., `server-only`), adjust the pattern.
+#
+# ─────────────────────────────────────────────────────────────────────
+
+file(name=$filename, body=$program) where {
+    # --- Global exclusions (shared across all rules) ---
+    ! $filename <: r".*\.test\.[tj]sx?$|.*\.integration\.test\.[tj]sx?$|.*__tests__.*|.*src/test/.*",
+    ! $filename <: r".*/scripts/.*",
+
+    # --- Domain-internal exclusion (domains import their own internals freely) ---
+    ! $filename <: r".*/src/domains/.*",
+
+    $program <: contains bubble or {
+        `import $_ from $source`,
+        `export $_ from $source`,
+        `export * from $source`
+    } as $import where {
+        # Match any deep import into a domain: @/domains/<name>/<anything>
+        $source <: r"\"@/domains/[^/]+/.+\"",
+
+        # Allow the server barrel: @/domains/<name>/server
+        ! $source <: r"\"@/domains/[^/]+/server\"",
+
+        register_diagnostic(
+            span = $import,
+            message = "Import from domain public API only: @/domains/<domain> or @/domains/<domain>/server. Deep imports into domain internals are not allowed."
+        )
+    }
+}

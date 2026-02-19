@@ -1,0 +1,55 @@
+# ─── structure/server-fn-placement ──────────────────────────────────────
+#
+# Tag:      structure
+# Mechanism: GritQL (per-file, real-time)
+# Blocking: Yes
+#
+# Prevents: Server function definitions (createServerFn) placed outside
+#           the controllers/ layer. Server functions are application
+#           delivery endpoints — they belong in the feature layer that
+#           owns them, not scattered across infrastructure, domains,
+#           shared utilities, or UI components.
+#
+# Applies:  All src/** files EXCEPT:
+#           - features/*/controllers/** (IS the correct location)
+#           - Test files and scripts
+#
+# Error:    "createServerFn must be placed in feature controllers/
+#            modules. Server functions are application delivery
+#            endpoints. Move this to features/<name>/controllers/."
+#
+# ── Adapt ─────────────────────────────────────────────────────────────
+#
+# 1. Allowed placement pattern (the `!` exclusion line):
+#    Adjust to match your project's controller directory structure.
+#    Examples:
+#      .*/src/features/[^/]+/controllers/.*   — standard layered features
+#      .*/src/modules/[^/]+/controllers/.*    — if you use "modules" instead
+#      .*/src/features/[^/]+/server/.*        — if your project names the
+#                                               controller layer "server/"
+#
+# 2. Server function factory name:
+#    If your framework uses a different factory name, replace
+#    `createServerFn` with the correct identifier.
+#    Examples:
+#      createServerFn     — TanStack Start (this template)
+#      createServerAction — alternative naming
+#      server$            — SolidStart convention
+#
+# ──────────────────────────────────────────────────────────────────────
+
+file(name=$filename, body=$program) where {
+    # --- Global exclusions (shared across all rules) ---
+    ! $filename <: r".*\.test\.[tj]sx?$|.*\.integration\.test\.[tj]sx?$|.*__tests__.*|.*src/test/.*",
+    ! $filename <: r".*/scripts/.*",
+
+    $program <: contains bubble `createServerFn` as $call where {
+        # --- Only controllers/ may define server functions ---
+        ! $filename <: r".*/src/features/[^/]+/controllers/.*",
+
+        register_diagnostic(
+            span = $call,
+            message = "createServerFn must be placed in feature controllers/ modules. Server functions are application delivery endpoints. Move this to features/<name>/controllers/."
+        )
+    }
+}

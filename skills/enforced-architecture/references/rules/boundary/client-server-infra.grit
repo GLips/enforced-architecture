@@ -1,0 +1,79 @@
+# ─── boundary/client-server-infra ────────────────────────────────────
+#
+# Tag:      boundary
+# Mechanism: GritQL (per-file, real-time)
+# Blocking: Yes
+#
+# Prevents: Client contexts (UI files, barrel files, shared modules)
+#           importing server-only infrastructure modules. Most
+#           infrastructure is server-only (DB, auth, SDK wrappers,
+#           telemetry). Only explicitly allowlisted infrastructure
+#           modules are client-safe. Importing server-only infra from
+#           client contexts leaks secrets into client bundles and causes
+#           hydration failures in SSR frameworks.
+#
+# Applies:  All src/** files that are NOT server contexts:
+#           - Excludes: infrastructure/**, routes/**, scripts
+#           - Excludes: features/*/controllers/**, features/*/repo/**,
+#                       features/*/service/** (server layers)
+#           - Excludes: any file named server.{ts,tsx}
+#           - Excludes: test files
+#
+# Error:    "Client contexts may only import client-safe infrastructure
+#            modules. Move this import to a server context or use the
+#            appropriate client-safe adapter."
+#
+# ── Adapt ─────────────────────────────────────────────────────────────
+#
+# 1. Server context exclusions (the filename exclusion lines):
+#    Adjust to match your project's server-side directories.
+#    The default excludes infrastructure, routes, and the three
+#    server-side feature layers (controllers, repo, service).
+#    If your project has additional server layers, add them.
+#
+# 2. Client-safe infrastructure allowlist (the `!` negation lines):
+#    Replace with the infrastructure modules that are safe to import
+#    from client contexts. Keep this list MINIMAL — every entry is a
+#    module that will be included in client bundles.
+#    Examples:
+#      @/infrastructure/auth/client         — browser-side auth
+#      @/infrastructure/providers/query-client — TanStack Query setup
+#      @/infrastructure/analytics/client    — client-side analytics
+#
+# 3. Barrel file handling:
+#    The server.ts exclusion ensures feature server barrels can
+#    import infrastructure freely. If your project uses a different
+#    naming convention for server barrels, adjust the pattern.
+#
+# ──────────────────────────────────────────────────────────────────────
+
+file(name=$filename, body=$program) where {
+    # --- Global exclusions (shared across all rules) ---
+    ! $filename <: r".*\.test\.[tj]sx?$|.*\.integration\.test\.[tj]sx?$|.*__tests__.*|.*src/test/.*",
+    ! $filename <: r".*/scripts/.*",
+
+    # --- Server context exclusions (these CAN import infra) ---
+    ! $filename <: r".*/src/(?:infrastructure|routes)/.*",
+    ! $filename <: r".*/src/features/[^/]+/(?:controllers|repo|service)/.*",
+    ! $filename <: r".*/server\.[tj]sx?$",
+
+    $program <: contains bubble or {
+        `import $_ from $source`,
+        `export $_ from $source`,
+        `export * from $source`
+    } as $import where {
+        $source <: r"\"@/infrastructure/.*\"",
+
+        # --- Client-safe infrastructure allowlist ---
+        # Replace with your project's client-safe infra modules.
+        ! $source <: r"\"@/infrastructure/auth/client\"",
+        ! $source <: r"\"@/infrastructure/providers/query-client\"",
+        # Add your project's client-safe infrastructure modules:
+        # ! $source <: r"\"@/infrastructure/analytics/client\"",
+
+        register_diagnostic(
+            span = $import,
+            message = "Client contexts may only import client-safe infrastructure modules. Move this import to a server context (controllers/, repo/, service/, or a .server.ts file) or use the appropriate client-safe adapter."
+        )
+    }
+}

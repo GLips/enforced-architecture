@@ -1,0 +1,71 @@
+# ─── boundary/server-no-upward ───────────────────────────────────────
+#
+# Tag:      boundary
+# Mechanism: GritQL (per-file, real-time)
+# Blocking: Yes
+#
+# Prevents: Infrastructure modules importing from features, domains,
+#           or routes. Infrastructure is a service provider — it sits
+#           below features in the dependency graph and provides
+#           capabilities (DB, auth, SDKs, telemetry) that features
+#           consume. If infrastructure imports a feature, the
+#           dependency arrow reverses, creating circular potential
+#           and coupling infrastructure changes to feature internals.
+#           If infrastructure needs feature-specific behavior, the
+#           feature passes it as a parameter (dependency inversion).
+#
+# Applies:  All src/infrastructure/** files EXCEPT:
+#           - Test files
+#           - Scripts
+#
+# Error:    "Infrastructure modules cannot import from features,
+#            domains, or routes. Infrastructure provides services to
+#            upper layers — it does not consume them. If this module
+#            needs feature-specific behavior, accept it as a parameter."
+#
+# ── Adapt ─────────────────────────────────────────────────────────────
+#
+# 1. Infrastructure directory path (the `$filename <:` inclusion):
+#    Adjust to match your project's infrastructure directory.
+#    Examples:
+#      .*/src/infrastructure/.*   — standard (this template)
+#      .*/src/infra/.*            — abbreviated naming
+#      .*/src/adapters/.*         — ports-and-adapters naming
+#
+# 2. Banned import patterns (the `or` block):
+#    The default bans features, domains, and routes. These are all
+#    layers that sit above infrastructure in the dependency graph.
+#    If your project has additional upper layers, add them.
+#
+# 3. Self-imports:
+#    Infrastructure modules importing other infrastructure modules
+#    is allowed (e.g., auth importing from db). This rule does not
+#    restrict intra-infrastructure imports. If your project needs
+#    to restrict cross-concern infrastructure imports (e.g., auth
+#    should not import telemetry), create a separate rule.
+#
+# ──────────────────────────────────────────────────────────────────────
+
+file(name=$filename, body=$program) where {
+    $filename <: r".*/src/infrastructure/.*",
+
+    # --- Global exclusions (shared across all rules) ---
+    ! $filename <: r".*\.test\.[tj]sx?$|.*\.integration\.test\.[tj]sx?$|.*__tests__.*|.*src/test/.*",
+    ! $filename <: r".*/scripts/.*",
+
+    $program <: contains bubble or {
+        `import $_ from $source`,
+        `export $_ from $source`,
+        `export * from $source`
+    } as $import where {
+        or {
+            $source <: r"\"@/features.*\"",
+            $source <: r"\"@/domains.*\"",
+            $source <: r"\"@/routes.*\""
+        },
+        register_diagnostic(
+            span = $import,
+            message = "Infrastructure modules cannot import from features, domains, or routes. Infrastructure provides services to upper layers — it does not consume them. If this module needs feature-specific behavior, accept it as a parameter."
+        )
+    }
+}

@@ -1,0 +1,59 @@
+# ─── react/no-direct-fetch ────────────────────────────────────────────
+#
+# Tag:      react
+# Mechanism: GritQL (per-file, real-time)
+# Blocking: Yes
+#
+# Prevents: Direct fetch() calls in React component files (.tsx).
+#           Components should use server functions, TanStack Query,
+#           or other data-fetching abstractions — not raw fetch.
+#           Raw fetch in components leads to:
+#           - No caching, deduplication, or background refetching
+#           - Manual loading/error state management
+#           - Race conditions on rapid re-renders
+#           - Inconsistent data-fetching patterns across the codebase
+#
+# Applies:  All .tsx files EXCEPT:
+#           - Test files and scripts
+#           - Non-.tsx files (.ts utility files may legitimately use fetch
+#             in infrastructure wrappers, SDK clients, etc.)
+#
+# Error:    "Direct fetch() calls in component files bypass the
+#            data-fetching layer. Use a server function or TanStack
+#            Query hook instead."
+#
+# ── Adapt ─────────────────────────────────────────────────────────────
+#
+# 1. File extension scope:
+#    This rule targets .tsx files only (component files). If your project
+#    also has components in .jsx files, add a second filename match or
+#    broaden the pattern. Do NOT apply to .ts files — infrastructure
+#    wrappers and SDK clients legitimately use fetch.
+#
+# 2. Allowed directories:
+#    If you have .tsx files that legitimately use fetch (e.g., Storybook
+#    mock providers, test utilities), add directory exclusions.
+#
+# 3. Alternative fetch identifiers:
+#    If your project uses a custom fetch wrapper at the call site
+#    (e.g., `apiFetch()`, `authFetch()`), those are fine — this rule
+#    only catches the global `fetch()`. Add them as exclusions if the
+#    wrapper name contains "fetch" and triggers false positives.
+#
+# ──────────────────────────────────────────────────────────────────────
+
+file(name=$filename, body=$program) where {
+    # --- Only apply to .tsx component files ---
+    $filename <: r".*\.tsx$",
+
+    # --- Global exclusions (shared across all rules) ---
+    ! $filename <: r".*\.test\.[tj]sx?$|.*\.integration\.test\.[tj]sx?$|.*__tests__.*|.*src/test/.*",
+    ! $filename <: r".*/scripts/.*",
+
+    $program <: contains bubble `fetch($args)` as $call where {
+        register_diagnostic(
+            span = $call,
+            message = "Direct fetch() calls in component files bypass the data-fetching layer. Use a server function or TanStack Query hook instead."
+        )
+    }
+}

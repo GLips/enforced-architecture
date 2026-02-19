@@ -1,0 +1,68 @@
+# ─── boundary/route-thinness ─────────────────────────────────────────
+#
+# Tag:      boundary
+# Mechanism: GritQL (per-file, real-time)
+# Blocking: Yes
+#
+# Prevents: Route/transport files importing the database layer or
+#           server-only environment configuration directly. Routes
+#           must be thin adapters that compose UI and call features
+#           through their public API barrels. Direct DB access in
+#           routes bypasses auth, validation, and the feature's data
+#           access layer. Server env imports leak secrets into the
+#           transport layer, which is the most framework-coupled code
+#           and rewrites entirely during framework migrations.
+#
+# Applies:  All src/routes/** files EXCEPT:
+#           - Test files
+#
+# Error:    "Routes must be thin adapters. Import data via feature
+#            barrels (@/features/<feature> or @/features/<feature>/server),
+#            not directly from DB or env.server."
+#
+# ── Adapt ─────────────────────────────────────────────────────────────
+#
+# 1. Route directory path (the `$filename <:` inclusion line):
+#    Adjust to match your project's route/transport directory.
+#    Examples:
+#      .*/src/routes/.*    — file-based routing (this template)
+#      .*/src/pages/.*     — Next.js-style pages directory
+#      .*/src/app/.*       — Next.js app router
+#      .*/src/commands/.*  — CLI command handlers
+#
+# 2. Banned import patterns (the `or` block):
+#    The default bans DB imports and env.server. Add additional
+#    patterns if your project has other server-only modules that
+#    routes should not touch directly:
+#      @/infrastructure/db  — DB layer (this template)
+#      @/env.server         — server-only env (this template)
+#      @/infrastructure/integrations — if routes should not use SDKs
+#
+# 3. Domain imports:
+#    Routes typically should not import domains directly (they go
+#    through features). If your project enforces this, add:
+#      $source <: r"\"@/domains.*\""
+#
+# ──────────────────────────────────────────────────────────────────────
+
+file(name=$filename, body=$program) where {
+    $filename <: r".*/src/routes/.*",
+
+    # --- Global exclusions (shared across all rules) ---
+    ! $filename <: r".*\.test\.[tj]sx?$|.*\.integration\.test\.[tj]sx?$|.*__tests__.*|.*src/test/.*",
+
+    $program <: contains bubble or {
+        `import $_ from $source`,
+        `export $_ from $source`,
+        `export * from $source`
+    } as $import where {
+        or {
+            $source <: r"\"@/infrastructure/db.*\"",
+            $source <: r"\"@/env\.server\""
+        },
+        register_diagnostic(
+            span = $import,
+            message = "Routes must be thin adapters. Import data via feature barrels (@/features/<feature> or @/features/<feature>/server), not directly from DB or env.server."
+        )
+    }
+}

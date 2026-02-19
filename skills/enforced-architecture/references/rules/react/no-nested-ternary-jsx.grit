@@ -1,0 +1,63 @@
+# ─── react/no-nested-ternary-jsx ─────────────────────────────────────
+#
+# Tag:      react
+# Mechanism: GritQL (per-file, real-time)
+# Blocking: Yes
+#
+# Prevents: Double-nested ternary expressions (three levels of
+#           conditional). Single ternaries are fine and idiomatic in
+#           JSX. Nested ternaries (a ? b : c ? d : e) are tolerable.
+#           Double-nested ternaries (a ? b : c ? d : e ? f : g)
+#           become unreadable and should be extracted to variables,
+#           helper functions, or early returns.
+#
+# Applies:  All .tsx and .ts files EXCEPT:
+#           - Test files and scripts
+#
+# Error:    "Avoid double-nested ternary expressions (three
+#            conditionals). Use if/else, extracted variables, or
+#            components for clarity."
+#
+# ── Adapt ─────────────────────────────────────────────────────────────
+#
+# 1. Nesting depth:
+#    This template flags THREE levels of ternary nesting (two levels
+#    deep). If your project wants stricter enforcement (flag at two
+#    levels), remove the deepest nesting check and flag when the first
+#    inner ternary is found. If your project is more permissive,
+#    add another nesting level before flagging.
+#
+# 2. File scope:
+#    The default applies to all source files. If you only want to
+#    enforce this in .tsx (JSX) files, add a filename inclusion
+#    pattern: $filename <: r".*\.tsx$"
+#
+# 3. JSX-only vs all code:
+#    This pattern catches nested ternaries everywhere in the file,
+#    not just inside JSX return statements. This is intentional —
+#    deeply nested ternaries are unreadable regardless of context.
+#    If you want JSX-only enforcement, you would need to wrap the
+#    match in a JSX expression container check.
+#
+# ──────────────────────────────────────────────────────────────────────
+
+file(name=$filename, body=$program) where {
+    # --- Global exclusions (shared across all rules) ---
+    ! $filename <: r".*\.test\.[tj]sx?$|.*\.integration\.test\.[tj]sx?$|.*__tests__.*|.*src/test/.*",
+    ! $filename <: r".*/scripts/.*",
+
+    $program <: contains `$condition ? $consequent : $alternate` as $ternary where {
+        or {
+            $consequent <: contains `$innerCondition ? $innerConsequent : $innerAlternate`,
+            $alternate <: contains `$innerCondition ? $innerConsequent : $innerAlternate`
+        },
+        or {
+            $innerConsequent <: contains `$deepCondition ? $deepConsequent : $deepAlternate`,
+            $innerAlternate <: contains `$deepCondition ? $deepConsequent : $deepAlternate`
+        },
+        register_diagnostic(
+            span = $ternary,
+            message = "Avoid double-nested ternary expressions (three conditionals). Use if/else, extracted variables, or components for clarity."
+        )
+    }
+}

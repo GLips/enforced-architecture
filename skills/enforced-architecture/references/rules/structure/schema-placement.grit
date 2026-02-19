@@ -1,0 +1,86 @@
+# ─── structure/schema-placement ─────────────────────────────────────────
+#
+# Tag:      structure
+# Mechanism: GritQL (per-file, real-time)
+# Blocking: Yes
+#
+# Prevents: Database schema declarations (table definitions, relation
+#           declarations) placed outside the centralized schema
+#           directory. Schema must live in infrastructure/db/schema/
+#           because migration tooling scans one directory, foreign keys
+#           cross domain boundaries, and ORM relations reference tables
+#           from multiple files. Scattering schema across features
+#           breaks migration generation and makes the data model
+#           impossible to reason about from one location.
+#
+# Applies:  All src/** files EXCEPT:
+#           - infrastructure/db/schema/** (IS the correct location)
+#           - Migration directories (drizzle/, migrations/)
+#           - Test files and scripts
+#
+# Error:    "Schema declarations (pgTable, relations) must live in
+#            infrastructure/db/schema/*. Move this declaration to the
+#            appropriate schema file."
+#
+# ── Adapt ─────────────────────────────────────────────────────────────
+#
+# 1. Schema directory path (the `!` exclusion line):
+#    Adjust to match your project's schema location.
+#    Examples:
+#      .*/src/infrastructure/db/schema/.*   — layered infrastructure (this template)
+#      .*/src/db/schema/.*                  — flat top-level db directory
+#      .*/src/database/schema/.*            — alternative naming
+#
+# 2. ORM-specific declarations (the matched AST patterns):
+#    Replace `pgTable` and `relations` with your ORM's schema
+#    definition functions.
+#    Examples:
+#      pgTable, relations         — Drizzle with PostgreSQL (this template)
+#      mysqlTable, relations      — Drizzle with MySQL
+#      sqliteTable, relations     — Drizzle with SQLite
+#      defineTable                — alternative ORM
+#      schema.createTable         — Prisma-style
+#
+# 3. Migration directory exclusion:
+#    If your ORM generates migrations to a different directory,
+#    update the exclusion pattern.
+#    Examples:
+#      .*/drizzle/.*              — Drizzle default (this template)
+#      .*/prisma/migrations/.*   — Prisma migrations
+#      .*/migrations/.*           — generic migrations directory
+#
+# ──────────────────────────────────────────────────────────────────────
+
+file(name=$filename, body=$program) where {
+    # --- Layer exclusions (who IS allowed to declare schema) ---
+    ! $filename <: r".*/src/infrastructure/db/schema/.*",
+
+    # --- Global exclusions (shared across all rules) ---
+    ! $filename <: r".*\.test\.[tj]sx?$|.*\.integration\.test\.[tj]sx?$|.*__tests__.*|.*src/test/.*",
+    ! $filename <: r".*/scripts/.*",
+
+    # --- Migration directory exclusions ---
+    ! $filename <: r".*/drizzle/.*",
+
+    $program <: contains bubble or {
+        `pgTable($args)`,
+        `relations($args)`
+    } as $call where {
+        register_diagnostic(
+            span = $call,
+            message = "Schema declarations (pgTable, relations) must live in infrastructure/db/schema/*. Move this declaration to the appropriate schema file."
+        )
+    }
+}
+
+# ── Optional: catch additional ORM patterns ──────────────────────────
+#
+# To catch MySQL or SQLite table declarations, add them to the
+# `or {}` block:
+#
+#     $program <: contains bubble or {
+#         `pgTable($args)`,
+#         `mysqlTable($args)`,
+#         `sqliteTable($args)`,
+#         `relations($args)`
+#     } as $call where { ... }

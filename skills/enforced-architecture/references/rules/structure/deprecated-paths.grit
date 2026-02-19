@@ -1,0 +1,91 @@
+# ─── structure/deprecated-paths ─────────────────────────────────────────
+#
+# Tag:      structure
+# Mechanism: GritQL (per-file, real-time)
+# Blocking: Yes
+#
+# Prevents: Imports from legacy directory paths that no longer exist
+#           after an architecture migration. When directories are
+#           relocated or renamed, old import paths linger in agent
+#           memory and in code suggestions. This rule catches them
+#           immediately and directs to the correct new location.
+#
+# Applies:  All src/** files EXCEPT test files.
+#
+# Error:    "The <old-path> directory no longer exists. Import from
+#            <new-path> instead."
+#
+# ── Adapt ─────────────────────────────────────────────────────────────
+#
+# 1. Deprecated path patterns (the `$source <:` lines):
+#    Replace with your project's actual deprecated import paths.
+#    Each deprecated path needs its own `and {}` block with:
+#    - A regex matching the old import path
+#    - An error message naming the old path and the correct replacement
+#
+#    Common migration patterns:
+#      @/components/*   -> @/shared/ui/* or @/features/*/ui/*
+#      @/lib/*          -> @/shared/*, @/infrastructure/*, or @/domains/*
+#      @/utils/*        -> @/shared/*
+#      @/helpers/*      -> @/shared/*
+#      @/api/*          -> @/features/*/controllers/*
+#      @/db/*           -> @/infrastructure/db/*
+#      @/hooks/*        -> @/shared/* or @/features/*/ui/*
+#      @/services/*     -> @/features/*/service/* or @/infrastructure/*
+#
+# 2. Adding multiple deprecated paths:
+#    Wrap multiple patterns in an `or {}` block. Each pattern
+#    gets its own `and {}` with a targeted error message that
+#    tells the agent exactly where the code moved.
+#
+# 3. Removing deprecated paths:
+#    Once all imports from a deprecated path are cleaned up and
+#    no agent is likely to re-introduce them, remove the
+#    corresponding `and {}` block from this rule.
+#
+# ──────────────────────────────────────────────────────────────────────
+
+file(name=$filename, body=$program) where {
+    # --- Global exclusions (shared across all rules) ---
+    ! $filename <: r".*\.test\.[tj]sx?$|.*\.integration\.test\.[tj]sx?$|.*__tests__.*|.*src/test/.*",
+
+    $program <: contains bubble or {
+        `import $_ from $source`,
+        `export $_ from $source`,
+        `export * from $source`
+    } as $import where {
+        # --- Example: single deprecated path ---
+        # Replace this with your project's actual deprecated paths.
+        # For multiple deprecated paths, use an `or {}` block:
+        #
+        # or {
+        #     and {
+        #         $source <: r"\"@/components/.*\"",
+        #         register_diagnostic(
+        #             span = $import,
+        #             message = "The @/components/ directory no longer exists. Import from @/shared/ui/* (generic primitives) or @/features/*/ui/* (feature-owned UI) instead."
+        #         )
+        #     },
+        #     and {
+        #         $source <: r"\"@/lib/.*\"",
+        #         register_diagnostic(
+        #             span = $import,
+        #             message = "The @/lib/ directory no longer exists. Import from @/shared/* (pure utilities), @/infrastructure/* (external adapters), or @/domains/* (business logic) instead."
+        #         )
+        #     },
+        #     and {
+        #         $source <: r"\"@/utils/.*\"",
+        #         register_diagnostic(
+        #             span = $import,
+        #             message = "The @/utils/ directory no longer exists. Import from @/shared/* instead."
+        #         )
+        #     }
+        # }
+
+        $source <: r"\"@/components/.*\"",
+        register_diagnostic(
+            span = $import,
+            message = "The @/components/ directory no longer exists. Import from @/shared/ui/* (generic primitives) or @/features/*/ui/* (feature-owned UI) instead."
+        )
+    }
+}

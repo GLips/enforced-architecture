@@ -1,0 +1,84 @@
+# ─── api/server-import-context ───────────────────────────────────────
+#
+# Tag:      api
+# Mechanism: GritQL (per-file, real-time)
+# Blocking: Yes
+#
+# Prevents: Client contexts importing server-only barrels (*/server
+#           paths). Server barrels export code that depends on server-
+#           only packages (DB clients, auth infrastructure, SDK
+#           wrappers). Importing them from UI files, client-safe
+#           barrels, or shared modules leaks server-only code into
+#           client bundles.
+#
+#           Server contexts are explicitly allowed:
+#           - features/*/controllers/
+#           - features/*/service/
+#           - features/*/repo/
+#           - infrastructure/*
+#           - routes/*
+#           - Any file named server.ts or server.tsx
+#
+#           Everything else is a client context where */server imports
+#           are denied.
+#
+# Applies:  All src/** files EXCEPT:
+#           - Server contexts listed above
+#           - Test files and scripts
+#
+# Error:    "Only server contexts (controllers/, repo/, service/,
+#            infrastructure/, routes/) may import */server paths.
+#            This file is in a client context."
+#
+# ── Adapt ────────────────────────────────────────────────────────────
+#
+# 1. Server context exclusions (the `! $filename` lines):
+#    Add or remove directories that count as server contexts in your
+#    project. Common additions:
+#      .*/src/api/.*                    — if you have a standalone api/ layer
+#      .*/src/features/[^/]+/actions/.* — if you use an actions/ layer
+#
+# 2. Infrastructure pattern:
+#    If your infrastructure lives under a different name, adjust:
+#      .*/src/infrastructure/.*  — standard (this template)
+#      .*/src/infra/.*           — shortened name
+#      .*/src/lib/.*             — if infrastructure is called lib
+#
+# 3. Server file naming convention:
+#    The `server\.[tj]sx?$` exclusion covers files explicitly named
+#    as server-only. Adjust if your project uses different naming:
+#      .*/server\.[tj]sx?$       — standard (this template)
+#      .*/\.server\.[tj]sx?$     — dot-prefixed convention
+#
+# 4. Import source pattern (the `$source <:` line):
+#    The pattern `".*/server"` matches any import ending in /server.
+#    If your project uses a different server barrel name, adjust:
+#      ".*/server"       — standard (this template)
+#      ".*/server-only"  — alternative naming
+#
+# ─────────────────────────────────────────────────────────────────────
+
+file(name=$filename, body=$program) where {
+    # --- Global exclusions (shared across all rules) ---
+    ! $filename <: r".*\.test\.[tj]sx?$|.*\.integration\.test\.[tj]sx?$|.*__tests__.*|.*src/test/.*",
+    ! $filename <: r".*/scripts/.*",
+
+    # --- Server context exclusions (these directories MAY import */server) ---
+    ! $filename <: r".*/src/(?:infrastructure|routes)/.*",
+    ! $filename <: r".*/src/features/[^/]+/(?:controllers|repo|service)/.*",
+    ! $filename <: r".*/server\.[tj]sx?$",
+
+    $program <: contains bubble or {
+        `import $_ from $source`,
+        `export $_ from $source`,
+        `export * from $source`
+    } as $import where {
+        # Match any import ending in /server
+        $source <: r"\".*/server\"",
+
+        register_diagnostic(
+            span = $import,
+            message = "Only server contexts (controllers/, repo/, service/, infrastructure/, routes/) may import */server paths. This file is in a client context."
+        )
+    }
+}
