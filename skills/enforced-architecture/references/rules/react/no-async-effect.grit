@@ -1,0 +1,111 @@
+// ─── react/no-async-effect ────────────────────────────────────────────
+//
+// Tag:      react
+// Mechanism: GritQL (per-file, real-time)
+// Blocking: Yes
+//
+// Prevents: Async operations in React effects without proper cleanup,
+//           which leads to memory leaks, stale state updates, and
+//           operations continuing after unmount or dependency changes.
+//
+//           Two patterns are caught:
+//
+//           1. Async inside useEffect without cleanup return:
+//
+//                useEffect(() => {
+//                  async function load() { ... }
+//                  load();
+//                }, [dep])           // ← no return () => { ... }
+//
+//              The async work has no way to cancel when deps change or
+//              the component unmounts. setState calls may fire on a dead
+//              component, and stale closures can corrupt state.
+//
+//           2. useCallback(async () => ...) — the indirect form:
+//
+//                const doWork = useCallback(async () => { ... }, [dep]);
+//                useEffect(() => { doWork(); }, [doWork]);
+//
+//              Wrapping async in useCallback is almost always done to
+//              call it from useEffect. The cleanup problem is the same,
+//              but harder to spot because the async work is separated
+//              from the effect. Additionally, the callback's ref-based
+//              guards (e.g., isRunning.current) are fragile across
+//              component re-renders and navigation.
+//
+//           Correct pattern — async effect with cleanup:
+//
+//                useEffect(() => {
+//                  let cancelled = false;
+//                  async function run() {
+//                    const data = await fetchData();
+//                    if (!cancelled) setState(data);
+//                  }
+//                  run();
+//                  return () => { cancelled = true; };
+//                }, [dep])
+//
+//           Better pattern — use a data-fetching library:
+//
+//                const { data } = useQuery({
+//                  queryKey: ['data', dep],
+//                  queryFn: () => fetchData(dep),
+//                })
+//
+// Applies:  All .tsx files EXCEPT:
+//           - Test files and scripts
+//
+// ── Adapt ─────────────────────────────────────────────────────────────
+//
+// 1. Data-fetching library:
+//    The error message references TanStack Query. If your project uses
+//    SWR, Apollo, or another library, update the message accordingly.
+//
+// 2. Async useCallback for event handlers:
+//    In projects that don't use a mutation library (useMutation, etc.),
+//    async useCallback for memoized event handlers passed as props is
+//    legitimate. If this causes false positives, remove the second
+//    pattern (useCallback match) and keep only the useEffect match.
+//    Projects using TanStack Query's useMutation for all async user
+//    interactions should not hit this false positive.
+//
+// 3. Cleanup detection:
+//    The rule considers an effect "cleaned up" if its callback contains
+//    `return () => ...`. This is a heuristic — it doesn't verify the
+//    cleanup is correct, only that the developer considered the
+//    lifecycle. This is intentionally permissive; catching missing
+//    cleanup is far more valuable than auditing cleanup contents.
+//
+// ──────────────────────────────────────────────────────────────────────
+
+file(name=$filename, body=$program) where {
+    // --- Only apply to .tsx component files ---
+    $filename <: r".*\.tsx$",
+
+    // --- Global exclusions (shared across all rules) ---
+    ! $filename <: r".*\.test\.[tj]sx?$|.*\.integration\.test\.[tj]sx?$|.*__tests__.*|.*src/test/.*",
+    ! $filename <: r".*/scripts/.*",
+
+    $program <: or {
+        // Pattern 1: async inside useEffect without cleanup return
+        contains bubble `useEffect($callback, $_)` as $effect where {
+            $callback <: contains or {
+                `await $_`,
+                `async ($args) => $body`,
+                `async function $name($args) { $body }`,
+            },
+            ! $callback <: contains `return () => $_`,
+            register_diagnostic(
+                span = $effect,
+                message = "Async operation inside useEffect without cleanup risks memory leaks and stale state updates. Use TanStack Query for data fetching, or restructure as a single useEffect with a cancelled flag and cleanup return."
+            )
+        },
+        // Pattern 2: async useCallback (indirect effect pattern)
+        contains bubble `useCallback(async ($args) => $body, $_)` as $hook where {
+            register_diagnostic(
+                span = $hook,
+                message = "Async useCallback is typically called from useEffect without proper cleanup. Use TanStack Query for data fetching, or inline the async logic in a useEffect with a cancelled flag and cleanup return."
+            )
+        }
+    }
+}

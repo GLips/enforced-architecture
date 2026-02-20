@@ -21,6 +21,10 @@
 //           introduces timing bugs (stale value on first render), and
 //           adds complexity for what is fundamentally a computation.
 //
+// Excludes: Effects that contain `await` or `for await` — these are
+//           interacting with async external systems (streams, event
+//           accumulation), not synchronously deriving state.
+//
 // Applies:  All .tsx and .ts files EXCEPT:
 //           - Test files and scripts
 //
@@ -47,6 +51,10 @@
 //    making this rule non-blocking. The default is blocking because
 //    the anti-pattern is far more common than the legitimate uses.
 //
+//    Effects containing `await` or `for await` are excluded by default
+//    since they indicate async external system interaction (streams,
+//    subscriptions), not synchronous derived state.
+//
 // ──────────────────────────────────────────────────────────────────────
 
 file(name=$filename, body=$program) where {
@@ -63,6 +71,10 @@ file(name=$filename, body=$program) where {
         $callback <: contains `$setter($_)` where {
             $setter <: r"set[A-Z].*"
         },
+        // Exclude async effects — setState in an effect that awaits
+        // external data is event accumulation, not derived state.
+        ! $callback <: contains `await $_`,
+        ! $callback <: contains `for await ($_) { $_ }`,
         register_diagnostic(
             span = $effect,
             message = "useState setter called inside useEffect is a derived state anti-pattern. Compute the value directly with useMemo() or inline computation instead of syncing via state + effect."

@@ -69,6 +69,7 @@ Complete index of enforcement rules. Each rule has a template in its tag directo
 | [react/no-direct-fetch](react/no-direct-fetch.grit) | GritQL | Yes | `fetch()` calls in `.tsx` component files (use server functions or TanStack Query) |
 | [react/single-component-export](react/single-component-export.grit) | GritQL | Yes | Multiple exported React components in one file (compound components via `Object.assign` are fine) |
 | [react/no-nested-ternary-jsx](react/no-nested-ternary-jsx.grit) | GritQL | Yes | Double-nested ternary expressions in JSX (extract to variables or components) |
+| [react/no-async-effect](react/no-async-effect.grit) | GritQL | Yes | Async operations in useEffect without cleanup, or async useCallback (typically called from effects without cleanup) |
 | [react/hook-count](react/hook-count.md) | Script | No | Components with 7+ hook calls (doing too much, extract custom hook) |
 | [react/prop-count](react/prop-count.md) | Script | No | Components with 8+ props (needs decomposition or context) |
 
@@ -84,6 +85,6 @@ Not every project needs every rule. Use audit findings to guide selection:
 | SSR / bundle splitting | `api/barrel-direction`, `api/barrel-purity`, `api/server-import-context`, `boundary/client-server-infra` |
 | `createServerFn` usage | `structure/server-fn-placement`, `structure/server-fn-validation` |
 | Intra-feature layers | `structure/layer-direction`, `boundary/layer-occupancy`, `boundary/server-no-upward` |
-| React UI | All `react/` rules |
+| React UI | All `react/` rules (including `no-async-effect` if using TanStack Query or similar) |
 | External SDK integrations | `boundary/sdk-containment` |
 | Any TypeScript project | `boundary/cross-boundary-alias`, `boundary/no-test-imports`, `boundary/shared-purity`, `health/file-size` |
