@@ -153,7 +153,11 @@ export const loadItemFn = createServerFn({ method: "GET" })
 
 ### Two-File Split (Escape Hatch)
 
-The compiler's extraction has known edge cases around wrappers and abstractions. If a controller triggers build errors from server-only imports leaking into the client bundle, use a two-file split with dynamic `await import()`:
+For standard controllers — files with direct top-level imports and straightforward `createServerFn` usage — the compiler handles everything. Trampolines and dynamic imports are unnecessary and add complexity for no benefit.
+
+The only known failure mode is abstracting around `createServerFn` itself: wrapping it in helper functions, passing it through intermediaries, or building factory patterns on top of it. The TanStack maintainer explicitly says this is unsupported — the compiler expects direct, top-level `createServerFn` calls.
+
+If you encounter a case where the compiler fails to extract server-only imports from the client bundle (build errors pointing at server-only code in client output), the two-file split is a fallback. Do not reach for it proactively.
 
 ```
 controllers/
