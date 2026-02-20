@@ -37,17 +37,17 @@
 //      .input(           — tRPC-style
 //      .schema(          — alternative validation naming
 //
-// 3. Exemptions for no-input server functions:
-//    Some server functions take no input (e.g., "get current user").
-//    These legitimately chain .handler() without .validator().
-//    Options:
-//      a) Accept the false positive — the agent adds a no-op
-//         validator or restructures to use method: "GET" with
-//         no handler args.
-//      b) Add a comment-based suppression (biome-ignore) on
-//         intentionally unvalidated functions.
-//      c) Scope this rule to POST-method server functions only
-//         (requires a more specific AST match — see extension).
+// 3. No-input server functions:
+//    The default pattern excludes no-input server functions
+//    (those with empty parentheses: `createServerFn().handler(fn)`)
+//    using the `! $args <: .` guard. This means server functions
+//    that take no input (e.g., "get current session") will NOT
+//    trigger this rule, which is the correct behavior since they
+//    have nothing to validate.
+//
+//    If you want stricter enforcement that requires ALL server
+//    functions to have .validator() regardless of input, remove
+//    the `! $args <: .` line from the pattern below.
 //
 // ──────────────────────────────────────────────────────────────────────
 
@@ -57,6 +57,11 @@ file(name=$filename, body=$program) where {
     ! $filename <: r".*/scripts/.*",
 
     $program <: contains bubble `createServerFn($args).handler($handler)` as $chain where {
+        // Exclude no-input server functions (empty parentheses).
+        // GritQL's $args metavariable matches even when there are zero
+        // arguments. The `.` (dot) matches an empty/absent node — negating
+        // it means "args must be non-empty."
+        ! $args <: .,
         register_diagnostic(
             span = $chain,
             message = "createServerFn chains .handler() without .validator(). Add .validator(schema) before .handler() to validate input at the server boundary."
@@ -73,25 +78,13 @@ file(name=$filename, body=$program) where {
 // becomes createServerFn($args).validator($schema).handler($handler),
 // which does NOT match the two-call chain pattern.
 //
+// The `! $args <: .` guard excludes the empty-args case. GritQL's
+// $args metavariable matches even when there are zero arguments,
+// so without this guard, `createServerFn().handler(fn)` would
+// false-positive. The `.` (dot) matches an empty/absent node —
+// negating it means "args must be non-empty."
+//
 // This means:
-//   createServerFn({ method: "POST" }).handler(fn)           — MATCHES (violation)
+//   createServerFn({ method: "POST" }).handler(fn)              — MATCHES (violation)
 //   createServerFn({ method: "POST" }).validator(z).handler(fn) — no match (valid)
-//   createServerFn({ method: "GET" }).handler(fn)            — MATCHES (may be false positive)
-//
-// For GET endpoints that intentionally take no input, suppress
-// with a biome-ignore comment or restructure the code.
-//
-// ── Optional: stricter match for POST only ───────────────────────────
-//
-// To reduce false positives on no-input GET functions, you can
-// attempt a more specific match. Note: GritQL's AST matching
-// depth for object literals varies — test this in your project:
-//
-//     $program <: contains bubble
-//         `createServerFn({ method: "POST" }).handler($handler)` as $chain
-//     where {
-//         register_diagnostic(
-//             span = $chain,
-//             message = "POST server function chains .handler() without .validator(). Add .validator(schema) before .handler() to validate input at the server boundary."
-//         )
-//     }
+//   createServerFn().handler(fn)                                — no match (no input to validate)

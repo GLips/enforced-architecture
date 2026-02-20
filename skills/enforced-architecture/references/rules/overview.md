@@ -42,7 +42,7 @@ Complete index of enforcement rules. Each rule has a template in its tag directo
 | Rule | Mechanism | Blocking | What it prevents |
 |---|---|---|---|
 | [structure/server-fn-placement](structure/server-fn-placement.grit) | GritQL | Yes | `createServerFn` outside `controllers/` directories |
-| [structure/layer-naming](structure/layer-naming.grit) | GritQL | Yes | Wrong layer directory names (e.g., `repository/` instead of `repo/`) |
+| [structure/layer-direction](structure/layer-direction.grit) | GritQL | Yes | Within-feature layer import direction violations (e.g., repo importing controllers) |
 | [structure/deprecated-paths](structure/deprecated-paths.grit) | GritQL | Yes | Imports from removed/renamed paths (e.g., `@/components/*`) |
 | [structure/schema-placement](structure/schema-placement.grit) | GritQL | Yes | Drizzle schema declarations (`pgTable`, `relations`) outside `infrastructure/db/schema/` |
 | [structure/server-fn-validation](structure/server-fn-validation.grit) | GritQL | Yes | `createServerFn` chaining `.handler()` without `.validator()` |
@@ -83,7 +83,7 @@ Not every project needs every rule. Use audit findings to guide selection:
 | Multiple features | `api/feature-public-api`, `graph/feature-deps` |
 | SSR / bundle splitting | `api/barrel-direction`, `api/barrel-purity`, `api/server-import-context`, `boundary/client-server-infra` |
 | `createServerFn` usage | `structure/server-fn-placement`, `structure/server-fn-validation` |
-| Intra-feature layers | `structure/layer-naming`, `boundary/layer-occupancy`, `boundary/server-no-upward` |
+| Intra-feature layers | `structure/layer-direction`, `boundary/layer-occupancy`, `boundary/server-no-upward` |
 | React UI | All `react/` rules |
 | External SDK integrations | `boundary/sdk-containment` |
 | Any TypeScript project | `boundary/cross-boundary-alias`, `boundary/no-test-imports`, `boundary/shared-purity`, `health/file-size` |

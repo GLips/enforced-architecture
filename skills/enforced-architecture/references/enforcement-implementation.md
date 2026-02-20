@@ -65,6 +65,18 @@ When adding a new server-only infrastructure module, add it to both lists. When 
 
 ## Biome GritQL Limitations
 
+### No `#` Comments
+
+Biome's GritQL compiler does not support `#` comments. The only diagnostic is "Failed to compile the Grit plugin" with no detail about the cause. All `.grit` rule files must use `//` comments exclusively. Keep documentation in the companion `.md` files or in `//` comment blocks within the `.grit` file.
+
+### No `export ... from` Pattern Matching
+
+The backtick pattern `` export $_ from $source `` does not match ES re-export syntax like `export { x } from "./server"`. Only `import` statements are reliably matched. For rules that need to catch re-exports, match the string literal directly (e.g., `` `"./server"` ``) instead of trying to match the export syntax. See `api/barrel-direction.grit` for an example.
+
+### `$args` Matches Empty Parentheses
+
+GritQL's metavariable `$args` matches even when there are zero arguments. The pattern `createServerFn($args)` matches both `createServerFn({ method: "POST" })` and `createServerFn()`. To exclude the empty case, use `! $args <: .` — the `.` (dot) matches an empty/absent node. See `structure/server-fn-validation.grit` for an example.
+
 ### No Per-File Counting
 
 GritQL per-file rules cannot aggregate or count matches within a file. Rules that need counting (hook-count, prop-count, file-size) must be structural scripts.

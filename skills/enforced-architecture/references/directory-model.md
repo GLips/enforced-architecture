@@ -56,6 +56,17 @@ Determines how environment variables are organized.
 
 **Recommendation:** Use split for any project with a browser-facing bundle. The cost is two files instead of one. The benefit is mechanical prevention of secret leakage.
 
+**Implementation notes for `@t3-oss/env-core`:**
+
+The env split is not just renaming files — the `runtimeEnv` configuration differs meaningfully between server and client contexts:
+
+- **Server env** uses `runtimeEnv: process.env` — no prefix needed, all server-side vars are available directly.
+- **Client env** uses `runtimeEnv: { VITE_PUBLIC_*: import.meta.env.VITE_PUBLIC_* }` — each public var must be explicitly mapped from Vite's `import.meta.env`.
+- **Exports** should be named differently (`serverEnv` vs `clientEnv`) to make it obvious at import sites which context is being used.
+- **`NODE_ENV`** belongs in server env — it is only available via `process.env`, not `import.meta.env`.
+
+For Vite-based frameworks (TanStack Start, SvelteKit), client env vars must use the `VITE_PUBLIC_` prefix. For Next.js, the prefix is `NEXT_PUBLIC_`. The plan should include the exact env configuration code for the project's framework.
+
 ### Choice 4: Error Architecture
 
 Determines how errors are structured across layers.

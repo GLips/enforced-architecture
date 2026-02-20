@@ -1,4 +1,4 @@
-// ─── structure/layer-naming ─────────────────────────────────────────────
+// ─── structure/layer-direction ──────────────────────────────────────────
 //
 // Tag:      structure
 // Mechanism: GritQL (per-file, real-time)
@@ -10,6 +10,12 @@
 //           import upper layers. This catches the most common structural
 //           mistake: a repo module importing from controllers, a service
 //           module importing from UI, etc.
+//
+// Note:     This rule enforces import DIRECTION between layers, not
+//           directory NAMING conventions. Naming enforcement (rejecting
+//           "repository/" instead of "repo/") requires a structural
+//           script that inspects the filesystem, not a GritQL rule
+//           that inspects file contents.
 //
 // Applies:  All files within feature layer subdirectories:
 //           - features/*/repo/**

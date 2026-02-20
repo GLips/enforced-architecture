@@ -144,7 +144,19 @@ const startImportProtection = {
   server: { files: [] },
 };
 
-tanstackStart({ importProtection: startImportProtection });
+tanstackStart({
+  importProtection: {
+    ...startImportProtection,
+    // Suppress false positives on infrastructure imports from API routes.
+    // TanStack Start traces import chains from route files and warns when
+    // server-only files are reached. API routes (e.g., routes/api/auth/$.tsx)
+    // legitimately import infrastructure through their server function chains.
+    // Infrastructure is server-only by design, and the framework's
+    // `server: { handlers }` pattern correctly tree-shakes these imports
+    // from client bundles.
+    ignoreImporters: [/\/infrastructure\//],
+  },
+});
 ```
 
 ### What Import Protection Catches
