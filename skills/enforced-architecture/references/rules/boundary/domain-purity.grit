@@ -1,58 +1,54 @@
-# ─── boundary/domain-purity ──────────────────────────────────────────
-#
-# Tag:      boundary
-# Mechanism: GritQL (per-file, real-time)
-# Blocking: Yes
-#
-# Prevents: Domain modules importing infrastructure, features, routes,
-#           or environment modules. Domains must be pure business logic
-#           with zero side effects — no DB, no auth, no SDKs, no env
-#           vars. Dependencies are passed as parameters, not imported.
-#           This is the purity guarantee that makes domain logic
-#           portable, testable, and framework-agnostic.
-#
-# Applies:  All src/domains/** files EXCEPT:
-#           - Test files
-#           - Scripts
-#
-# Error:    "Domain modules must be pure business logic. They cannot
-#            import from DB, infrastructure, features, routes, or env
-#            modules. Move side-effectful code to infrastructure/ and
-#            pass dependencies as parameters."
-#
-# ── Adapt ─────────────────────────────────────────────────────────────
-#
-# 1. Domain directory path (the `$filename <:` inclusion line):
-#    Adjust to match where your project places domain modules.
-#    Examples:
-#      .*/src/domains/.*   — standard (this template)
-#      .*/src/domain/.*    — singular naming convention
-#      .*/src/core/.*      — if you call your domain layer "core"
-#
-# 2. Banned import patterns (the `or` block):
-#    Add or remove banned import targets based on your project's
-#    top-level directory structure. The default bans infrastructure,
-#    features, routes, and env. If your project has additional
-#    top-level directories that domains should not import, add them.
-#
-# 3. Env module pattern:
-#    Adjust the env import patterns to match your project's env
-#    module naming. Some projects use @/config instead of @/env.
-#
-# ──────────────────────────────────────────────────────────────────────
+// ─── boundary/domain-purity ──────────────────────────────────────────
+//
+// Tag:      boundary
+// Mechanism: GritQL (per-file, real-time)
+// Blocking: Yes
+//
+// Prevents: Domain modules importing infrastructure, features, routes,
+//           or environment modules. Domains must be pure business logic
+//           with zero side effects — no DB, no auth, no SDKs, no env
+//           vars. Dependencies are passed as parameters, not imported.
+//           This is the purity guarantee that makes domain logic
+//           portable, testable, and framework-agnostic.
+//
+// Applies:  All src/domains/** files EXCEPT:
+//           - Test files
+//           - Scripts
+//
+// Error:    "Domain modules must be pure business logic. They cannot
+//            import from DB, infrastructure, features, routes, or env
+//            modules. Move side-effectful code to infrastructure/ and
+//            pass dependencies as parameters."
+//
+// ── Adapt ─────────────────────────────────────────────────────────────
+//
+// 1. Domain directory path (the `$filename <:` inclusion line):
+//    Adjust to match where your project places domain modules.
+//    Examples:
+//      .*/src/domains/.*   — standard (this template)
+//      .*/src/domain/.*    — singular naming convention
+//      .*/src/core/.*      — if you call your domain layer "core"
+//
+// 2. Banned import patterns (the `or` block):
+//    Add or remove banned import targets based on your project's
+//    top-level directory structure. The default bans infrastructure,
+//    features, routes, and env. If your project has additional
+//    top-level directories that domains should not import, add them.
+//
+// 3. Env module pattern:
+//    Adjust the env import patterns to match your project's env
+//    module naming. Some projects use @/config instead of @/env.
+//
+// ──────────────────────────────────────────────────────────────────────
 
 file(name=$filename, body=$program) where {
     $filename <: r".*/src/domains/.*",
 
-    # --- Global exclusions (shared across all rules) ---
+    // --- Global exclusions (shared across all rules) ---
     ! $filename <: r".*\.test\.[tj]sx?$|.*\.integration\.test\.[tj]sx?$|.*__tests__.*|.*src/test/.*",
     ! $filename <: r".*/scripts/.*",
 
-    $program <: contains bubble or {
-        `import $_ from $source`,
-        `export $_ from $source`,
-        `export * from $source`
-    } as $import where {
+    $program <: contains bubble `import $_ from $source` as $import where {
         or {
             $source <: r"\"@/infrastructure.*\"",
             $source <: r"\"@/features.*\"",

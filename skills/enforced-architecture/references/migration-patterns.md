@@ -38,6 +38,12 @@ Why inside-out: each phase builds on the previous. DB isolation must exist befor
 
 ---
 
+## Test-Driven Migration
+
+Activate enforcement rules **at the start** of each phase, not at the end. Run `check:arch` immediately — the violations are your migration TODO list. The rules tell the implementing agent exactly what needs to change and how (error messages are designed for agents). This is test-driven migration: the rules define the target state, the failures guide the work, and a clean run confirms completion.
+
+This also validates the rules themselves. If a rule doesn't fire when it should, you catch the bug immediately — before relying on it to guard future code.
+
 ## Phase Template
 
 Each migration phase specifies:
@@ -45,8 +51,8 @@ Each migration phase specifies:
 | Field | Content |
 |---|---|
 | **Goal** | One sentence: what invariant does this phase establish? |
-| **Rules activated** | Which enforcement rules become active at the end of this phase |
-| **Changes** | Specific file moves, import rewrites, logic refactoring. Each classified as mechanical or judgment. |
+| **Rules activated** | Which enforcement rules become active at the START of this phase — write/enable the rule, then run `check:arch` to get the violation list |
+| **Changes** | Fix each violation reported by the newly active rules. Classify each fix as mechanical or judgment. |
 | **Verification** | `bun run check:arch && bun run typecheck && bun run test`. All must pass. |
 | **No shims** | No temporary compatibility layers. Each phase is complete in itself. |
 
@@ -79,10 +85,9 @@ Each migration phase specifies:
 
 **Changes:**
 - Move DB client and schema to `infrastructure/db/` if not already there (mechanical)
-- Identify all files importing DB outside `infrastructure/`, `features/*/repo/`, and `features/*/controllers/` (mechanical -- grep for import patterns)
-- For each violation, decide: move the DB query into a repo module, move it into a controller, or create a server function (judgment)
-- Create the `boundary/db-isolation` GritQL rule in `biome/`
-- Add `infrastructure/db/**` to framework import protection client deny lists
+- Write the `boundary/db-isolation` GritQL rule in `biome/` and add `infrastructure/db/**` to framework import protection
+- Run `bun run check:arch` — the violations are your TODO list
+- For each violation: move the DB query into a repo module, move it into a controller, or create a server function (judgment per violation)
 
 **Verification:** `bun run check:arch` passes with the DB isolation rule active. No client-side code can reach the DB.
 
@@ -97,10 +102,9 @@ Each migration phase specifies:
 **Changes:**
 - Identify all third-party SDKs with security sensitivity or configuration complexity (judgment)
 - Create `infrastructure/integrations/` wrappers for each identified SDK (judgment -- API design)
-- Move SDK imports from feature code to infrastructure wrappers (mechanical)
-- Update feature code to import wrappers via `@/infrastructure/integrations/` (mechanical)
-- Create the GritQL rules for SDK containment and client-server infrastructure boundaries
-- Add infrastructure paths to framework import protection
+- Write the GritQL rules for SDK containment and client-server infrastructure boundaries, add infrastructure paths to framework import protection
+- Run `bun run check:arch` — violations show every remaining raw SDK import
+- Fix each violation: update feature code to import wrappers via `@/infrastructure/integrations/` (mechanical)
 
 **Verification:** `bun run check:arch` passes. No feature code imports raw SDK packages.
 
@@ -113,12 +117,11 @@ Each migration phase specifies:
 **Rules activated:** `api/feature-public-api`, `api/domain-public-api`, `api/barrel-direction`, `api/server-import-context`.
 
 **Changes:**
-- Create `index.ts` barrel for every feature (mechanical)
-- Create `server.ts` barrel for features with server-only cross-feature exports (mechanical)
-- Identify all cross-feature deep imports (mechanical -- grep for `@/features/.*/` patterns beyond barrels)
-- Rewrite cross-feature imports to use barrels (mechanical, but requires populating barrels first)
+- Create `index.ts` barrel for every feature and `server.ts` for features with server-only exports (mechanical)
+- Write the GritQL rules for public API enforcement
+- Run `bun run check:arch` — violations show every deep cross-feature import
 - Decide what each feature's public API should expose (judgment -- API design)
-- Create GritQL rules for public API enforcement
+- Populate barrels and rewrite cross-feature imports to use them (mechanical)
 
 **Verification:** `bun run check:arch` passes. All cross-feature imports go through barrels.
 
@@ -131,9 +134,9 @@ Each migration phase specifies:
 **Rules activated:** `boundary/cross-boundary-alias`.
 
 **Changes (all mechanical):**
-- Find all relative imports that cross boundaries: `../` paths resolving from one top-level directory to another, or between features
+- Write the `boundary/cross-boundary-alias` GritQL rule
+- Run `bun run check:arch` — violations list every relative import crossing a boundary
 - Rewrite each to use the `@/` alias
-- Create the `boundary/cross-boundary-alias` GritQL rule
 
 **Verification:** `bun run check:arch` passes. All boundary-crossing imports use `@/`.
 
@@ -146,10 +149,11 @@ Each migration phase specifies:
 **Rules activated:** `boundary/domain-purity`, `boundary/route-thinness`, `boundary/shared-ui-purity`, `structure/server-fn-placement`, `boundary/server-no-upward`, `boundary/shared-purity`, `structure/schema-placement`.
 
 **Changes:**
+- Write all remaining GritQL rules for this phase
+- Run `bun run check:arch` — violations show every misplaced file and wrong-direction import
 - Move misplaced files to correct layer directories (mechanical)
 - Move `createServerFn` calls from non-controller locations to `controllers/` (judgment -- may require refactoring)
 - Move domain logic with side effects into features or infrastructure (judgment)
-- Create remaining GritQL rules
 
 **Verification:** `bun run check:arch` passes with all per-file rules active.
 
@@ -162,9 +166,9 @@ Each migration phase specifies:
 **Rules activated:** `graph/domain-cycles`, `health/file-size`, `health/trampolines` (non-blocking), `boundary/layer-occupancy`, `graph/feature-deps`, `api/barrel-purity`.
 
 **Changes:**
-- Implement check functions in the orchestrator script
-- Create delegated TypeScript scripts for complex analysis
-- Fix any violations found: split oversized files, break cycles, add repo layers where controllers bypass them
+- Implement check functions in the orchestrator script and create delegated TypeScript scripts for complex analysis
+- Run `bun run check:arch` — violations show cycles, oversized files, trampolines, and coupling issues
+- Fix each violation: split oversized files, break cycles, add repo layers where controllers bypass them
 - Track known-oversized files in the file-size check's exclusion list with TODOs
 
 **Verification:** `bun run check:arch` passes with all structural checks active. Full pipeline is operational.

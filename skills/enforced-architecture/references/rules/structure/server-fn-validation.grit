@@ -1,58 +1,58 @@
-# ─── structure/server-fn-validation ──────────────────────────────────────
-#
-# Tag:      structure
-# Mechanism: GritQL (per-file, real-time)
-# Blocking: Yes
-#
-# Prevents: Server functions that accept input without validation.
-#           Every createServerFn that chains .handler() should first
-#           chain .validator() (or .inputValidator()) to ensure input
-#           is validated at the server boundary. Unvalidated server
-#           functions accept arbitrary client input — this is the
-#           primary injection vector for bad data reaching the
-#           database or business logic.
-#
-# Applies:  All src/** files that contain createServerFn calls.
-#           Excludes test files and scripts.
-#
-# Error:    "createServerFn chains .handler() without .validator().
-#            Add .validator(schema) before .handler() to validate
-#            input at the server boundary."
-#
-# ── Adapt ─────────────────────────────────────────────────────────────
-#
-# 1. Server function factory name:
-#    If your framework uses a different factory name, replace
-#    `createServerFn` with the correct identifier.
-#    Examples:
-#      createServerFn     — TanStack Start (this template)
-#      createServerAction — alternative naming
-#
-# 2. Validator method name:
-#    If your framework uses a different validation chaining method,
-#    update the negative lookahead check in the regex.
-#    Examples:
-#      .validator(       — TanStack Start v1 (this template)
-#      .inputValidator(  — TanStack Start alternative
-#      .input(           — tRPC-style
-#      .schema(          — alternative validation naming
-#
-# 3. Exemptions for no-input server functions:
-#    Some server functions take no input (e.g., "get current user").
-#    These legitimately chain .handler() without .validator().
-#    Options:
-#      a) Accept the false positive — the agent adds a no-op
-#         validator or restructures to use method: "GET" with
-#         no handler args.
-#      b) Add a comment-based suppression (biome-ignore) on
-#         intentionally unvalidated functions.
-#      c) Scope this rule to POST-method server functions only
-#         (requires a more specific AST match — see extension).
-#
-# ──────────────────────────────────────────────────────────────────────
+// ─── structure/server-fn-validation ──────────────────────────────────────
+//
+// Tag:      structure
+// Mechanism: GritQL (per-file, real-time)
+// Blocking: Yes
+//
+// Prevents: Server functions that accept input without validation.
+//           Every createServerFn that chains .handler() should first
+//           chain .validator() (or .inputValidator()) to ensure input
+//           is validated at the server boundary. Unvalidated server
+//           functions accept arbitrary client input — this is the
+//           primary injection vector for bad data reaching the
+//           database or business logic.
+//
+// Applies:  All src/** files that contain createServerFn calls.
+//           Excludes test files and scripts.
+//
+// Error:    "createServerFn chains .handler() without .validator().
+//            Add .validator(schema) before .handler() to validate
+//            input at the server boundary."
+//
+// ── Adapt ─────────────────────────────────────────────────────────────
+//
+// 1. Server function factory name:
+//    If your framework uses a different factory name, replace
+//    `createServerFn` with the correct identifier.
+//    Examples:
+//      createServerFn     — TanStack Start (this template)
+//      createServerAction — alternative naming
+//
+// 2. Validator method name:
+//    If your framework uses a different validation chaining method,
+//    update the negative lookahead check in the regex.
+//    Examples:
+//      .validator(       — TanStack Start v1 (this template)
+//      .inputValidator(  — TanStack Start alternative
+//      .input(           — tRPC-style
+//      .schema(          — alternative validation naming
+//
+// 3. Exemptions for no-input server functions:
+//    Some server functions take no input (e.g., "get current user").
+//    These legitimately chain .handler() without .validator().
+//    Options:
+//      a) Accept the false positive — the agent adds a no-op
+//         validator or restructures to use method: "GET" with
+//         no handler args.
+//      b) Add a comment-based suppression (biome-ignore) on
+//         intentionally unvalidated functions.
+//      c) Scope this rule to POST-method server functions only
+//         (requires a more specific AST match — see extension).
+//
+// ──────────────────────────────────────────────────────────────────────
 
 file(name=$filename, body=$program) where {
-    # --- Global exclusions (shared across all rules) ---
+    // --- Global exclusions (shared across all rules) ---
     ! $filename <: r".*\.test\.[tj]sx?$|.*\.integration\.test\.[tj]sx?$|.*__tests__.*|.*src/test/.*",
     ! $filename <: r".*/scripts/.*",
 
@@ -64,34 +64,34 @@ file(name=$filename, body=$program) where {
     }
 }
 
-# ── How this works ───────────────────────────────────────────────────
-#
-# The pattern `createServerFn($args).handler($handler)` matches
-# ONLY when .handler() is chained directly to createServerFn()
-# with no intermediate method call. When .validator() (or any
-# other method) is chained between them, the AST structure
-# becomes createServerFn($args).validator($schema).handler($handler),
-# which does NOT match the two-call chain pattern.
-#
-# This means:
-#   createServerFn({ method: "POST" }).handler(fn)           — MATCHES (violation)
-#   createServerFn({ method: "POST" }).validator(z).handler(fn) — no match (valid)
-#   createServerFn({ method: "GET" }).handler(fn)            — MATCHES (may be false positive)
-#
-# For GET endpoints that intentionally take no input, suppress
-# with a biome-ignore comment or restructure the code.
-#
-# ── Optional: stricter match for POST only ───────────────────────────
-#
-# To reduce false positives on no-input GET functions, you can
-# attempt a more specific match. Note: GritQL's AST matching
-# depth for object literals varies — test this in your project:
-#
-#     $program <: contains bubble
-#         `createServerFn({ method: "POST" }).handler($handler)` as $chain
-#     where {
-#         register_diagnostic(
-#             span = $chain,
-#             message = "POST server function chains .handler() without .validator(). Add .validator(schema) before .handler() to validate input at the server boundary."
-#         )
-#     }
+// ── How this works ───────────────────────────────────────────────────
+//
+// The pattern `createServerFn($args).handler($handler)` matches
+// ONLY when .handler() is chained directly to createServerFn()
+// with no intermediate method call. When .validator() (or any
+// other method) is chained between them, the AST structure
+// becomes createServerFn($args).validator($schema).handler($handler),
+// which does NOT match the two-call chain pattern.
+//
+// This means:
+//   createServerFn({ method: "POST" }).handler(fn)           — MATCHES (violation)
+//   createServerFn({ method: "POST" }).validator(z).handler(fn) — no match (valid)
+//   createServerFn({ method: "GET" }).handler(fn)            — MATCHES (may be false positive)
+//
+// For GET endpoints that intentionally take no input, suppress
+// with a biome-ignore comment or restructure the code.
+//
+// ── Optional: stricter match for POST only ───────────────────────────
+//
+// To reduce false positives on no-input GET functions, you can
+// attempt a more specific match. Note: GritQL's AST matching
+// depth for object literals varies — test this in your project:
+//
+//     $program <: contains bubble
+//         `createServerFn({ method: "POST" }).handler($handler)` as $chain
+//     where {
+//         register_diagnostic(
+//             span = $chain,
+//             message = "POST server function chains .handler() without .validator(). Add .validator(schema) before .handler() to validate input at the server boundary."
+//         )
+//     }

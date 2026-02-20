@@ -1,76 +1,72 @@
-# ─── structure/layer-naming ─────────────────────────────────────────────
-#
-# Tag:      structure
-# Mechanism: GritQL (per-file, real-time)
-# Blocking: Yes
-#
-# Prevents: Within-feature layer direction violations via relative
-#           imports. Enforces the dependency direction:
-#           ui -> controllers -> service -> repo. Lower layers cannot
-#           import upper layers. This catches the most common structural
-#           mistake: a repo module importing from controllers, a service
-#           module importing from UI, etc.
-#
-# Applies:  All files within feature layer subdirectories:
-#           - features/*/repo/**
-#           - features/*/service/**
-#           - features/*/controllers/**
-#           Excludes test files and scripts.
-#
-# Error:    Layer-specific messages:
-#           - "Repo modules cannot import from controllers, service,
-#              or UI layers."
-#           - "Service modules cannot import from controllers or UI
-#              layers."
-#           - "Controller modules cannot import from the UI layer."
-#           Each includes: "Dependency direction: ui -> controllers ->
-#           service -> repo."
-#
-# ── Adapt ─────────────────────────────────────────────────────────────
-#
-# 1. Layer directory names:
-#    Adjust the regex patterns if your project uses different names
-#    for the internal feature layers.
-#    Examples:
-#      repo/          — data access (this template)
-#      data/          — alternative data access name
-#      service/       — orchestration (this template)
-#      usecases/      — alternative orchestration name
-#      controllers/   — delivery boundary (this template)
-#      server/        — alternative delivery name
-#      ui/            — client components (this template)
-#      views/         — alternative UI name
-#
-# 2. Layer order:
-#    The default order is ui -> controllers -> service -> repo.
-#    If your project inserts or removes a layer, update the
-#    relative import patterns accordingly. For example, if you
-#    add an "adapters/" layer between service/ and repo/, add
-#    a new `and {}` block for adapters/ that denies imports
-#    from controllers/ and ui/.
-#
-# 3. Feature path segment:
-#    If your project uses a different top-level name (e.g.,
-#    "modules/" instead of "features/"), update all regex
-#    patterns accordingly.
-#
-# ──────────────────────────────────────────────────────────────────────
+// ─── structure/layer-naming ─────────────────────────────────────────────
+//
+// Tag:      structure
+// Mechanism: GritQL (per-file, real-time)
+// Blocking: Yes
+//
+// Prevents: Within-feature layer direction violations via relative
+//           imports. Enforces the dependency direction:
+//           ui -> controllers -> service -> repo. Lower layers cannot
+//           import upper layers. This catches the most common structural
+//           mistake: a repo module importing from controllers, a service
+//           module importing from UI, etc.
+//
+// Applies:  All files within feature layer subdirectories:
+//           - features/*/repo/**
+//           - features/*/service/**
+//           - features/*/controllers/**
+//           Excludes test files and scripts.
+//
+// Error:    Layer-specific messages:
+//           - "Repo modules cannot import from controllers, service,
+//              or UI layers."
+//           - "Service modules cannot import from controllers or UI
+//              layers."
+//           - "Controller modules cannot import from the UI layer."
+//           Each includes: "Dependency direction: ui -> controllers ->
+//           service -> repo."
+//
+// ── Adapt ─────────────────────────────────────────────────────────────
+//
+// 1. Layer directory names:
+//    Adjust the regex patterns if your project uses different names
+//    for the internal feature layers.
+//    Examples:
+//      repo/          — data access (this template)
+//      data/          — alternative data access name
+//      service/       — orchestration (this template)
+//      usecases/      — alternative orchestration name
+//      controllers/   — delivery boundary (this template)
+//      server/        — alternative delivery name
+//      ui/            — client components (this template)
+//      views/         — alternative UI name
+//
+// 2. Layer order:
+//    The default order is ui -> controllers -> service -> repo.
+//    If your project inserts or removes a layer, update the
+//    relative import patterns accordingly. For example, if you
+//    add an "adapters/" layer between service/ and repo/, add
+//    a new `and {}` block for adapters/ that denies imports
+//    from controllers/ and ui/.
+//
+// 3. Feature path segment:
+//    If your project uses a different top-level name (e.g.,
+//    "modules/" instead of "features/"), update all regex
+//    patterns accordingly.
+//
+// ──────────────────────────────────────────────────────────────────────
 
 file(name=$filename, body=$program) where {
-    # --- Global exclusions (shared across all rules) ---
+    // --- Global exclusions (shared across all rules) ---
     ! $filename <: r".*\.test\.[tj]sx?$|.*\.integration\.test\.[tj]sx?$|.*__tests__.*|.*src/test/.*",
     ! $filename <: r".*/scripts/.*",
 
-    # --- Only applies to files inside feature layer subdirectories ---
+    // --- Only applies to files inside feature layer subdirectories ---
     $filename <: r".*/src/features/[^/]+/(?:repo|service|controllers|ui)/.*",
 
-    $program <: contains bubble or {
-        `import $_ from $source`,
-        `export $_ from $source`,
-        `export * from $source`
-    } as $import where {
+    $program <: contains bubble `import $_ from $source` as $import where {
         or {
-            # --- repo/ is the lowest layer: cannot import anything above ---
+            // --- repo/ is the lowest layer: cannot import anything above ---
             and {
                 $filename <: r".*/src/features/[^/]+/repo/.*",
                 or {
@@ -85,7 +81,7 @@ file(name=$filename, body=$program) where {
                 )
             },
 
-            # --- service/ cannot import controllers/ or ui/ ---
+            // --- service/ cannot import controllers/ or ui/ ---
             and {
                 $filename <: r".*/src/features/[^/]+/service/.*",
                 or {
@@ -99,7 +95,7 @@ file(name=$filename, body=$program) where {
                 )
             },
 
-            # --- controllers/ cannot import ui/ ---
+            // --- controllers/ cannot import ui/ ---
             and {
                 $filename <: r".*/src/features/[^/]+/controllers/.*",
                 or {

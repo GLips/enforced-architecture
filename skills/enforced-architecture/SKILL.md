@@ -56,7 +56,7 @@ Walk the entire codebase. Map what actually exists — reference specific files 
 
 **Done when:** You can describe the current structure with specific file paths. You have identified every structural violation you can find.
 
-**Greenfield note:** For new projects with minimal code, the audit is fast — document the stack, entry points, and any existing structure. Skip to Phase 2.
+**Greenfield fast path:** If the audit reveals ~75 or fewer production source files (files in `src/`, excluding config, generated files, tests, and static assets), compress Phases 1–2 into a single pass: document the stack and entry points, propose the target architecture, and move on. In Phase 4, use a 2–3 step implementation sequence rather than the full atomic migration phases — the enforcement rules will catch anything you miss, so the detailed phased approach isn't necessary at this scale.
 
 ### Phase 2: Propose target architecture
 
@@ -103,19 +103,20 @@ Read [enforcement-strategy.md](references/enforcement-strategy.md) for the two-l
 4. Tag each rule with its enforcement mechanism: **GritQL** (per-file, real-time) or **structural script** (cross-file, pre-commit).
 5. Add project-specific rules not covered by the catalog.
 
-Every rule in the plan must specify:
+The plan's rule set section should be lean — a selection and adaptation table, not a duplication of template content. The templates already contain mechanism, blocking status, error messages, and full implementation details. The plan only needs to capture what's project-specific:
+
+**Included rules table** — For each selected rule:
 
 | Field | Required content |
 |---|---|
-| **Name** | `tag/descriptive-name` format (e.g., `boundary/db-isolation`) |
-| **Mechanism** | GritQL or structural script |
-| **Blocking** | Yes (default) or No (with justification) |
-| **What it prevents** | The violation, with concrete example if one exists |
-| **Where it applies** | File patterns or directories |
-| **Error message** | Agent-readable: what's wrong, why, how to fix |
-| **Template** | Reference to the skill template file (e.g., `enforced-architecture skill: references/rules/boundary/db-isolation.grit`) |
+| **Rule** | `tag/descriptive-name` format (e.g., `boundary/db-isolation`) |
+| **Adaptation** | Project-specific path patterns, package lists, thresholds, or "Standard" if no adaptation needed |
 
-**Done when:** Every architectural constraint has a corresponding rule with all fields completed. Every rule specifies its enforcement mechanism and references a template.
+**Excluded rules table** — For each rule from the catalog that was NOT selected, with the reason (e.g., "No domains layer").
+
+Implementing agents read the full template from the skill's `references/rules/<tag>/` directory for everything else (mechanism, blocking status, error messages, implementation patterns).
+
+**Done when:** Every architectural constraint has a corresponding rule selected from the catalog (or added as project-specific). Every selected rule notes its project-specific adaptations.
 
 ### Phase 4: Plan implementation
 
@@ -147,12 +148,14 @@ Each subagent reads the relevant templates from the skill's `references/rules/<t
 
 ### Phase 5: Assemble the plan document
 
+Write the plan to `docs/plans/<date>-enforced-architecture-plan.md` (e.g., `docs/plans/2026-02-19-enforced-architecture-plan.md`).
+
 Combine all phases into a single document:
 
 1. **Decision Summary** — Core architectural decisions and rationale. Which configurable choices were made and why.
 2. **Target Architecture** — Directory layout (annotated tree), responsibility split table, dependency graph, public API conventions, server/client file naming.
 3. **Import Boundary Matrix** — Top-level matrix, within-feature boundaries, cross-feature rules, SDK containment configuration.
-4. **Concrete Rule Set** — All rules from Phase 3, grouped by tag. Each with: name, mechanism, blocking status, what it prevents, where it applies, error message, and skill template reference.
+4. **Rule Selection** — Included rules table (rule + adaptation notes) and excluded rules table (rule + reason). See Phase 3 for the format.
 5. **Implementation Checklist** (greenfield) or **Migration Plan** (existing) — From Phase 4.
 6. **Current Violations** (migration only) — Prioritized from the audit, with specific file paths and fix descriptions.
 

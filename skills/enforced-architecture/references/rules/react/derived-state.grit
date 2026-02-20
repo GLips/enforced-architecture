@@ -1,64 +1,64 @@
-# ─── react/derived-state ─────────────────────────────────────────────
-#
-# Tag:      react
-# Mechanism: GritQL (per-file, real-time)
-# Blocking: Yes
-#
-# Prevents: The "derived state" anti-pattern where useState + useEffect
-#           is used to synchronize a value that could be computed inline
-#           or with useMemo. The pattern is:
-#
-#             const [derived, setDerived] = useState(...)
-#             useEffect(() => { setDerived(compute(dep)) }, [dep])
-#
-#           This should be:
-#             const derived = useMemo(() => compute(dep), [dep])
-#           or simply:
-#             const derived = compute(dep)
-#
-#           The anti-pattern causes unnecessary re-renders (state update
-#           triggers a render, then effect runs and triggers another),
-#           introduces timing bugs (stale value on first render), and
-#           adds complexity for what is fundamentally a computation.
-#
-# Applies:  All .tsx and .ts files EXCEPT:
-#           - Test files and scripts
-#
-# Error:    "useState setter called inside useEffect is a derived state
-#            anti-pattern. Compute the value directly with useMemo() or
-#            inline computation instead of syncing via state + effect."
-#
-# ── Adapt ─────────────────────────────────────────────────────────────
-#
-# 1. File scope:
-#    This rule applies to all component files. If your project uses a
-#    different extension convention (e.g., .jsx), adjust the filename
-#    exclusion patterns accordingly. No directory restriction is needed
-#    since useState/useEffect only appear in component code.
-#
-# 2. Setter naming convention:
-#    The pattern matches any identifier starting with "set" inside
-#    useEffect. If your project uses a different naming convention for
-#    state setters, adjust the regex on the setter match.
-#
-# 3. False positive tolerance:
-#    Some legitimate uses exist (e.g., debounced state updates, event
-#    listener state syncs). If false positives are common, consider
-#    making this rule non-blocking. The default is blocking because
-#    the anti-pattern is far more common than the legitimate uses.
-#
-# ──────────────────────────────────────────────────────────────────────
+// ─── react/derived-state ─────────────────────────────────────────────
+//
+// Tag:      react
+// Mechanism: GritQL (per-file, real-time)
+// Blocking: Yes
+//
+// Prevents: The "derived state" anti-pattern where useState + useEffect
+//           is used to synchronize a value that could be computed inline
+//           or with useMemo. The pattern is:
+//
+//             const [derived, setDerived] = useState(...)
+//             useEffect(() => { setDerived(compute(dep)) }, [dep])
+//
+//           This should be:
+//             const derived = useMemo(() => compute(dep), [dep])
+//           or simply:
+//             const derived = compute(dep)
+//
+//           The anti-pattern causes unnecessary re-renders (state update
+//           triggers a render, then effect runs and triggers another),
+//           introduces timing bugs (stale value on first render), and
+//           adds complexity for what is fundamentally a computation.
+//
+// Applies:  All .tsx and .ts files EXCEPT:
+//           - Test files and scripts
+//
+// Error:    "useState setter called inside useEffect is a derived state
+//            anti-pattern. Compute the value directly with useMemo() or
+//            inline computation instead of syncing via state + effect."
+//
+// ── Adapt ─────────────────────────────────────────────────────────────
+//
+// 1. File scope:
+//    This rule applies to all component files. If your project uses a
+//    different extension convention (e.g., .jsx), adjust the filename
+//    exclusion patterns accordingly. No directory restriction is needed
+//    since useState/useEffect only appear in component code.
+//
+// 2. Setter naming convention:
+//    The pattern matches any identifier starting with "set" inside
+//    useEffect. If your project uses a different naming convention for
+//    state setters, adjust the regex on the setter match.
+//
+// 3. False positive tolerance:
+//    Some legitimate uses exist (e.g., debounced state updates, event
+//    listener state syncs). If false positives are common, consider
+//    making this rule non-blocking. The default is blocking because
+//    the anti-pattern is far more common than the legitimate uses.
+//
+// ──────────────────────────────────────────────────────────────────────
 
 file(name=$filename, body=$program) where {
-    # --- Global exclusions (shared across all rules) ---
+    // --- Global exclusions (shared across all rules) ---
     ! $filename <: r".*\.test\.[tj]sx?$|.*\.integration\.test\.[tj]sx?$|.*__tests__.*|.*src/test/.*",
     ! $filename <: r".*/scripts/.*",
 
-    # Match useEffect calls with two arguments (callback + deps array).
-    # The first argument ($callback) is the effect callback; we check
-    # whether it contains a useState setter call (set* pattern).
-    # This scopes the setter detection to the effect body, avoiding
-    # false positives from setters used elsewhere in the component.
+    // Match useEffect calls with two arguments (callback + deps array).
+    // The first argument ($callback) is the effect callback; we check
+    // whether it contains a useState setter call (set* pattern).
+    // This scopes the setter detection to the effect body, avoiding
+    // false positives from setters used elsewhere in the component.
     $program <: contains bubble `useEffect($callback, $_)` as $effect where {
         $callback <: contains `$setter($_)` where {
             $setter <: r"set[A-Z].*"

@@ -1,96 +1,92 @@
-# ─── boundary/cross-boundary-alias ───────────────────────────────────
-#
-# Tag:      boundary
-# Mechanism: GritQL (per-file, real-time)
-# Blocking: Yes
-#
-# Prevents: Relative imports (../) that cross top-level directory
-#           boundaries. All import-path-based enforcement rules
-#           pattern-match on aliased paths (@/features/...,
-#           @/infrastructure/..., etc.). A relative import that
-#           crosses into another top-level directory produces a
-#           different string that other rules cannot match, creating
-#           an undetectable bypass vector. This rule closes that hole.
-#
-#           Within a feature or within a subdirectory, relative
-#           imports are expected and correct. The rule only fires
-#           when an import crosses from one top-level directory to
-#           another (features/ to infrastructure/, domains/ to
-#           features/, etc.) or from one feature to another.
-#
-# Applies:  All src/** files EXCEPT:
-#           - Test files
-#
-# Error:    "Cross-boundary imports must use the @/ path alias. Use
-#            @/domains/..., @/features/..., etc. instead of relative
-#            paths. Relative imports are only valid within the same
-#            feature or the same top-level directory."
-#
-# ── Adapt ─────────────────────────────────────────────────────────────
-#
-# 1. Top-level directories (the `and` blocks):
-#    Each `and` block handles one source directory detecting
-#    relative imports into other top-level directories. Add or
-#    remove blocks to match your project's top-level structure.
-#    The default covers: domains, features, infrastructure, shared,
-#    routes. If your project has additional top-level dirs (e.g.,
-#    core/, lib/, utils/), add corresponding blocks.
-#
-# 2. Cross-feature detection:
-#    The features block has two sub-patterns: one for relative
-#    imports into other top-level directories, and one for relative
-#    imports into other features (../../features/other-feature).
-#    This prevents features from using relative paths to reach
-#    sibling features, which would bypass feature public API rules.
-#
-# 3. Path alias prefix:
-#    This rule assumes @/ as the alias prefix. If your project uses
-#    a different alias (e.g., ~/, #/), update the error message.
-#    The rule itself does not check for @/ — it checks for ../
-#    paths that cross boundaries.
-#
-# ──────────────────────────────────────────────────────────────────────
+// ─── boundary/cross-boundary-alias ───────────────────────────────────
+//
+// Tag:      boundary
+// Mechanism: GritQL (per-file, real-time)
+// Blocking: Yes
+//
+// Prevents: Relative imports (../) that cross top-level directory
+//           boundaries. All import-path-based enforcement rules
+//           pattern-match on aliased paths (@/features/...,
+//           @/infrastructure/..., etc.). A relative import that
+//           crosses into another top-level directory produces a
+//           different string that other rules cannot match, creating
+//           an undetectable bypass vector. This rule closes that hole.
+//
+//           Within a feature or within a subdirectory, relative
+//           imports are expected and correct. The rule only fires
+//           when an import crosses from one top-level directory to
+//           another (features/ to infrastructure/, domains/ to
+//           features/, etc.) or from one feature to another.
+//
+// Applies:  All src/** files EXCEPT:
+//           - Test files
+//
+// Error:    "Cross-boundary imports must use the @/ path alias. Use
+//            @/domains/..., @/features/..., etc. instead of relative
+//            paths. Relative imports are only valid within the same
+//            feature or the same top-level directory."
+//
+// ── Adapt ─────────────────────────────────────────────────────────────
+//
+// 1. Top-level directories (the `and` blocks):
+//    Each `and` block handles one source directory detecting
+//    relative imports into other top-level directories. Add or
+//    remove blocks to match your project's top-level structure.
+//    The default covers: domains, features, infrastructure, shared,
+//    routes. If your project has additional top-level dirs (e.g.,
+//    core/, lib/, utils/), add corresponding blocks.
+//
+// 2. Cross-feature detection:
+//    The features block has two sub-patterns: one for relative
+//    imports into other top-level directories, and one for relative
+//    imports into other features (../../features/other-feature).
+//    This prevents features from using relative paths to reach
+//    sibling features, which would bypass feature public API rules.
+//
+// 3. Path alias prefix:
+//    This rule assumes @/ as the alias prefix. If your project uses
+//    a different alias (e.g., ~/, #/), update the error message.
+//    The rule itself does not check for @/ — it checks for ../
+//    paths that cross boundaries.
+//
+// ──────────────────────────────────────────────────────────────────────
 
 file(name=$filename, body=$program) where {
-    # --- Global exclusions (shared across all rules) ---
+    // --- Global exclusions (shared across all rules) ---
     ! $filename <: r".*\.test\.[tj]sx?$|.*\.integration\.test\.[tj]sx?$|.*__tests__.*|.*src/test/.*",
 
     $filename <: r".*/src/.*",
 
-    $program <: contains bubble or {
-        `import $_ from $source`,
-        `export $_ from $source`,
-        `export * from $source`
-    } as $import where {
-        # Only examine relative imports
+    $program <: contains bubble `import $_ from $source` as $import where {
+        // Only examine relative imports
         $source <: r"\"\.\..*\"",
         or {
-            # domains/ reaching into other top-level dirs (including other domains)
+            // domains/ reaching into other top-level dirs (including other domains)
             and {
                 $filename <: r".*/src/domains/[^/]+/.*",
                 $source <: r"\"(?:\.\./)*(?:domains|features|infrastructure|shared|routes)/.*\""
             },
-            # features/ reaching into non-feature top-level dirs
+            // features/ reaching into non-feature top-level dirs
             and {
                 $filename <: r".*/src/features/[^/]+/.*",
                 $source <: r"\"(?:\.\./)*(?:domains|infrastructure|shared|routes)/.*\""
             },
-            # features/ reaching into other features via relative path
+            // features/ reaching into other features via relative path
             and {
                 $filename <: r".*/src/features/[^/]+/.*",
                 $source <: r"\"(?:\.\./)*features/.*\""
             },
-            # infrastructure/ reaching into other top-level dirs
+            // infrastructure/ reaching into other top-level dirs
             and {
                 $filename <: r".*/src/infrastructure/.*",
                 $source <: r"\"(?:\.\./)*(?:domains|features|shared|routes)/.*\""
             },
-            # shared/ reaching into other top-level dirs
+            // shared/ reaching into other top-level dirs
             and {
                 $filename <: r".*/src/shared/.*",
                 $source <: r"\"(?:\.\./)*(?:domains|features|infrastructure|routes)/.*\""
             },
-            # routes/ reaching into other top-level dirs
+            // routes/ reaching into other top-level dirs
             and {
                 $filename <: r".*/src/routes/.*",
                 $source <: r"\"(?:\.\./)*(?:domains|features|infrastructure|shared)/.*\""

@@ -1,73 +1,69 @@
-# ─── api/feature-public-api ──────────────────────────────────────────
-#
-# Tag:      api
-# Mechanism: GritQL (per-file, real-time)
-# Blocking: Yes
-#
-# Prevents: Deep imports into feature internals (controllers/, service/,
-#           repo/) from outside the feature, bypassing the public API
-#           barrel. Features expose their API through `index.ts`
-#           (client-safe) and `server.ts` (server-only). Without this
-#           rule, consumers couple to internal file layout, making
-#           feature restructuring impossible without cascading changes.
-#
-#           Three caller contexts have different allowed deep-import
-#           patterns:
-#           - Routes: may import /server and /ui/* (page composition)
-#           - Other features: may import /server only
-#           - Domains/shared/infrastructure: barrel only, no deep imports
-#
-# Applies:  All src/** files EXCEPT:
-#           - Test files and scripts
-#           (Files inside the same feature are excluded by the
-#            same-feature check in the cross-feature branch.)
-#
-# Error:    Context-specific messages explaining which deep imports
-#           are allowed from the caller's location.
-#
-# ── Adapt ────────────────────────────────────────────────────────────
-#
-# 1. Route exception patterns:
-#    Adjust the route directory pattern if your project uses a
-#    different transport layer name.
-#    Examples:
-#      .*/src/routes/.*     — file-based routing (this template)
-#      .*/src/pages/.*      — Next.js-style pages
-#      .*/src/app/.*        — Next.js app router
-#
-# 2. UI deep-import exception:
-#    If your project does not allow routes to import feature UI
-#    directly (all UI goes through barrels), remove the ui/* exception
-#    from the routes branch.
-#
-# 3. Cross-feature server exception:
-#    If your project does not use server-only barrels, remove the
-#    /server exception from the cross-feature branch.
-#
-# 4. Lower-layer restriction:
-#    The third branch blocks ALL deep feature imports from domains,
-#    shared, and infrastructure. If your project allows infrastructure
-#    to deep-import features (unusual), adjust the pattern.
-#
-# ─────────────────────────────────────────────────────────────────────
+// ─── api/feature-public-api ──────────────────────────────────────────
+//
+// Tag:      api
+// Mechanism: GritQL (per-file, real-time)
+// Blocking: Yes
+//
+// Prevents: Deep imports into feature internals (controllers/, service/,
+//           repo/) from outside the feature, bypassing the public API
+//           barrel. Features expose their API through `index.ts`
+//           (client-safe) and `server.ts` (server-only). Without this
+//           rule, consumers couple to internal file layout, making
+//           feature restructuring impossible without cascading changes.
+//
+//           Three caller contexts have different allowed deep-import
+//           patterns:
+//           - Routes: may import /server and /ui/* (page composition)
+//           - Other features: may import /server only
+//           - Domains/shared/infrastructure: barrel only, no deep imports
+//
+// Applies:  All src/** files EXCEPT:
+//           - Test files and scripts
+//           (Files inside the same feature are excluded by the
+//            same-feature check in the cross-feature branch.)
+//
+// Error:    Context-specific messages explaining which deep imports
+//           are allowed from the caller's location.
+//
+// ── Adapt ────────────────────────────────────────────────────────────
+//
+// 1. Route exception patterns:
+//    Adjust the route directory pattern if your project uses a
+//    different transport layer name.
+//    Examples:
+//      .*/src/routes/.*     — file-based routing (this template)
+//      .*/src/pages/.*      — Next.js-style pages
+//      .*/src/app/.*        — Next.js app router
+//
+// 2. UI deep-import exception:
+//    If your project does not allow routes to import feature UI
+//    directly (all UI goes through barrels), remove the ui/* exception
+//    from the routes branch.
+//
+// 3. Cross-feature server exception:
+//    If your project does not use server-only barrels, remove the
+//    /server exception from the cross-feature branch.
+//
+// 4. Lower-layer restriction:
+//    The third branch blocks ALL deep feature imports from domains,
+//    shared, and infrastructure. If your project allows infrastructure
+//    to deep-import features (unusual), adjust the pattern.
+//
+// ─────────────────────────────────────────────────────────────────────
 
 file(name=$filename, body=$program) where {
-    # --- Global exclusions (shared across all rules) ---
+    // --- Global exclusions (shared across all rules) ---
     ! $filename <: r".*\.test\.[tj]sx?$|.*\.integration\.test\.[tj]sx?$|.*__tests__.*|.*src/test/.*",
     ! $filename <: r".*/scripts/.*",
 
-    $program <: contains bubble or {
-        `import $_ from $source`,
-        `export $_ from $source`,
-        `export * from $source`
-    } as $import where {
-        # Match any deep import into a feature: @/features/<name>/<anything>
+    $program <: contains bubble `import $_ from $source` as $import where {
+        // Match any deep import into a feature: @/features/<name>/<anything>
         $source <: r"\"@/features/[^/]+/.+\"",
 
         or {
-            # --- Branch 1: Routes ---
-            # Routes may deep-import /server and /ui/*. All other deep
-            # imports are violations.
+            // --- Branch 1: Routes ---
+            // Routes may deep-import /server and /ui/*. All other deep
+            // imports are violations.
             and {
                 $filename <: r".*/src/routes/.*",
                 ! $source <: r"\"@/features/[^/]+/server\"",
@@ -78,9 +74,9 @@ file(name=$filename, body=$program) where {
                 )
             },
 
-            # --- Branch 2: Cross-feature ---
-            # A feature importing another feature may only use /server.
-            # Same-feature imports are excluded (the feature names match).
+            // --- Branch 2: Cross-feature ---
+            // A feature importing another feature may only use /server.
+            // Same-feature imports are excluded (the feature names match).
             and {
                 $filename <: r".*/src/features/([^/]+)/.*"($file_feat),
                 $source <: r"\"@/features/([^/]+)/.+\""($import_feat),
@@ -92,9 +88,9 @@ file(name=$filename, body=$program) where {
                 )
             },
 
-            # --- Branch 3: Lower layers ---
-            # Domains, shared, and infrastructure may only use the
-            # barrel import (@/features/<feature>). No deep imports.
+            // --- Branch 3: Lower layers ---
+            // Domains, shared, and infrastructure may only use the
+            // barrel import (@/features/<feature>). No deep imports.
             and {
                 $filename <: r".*/src/(?:domains|shared|infrastructure)/.*",
                 register_diagnostic(

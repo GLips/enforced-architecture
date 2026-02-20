@@ -1,82 +1,78 @@
-# ─── boundary/sdk-containment ────────────────────────────────────────
-#
-# Tag:      boundary
-# Mechanism: GritQL (per-file, real-time)
-# Blocking: Yes
-#
-# Prevents: Direct imports of wrapped third-party SDK packages from
-#           anywhere outside infrastructure/. SDKs that require
-#           configuration (API keys, client options, retry policies)
-#           must be wrapped in an infrastructure adapter. Consumer code
-#           imports the adapter, never the raw package. This ensures
-#           API keys live in one place, SDK upgrades are absorbed in
-#           one place, and provider swaps affect one module.
-#
-# Applies:  All src/** files EXCEPT:
-#           - src/infrastructure/** (IS the wrapper layer)
-#           - Approved app entrypoints (router, root route, client)
-#           - Instrumentation files
-#           - Test files and scripts
-#
-# Error:    "Direct provider SDK imports are restricted to
-#            infrastructure/ modules (except approved app entrypoints).
-#            Import the configured adapter from @/infrastructure/...
-#            instead."
-#
-# ── Adapt ─────────────────────────────────────────────────────────────
-#
-# 1. SDK package list (the `or` block matching $source):
-#    Replace with the actual SDK packages your project wraps.
-#    Each entry is a regex matching the package's import specifier.
-#    Examples:
-#      $source <: r"\"stripe\""
-#      $source <: r"\"better-auth\""
-#      $source <: r"\"better-auth/.*\""
-#      $source <: r"\"posthog-node\""
-#      $source <: r"\"@sentry/.*\""
-#      $source <: r"\"@aws-sdk/.*\""
-#
-# 2. Infrastructure directory (the exclusion line):
-#    Adjust if your wrapper layer has a different name.
-#    Examples:
-#      .*/src/infrastructure/.*   — standard (this template)
-#      .*/src/infra/.*            — abbreviated naming
-#      .*/src/adapters/.*         — ports-and-adapters naming
-#
-# 3. App entrypoint exclusions:
-#    Some framework entrypoints need direct SDK access (e.g.,
-#    Sentry instrumentation, auth provider setup in root layout).
-#    Add these as filename exclusions. Keep the list minimal —
-#    every exclusion is a potential bypass vector.
-#
-# 4. Layer-restricted vs. wrapped:
-#    This rule is for WRAPPED SDKs only (banned outside infra).
-#    Layer-restricted SDKs (like ORMs allowed in repo/ files)
-#    should use db-isolation or a separate layer-restriction rule.
-#
-# ──────────────────────────────────────────────────────────────────────
+// ─── boundary/sdk-containment ────────────────────────────────────────
+//
+// Tag:      boundary
+// Mechanism: GritQL (per-file, real-time)
+// Blocking: Yes
+//
+// Prevents: Direct imports of wrapped third-party SDK packages from
+//           anywhere outside infrastructure/. SDKs that require
+//           configuration (API keys, client options, retry policies)
+//           must be wrapped in an infrastructure adapter. Consumer code
+//           imports the adapter, never the raw package. This ensures
+//           API keys live in one place, SDK upgrades are absorbed in
+//           one place, and provider swaps affect one module.
+//
+// Applies:  All src/** files EXCEPT:
+//           - src/infrastructure/** (IS the wrapper layer)
+//           - Approved app entrypoints (router, root route, client)
+//           - Instrumentation files
+//           - Test files and scripts
+//
+// Error:    "Direct provider SDK imports are restricted to
+//            infrastructure/ modules (except approved app entrypoints).
+//            Import the configured adapter from @/infrastructure/...
+//            instead."
+//
+// ── Adapt ─────────────────────────────────────────────────────────────
+//
+// 1. SDK package list (the `or` block matching $source):
+//    Replace with the actual SDK packages your project wraps.
+//    Each entry is a regex matching the package's import specifier.
+//    Examples:
+//      $source <: r"\"stripe\""
+//      $source <: r"\"better-auth\""
+//      $source <: r"\"better-auth/.*\""
+//      $source <: r"\"posthog-node\""
+//      $source <: r"\"@sentry/.*\""
+//      $source <: r"\"@aws-sdk/.*\""
+//
+// 2. Infrastructure directory (the exclusion line):
+//    Adjust if your wrapper layer has a different name.
+//    Examples:
+//      .*/src/infrastructure/.*   — standard (this template)
+//      .*/src/infra/.*            — abbreviated naming
+//      .*/src/adapters/.*         — ports-and-adapters naming
+//
+// 3. App entrypoint exclusions:
+//    Some framework entrypoints need direct SDK access (e.g.,
+//    Sentry instrumentation, auth provider setup in root layout).
+//    Add these as filename exclusions. Keep the list minimal —
+//    every exclusion is a potential bypass vector.
+//
+// 4. Layer-restricted vs. wrapped:
+//    This rule is for WRAPPED SDKs only (banned outside infra).
+//    Layer-restricted SDKs (like ORMs allowed in repo/ files)
+//    should use db-isolation or a separate layer-restriction rule.
+//
+// ──────────────────────────────────────────────────────────────────────
 
 file(name=$filename, body=$program) where {
-    # --- Global exclusions (shared across all rules) ---
+    // --- Global exclusions (shared across all rules) ---
     ! $filename <: r".*\.test\.[tj]sx?$|.*\.integration\.test\.[tj]sx?$|.*__tests__.*|.*src/test/.*",
     ! $filename <: r".*/scripts/.*",
 
-    # --- Layer exclusion (who IS allowed to import raw SDKs) ---
+    // --- Layer exclusion (who IS allowed to import raw SDKs) ---
     ! $filename <: r".*/src/infrastructure/.*",
 
-    # --- App entrypoint exclusions (framework-required SDK access) ---
-    # Adjust these to your project's entrypoint files.
+    // --- App entrypoint exclusions (framework-required SDK access) ---
+    // Adjust these to your project's entrypoint files.
     ! $filename <: r".*/src/router\.[tj]sx?$",
     ! $filename <: r".*/src/routes/__root\.[tj]sx?$",
     ! $filename <: r".*/src/client\.[tj]sx?$",
     ! $filename <: r".*instrument\.server\.mjs$",
 
-    $program <: contains bubble or {
-        `import $_ from $source`,
-        `export $_ from $source`,
-        `export * from $source`
-    } as $import where {
-        # --- Replace with your project's wrapped SDK packages ---
+    $program <: contains bubble `import $_ from $source` as $import where {
+        // --- Replace with your project's wrapped SDK packages ---
         or {
             $source <: r"\"stripe\"",
             $source <: r"\"better-auth\"",
@@ -84,10 +80,10 @@ file(name=$filename, body=$program) where {
             $source <: r"\"posthog-node\"",
             $source <: r"\"@sentry/.*\"",
             $source <: r"\"@loops-so/.*\""
-            # Add your project's wrapped SDK packages here:
-            # $source <: r"\"@aws-sdk/.*\"",
-            # $source <: r"\"firebase-admin\"",
-            # $source <: r"\"@sendgrid/.*\"",
+            // Add your project's wrapped SDK packages here:
+            // $source <: r"\"@aws-sdk/.*\"",
+            // $source <: r"\"firebase-admin\"",
+            // $source <: r"\"@sendgrid/.*\"",
         },
         register_diagnostic(
             span = $import,

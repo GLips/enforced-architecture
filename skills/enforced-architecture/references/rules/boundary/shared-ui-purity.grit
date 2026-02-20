@@ -1,58 +1,54 @@
-# ─── boundary/shared-ui-purity ───────────────────────────────────────
-#
-# Tag:      boundary
-# Mechanism: GritQL (per-file, real-time)
-# Blocking: Yes
-#
-# Prevents: Shared UI components importing from features, domains,
-#           infrastructure, or routes. Shared UI must be domain-agnostic
-#           presentational primitives (buttons, modals, form inputs,
-#           layout components). If a component needs business logic or
-#           feature-specific data, it belongs in features/*/ui/, not in
-#           shared/ui/. This boundary ensures shared UI components are
-#           reusable across any feature without dragging in dependencies.
-#
-# Applies:  All src/shared/ui/** files EXCEPT:
-#           - Test files
-#
-# Error:    "shared/ui/* modules must be domain-agnostic UI primitives.
-#            They cannot import from features, domains, infrastructure,
-#            or routes."
-#
-# ── Adapt ─────────────────────────────────────────────────────────────
-#
-# 1. Shared UI directory path (the `$filename <:` inclusion line):
-#    Adjust to match where your project places shared UI.
-#    Examples:
-#      .*/src/shared/ui/.*     — nested under shared (this template)
-#      .*/src/ui/.*            — top-level UI directory
-#      .*/src/components/.*    — if you call shared UI "components"
-#
-# 2. Banned import patterns (the `or` block):
-#    The default bans features, domains, infrastructure, and routes.
-#    Shared UI sits at the bottom of the dependency graph alongside
-#    shared utilities. Adjust if your project has additional top-level
-#    directories that shared UI should not import.
-#
-# 3. Env access:
-#    The template allows shared UI to import @/env.client (for
-#    client-safe config like CDN URLs or feature flags). If your
-#    project requires shared UI to be completely env-agnostic, add:
-#      $source <: r"\"@/env.*\""
-#
-# ──────────────────────────────────────────────────────────────────────
+// ─── boundary/shared-ui-purity ───────────────────────────────────────
+//
+// Tag:      boundary
+// Mechanism: GritQL (per-file, real-time)
+// Blocking: Yes
+//
+// Prevents: Shared UI components importing from features, domains,
+//           infrastructure, or routes. Shared UI must be domain-agnostic
+//           presentational primitives (buttons, modals, form inputs,
+//           layout components). If a component needs business logic or
+//           feature-specific data, it belongs in features/*/ui/, not in
+//           shared/ui/. This boundary ensures shared UI components are
+//           reusable across any feature without dragging in dependencies.
+//
+// Applies:  All src/shared/ui/** files EXCEPT:
+//           - Test files
+//
+// Error:    "shared/ui/* modules must be domain-agnostic UI primitives.
+//            They cannot import from features, domains, infrastructure,
+//            or routes."
+//
+// ── Adapt ─────────────────────────────────────────────────────────────
+//
+// 1. Shared UI directory path (the `$filename <:` inclusion line):
+//    Adjust to match where your project places shared UI.
+//    Examples:
+//      .*/src/shared/ui/.*     — nested under shared (this template)
+//      .*/src/ui/.*            — top-level UI directory
+//      .*/src/components/.*    — if you call shared UI "components"
+//
+// 2. Banned import patterns (the `or` block):
+//    The default bans features, domains, infrastructure, and routes.
+//    Shared UI sits at the bottom of the dependency graph alongside
+//    shared utilities. Adjust if your project has additional top-level
+//    directories that shared UI should not import.
+//
+// 3. Env access:
+//    The template allows shared UI to import @/env.client (for
+//    client-safe config like CDN URLs or feature flags). If your
+//    project requires shared UI to be completely env-agnostic, add:
+//      $source <: r"\"@/env.*\""
+//
+// ──────────────────────────────────────────────────────────────────────
 
 file(name=$filename, body=$program) where {
     $filename <: r".*/src/shared/ui/.*",
 
-    # --- Global exclusions (shared across all rules) ---
+    // --- Global exclusions (shared across all rules) ---
     ! $filename <: r".*\.test\.[tj]sx?$|.*\.integration\.test\.[tj]sx?$|.*__tests__.*|.*src/test/.*",
 
-    $program <: contains bubble or {
-        `import $_ from $source`,
-        `export $_ from $source`,
-        `export * from $source`
-    } as $import where {
+    $program <: contains bubble `import $_ from $source` as $import where {
         or {
             $source <: r"\"@/features.*\"",
             $source <: r"\"@/domains.*\"",

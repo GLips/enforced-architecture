@@ -63,6 +63,14 @@ When adding a new server-only infrastructure module, add it to both lists. When 
 
 ---
 
+## Biome GritQL Limitations
+
+### No Per-File Counting
+
+GritQL per-file rules cannot aggregate or count matches within a file. Rules that need counting (hook-count, prop-count, file-size) must be structural scripts.
+
+---
+
 ## Adding a New GritQL Rule
 
 1. Read the relevant rule template from `rules/<tag>/<name>.grit`

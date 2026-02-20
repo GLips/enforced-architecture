@@ -1,73 +1,69 @@
-# ─── boundary/db-isolation ────────────────────────────────────────────
-#
-# Tag:      boundary
-# Mechanism: GritQL (per-file, real-time)
-# Blocking: Yes
-#
-# Prevents: Code outside the data-access layers importing database
-#           modules directly, bypassing the repo or controller layer.
-#           This is the single most important boundary rule — it
-#           enforces that all DB access flows through designated layers.
-#
-# Applies:  All src/** files EXCEPT:
-#           - infrastructure/db/** (IS the DB layer)
-#           - features/*/repo/** (designated DB access layer)
-#           - features/*/controllers/** (when no repo layer exists)
-#           - ORM config files (drizzle.config.ts)
-#           - Test files and scripts
-#
-# Error:    "DB client/schema imports are restricted to
-#            infrastructure/*, features/*/repo/*, and
-#            features/*/controllers/*. Move this DB access
-#            to a repo or controller module."
-#
-# ── Adapt ─────────────────────────────────────────────────────────────
-#
-# 1. Exception patterns (lines starting with `!`):
-#    Add or remove layers that are permitted DB access in your project.
-#    If your project has no repo/ layer, controllers/ is the DB boundary.
-#    If your project uses a service/ layer for DB access, add it here.
-#
-# 2. Import pattern (the `$source <:` line):
-#    Adjust to match your DB module's import path.
-#    Examples:
-#      @/infrastructure/db  — layered infrastructure (this template)
-#      @/db                 — flat top-level db directory
-#      drizzle-orm          — catch raw ORM imports too (add as `or` clause)
-#
-# 3. Additional ORM/driver packages:
-#    If you want to block raw ORM imports (not just your wrapper),
-#    add them as `or` clauses in the source match. See commented example.
-#
-# ──────────────────────────────────────────────────────────────────────
+// ─── boundary/db-isolation ────────────────────────────────────────────
+//
+// Tag:      boundary
+// Mechanism: GritQL (per-file, real-time)
+// Blocking: Yes
+//
+// Prevents: Code outside the data-access layers importing database
+//           modules directly, bypassing the repo or controller layer.
+//           This is the single most important boundary rule — it
+//           enforces that all DB access flows through designated layers.
+//
+// Applies:  All src/** files EXCEPT:
+//           - infrastructure/db/** (IS the DB layer)
+//           - features/*/repo/** (designated DB access layer)
+//           - features/*/controllers/** (when no repo layer exists)
+//           - ORM config files (drizzle.config.ts)
+//           - Test files and scripts
+//
+// Error:    "DB client/schema imports are restricted to
+//            infrastructure/*, features/*/repo/*, and
+//            features/*/controllers/*. Move this DB access
+//            to a repo or controller module."
+//
+// ── Adapt ─────────────────────────────────────────────────────────────
+//
+// 1. Exception patterns (lines starting with `!`):
+//    Add or remove layers that are permitted DB access in your project.
+//    If your project has no repo/ layer, controllers/ is the DB boundary.
+//    If your project uses a service/ layer for DB access, add it here.
+//
+// 2. Import pattern (the `$source <:` line):
+//    Adjust to match your DB module's import path.
+//    Examples:
+//      @/infrastructure/db  — layered infrastructure (this template)
+//      @/db                 — flat top-level db directory
+//      drizzle-orm          — catch raw ORM imports too (add as `or` clause)
+//
+// 3. Additional ORM/driver packages:
+//    If you want to block raw ORM imports (not just your wrapper),
+//    add them as `or` clauses in the source match. See commented example.
+//
+// ──────────────────────────────────────────────────────────────────────
 
 file(name=$filename, body=$program) where {
-    # --- Global exclusions (shared across all rules) ---
+    // --- Global exclusions (shared across all rules) ---
     ! $filename <: r".*\.test\.[tj]sx?$|.*\.integration\.test\.[tj]sx?$|.*__tests__.*|.*src/test/.*",
     ! $filename <: r".*/scripts/.*",
 
-    # --- Layer exclusions (who IS allowed to import DB) ---
+    // --- Layer exclusions (who IS allowed to import DB) ---
     ! $filename <: r".*/src/infrastructure/.*",
     ! $filename <: r".*/src/features/[^/]+/repo/.*",
     ! $filename <: r".*/src/features/[^/]+/controllers/.*",
 
-    # --- Config file exclusions ---
+    // --- Config file exclusions ---
     ! $filename <: r".*/drizzle\.config\.[tj]s$",
 
-    $program <: contains bubble or {
-        `import $_ from $source`,
-        `export $_ from $source`,
-        `export * from $source`
-    } as $import where {
+    $program <: contains bubble `import $_ from $source` as $import where {
         $source <: r"\"@/infrastructure/db.*\"",
 
-        # ── Optional: also catch raw ORM/driver imports ──
-        # or {
-        #     $source <: r"\"@/infrastructure/db.*\"",
-        #     $source <: r"\"drizzle-orm\"",
-        #     $source <: r"\"drizzle-orm/.*\"",
-        #     $source <: r"\"pg\""
-        # },
+        // ── Optional: also catch raw ORM/driver imports ──
+        // or {
+        //     $source <: r"\"@/infrastructure/db.*\"",
+        //     $source <: r"\"drizzle-orm\"",
+        //     $source <: r"\"drizzle-orm/.*\"",
+        //     $source <: r"\"pg\""
+        // },
 
         register_diagnostic(
             span = $import,

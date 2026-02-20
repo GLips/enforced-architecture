@@ -1,70 +1,66 @@
-# ─── boundary/no-test-imports ────────────────────────────────────────
-#
-# Tag:      boundary
-# Mechanism: GritQL (per-file, real-time)
-# Blocking: Yes
-#
-# Prevents: Production code importing from test files or test
-#           infrastructure directories. While test files are exempt
-#           from all boundary rules (they need cross-boundary imports
-#           for setup and assertions), the REVERSE is not true:
-#           production code must never depend on test utilities.
-#           If production code imports test helpers, those helpers are
-#           production code and should live in src/, not in test
-#           infrastructure. This rule is the one boundary check that
-#           applies in the opposite direction from all others.
-#
-# Applies:  All src/** files that are NOT themselves test files:
-#           - Excludes: *.test.*, *.integration.test.*, __tests__/**
-#           - Excludes: src/test/** (shared test infrastructure)
-#           - Excludes: scripts
-#
-# Error:    "Production code cannot import from test files. If this
-#            utility is needed by both tests and production, move it
-#            to src/shared/ or the appropriate production directory."
-#
-# ── Adapt ─────────────────────────────────────────────────────────────
-#
-# 1. Test file patterns (the import source `or` block):
-#    Adjust to match your project's test file naming and directory
-#    conventions. The default catches:
-#      - Imports from files with .test. in the name
-#      - Imports from __tests__/ directories
-#      - Imports from src/test/ shared test infrastructure
-#      - Imports from paths containing /test/ or /tests/
-#
-# 2. Test infrastructure directory:
-#    If your project places shared test utilities elsewhere (e.g.,
-#    test/, __fixtures__/, .storybook/), add those patterns:
-#      $source <: r"\".*__fixtures__.*\""
-#      $source <: r"\".*\.storybook.*\""
-#
-# 3. Vitest/Jest globals:
-#    This rule targets import statements, not global test APIs
-#    (describe, it, expect). Those are caught by the test framework
-#    configuration, not by import rules.
-#
-# ──────────────────────────────────────────────────────────────────────
+// ─── boundary/no-test-imports ────────────────────────────────────────
+//
+// Tag:      boundary
+// Mechanism: GritQL (per-file, real-time)
+// Blocking: Yes
+//
+// Prevents: Production code importing from test files or test
+//           infrastructure directories. While test files are exempt
+//           from all boundary rules (they need cross-boundary imports
+//           for setup and assertions), the REVERSE is not true:
+//           production code must never depend on test utilities.
+//           If production code imports test helpers, those helpers are
+//           production code and should live in src/, not in test
+//           infrastructure. This rule is the one boundary check that
+//           applies in the opposite direction from all others.
+//
+// Applies:  All src/** files that are NOT themselves test files:
+//           - Excludes: *.test.*, *.integration.test.*, __tests__/**
+//           - Excludes: src/test/** (shared test infrastructure)
+//           - Excludes: scripts
+//
+// Error:    "Production code cannot import from test files. If this
+//            utility is needed by both tests and production, move it
+//            to src/shared/ or the appropriate production directory."
+//
+// ── Adapt ─────────────────────────────────────────────────────────────
+//
+// 1. Test file patterns (the import source `or` block):
+//    Adjust to match your project's test file naming and directory
+//    conventions. The default catches:
+//      - Imports from files with .test. in the name
+//      - Imports from __tests__/ directories
+//      - Imports from src/test/ shared test infrastructure
+//      - Imports from paths containing /test/ or /tests/
+//
+// 2. Test infrastructure directory:
+//    If your project places shared test utilities elsewhere (e.g.,
+//    test/, __fixtures__/, .storybook/), add those patterns:
+//      $source <: r"\".*__fixtures__.*\""
+//      $source <: r"\".*\.storybook.*\""
+//
+// 3. Vitest/Jest globals:
+//    This rule targets import statements, not global test APIs
+//    (describe, it, expect). Those are caught by the test framework
+//    configuration, not by import rules.
+//
+// ──────────────────────────────────────────────────────────────────────
 
 file(name=$filename, body=$program) where {
     $filename <: r".*/src/.*",
 
-    # --- Only apply to PRODUCTION files (not tests themselves) ---
+    // --- Only apply to PRODUCTION files (not tests themselves) ---
     ! $filename <: r".*\.test\.[tj]sx?$|.*\.integration\.test\.[tj]sx?$|.*__tests__.*|.*src/test/.*",
     ! $filename <: r".*/scripts/.*",
 
-    $program <: contains bubble or {
-        `import $_ from $source`,
-        `export $_ from $source`,
-        `export * from $source`
-    } as $import where {
+    $program <: contains bubble `import $_ from $source` as $import where {
         or {
-            # Importing from a .test. file
+            // Importing from a .test. file
             $source <: r"\".*\.test\"",
             $source <: r"\".*\.test\..*\"",
-            # Importing from __tests__/ directory
+            // Importing from __tests__/ directory
             $source <: r"\".*__tests__.*\"",
-            # Importing from src/test/ shared infrastructure
+            // Importing from src/test/ shared infrastructure
             $source <: r"\"@/test/.*\"",
             $source <: r"\".*src/test/.*\""
         },
