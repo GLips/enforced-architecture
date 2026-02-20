@@ -70,7 +70,7 @@ file(name=$filename, body=$program) where {
                 ! $source <: r"\"@/features/[^/]+/ui(?:/.*)?\"",
                 register_diagnostic(
                     span = $import,
-                    message = "Routes may only deep-import from features via @/features/<feature>/index.server or @/features/<feature>/ui/*. Other deep imports violate feature encapsulation."
+                    message = "Routes may only deep-import from features via @/features/<feature>/index.server or @/features/<feature>/ui/*. Use the feature barrel (@/features/<feature>) for other exports, or add the needed export to the feature's barrel."
                 )
             },
 
@@ -95,7 +95,7 @@ file(name=$filename, body=$program) where {
                 $filename <: r".*/src/(?:domains|shared|infrastructure)/.*",
                 register_diagnostic(
                     span = $import,
-                    message = "Only feature barrel imports (@/features/<feature>) are allowed from domains, shared, and infrastructure. No deep feature imports permitted."
+                    message = "Only feature barrel imports (@/features/<feature>) are allowed from domains, shared, and infrastructure. Add the needed export to the feature's barrel (index.ts or index.server.ts)."
                 )
             }
         }

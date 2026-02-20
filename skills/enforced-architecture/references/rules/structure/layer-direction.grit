@@ -83,7 +83,7 @@ file(name=$filename, body=$program) where {
                 },
                 register_diagnostic(
                     span = $import,
-                    message = "Repo modules cannot import from controllers, service, or UI layers. Dependency direction: ui -> controllers -> service -> repo."
+                    message = "Repo modules cannot import from controllers, service, or UI layers. Dependency direction: ui -> controllers -> service -> repo. Extract the shared logic to a lower layer or pass it as a parameter."
                 )
             },
 
@@ -97,7 +97,7 @@ file(name=$filename, body=$program) where {
                 },
                 register_diagnostic(
                     span = $import,
-                    message = "Service modules cannot import from controllers or UI layers. Dependency direction: ui -> controllers -> service -> repo."
+                    message = "Service modules cannot import from controllers or UI layers. Dependency direction: ui -> controllers -> service -> repo. Move the shared logic to repo/ or domains/, or pass it as a parameter."
                 )
             },
 
@@ -110,7 +110,7 @@ file(name=$filename, body=$program) where {
                 },
                 register_diagnostic(
                     span = $import,
-                    message = "Controller modules cannot import from the UI layer. Dependency direction: ui -> controllers -> service -> repo."
+                    message = "Controller modules cannot import from the UI layer. Dependency direction: ui -> controllers -> service -> repo. If controllers need types from UI (e.g., form schemas), move them to a shared location within the feature."
                 )
             }
         }

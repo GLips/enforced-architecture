@@ -57,7 +57,7 @@ file(name=$filename, body=$program) where {
         },
         register_diagnostic(
             span = $import,
-            message = "shared/ui/* modules must be domain-agnostic UI primitives. They cannot import from features, domains, infrastructure, or routes."
+            message = "shared/ui/* modules must be domain-agnostic UI primitives. They cannot import from features, domains, infrastructure, or routes. If this component needs feature-specific data or logic, move it to features/*/ui/ instead."
         )
     }
 }
