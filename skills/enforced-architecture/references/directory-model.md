@@ -95,15 +95,15 @@ With `domains/`, layered features, split env, per-layer errors. This is the full
 src/
   domains/<name>/
     index.ts              # Public API barrel (types, pure functions)
-    server.ts             # Server-only barrel (optional)
+    index.server.ts       # Server-only barrel (optional)
     errors.ts             # Domain error types
     ...                   # Internal modules (parsers, transforms, etc.)
   features/<name>/
     index.ts              # Client-safe barrel (types, serverFn refs, constants)
-    server.ts             # Server-only barrel (optional; must not be imported by index.ts)
+    index.server.ts       # Server-only barrel (optional; must not be imported by index.ts)
     errors.ts             # Feature error types with typed codes (optional)
     controllers/
-      server-fns.ts       # Server function definitions
+      conversations.ts    # Server function definitions
       chat-stream.ts      # Streaming endpoints (returns raw Response)
     service/              # Orchestration (optional)
       <workflow>.ts
@@ -147,9 +147,9 @@ Without `domains/`, flat features, single env. For small or early-stage projects
 src/
   features/<name>/
     index.ts              # Public API barrel
-    server.ts             # Server-only barrel (optional)
+    index.server.ts       # Server-only barrel (optional)
     controllers/
-      server-fns.ts
+      items.ts
     ui/
       SomeComponent.tsx
   infrastructure/

@@ -81,7 +81,7 @@ Using the chosen configuration, propose:
 2. **Responsibility split** — "If working on X, look in Y, don't reach into Z" for every type of work.
 3. **Import boundary matrix** — Every cell explicitly decided. Use the matrix format from [import-boundaries.md](references/import-boundaries.md).
 4. **Dependency graph** — ASCII showing allowed import directions. Every edge explicit.
-5. **Public API conventions** — Two-barrel pattern (`index.ts` + `server.ts`). Convention table from [import-boundaries.md](references/import-boundaries.md).
+5. **Public API conventions** — Two-barrel pattern (`index.ts` + `index.server.ts`). Convention table from [import-boundaries.md](references/import-boundaries.md).
 6. **Feature directory patterns** — Scaling templates from [feature-patterns.md](references/feature-patterns.md).
 7. **Server/client file naming** — TanStack Start conventions from [server-client-boundaries.md](references/server-client-boundaries.md).
 8. **Error architecture** — Based on chosen configuration.

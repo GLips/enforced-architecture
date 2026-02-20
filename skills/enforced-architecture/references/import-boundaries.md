@@ -53,7 +53,7 @@ Read as: "Can `{row}` import from `{column}`?"
 
 - **`infrastructure/db/`**: Via repo if repo exists. When a feature has a `repo/` directory, controllers must not import DB schema directly (enforced by the `boundary/layer-occupancy` check). They pass the DB client to repo functions for transaction handling. When no `repo/` exists, controllers may import DB directly (layer occupancy policy).
 - **`infrastructure/*`**: YES. Controllers are the feature's entry point for orchestrating infrastructure: auth middleware, SDK adapters, telemetry.
-- **`features/`**: Public API only. Controllers import other features through `@/features/<name>` (client-safe barrel) or `@/features/<name>/server` (server-only barrel). No deep imports into another feature's internals.
+- **`features/`**: Public API only. Controllers import other features through `@/features/<name>` (client-safe barrel) or `@/features/<name>/index.server` (server-only barrel). No deep imports into another feature's internals.
 - **`domains/`**: YES. Controllers invoke domain logic for business operations.
 - **`shared/`**: YES. Controllers may use shared utilities.
 - **`shared/ui/`**: NO. Controllers are server-side; they do not render UI.
@@ -128,7 +128,7 @@ Read as: "Can `{row}` import from `{column}`?"
 
 - **`infrastructure/db/`**: NO. Routes are thin transport adapters. They never query the DB directly. Enforced by the `boundary/route-thinness` rule.
 - **`infrastructure/*`**: YES, limited. Routes may import from infrastructure for specific wiring needs (e.g., providers). Routes must not import SDK clients directly.
-- **`features/`**: YES, public API + UI. Routes use three import patterns: `@/features/<name>` (barrel), `@/features/<name>/server` (server barrel), and `@/features/<name>/ui/*` (UI components for page composition). No deep imports into controllers, service, or repo.
+- **`features/`**: YES, public API + UI. Routes use three import patterns: `@/features/<name>` (barrel), `@/features/<name>/index.server` (server barrel), and `@/features/<name>/ui/*` (UI components for page composition). No deep imports into controllers, service, or repo.
 - **`domains/`**: NO. Routes do not call domain logic directly. Domain operations flow through feature controllers.
 - **`shared/`**: YES. Routes may use shared utilities.
 - **`shared/ui/`**: YES. Routes compose shared UI primitives into pages.
@@ -172,7 +172,7 @@ Features import other features ONLY through public API barrels. All other intern
 | Pattern | Allowed | From |
 |---|---|---|
 | `@/features/<name>` (resolves to `index.ts`) | YES | Any module |
-| `@/features/<name>/server` (resolves to `server.ts`) | YES | Server contexts only |
+| `@/features/<name>/index.server` (resolves to `index.server.ts`) | YES | Server contexts only |
 | `@/features/<name>/ui/*` | YES | Routes only |
 | `@/features/<name>/controllers/*` | NO | --- |
 | `@/features/<name>/service/*` | NO | --- |
@@ -180,10 +180,10 @@ Features import other features ONLY through public API barrels. All other intern
 
 Enforcement (the `api/feature-public-api` rule):
 
-- Denies deep imports from routes unless the path matches `/server` or `/ui/*`.
-- Denies deep imports from other features unless the path matches `/server`.
+- Denies deep imports from routes unless the path matches `/index.server` or `/ui/*`.
+- Denies deep imports from other features unless the path matches `/index.server`.
 - Denies all deep feature imports from domains, shared, and infrastructure.
-- The `api/server-import-context` rule denies `*/server` imports from client contexts (UI files, barrels, shared modules).
+- The `api/server-import-context` rule denies `*/index.server` imports from client contexts (UI files, barrels, shared modules).
 
 Cross-feature UI imports are banned even between features. If two features need the same UI component, it gets promoted to `shared/ui/` once three features need it (promotion threshold).
 
@@ -196,12 +196,12 @@ Domains import other domains through barrels only.
 | Pattern | Allowed |
 |---|---|
 | `@/domains/<name>` (resolves to `index.ts`) | YES |
-| `@/domains/<name>/server` (resolves to `server.ts`) | YES |
+| `@/domains/<name>/index.server` (resolves to `index.server.ts`) | YES |
 | `@/domains/<name>/<internal>/*` | NO |
 
 Enforcement:
 
-- The `api/domain-public-api` rule denies any import matching `@/domains/<name>/<path>` unless `<path>` is exactly `server`.
+- The `api/domain-public-api` rule denies any import matching `@/domains/<name>/<path>` unless `<path>` is exactly `index.server`.
 - The `graph/domain-cycles` check detects cross-domain dependency cycles via DFS and fails the build. Domain A importing domain B and domain B importing domain A (directly or transitively) is a hard structural violation.
 
 ---
@@ -214,10 +214,10 @@ All imports that cross a top-level directory boundary (`features/`, `domains/`, 
 
 ```typescript
 // CORRECT -- aliased cross-boundary import
-import { getItems } from "@/features/inventory/server"
+import { getItems } from "@/features/inventory/index.server"
 
 // VIOLATION -- relative cross-boundary import
-import { getItems } from "../../features/inventory/server"
+import { getItems } from "../../features/inventory/index.server"
 
 // CORRECT -- relative within feature
 import { fetchItems } from "../controllers/items"
@@ -240,10 +240,10 @@ Within a feature or within a subdirectory, relative imports are expected and pre
 
 ## Public API Convention Table
 
-| Module | Client-Safe Barrel (`index.ts`) | Server-Only Barrel (`server.ts`) | External Import Pattern |
+| Module | Client-Safe Barrel (`index.ts`) | Server-Only Barrel (`index.server.ts`) | External Import Pattern |
 |---|---|---|---|
-| `features/<name>/` | Types, constants, pure helpers, `createServerFn` references, client UI re-exports | Server functions for cross-feature use, raw DB queries, infrastructure adapters | `@/features/<name>` or `@/features/<name>/server` |
-| `domains/<name>/` | Types, pure functions, domain errors, constants, schemas | Server-only domain operations (optional) | `@/domains/<name>` or `@/domains/<name>/server` |
+| `features/<name>/` | Types, constants, pure helpers, `createServerFn` references, client UI re-exports | Server functions for cross-feature use, raw DB queries, infrastructure adapters | `@/features/<name>` or `@/features/<name>/index.server` |
+| `domains/<name>/` | Types, pure functions, domain errors, constants, schemas | Server-only domain operations (optional) | `@/domains/<name>` or `@/domains/<name>/index.server` |
 | `shared/` | No barrel, each file standalone | --- | `@/shared/<module>` |
 | `shared/ui/` | Per-subdirectory barrels or individual imports | --- | `@/shared/ui/<component>` |
 | `infrastructure/` | No barrel, each adapter standalone | `*.server.ts` files auto-denied from client | `@/infrastructure/<module>` |
@@ -251,26 +251,28 @@ Within a feature or within a subdirectory, relative imports are expected and pre
 
 ### Barrel Invariants
 
-**`index.ts` must NEVER import from `server.ts`.** The server module extends the client-safe barrel; the reverse creates bundler-breaking server-only leakage into client bundles. Enforced by the `api/barrel-direction` rule.
+**`index.ts` must NEVER import from `index.server.ts`.** The server module extends the client-safe barrel; the reverse creates bundler-breaking server-only leakage into client bundles. Enforced by the `api/barrel-direction` rule.
 
-**`server.ts` MAY re-export from `index.ts`.** This allows the server barrel to present a superset of the client-safe API when convenient.
+**`index.server.ts` MAY re-export from `index.ts`.** This allows the server barrel to present a superset of the client-safe API when convenient.
 
 **`createServerFn` references belong in `index.ts`.** TanStack Start replaces server function implementations with RPC stubs in client bundles, making the reference itself client-safe. The function definition lives in `controllers/`, but the reference is re-exported through the client-safe barrel.
+
+**Why `index.server.ts` instead of `server.ts`:** The `index.server.ts` naming is automatically caught by vite's `**/*.server.*` import-protection pattern -- no need for additional `src/**/server.ts` file patterns in the import protection config. The naming also makes the server-only nature immediately obvious.
 
 **Barrel client-safety.** A transitive trace from each `index.ts` barrel follows runtime imports up to 6 levels deep. If any branch reaches a server-only package, the `api/barrel-purity` check fails -- unless a `createServerFn` boundary is encountered first, which stops the trace (TanStack Start strips everything below it from client bundles).
 
 ### Server Context Definition
 
-Server contexts are the directories/files allowed to import `*/server` paths (enforced by the `api/server-import-context` rule):
+Server contexts are the directories/files allowed to import `*/index.server` paths (enforced by the `api/server-import-context` rule):
 
 - `features/*/controllers/`
 - `features/*/service/`
 - `features/*/repo/`
 - `infrastructure/*`
 - `routes/*`
-- Any file named `server.ts` or `server.tsx`
+- Any file named `*.server.ts` or `*.server.tsx`
 
-Client contexts (UI files, barrel `index.ts` files, `shared/*` files) must not import `*/server` paths.
+Client contexts (UI files, barrel `index.ts` files, `shared/*` files) must not import `*/index.server` paths.
 
 ### Client-Safe Infrastructure
 

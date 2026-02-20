@@ -1,0 +1,57 @@
+// ─── structure/server-fn-naming ──────────────────────────────────────
+//
+// Tag:      structure
+// Mechanism: GritQL (per-file, real-time)
+// Blocking: Yes
+//
+// Prevents: createServerFn definitions placed in .server.ts files.
+//           Files containing createServerFn produce RPC bridges — on
+//           the client, the compiler replaces the handler body with a
+//           network call stub. Routes and UI code need to import these
+//           files to get the stub. The .server.ts suffix triggers
+//           vite's **/*.server.* import-protection pattern, which
+//           blocks exactly that import.
+//
+//           This is the most common naming mistake in TanStack Start
+//           projects. The instinct "this runs on the server → .server.ts"
+//           is wrong here. The .server.ts suffix means "hidden from
+//           clients", and createServerFn files must be visible to clients.
+//
+// Applies:  All *.server.ts and *.server.tsx files.
+//
+// Error:    "createServerFn must not be in .server.ts files. Clients
+//            need to import this file for the RPC stub. Rename to .ts
+//            (e.g., controllers/items.ts not controllers/items.server.ts)."
+//
+// ── Adapt ─────────────────────────────────────────────────────────────
+//
+// 1. Server function factory name:
+//    If your framework uses a different factory name, replace
+//    `createServerFn` with the correct identifier.
+//    Examples:
+//      createServerFn     — TanStack Start (this template)
+//      createServerAction — alternative naming
+//      server$            — SolidStart convention
+//
+// 2. File suffix pattern:
+//    The filename match catches any .server.ts/.server.tsx file.
+//    No adjustment needed unless your project uses a non-standard
+//    server file naming convention.
+//
+// ──────────────────────────────────────────────────────────────────────
+
+file(name=$filename, body=$program) where {
+    // Only apply to .server.ts/.server.tsx files
+    $filename <: r".*\.server\.[tj]sx?$",
+
+    // --- Global exclusions (shared across all rules) ---
+    ! $filename <: r".*\.test\.[tj]sx?$|.*\.integration\.test\.[tj]sx?$|.*__tests__.*|.*src/test/.*",
+    ! $filename <: r".*/scripts/.*",
+
+    $program <: contains bubble `createServerFn` as $call where {
+        register_diagnostic(
+            span = $call,
+            message = "createServerFn must not be in .server.ts files. Clients need to import this file for the RPC stub — the .server.ts suffix blocks client imports. Rename to .ts (e.g., controllers/items.ts not controllers/items.server.ts)."
+        )
+    }
+}

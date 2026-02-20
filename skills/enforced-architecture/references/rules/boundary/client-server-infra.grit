@@ -41,9 +41,10 @@
 //      @/infrastructure/analytics/client    — client-side analytics
 //
 // 3. Barrel file handling:
-//    The server.ts exclusion ensures feature server barrels can
-//    import infrastructure freely. If your project uses a different
-//    naming convention for server barrels, adjust the pattern.
+//    The *.server.ts exclusion ensures feature server barrels
+//    (index.server.ts) can import infrastructure freely. If your
+//    project uses a different naming convention for server barrels,
+//    adjust the pattern.
 //
 // ──────────────────────────────────────────────────────────────────────
 
@@ -55,7 +56,7 @@ file(name=$filename, body=$program) where {
     // --- Server context exclusions (these CAN import infra) ---
     ! $filename <: r".*/src/(?:infrastructure|routes)/.*",
     ! $filename <: r".*/src/features/[^/]+/(?:controllers|repo|service)/.*",
-    ! $filename <: r".*/server\.[tj]sx?$",
+    ! $filename <: r".*\.server\.[tj]sx?$",
 
     $program <: contains bubble `import $_ from $source` as $import where {
         $source <: r"\"@/infrastructure/.*\"",

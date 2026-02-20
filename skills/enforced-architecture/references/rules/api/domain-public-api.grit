@@ -6,9 +6,9 @@
 //
 // Prevents: Deep imports into domain internals, bypassing the public
 //           API barrel. Domains expose their API through `index.ts`
-//           (client-safe) and optionally `server.ts` (server-only).
+//           (client-safe) and optionally `index.server.ts` (server-only).
 //           Any import matching `@/domains/<name>/<path>` where <path>
-//           is not exactly `server` is a violation. Without this rule,
+//           is not exactly `index.server` is a violation. Without this rule,
 //           consumers couple to internal file layout, making domain
 //           restructuring impossible without cascading import changes.
 //
@@ -18,7 +18,7 @@
 //           - Test files and scripts
 //
 // Error:    "Import from domain public API only:
-//            @/domains/<domain> or @/domains/<domain>/server.
+//            @/domains/<domain> or @/domains/<domain>/index.server.
 //            Deep imports into domain internals are not allowed."
 //
 // ── Adapt ────────────────────────────────────────────────────────────
@@ -56,12 +56,12 @@ file(name=$filename, body=$program) where {
         // Match any deep import into a domain: @/domains/<name>/<anything>
         $source <: r"\"@/domains/[^/]+/.+\"",
 
-        // Allow the server barrel: @/domains/<name>/server
-        ! $source <: r"\"@/domains/[^/]+/server\"",
+        // Allow the server barrel: @/domains/<name>/index.server
+        ! $source <: r"\"@/domains/[^/]+/index\.server\"",
 
         register_diagnostic(
             span = $import,
-            message = "Import from domain public API only: @/domains/<domain> or @/domains/<domain>/server. Deep imports into domain internals are not allowed."
+            message = "Import from domain public API only: @/domains/<domain> or @/domains/<domain>/index.server. Deep imports into domain internals are not allowed."
         )
     }
 }

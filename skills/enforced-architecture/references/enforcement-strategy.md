@@ -22,7 +22,7 @@ GritQL rules examine a single file's imports against AST patterns. They detect v
 - Public API enforcement (deep imports into feature internals)
 - Server function placement and validation
 - File placement violations (schema outside infrastructure/db/schema/)
-- Barrel direction violations (index.ts importing from server.ts)
+- Barrel direction violations (index.ts importing from index.server.ts)
 
 **What GritQL cannot catch:**
 - Anything requiring cross-file analysis (cycles, file sizes, coupling metrics)

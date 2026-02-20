@@ -7,14 +7,14 @@
 // Prevents: Deep imports into feature internals (controllers/, service/,
 //           repo/) from outside the feature, bypassing the public API
 //           barrel. Features expose their API through `index.ts`
-//           (client-safe) and `server.ts` (server-only). Without this
+//           (client-safe) and `index.server.ts` (server-only). Without this
 //           rule, consumers couple to internal file layout, making
 //           feature restructuring impossible without cascading changes.
 //
 //           Three caller contexts have different allowed deep-import
 //           patterns:
-//           - Routes: may import /server and /ui/* (page composition)
-//           - Other features: may import /server only
+//           - Routes: may import /index.server and /ui/* (page composition)
+//           - Other features: may import /index.server only
 //           - Domains/shared/infrastructure: barrel only, no deep imports
 //
 // Applies:  All src/** files EXCEPT:
@@ -42,7 +42,7 @@
 //
 // 3. Cross-feature server exception:
 //    If your project does not use server-only barrels, remove the
-//    /server exception from the cross-feature branch.
+//    /index.server exception from the cross-feature branch.
 //
 // 4. Lower-layer restriction:
 //    The third branch blocks ALL deep feature imports from domains,
@@ -62,29 +62,29 @@ file(name=$filename, body=$program) where {
 
         or {
             // --- Branch 1: Routes ---
-            // Routes may deep-import /server and /ui/*. All other deep
-            // imports are violations.
+            // Routes may deep-import /index.server and /ui/*. All other
+            // deep imports are violations.
             and {
                 $filename <: r".*/src/routes/.*",
-                ! $source <: r"\"@/features/[^/]+/server\"",
+                ! $source <: r"\"@/features/[^/]+/index\.server\"",
                 ! $source <: r"\"@/features/[^/]+/ui(?:/.*)?\"",
                 register_diagnostic(
                     span = $import,
-                    message = "Routes may only deep-import from features via @/features/<feature>/server or @/features/<feature>/ui/*. Other deep imports violate feature encapsulation."
+                    message = "Routes may only deep-import from features via @/features/<feature>/index.server or @/features/<feature>/ui/*. Other deep imports violate feature encapsulation."
                 )
             },
 
             // --- Branch 2: Cross-feature ---
-            // A feature importing another feature may only use /server.
+            // A feature importing another feature may only use /index.server.
             // Same-feature imports are excluded (the feature names match).
             and {
                 $filename <: r".*/src/features/([^/]+)/.*"($file_feat),
                 $source <: r"\"@/features/([^/]+)/.+\""($import_feat),
                 ! $file_feat <: $import_feat,
-                ! $source <: r"\"@/features/[^/]+/server\"",
+                ! $source <: r"\"@/features/[^/]+/index\.server\"",
                 register_diagnostic(
                     span = $import,
-                    message = "Cross-feature deep imports are limited to @/features/<feature>/server. Use the feature barrel (@/features/<feature>) for other exports."
+                    message = "Cross-feature deep imports are limited to @/features/<feature>/index.server. Use the feature barrel (@/features/<feature>) for other exports."
                 )
             },
 

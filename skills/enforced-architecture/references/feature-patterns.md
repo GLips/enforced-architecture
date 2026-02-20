@@ -15,7 +15,7 @@ Few entities, minimal client logic. Just controllers and barrels.
 ```
 features/<name>/
   index.ts                # Public API barrel
-  server.ts               # Server-only barrel (optional)
+  index.server.ts         # Server-only barrel (optional)
   controllers/
     <name>.ts             # Server functions
 ```
@@ -29,7 +29,7 @@ Multiple entities, each with their own server function file.
 ```
 features/<name>/
   index.ts
-  server.ts
+  index.server.ts
   controllers/            # Server functions
     *.ts
   repo/                   # DB queries (optional)
@@ -45,7 +45,7 @@ Rich client behavior, multiple sub-concerns, internal orchestration.
 ```
 features/<name>/
   index.ts
-  server.ts
+  index.server.ts
   controllers/            # Server functions
     *.ts
   service/                # Orchestration (optional)
@@ -120,30 +120,59 @@ Controllers do NOT:
 - Contain pure business logic (that belongs in `domains/`)
 - Contain raw DB queries when a `repo/` directory exists (the `boundary/layer-occupancy` check enforces this)
 
-### Server Function Split Pattern
+### Controller File Naming
 
-In TanStack Start, controllers use a two-file pattern to keep server-only code out of the client bundle:
+Controller files are named without the `.server.ts` suffix — e.g., `controllers/items.ts` not `controllers/items.server.ts`. They contain `createServerFn` exports that produce RPC bridges. On the client, the compiler replaces handler bodies with network call stubs. Routes and UI code **need** to import these files to get the stub. The `.server.ts` suffix would trigger vite's `**/*.server.*` import-protection and block that import. This mistake is caught by the `structure/server-fn-naming` rule.
 
-```
-controllers/
-  server-fns.ts            # createServerFn definitions (client-safe RPC stubs)
-  server-fns.server.ts     # Server-only handler implementations
-```
-
-The `.ts` file defines the server function shape and uses dynamic `await import()` to load the `.server.ts` implementation:
+Controllers are re-exported through the feature's `index.ts` barrel:
 
 ```typescript
-// controllers/server-fns.ts
+// features/<name>/index.ts
+export { loadItemFn, createItemFn } from "./controllers/items";
+```
+
+### Server Function Pattern
+
+TanStack Start's compiler extracts `createServerFn` handler bodies and their dependency graph from client bundles. Server-only imports at the top of the file are handled by the compiler — they only exist in the server bundle. This means controller files can directly import infrastructure, repos, and auth:
+
+```typescript
+// controllers/items.ts
+import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
+import { requireSession } from "@/infrastructure/auth/require-session.server";
+import { db } from "@/infrastructure/db/client";
+import { itemRepo } from "../repo/items";
+
 export const loadItemFn = createServerFn({ method: "GET" })
   .inputValidator(z.object({ id: z.string() }))
   .handler(async ({ data }) => {
-    const { loadItem } = await import("./server-fns.server");
+    const session = await requireSession();
+    return itemRepo.getById(db, { id: data.id, userId: session.user.id });
+  });
+```
+
+### Two-File Split (Escape Hatch)
+
+The compiler's extraction has known edge cases around wrappers and abstractions. If a controller triggers build errors from server-only imports leaking into the client bundle, use a two-file split with dynamic `await import()`:
+
+```
+controllers/
+  items.ts               # createServerFn definitions (client-safe)
+  items.server.ts        # Handler implementations (server-only)
+```
+
+```typescript
+// controllers/items.ts
+export const loadItemFn = createServerFn({ method: "GET" })
+  .inputValidator(z.object({ id: z.string() }))
+  .handler(async ({ data }) => {
+    const { loadItem } = await import("./items.server");
     return loadItem(data);
   });
 ```
 
 ```typescript
-// controllers/server-fns.server.ts
+// controllers/items.server.ts
 import "@tanstack/react-start/server-only";
 import { requireSession } from "@/infrastructure/auth/require-session.server";
 import { db } from "@/infrastructure/db/client";
@@ -155,7 +184,7 @@ export async function loadItem(input: { id: string }) {
 }
 ```
 
-The `.server.ts` file imports `@tanstack/react-start/server-only` as a safety guard and contains all server-only imports (DB client, auth, infrastructure adapters). The `.ts` file is client-safe because the compiler replaces the handler with an RPC stub.
+The `.server.ts` companion holds the implementation with all server-only imports. The dynamic `await import()` inside the handler body gets extracted along with the handler, so the `.server.ts` file never enters the client bundle. Use `import "@tanstack/react-start/server-only"` as a safety guard in the companion file.
 
 ---
 
@@ -182,7 +211,7 @@ export {
   type PersistedMessage,
   renameConversationFn,
   toUIMessages,
-} from "./controllers/server-fns";
+} from "./controllers/conversations";
 // Errors
 export {
   ChatError,
@@ -191,12 +220,12 @@ export {
 } from "./errors";
 ```
 
-### `server.ts` (Server-Only)
+### `index.server.ts` (Server-Only)
 
-Exports server-only code for cross-feature use. Auto-denied from client bundles (matched by framework import protection on `src/**/server.ts`).
+Exports server-only code for cross-feature use. Auto-denied from client bundles by vite's `**/*.server.*` import-protection pattern.
 
 ```typescript
-// features/chat/server.ts
+// features/chat/index.server.ts
 export { conversationRepo } from "./repo/conversations";
 export { messageRepo } from "./repo/messages";
 ```
@@ -211,12 +240,12 @@ export { messageRepo } from "./repo/messages";
 | `createServerFn` references | `index.ts` | Client-safe -- compiler replaces with RPC stubs |
 | Error classes and types | `index.ts` | Used by both client and server code |
 | UI components | NOT barrel-exported | Routes import directly: `@/features/<name>/ui/Component` |
-| Repo modules, raw queries | `server.ts` | Server-only, cross-feature data access |
+| Repo modules, raw queries | `index.server.ts` | Server-only, cross-feature data access |
 | Internal helpers | Neither | Not part of public API |
 
 ### Barrel Direction Rule
 
-`server.ts` may re-export from `index.ts`. `index.ts` must NEVER import from `server.ts`. This is enforced by the `api/barrel-direction` and `api/server-import-context` rules.
+`index.server.ts` may re-export from `index.ts`. `index.ts` must NEVER import from `index.server.ts`. This is enforced by the `api/barrel-direction` and `api/server-import-context` rules.
 
 Violating this rule pulls server-only code into client bundles through the `index.ts` barrel.
 
@@ -227,9 +256,9 @@ Violating this rule pulls server-only code into client bundles through the `inde
 Features import other features ONLY through public API barrels:
 
 ```
-@/features/<other-feature>           # Client-safe barrel (types, server fn references)
-@/features/<other-feature>/server    # Server-only barrel (repos, raw queries)
-@/features/<other-feature>/ui/*      # UI components (routes only, not other features)
+@/features/<other-feature>                  # Client-safe barrel (types, server fn references)
+@/features/<other-feature>/index.server     # Server-only barrel (repos, raw queries)
+@/features/<other-feature>/ui/*             # UI components (routes only, not other features)
 ```
 
 Forbidden cross-feature imports:
@@ -240,7 +269,7 @@ Forbidden cross-feature imports:
 @/features/<other-feature>/repo/*         # Internal implementation detail
 ```
 
-Enforcement: the `api/feature-public-api` rule blocks all deep cross-feature imports except `server` and `ui/*`. Routes get the `ui/*` exception because they compose feature UI. Other features do not.
+Enforcement: the `api/feature-public-api` rule blocks all deep cross-feature imports except `index.server` and `ui/*`. Routes get the `ui/*` exception because they compose feature UI. Other features do not.
 
 ---
 

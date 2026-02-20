@@ -117,7 +117,7 @@ Each migration phase specifies:
 **Rules activated:** `api/feature-public-api`, `api/domain-public-api`, `api/barrel-direction`, `api/server-import-context`.
 
 **Changes:**
-- Create `index.ts` barrel for every feature and `server.ts` for features with server-only exports (mechanical)
+- Create `index.ts` barrel for every feature and `index.server.ts` for features with server-only exports (mechanical)
 - Write the GritQL rules for public API enforcement
 - Run `bun run check:arch` — violations show every deep cross-feature import
 - Decide what each feature's public API should expose (judgment -- API design)

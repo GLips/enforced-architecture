@@ -68,13 +68,13 @@ Key implementation details:
 ## Example output
 
 ```
-FAIL [layer-occupancy] src/features/billing/controllers/invoices.server.ts
+FAIL [layer-occupancy] src/features/billing/controllers/invoices.ts
   Controller imports DB schema directly, but feature "billing" has a repo/ layer.
   Move the query to a function in src/features/billing/repo/ and import that
   instead. Controllers may import the DB client for transaction handling, but
   schema imports (query construction) must flow through repo/.
 
-FAIL [layer-occupancy] src/features/chat/controllers/server-fns.server.ts
+FAIL [layer-occupancy] src/features/chat/controllers/conversations.ts
   Controller imports DB schema directly, but feature "chat" has a repo/ layer.
   Move the query to a function in src/features/chat/repo/ and import that
   instead. Controllers may import the DB client for transaction handling, but

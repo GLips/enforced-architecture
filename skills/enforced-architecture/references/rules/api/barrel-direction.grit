@@ -5,21 +5,23 @@
 // Blocking: Yes
 //
 // Prevents: Client-safe barrel files (index.ts) importing from the
-//           server-only barrel (server.ts). The server barrel extends
-//           the client-safe API; the reverse pulls server-only code
-//           into client bundles through the barrel, causing bundler
+//           server-only barrel (index.server.ts). The server barrel
+//           extends the client-safe API; the reverse pulls server-only
+//           code into client bundles through the barrel, causing bundler
 //           errors in SSR frameworks with server/client splitting.
 //
 //           This is a one-directional rule:
-//           - server.ts MAY re-export from index.ts (superset pattern)
-//           - index.ts MUST NOT import from server.ts
+//           - index.server.ts MAY re-export from index.ts (superset pattern)
+//           - index.ts MUST NOT import from index.server.ts
 //
 // Applies:  Barrel index.ts files in domains/ and features/ only.
 //           Matched by path pattern: src/(domains|features)/<name>/index.ts
 //
-// Error:    "Barrel index.ts must not import from server.ts. Server
-//            modules extend the client-safe API; the reverse creates
-//            bundler-breaking server-only leakage into client bundles."
+// Error:    "Barrel index.ts must not import from index.server.ts — this
+//            pulls server-only code into client bundles. If the export is
+//            client-safe (types, createServerFn references), re-export it
+//            from controllers/ instead. If it is server-only, it belongs
+//            in index.server.ts only."
 //
 // ── Adapt ────────────────────────────────────────────────────────────
 //
@@ -32,9 +34,10 @@
 //
 // 2. Server barrel name:
 //    If your project uses a different name for the server-only barrel,
-//    adjust the import match patterns ("./server").
+//    adjust the import match patterns ("./index.server").
 //    Examples:
-//      "./server"        — standard (this template)
+//      "./index.server"  — standard (this template)
+//      "./server"        — legacy naming (requires explicit vite config)
 //      "./server-only"   — alternative naming
 //
 // 3. Additional top-level directories:
@@ -47,14 +50,14 @@ file(name=$filename, body=$program) where {
     // Only apply to barrel index files in domains and features
     $filename <: r".*/src/(?:domains|features)/[^/]+/index\.[tj]sx?$",
 
-    // NOTE: We match the string literal "./server" directly rather than
-    // using `export $_ from "./server"` because Biome's GritQL does not
-    // match ES re-export syntax with backtick patterns. Matching the
-    // string literal catches imports, re-exports, and dynamic imports.
-    $program <: contains bubble `"./server"` as $source where {
+    // NOTE: We match the string literal "./index.server" directly rather
+    // than using `export $_ from "./index.server"` because Biome's GritQL
+    // does not match ES re-export syntax with backtick patterns. Matching
+    // the string literal catches imports, re-exports, and dynamic imports.
+    $program <: contains bubble `"./index.server"` as $source where {
         register_diagnostic(
             span = $source,
-            message = "Barrel index.ts must not import from server.ts. Server modules extend the client-safe API; the reverse creates bundler-breaking server-only leakage into client bundles."
+            message = "Barrel index.ts must not import from index.server.ts — this pulls server-only code into client bundles. If the export is client-safe (types, createServerFn references), re-export it from controllers/ instead. If it is server-only, it belongs in index.server.ts only."
         )
     }
 }

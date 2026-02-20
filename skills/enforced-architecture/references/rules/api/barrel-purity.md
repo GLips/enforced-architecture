@@ -76,11 +76,11 @@ Key implementation details:
 FAIL [barrel-purity] src/features/billing/index.ts
   Transitively pulls in server-only package "stripe".
   Chain: src/features/billing/index.ts → src/features/billing/controllers/payments.ts → src/features/billing/service/checkout.ts → stripe
-  Move the server-only export to src/features/billing/server.ts instead.
+  Move the server-only export to src/features/billing/index.server.ts instead.
   Server-only package patterns are configured in the barrel-purity check script.
 
 FAIL [barrel-purity] src/domains/pricing/index.ts
   Transitively pulls in server-only package "node:crypto".
   Chain: src/domains/pricing/index.ts → src/domains/pricing/encryption.ts → node:crypto
-  Move the server-only export to src/domains/pricing/server.ts instead.
+  Move the server-only export to src/domains/pricing/index.server.ts instead.
 ```
