@@ -27,10 +27,12 @@ These file categories must use `.server.ts` naming:
 | Server-only env vars | `env.server.ts` | API keys, DB URLs, secrets |
 | Auth infrastructure | `infrastructure/auth/require-session.server.ts` | Session management, encryption |
 | Feature server barrels | `features/<name>/server.ts` | Cross-feature server-only API |
-| Server function implementations | `controllers/server-fns.server.ts` | Raw DB access, auth checks, SDK calls |
+| Server function handler implementations (dynamically imported) | `controllers/server-fns.server.ts` | Raw DB access, auth checks, SDK calls |
 | SDK wrappers with secrets | `infrastructure/integrations/<service>.ts` | Denied via import protection config, not naming |
 
 Server-only infrastructure modules that do not use the `.server.ts` naming convention are instead denied from client bundles via the import protection configuration in `vite.config.ts`. Both mechanisms achieve the same result -- the choice depends on whether the module needs per-file naming or directory-level denial.
+
+**Common mistake:** If a file exports `createServerFn()` results, it must NOT use `.server.ts` -- even if it also imports server-only modules. Server functions are the RPC bridge between server and client; routes need to import them. The `.server.ts` suffix prevents exactly that import. Put server function definitions in a regular `.ts` file and use dynamic `await import("./impl.server")` inside the handler body if it needs server-only dependencies.
 
 ---
 
