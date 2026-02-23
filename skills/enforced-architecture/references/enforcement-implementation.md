@@ -12,7 +12,7 @@ Key configuration points:
 - Each plugin is an explicit path to a `.grit` file. Biome does not auto-discover plugins — every rule must be listed.
 - `files.includes` scopes linting to `src/` and excludes generated files.
 - `overrides` can disable plugins for config files (e.g., `vite.config.ts`) that legitimately import server-only packages.
-- Use a flat `biome/` directory. Name files by tag and rule: `boundary-db-isolation.grit`, `api-feature-public-api.grit`, etc.
+- Organize rules in subdirectories by tag: `biome/boundary/db-isolation.grit`, `biome/api/feature-public-api.grit`, `biome/structure/layer-direction.grit`, etc.
 
 ---
 
@@ -87,7 +87,7 @@ GritQL per-file rules cannot aggregate or count matches within a file. Rules tha
 
 1. Read the relevant rule template from `rules/<tag>/<name>.grit`
 2. Adapt paths and patterns to the project's directory structure (the template's "Adapt" section explains what to customize)
-3. Write the adapted rule to `biome/<tag>-<name>.grit`
+3. Write the adapted rule to `biome/<tag>/<name>.grit`
 4. Add the plugin path to `biome.json`'s `plugins` array
 5. Smoke test (see below)
 6. Run `bun run check:arch` to verify no false positives on existing code

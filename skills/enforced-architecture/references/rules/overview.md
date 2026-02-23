@@ -6,7 +6,7 @@ Complete index of enforcement rules. Each rule has a template in its tag directo
 
 1. **During Phase 3 (rule design):** Scan this table to select rules that apply to the project.
 2. **During Phase 4 (implementation):** Read each selected rule's template file, adapt it to the project's directory structure and import patterns, and write the adapted rule into the project.
-3. **GritQL rules** (`.grit` files) go into the project's `biome/` directory with `<tag>-<name>.grit` naming.
+3. **GritQL rules** (`.grit` files) go into the project's `biome/<tag>/` subdirectory (e.g., `biome/boundary/db-isolation.grit`).
 4. **Structural scripts** (`.md` descriptions) are implemented as Bun TypeScript scripts in the project's `scripts/` directory.
 
 ## Rule Index
@@ -25,7 +25,7 @@ Complete index of enforcement rules. Each rule has a template in its tag directo
 | [boundary/cross-boundary-alias](boundary/cross-boundary-alias.grit) | GritQL | Yes | Relative imports that cross top-level directory or feature boundaries |
 | [boundary/server-no-upward](boundary/server-no-upward.grit) | GritQL | Yes | Controllers/server code importing from UI or route layers |
 | [boundary/no-test-imports](boundary/no-test-imports.grit) | GritQL | Yes | Production code importing from test files |
-| [boundary/layer-occupancy](boundary/layer-occupancy.md) | Script | Yes | Bypassing present layers (e.g., controllers importing DB when repo/ exists) |
+| [boundary/layer-occupancy](boundary/layer-occupancy.md) | Script | Yes | Bypassing present layers (e.g., controllers importing schema when repo/ exists, or importing repo when service/ exists) |
 
 ### api — Public API surface and barrel conventions
 
@@ -47,6 +47,7 @@ Complete index of enforcement rules. Each rule has a template in its tag directo
 | [structure/deprecated-paths](structure/deprecated-paths.grit) | GritQL | Yes | Imports from removed/renamed paths (e.g., `@/components/*`) |
 | [structure/schema-placement](structure/schema-placement.grit) | GritQL | Yes | Drizzle schema declarations (`pgTable`, `relations`) outside `infrastructure/db/schema/` |
 | [structure/server-fn-validation](structure/server-fn-validation.grit) | GritQL | Yes | `createServerFn` chaining `.handler()` without `.validator()` |
+| [structure/no-raw-result](structure/no-raw-result.grit) | GritQL | Yes | Returning unserializable Drizzle write results (`db.delete`, `.onConflictDoNothing`) without `.returning()` |
 
 ### graph — Cross-file dependency analysis
 
@@ -60,6 +61,7 @@ Complete index of enforcement rules. Each rule has a template in its tag directo
 | Rule | Mechanism | Blocking | What it prevents |
 |---|---|---|---|
 | [health/file-size](health/file-size.md) | Script | Mixed | Files exceeding line count thresholds (project-configurable warn + fail) |
+| [health/no-nested-ternary](health/no-nested-ternary.grit) | GritQL | Yes | Ternary expressions nested 3+ levels deep (extract to variables or helpers) |
 | [health/trampolines](health/trampolines.md) | Script | No | Pass-through wrapper functions that add no behavior |
 
 ### react — React code smell detection
@@ -69,7 +71,6 @@ Complete index of enforcement rules. Each rule has a template in its tag directo
 | [react/derived-state](react/derived-state.grit) | GritQL | Yes | `useState` + `useEffect` for values that should be computed inline or with `useMemo` |
 | [react/no-direct-fetch](react/no-direct-fetch.grit) | GritQL | Yes | `fetch()` calls in `.tsx` component files (use server functions or TanStack Query) |
 | [react/single-component-export](react/single-component-export.grit) | GritQL | Yes | Multiple exported React components in one file (compound components via `Object.assign` are fine) |
-| [react/no-nested-ternary-jsx](react/no-nested-ternary-jsx.grit) | GritQL | Yes | Double-nested ternary expressions in JSX (extract to variables or components) |
 | [react/no-async-effect](react/no-async-effect.grit) | GritQL | Yes | Async operations in useEffect without cleanup, or async useCallback (typically called from effects without cleanup) |
 | [react/hook-count](react/hook-count.md) | Script | No | Components with 7+ hook calls (doing too much, extract custom hook) |
 | [react/prop-count](react/prop-count.md) | Script | No | Components with 8+ props (needs decomposition or context) |
@@ -80,7 +81,7 @@ Not every project needs every rule. Use audit findings to guide selection:
 
 | If the project has... | Include these rules |
 |---|---|
-| Database layer | `boundary/db-isolation`, `structure/schema-placement` |
+| Database layer | `boundary/db-isolation`, `structure/schema-placement`, `structure/no-raw-result` |
 | `domains/` directory | `boundary/domain-purity`, `api/domain-public-api`, `graph/domain-cycles` |
 | Multiple features | `api/feature-public-api`, `graph/feature-deps` |
 | SSR / bundle splitting | `api/barrel-direction`, `api/barrel-purity`, `api/server-import-context`, `boundary/client-server-infra` |
@@ -88,4 +89,4 @@ Not every project needs every rule. Use audit findings to guide selection:
 | Intra-feature layers | `structure/layer-direction`, `boundary/layer-occupancy`, `boundary/server-no-upward` |
 | React UI | All `react/` rules (including `no-async-effect` if using TanStack Query or similar) |
 | External SDK integrations | `boundary/sdk-containment` |
-| Any TypeScript project | `boundary/cross-boundary-alias`, `boundary/no-test-imports`, `boundary/shared-purity`, `health/file-size` |
+| Any TypeScript project | `boundary/cross-boundary-alias`, `boundary/no-test-imports`, `boundary/shared-purity`, `health/file-size`, `health/no-nested-ternary` |

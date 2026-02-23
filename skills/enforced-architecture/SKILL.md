@@ -26,6 +26,7 @@ Read these references before and during the process:
 | [server-client-boundaries.md](references/server-client-boundaries.md) | Phase 2 (bundle splitting) | TanStack Start server/client conventions, createServerFn patterns, importProtection config |
 | [enforcement-strategy.md](references/enforcement-strategy.md) | Phase 3 (rule design) | Two-layer enforcement (GritQL + scripts), three-tier pipeline, rule field template |
 | [enforcement-implementation.md](references/enforcement-implementation.md) | Phase 4 (implementation) | Biome config, lefthook, package.json scripts, structural script orchestration |
+| [documentation-model.md](references/documentation-model.md) | Phase 4 (documentation) | What to document in CLAUDE.md and docs/architecture/, content checklists |
 | [migration-patterns.md](references/migration-patterns.md) | Phase 4 (migration) | Atomic phase decomposition, sequencing, verification |
 | [rules/overview.md](references/rules/overview.md) | Phase 3–4 (rule catalog) | Complete rule index with tags, mechanisms, and links to templates |
 
@@ -72,6 +73,7 @@ Read the full choice descriptions in [directory-model.md](references/directory-m
 2. **Intra-feature layering** — Enforced `controllers/ → service/ → repo/ → ui/` internal structure, or flat features with just `controllers/`?
 3. **Env split strategy** — Separate `env.server.ts` + `env.client.ts`, or single `env.ts`?
 4. **Error architecture** — Single error class at the server boundary, or per-layer typed errors?
+5. **Documentation depth** — CLAUDE.md only, or CLAUDE.md + `docs/architecture/` reference files? See [documentation-model.md](references/documentation-model.md).
 
 #### Propose the architecture
 
@@ -129,7 +131,8 @@ Read [enforcement-implementation.md](references/enforcement-implementation.md) f
 4. Lefthook pre-commit config
 5. Framework import protection (vite.config.ts)
 6. Directory structure with empty barrels
-7. Verify: `bun run check:arch && bun run dev`
+7. Generate documentation per [documentation-model.md](references/documentation-model.md) — CLAUDE.md rules section, and docs/architecture/ files if chosen
+8. Verify: `bun run check:arch && bun run dev`
 
 **Migration:** Decompose into atomic phases per [migration-patterns.md](references/migration-patterns.md). Each phase produces a clean repo.
 
@@ -152,12 +155,13 @@ Write the plan to `docs/plans/<date>-enforced-architecture-plan.md` (e.g., `docs
 
 Combine all phases into a single document:
 
-1. **Decision Summary** — Core architectural decisions and rationale. Which configurable choices were made and why.
+1. **Decision Summary** — Core architectural decisions and rationale. Which configurable choices were made and why (including documentation depth).
 2. **Target Architecture** — Directory layout (annotated tree), responsibility split table, dependency graph, public API conventions, server/client file naming.
 3. **Import Boundary Matrix** — Top-level matrix, within-feature boundaries, cross-feature rules, SDK containment configuration.
 4. **Rule Selection** — Included rules table (rule + adaptation notes) and excluded rules table (rule + reason). See Phase 3 for the format.
-5. **Implementation Checklist** (greenfield) or **Migration Plan** (existing) — From Phase 4.
-6. **Current Violations** (migration only) — Prioritized from the audit, with specific file paths and fix descriptions.
+5. **Documentation Spec** — Which CLAUDE.md sections to generate and which docs/architecture/ files to create. Content checklist per [documentation-model.md](references/documentation-model.md).
+6. **Implementation Checklist** (greenfield) or **Migration Plan** (existing) — From Phase 4.
+7. **Current Violations** (migration only) — Prioritized from the audit, with specific file paths and fix descriptions.
 
 **Important:** The plan document lives in the project repo and will be read by agents in future sessions. Include this reference for rule implementation:
 

@@ -1,0 +1,128 @@
+// ─── structure/no-raw-result ─────────────────────────────────────────────
+//
+// Tag:      structure
+// Mechanism: GritQL (per-file, real-time)
+// Blocking: Yes
+//
+// Prevents: Data-access functions returning unserializable ORM result
+//           objects. Drizzle (and most SQL drivers) return a raw driver
+//           Result from write operations (delete, insert, update) when
+//           .returning() is not chained. This Result contains functions,
+//           internal parser state, and class instances that cannot be
+//           serialized by RPC layers (TanStack Start's seroval, tRPC,
+//           etc.). When a server function implicitly returns one of
+//           these — especially via arrow-expression handlers — the
+//           serializer throws at runtime with a cryptic
+//           "SerovalUnsupportedTypeError".
+//
+//           The fix at the source: data-access functions that perform
+//           writes without .returning() should use `await` without
+//           `return`, so they resolve to `void` instead of leaking a
+//           driver-internal object up the call chain.
+//
+// Applies:  Data-access layers that run Drizzle queries — typically
+//           features/*/repo/ and features/*/controllers/ (controllers
+//           can call db directly when no repo/ layer exists).
+//           Excludes test files and scripts.
+//
+// Error:    "Returning a Drizzle write without .returning() produces an
+//            unserializable postgres Result object. Either add
+//            .returning() to get row data, or await without returning."
+//
+// ── Adapt ─────────────────────────────────────────────────────────────
+//
+// 1. File scope (which layers can call db):
+//    Adjust the filename patterns to match every layer in your project
+//    that performs direct Drizzle queries. If only repo/ touches the
+//    DB, you can narrow the scope.
+//    Examples:
+//      .*/repo/.*\.ts$                        — repo only
+//      .*/repo/.*\.ts$ | .*/controllers/.*    — repo + controllers (this template)
+//      .*/data-access/.*\.ts$                 — alternative naming
+//
+// 2. Dangerous patterns to match:
+//    The `or {}` block lists Drizzle patterns that produce raw Result
+//    objects. Extend it if your codebase uses additional write patterns
+//    that don't chain .returning().
+//    Examples:
+//      db.delete($_)              — DELETE without RETURNING (this template)
+//      .onConflictDoNothing()     — INSERT ... ON CONFLICT DO NOTHING (this template)
+//      .onConflictDoUpdate($_)    — INSERT ... ON CONFLICT DO UPDATE (add if used)
+//
+// 3. Safe escape hatch:
+//    .returning() in the chain means the query returns plain row
+//    objects instead of a driver Result. The `! $expr <: contains
+//    `.returning()`` guard ensures these are never flagged.
+//
+// ──────────────────────────────────────────────────────────────────────
+
+file(name=$filename, body=$program) where {
+    // --- Layer scope (who runs Drizzle queries) ---
+    or {
+        $filename <: r".*/src/features/[^/]+/repo/.*\.ts$",
+        $filename <: r".*/src/features/[^/]+/controllers/.*\.ts$"
+    },
+
+    // --- Global exclusions (shared across all rules) ---
+    ! $filename <: r".*\.test\.[tj]sx?$|.*\.integration\.test\.[tj]sx?$|.*__tests__.*|.*src/test/.*",
+    ! $filename <: r".*/scripts/.*",
+
+    $program <: contains bubble `return $expr` as $return where {
+        // Match Drizzle write operations that produce raw driver Results
+        or {
+            $expr <: contains `db.delete($_)`,
+            $expr <: contains `.onConflictDoNothing()`
+        },
+        // .returning() converts the result to plain row objects — safe to return
+        ! $expr <: contains `.returning()`,
+        register_diagnostic(
+            span = $return,
+            message = "Returning a Drizzle write without .returning() produces an unserializable postgres Result object. Either add .returning() to get row data, or await without returning."
+        )
+    }
+}
+
+// ── How this works ───────────────────────────────────────────────────
+//
+// Drizzle's query builder returns different types depending on the
+// chain:
+//
+//   db.delete(table).where(cond)                → Promise<postgres.Result>
+//   db.delete(table).where(cond).returning()    → Promise<Row[]>
+//   db.insert(table).values(v).onConflictDoNothing() → Promise<postgres.Result>
+//   db.insert(table).values(v).returning()      → Promise<Row[]>
+//
+// postgres.Result contains functions (addRow, parseRow), class
+// instances (_types), and other non-serializable internals. This is
+// fine in pure server code, but server functions (TanStack Start,
+// tRPC, etc.) serialize their return value to send across the wire.
+//
+// The rule catches `return <expr>` where <expr> contains a dangerous
+// pattern (db.delete or .onConflictDoNothing) but NOT the safe
+// escape (.returning()). The fix is to `await` without returning:
+//
+//   // Before (returns raw Result → serialization crash)
+//   export function deleteItem(id: string) {
+//     return db.delete(items).where(eq(items.id, id));
+//   }
+//
+//   // After (returns void → safe)
+//   export async function deleteItem(id: string) {
+//     await db.delete(items).where(eq(items.id, id));
+//   }
+//
+// Arrow-expression handlers in server functions are the most common
+// way this bug surfaces, because the implicit return is invisible:
+//
+//   .handler(({ data }) => repo.deleteItem(data.id))
+//   //                  ^^ implicit return of Promise<Result>
+//
+// The controller-level fix is to use a block body:
+//
+//   .handler(async ({ data }) => {
+//     await repo.deleteItem(data.id);
+//   })
+//
+// But fixing the repo function is the better defense — it makes the
+// function's return type `Promise<void>`, so even an implicit return
+// in the handler is safe.

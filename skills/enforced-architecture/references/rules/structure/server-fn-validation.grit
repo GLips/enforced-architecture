@@ -6,17 +6,17 @@
 //
 // Prevents: Server functions that accept input without validation.
 //           Every createServerFn that chains .handler() should first
-//           chain .validator() (or .inputValidator()) to ensure input
-//           is validated at the server boundary. Unvalidated server
-//           functions accept arbitrary client input — this is the
-//           primary injection vector for bad data reaching the
-//           database or business logic.
+//           chain .inputValidator() to ensure input is validated at
+//           the server boundary. Unvalidated server functions accept
+//           arbitrary client input — this is the primary injection
+//           vector for bad data reaching the database or business
+//           logic.
 //
 // Applies:  All src/** files that contain createServerFn calls.
 //           Excludes test files and scripts.
 //
-// Error:    "createServerFn chains .handler() without .validator().
-//            Add .validator(schema) before .handler() to validate
+// Error:    "createServerFn chains .handler() without .inputValidator().
+//            Add .inputValidator(schema) before .handler() to validate
 //            input at the server boundary."
 //
 // ── Adapt ─────────────────────────────────────────────────────────────
@@ -29,25 +29,30 @@
 //      createServerAction — alternative naming
 //
 // 2. Validator method name:
-//    If your framework uses a different validation chaining method,
-//    update the negative lookahead check in the regex.
-//    Examples:
-//      .validator(       — TanStack Start v1 (this template)
-//      .inputValidator(  — TanStack Start alternative
-//      .input(           — tRPC-style
-//      .schema(          — alternative validation naming
+//    TanStack Start uses .inputValidator(). The rule doesn't check
+//    the method name — it detects the absence of ANY intermediate
+//    method between createServerFn() and .handler(). Whether that
+//    method is .inputValidator(), .input(), .schema(), or something
+//    else doesn't matter — any chained method breaks the direct
+//    two-call pattern and satisfies the rule. Update the error
+//    message to match your framework's method name.
 //
 // 3. No-input server functions:
-//    The default pattern excludes no-input server functions
-//    (those with empty parentheses: `createServerFn().handler(fn)`)
-//    using the `! $args <: .` guard. This means server functions
-//    that take no input (e.g., "get current session") will NOT
-//    trigger this rule, which is the correct behavior since they
-//    have nothing to validate.
+//    The rule checks the HANDLER's parameter list to determine
+//    whether the server function expects input. If the handler is
+//    `async () => ...` (no parameters), it's a no-input function
+//    and won't trigger this rule. If the handler is
+//    `async ({ data }) => ...` (has parameters), it expects input
+//    and must have a validator.
+//
+//    This is the correct detection strategy because createServerFn's
+//    own argument is always config (e.g., { method: "POST" }), never
+//    user input. The old approach of checking createServerFn's args
+//    (`! $args <: .`) false-positives on config objects.
 //
 //    If you want stricter enforcement that requires ALL server
 //    functions to have .validator() regardless of input, remove
-//    the `! $args <: .` line from the pattern below.
+//    the `$handler <: ...` and `! $params <: .` lines below.
 //
 // ──────────────────────────────────────────────────────────────────────
 
@@ -56,35 +61,47 @@ file(name=$filename, body=$program) where {
     ! $filename <: r".*\.test\.[tj]sx?$|.*\.integration\.test\.[tj]sx?$|.*__tests__.*|.*src/test/.*",
     ! $filename <: r".*/scripts/.*",
 
-    $program <: contains bubble `createServerFn($args).handler($handler)` as $chain where {
-        // Exclude no-input server functions (empty parentheses).
-        // GritQL's $args metavariable matches even when there are zero
-        // arguments. The `.` (dot) matches an empty/absent node — negating
-        // it means "args must be non-empty."
-        ! $args <: .,
+    $program <: contains bubble `createServerFn($_).handler($handler)` as $chain where {
+        // Check the handler's parameter list, not createServerFn's config arg.
+        // createServerFn's argument is always config ({ method: "POST" }), never
+        // user input. User input flows through .inputValidator(). The handler's
+        // parameter shape is the true signal: async ({ data }) => ... means it
+        // expects input, async () => ... means it doesn't.
+        $handler <: `async ($params) => $body`,
+        ! $params <: .,
         register_diagnostic(
             span = $chain,
-            message = "createServerFn chains .handler() without .validator(). Add .validator(schema) before .handler() to validate input at the server boundary."
+            message = "createServerFn chains .handler() without .inputValidator(). Add .inputValidator(schema) before .handler() to validate input at the server boundary."
         )
     }
 }
 
 // ── How this works ───────────────────────────────────────────────────
 //
-// The pattern `createServerFn($args).handler($handler)` matches
-// ONLY when .handler() is chained directly to createServerFn()
-// with no intermediate method call. When .validator() (or any
-// other method) is chained between them, the AST structure
-// becomes createServerFn($args).validator($schema).handler($handler),
-// which does NOT match the two-call chain pattern.
+// The pattern `createServerFn($_).handler($handler)` matches ONLY
+// when .handler() is chained directly to createServerFn() with no
+// intermediate method call. When .inputValidator() (or any other
+// method) is chained between them, the AST structure becomes
+// createServerFn($_).inputValidator($schema).handler($handler), which
+// does NOT match the two-call chain pattern.
 //
-// The `! $args <: .` guard excludes the empty-args case. GritQL's
-// $args metavariable matches even when there are zero arguments,
-// so without this guard, `createServerFn().handler(fn)` would
-// false-positive. The `.` (dot) matches an empty/absent node —
-// negating it means "args must be non-empty."
+// The `$handler <: `async ($params) => $body`` guard then checks
+// if the handler function takes parameters. The `! $params <: .`
+// check (where `.` matches an empty/absent node) ensures we only
+// flag handlers that expect input.
+//
+// This avoids the false-positive problem with the old approach:
+// createServerFn({ method: "POST" }) has non-empty args (config),
+// but the handler might be `async () => ...` (no input needed).
+// By checking the handler's params instead of createServerFn's
+// args, we correctly distinguish config from input.
 //
 // This means:
-//   createServerFn({ method: "POST" }).handler(fn)              — MATCHES (violation)
-//   createServerFn({ method: "POST" }).validator(z).handler(fn) — no match (valid)
-//   createServerFn().handler(fn)                                — no match (no input to validate)
+//   createServerFn({ method: "POST" }).handler(async ({ data }) => ...)
+//     — MATCHES (handler expects input, no validator)
+//   createServerFn({ method: "POST" }).inputValidator(z).handler(async ({ data }) => ...)
+//     — no match (validator present)
+//   createServerFn({ method: "GET" }).handler(async () => ...)
+//     — no match (handler takes no input)
+//   createServerFn().handler(async () => ...)
+//     — no match (handler takes no input)

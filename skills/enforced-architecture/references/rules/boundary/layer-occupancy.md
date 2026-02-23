@@ -8,26 +8,31 @@
 
 ## What it prevents
 
-Controllers bypassing a present repo/ layer to access the database schema directly. When a feature has a `repo/` directory, all DB query construction must flow through that layer. Controllers may still import the DB client (`infrastructure/db/client`) to pass it to repo functions for transaction handling, but they must not import DB schema modules to build queries themselves.
+Controllers bypassing present layers. The invariant is "skip absent layers, never bypass present ones." This check enforces the "never bypass" half for two layer boundaries:
 
-This is the filesystem-aware complement to the per-file DB isolation rule. The per-file rule (db-isolation) restricts which layers can import DB at all. This structural check adds a conditional tightening: when a feature graduates to having a repo layer, the controller-to-DB shortcut is revoked for schema imports. The invariant is "skip absent layers, never bypass present ones" — and this check enforces the "never bypass" half for the most important layer boundary (data access).
+1. **Repo bypass** — When a feature has a `repo/` directory, controllers cannot import DB schema modules to build queries themselves. All DB query construction must flow through the repo layer. Controllers may still import the DB client (`infrastructure/db/client`) to pass it to repo functions for transaction handling, but schema imports (query construction) must go through repo/.
 
-Without this check, a feature could have a well-organized repo/ directory while individual controllers silently build ad-hoc queries against the schema, fragmenting data access logic across two layers.
+2. **Service bypass** — When a feature has both `service/` and `repo/` directories, controllers cannot import from repo/ directly. All repo access must flow through the service layer. This prevents controllers from fragmenting orchestration logic by calling some repo functions through service and others directly.
+
+This is the filesystem-aware complement to the per-file DB isolation rule. The per-file rule (db-isolation) restricts which layers can import DB at all. This structural check adds conditional tightening as features graduate: adding repo/ revokes the controller-to-schema shortcut, and adding service/ revokes the controller-to-repo shortcut.
+
+Without this check, a feature could have well-organized service/ and repo/ directories while individual controllers silently bypass them, fragmenting logic across layers.
 
 ## Where it applies
 
-`src/features/*/controllers/**/*.ts` — but only for features that have a `src/features/*/repo/` directory. Features without a repo/ directory are not checked (their controllers are the designated DB access layer).
+`src/features/*/controllers/**/*.ts` — but only for features that have a `src/features/*/repo/` or `src/features/*/service/` directory. Features without either are not checked (their controllers access infrastructure directly).
 
 ## Algorithm
 
 Filesystem-aware, not AST-based. Checks directory presence then scans for import patterns.
 
 1. **Enumerate features** — Walk `src/features/*/` directories.
-2. **Check for repo layer** — For each feature, test if `src/features/<name>/repo/` exists. If not, skip the feature entirely.
-3. **Scan controllers** — For each feature with a repo/ layer, find all `.ts`/`.tsx` files in `controllers/` (excluding tests).
-4. **Check for schema imports** — Grep each controller file for imports matching `@/infrastructure/db/schema`. This is the pattern that indicates direct query construction.
-5. **Exclude type-only imports** — Filter out `import type` statements, which do not create runtime dependencies. Type imports from schema are allowed because they convey no query construction capability.
-6. **Report** — Emit the feature name, file path, and a fix instruction for each violation.
+2. **Check for layers** — For each feature, test if `repo/` and/or `service/` exist. If neither exists, skip.
+3. **Scan controllers** — Find all `.ts`/`.tsx` files in `controllers/` (excluding tests).
+4. **Check for schema imports** — When `repo/` exists, grep for imports matching `@/infrastructure/db/schema`.
+5. **Check for repo imports** — When both `service/` and `repo/` exist, grep for relative imports matching `../repo/`.
+6. **Exclude type-only imports** — Filter out `import type` statements for both checks. Type imports create no runtime dependency.
+7. **Report** — Emit the feature name, file path, and a fix instruction for each violation.
 
 ### Why schema but not client?
 
@@ -36,23 +41,19 @@ The DB client import (`@/infrastructure/db/client`) is allowed from controllers 
 ## Configuration
 
 ```typescript
-// The import pattern that indicates direct DB query construction
+// Direct DB query construction (controllers → schema when repo/ exists)
 const SCHEMA_IMPORT_PATTERN = /from ['"]@\/infrastructure\/db\/schema/;
 
-// Pattern that indicates a type-only import (excluded from violations)
+// Direct repo access (controllers → repo when service/ exists)
+const REPO_IMPORT_PATTERN = /from ['"]\.\.\/repo\//;
+
+// Type-only imports are excluded from both checks
 const TYPE_ONLY_IMPORT = /^import type /;
-
-// Feature layers to scan for violations
-const SOURCE_LAYER = "controllers";
-
-// Feature layer whose presence triggers the check
-const GATING_LAYER = "repo";
 ```
 
 **Adjustments:**
 - If your DB schema lives elsewhere (e.g., `@/db/schema`), update `SCHEMA_IMPORT_PATTERN`.
-- If your project uses a different name for the data access layer (e.g., `data/`, `queries/`), update `GATING_LAYER`.
-- If your project has a service layer that should also be gated (controllers cannot bypass service when it exists), add a second pass with `SOURCE_LAYER = "controllers"` and `GATING_LAYER = "service"`.
+- If your project uses different layer names (e.g., `data/` instead of `repo/`, `usecases/` instead of `service/`), update the directory checks and import patterns accordingly.
 
 ## Implementation
 
@@ -74,9 +75,8 @@ FAIL [layer-occupancy] src/features/billing/controllers/invoices.ts
   instead. Controllers may import the DB client for transaction handling, but
   schema imports (query construction) must flow through repo/.
 
-FAIL [layer-occupancy] src/features/chat/controllers/conversations.ts
-  Controller imports DB schema directly, but feature "chat" has a repo/ layer.
-  Move the query to a function in src/features/chat/repo/ and import that
-  instead. Controllers may import the DB client for transaction handling, but
-  schema imports (query construction) must flow through repo/.
+FAIL [layer-occupancy] src/features/agent/controllers/jobs.ts
+  Controller imports repo directly, but feature "agent" has a service/ layer.
+  Route the call through src/features/agent/service/ instead.
+  When service/ exists, controllers must not bypass it to reach repo/.
 ```

@@ -37,8 +37,8 @@ Counting all lines (blanks, comments, code) is intentional. A file with 300 line
 
 ```typescript
 // Thresholds — calibrate to your project. Start strict, relax only with justification.
-const WARN_THRESHOLD = 300;
-const FAIL_THRESHOLD = 450;
+const WARN_THRESHOLD = 500;
+const FAIL_THRESHOLD = 600;
 
 // Known-oversized files — centralized exclusion list.
 // Each entry MUST have a TODO comment explaining the remediation plan.
@@ -75,8 +75,8 @@ FAIL: file-size — src/features/editor/ui/canvas/renderer.tsx is 647 lines (lim
 WARN: file-size — src/features/billing/service/subscriptions.ts is 523 lines (warn: 500, limit: 600).
   This file is approaching the hard limit. Consider splitting proactively.
   Common strategies: extract helper functions to a sibling module, split a
-  large component into subcomponents, or move substantial type definitions
-  to a dedicated types file.
+  large component into subcomponents, or move substantial type definitions to
+  a dedicated types file.
 ```
 
 ## Why mixed blocking
