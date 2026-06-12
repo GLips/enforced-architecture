@@ -42,8 +42,8 @@ Always include, regardless of architectural choices:
 | **Commands** | Build, test, lint, format, typecheck, migrations. Copy-pasteable. |
 | **Dependency direction** | The fundamental invariant and the layer ordering. |
 | **Feature barrel convention** | `index.ts` vs `index.server.ts`, what goes in each, barrel direction rule. |
-| **Server/client file naming** | Why `createServerFn` files must NOT use `.server.ts`. |
-| **Controller file naming** | Named without `.server.ts`, re-exported through `index.ts`. |
+| **Server/client file naming** | When `createServerFn` files should use `.server.ts` (server-only imports) vs plain `.ts`. |
+| **Controller file naming** | Use `.server.ts` when importing server-only code, re-exported through `index.ts`. |
 | **Route imports** | Import from `@/features/<name>`, not deep paths. |
 | **Server function naming** | The `Fn` suffix convention (or project-specific convention). |
 | **Test placement** | Co-located `thing.test.ts` next to `thing.ts`. |

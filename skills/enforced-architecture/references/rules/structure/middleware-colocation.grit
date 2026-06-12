@@ -1,0 +1,55 @@
+// ─── structure/middleware-colocation ─────────────────────────────────
+//
+// Tag:      structure
+// Mechanism: GritQL (per-file, real-time)
+// Blocking: Yes
+//
+// Prevents: createServerFn and createMiddleware co-located in the same
+//           file. The TanStack Start compiler prunes server-only imports
+//           from createServerFn handlers but does NOT process
+//           createMiddleware. If both share a file with a server-only
+//           import (e.g., betterAuth, DB client), the middleware keeps
+//           that import alive in the client bundle — causing runtime
+//           crashes like "Buffer is not defined" from Node.js-only code.
+//
+//           The fix is structural: place createMiddleware in a separate
+//           .server.ts file. The .server.ts suffix blocks client imports
+//           via import protection.
+//
+// Applies:  All src/** files that contain createServerFn calls.
+//           Excludes test files and scripts.
+//
+// Error:    "createServerFn and createMiddleware must not share a file.
+//            The compiler prunes server-only imports from createServerFn
+//            handlers but NOT from createMiddleware. Move the middleware
+//            to a separate .server.ts file."
+//
+// ── Adapt ─────────────────────────────────────────────────────────────
+//
+// 1. Factory names:
+//    If your framework uses different names, replace createServerFn
+//    and createMiddleware with the correct identifiers.
+//
+// 2. This rule is TanStack Start-specific. Other SSR frameworks
+//    (Next.js, SolidStart) have different compilation models and
+//    may not have this problem. Remove or adapt if not using
+//    TanStack Start.
+//
+// ──────────────────────────────────────────────────────────────────────
+
+file(name=$filename, body=$program) where {
+    // --- Global exclusions (shared across all rules) ---
+    ! $filename <: r".*\.test\.[tj]sx?$|.*\.integration\.test\.[tj]sx?$|.*__tests__.*|.*src/test/.*",
+    ! $filename <: r".*/scripts/.*",
+
+    // Only check files that contain createServerFn
+    $program <: contains `createServerFn`,
+
+    // Flag any createMiddleware in the same file
+    $program <: contains bubble `createMiddleware` as $middleware where {
+        register_diagnostic(
+            span = $middleware,
+            message = "createServerFn and createMiddleware must not share a file. The compiler prunes server-only imports from createServerFn handlers but NOT from createMiddleware. Move the middleware to a separate .server.ts file."
+        )
+    }
+}

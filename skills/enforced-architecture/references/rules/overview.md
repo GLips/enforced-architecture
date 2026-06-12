@@ -42,7 +42,7 @@ Complete index of enforcement rules. Each rule has a template in its tag directo
 | Rule | Mechanism | Blocking | What it prevents |
 |---|---|---|---|
 | [structure/server-fn-placement](structure/server-fn-placement.grit) | GritQL | Yes | `createServerFn` outside `controllers/` directories |
-| [structure/server-fn-naming](structure/server-fn-naming.grit) | GritQL | Yes | `createServerFn` inside `.server.ts` files (blocks client RPC stub import) |
+| [structure/middleware-colocation](structure/middleware-colocation.grit) | GritQL | Yes | `createServerFn` and `createMiddleware` in the same file (middleware imports survive compilation and leak into client bundles) |
 | [structure/layer-direction](structure/layer-direction.grit) | GritQL | Yes | Within-feature layer import direction violations (e.g., repo importing controllers) |
 | [structure/deprecated-paths](structure/deprecated-paths.grit) | GritQL | Yes | Imports from removed/renamed paths (e.g., `@/components/*`) |
 | [structure/schema-placement](structure/schema-placement.grit) | GritQL | Yes | Drizzle schema declarations (`pgTable`, `relations`) outside `infrastructure/db/schema/` |
@@ -85,7 +85,7 @@ Not every project needs every rule. Use audit findings to guide selection:
 | `domains/` directory | `boundary/domain-purity`, `api/domain-public-api`, `graph/domain-cycles` |
 | Multiple features | `api/feature-public-api`, `graph/feature-deps` |
 | SSR / bundle splitting | `api/barrel-direction`, `api/barrel-purity`, `api/server-import-context`, `boundary/client-server-infra` |
-| `createServerFn` usage | `structure/server-fn-placement`, `structure/server-fn-naming`, `structure/server-fn-validation` |
+| `createServerFn` usage | `structure/server-fn-placement`, `structure/server-fn-validation`, `structure/middleware-colocation` |
 | Intra-feature layers | `structure/layer-direction`, `boundary/layer-occupancy`, `boundary/server-no-upward` |
 | React UI | All `react/` rules (including `no-async-effect` if using TanStack Query or similar) |
 | External SDK integrations | `boundary/sdk-containment` |

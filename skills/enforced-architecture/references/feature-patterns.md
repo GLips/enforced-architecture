@@ -122,21 +122,21 @@ Controllers do NOT:
 
 ### Controller File Naming
 
-Controller files are named without the `.server.ts` suffix — e.g., `controllers/items.ts` not `controllers/items.server.ts`. They contain `createServerFn` exports that produce RPC bridges. On the client, the compiler replaces handler bodies with network call stubs. Routes and UI code **need** to import these files to get the stub. The `.server.ts` suffix would trigger vite's `**/*.server.*` import-protection and block that import. This mistake is caught by the `structure/server-fn-naming` rule.
+Controller files use `.server.ts` when they import server-only code — e.g., `controllers/items.server.ts` if it imports from `repo/`, `infrastructure/db`, or auth internals. Use plain `.ts` when the controller has no server-only imports. The TanStack Start compiler runs before import protection — it replaces `createServerFn` handlers with client RPC stubs and prunes server-only imports that become unused. The `.server.ts` suffix acts as a safety net: if a server-only import leaks past the compiler (referenced outside a handler body), import protection catches it at build time instead of letting it cause a runtime crash.
 
 Controllers are re-exported through the feature's `index.ts` barrel:
 
 ```typescript
 // features/<name>/index.ts
-export { loadItemFn, createItemFn } from "./controllers/items";
+export { loadItemFn, createItemFn } from "./controllers/items.server";
 ```
 
 ### Server Function Pattern
 
-TanStack Start's compiler extracts `createServerFn` handler bodies and their dependency graph from client bundles. Server-only imports at the top of the file are handled by the compiler — they only exist in the server bundle. This means controller files can directly import infrastructure, repos, and auth:
+TanStack Start's compiler extracts `createServerFn` handler bodies and their dependency graph from client bundles. Server-only imports at the top of the file are handled by the compiler — they only exist in the server bundle. The `.server.ts` suffix adds a safety net for any imports that leak past the compiler:
 
 ```typescript
-// controllers/items.ts
+// controllers/items.server.ts
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSession } from "@/infrastructure/auth/require-session.server";
