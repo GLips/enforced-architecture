@@ -1,16 +1,23 @@
-# Enforced Architecture
+# Ship fast without turning your codebase into slop. Encode your data flow and structural boundaries as automatically enforced lint rules.
 
-Help AI agents ship fast without your codebase falling apart. **Encode your data flow and structural boundaries as machine-checkable rules.** 
+A catalog of ~35 ready-to-steal enforcement rules for TypeScript codebases. Point your agent here to steal them directly, or to get inspiration for your own codebase.
 
-A Claude Code skill plus a catalog of ~35 ready-to-steal enforcement rules for TypeScript codebases. Point your agent here to steal the rules directly or get inspiration for your own codebase.
+## Principles, briefly
+
+- **If a constraint isn't enforced by tooling, it doesn't exist.** The rules teach amnesiac agents by blocking them from doing wrong things.
+- **Predictable structure enables autonomous navigation.** An agent should answer "where does this code live?" from the directory layout alone.
+- **Anti-ceremony.** The goal is the *minimum* structure that protects your dependency invariants. Layers are optional — but if a layer exists, you can't bypass it. No empty directories, no scaffolding or boilerplate for hypothetical needs.
+- **Blocking from day one.** Agents treat warnings like "it's fine." Every rule either blocks or isn't a rule yet.
+
+The full reasoning lives in [`architecture-principles.md`](skills/enforced-architecture/references/architecture-principles.md).
 
 ## The idea
 
 Agents are prolific. It's like having an army of interns.
 
-You can't fix their problems with documentation. Docs are advisory and quickly go out of date.
+But you can't be confident they're adhering to your codebase's conventions with documentation alone.
 
-Rules that *block* bad behavior are *authoritative*. An agent writes something incorrectly, gets an error, and changes course to do it the right way.
+Hard rules that *block* bad behavior are *authoritative*. An agent writes something incorrectly, gets an error, and changes course to do it the right way.
 
 This is heavily inspired by OpenAI's [harness engineering](https://openai.com/index/harness-engineering/) writeup, where their team shipped a 1M line codebase with essentially zero hand-written code by leaning on layered domains, fixed dependency direction, and custom linters with agent-targeted error messages. As they put it:
 
@@ -36,35 +43,6 @@ The catalog covers boundaries like that, plus public-API barrels, SDK containmen
 **1. Steal the rules/run the skill.** If you run a Tanstack Start + Drizzle setup, the rules may be directly applicable. Tell your agent to crib what it can from the repo.
 
 **2. Point your agent at it for ideas.** This is what most people should do. The rules here target a specific stack, but the *thinking* is universal. Hand this repo to your coding agent and ask it to figure out which boundaries matter for *your* codebase — then write the enforcement rules in whatever your project uses (Biome/GritQL, ESLint, ArchUnit-style fitness functions, custom scripts). The catalog is a menu of ideas as much as a set of files.
-
-## What's in here
-
-```
-skills/enforced-architecture/
-├── SKILL.md                          # The guided workflow (audit → architecture → rules → rollout)
-└── references/
-    ├── architecture-principles.md    # The worldview: layers, dependency direction, anti-ceremony
-    ├── import-boundaries.md          # Boundary matrix, public-API conventions, SDK containment
-    ├── feature-patterns.md           # How features scale from one file to four layers
-    ├── server-client-boundaries.md   # Server/client splitting for SSR frameworks
-    ├── enforcement-strategy.md       # Two-layer enforcement model, three-tier pipeline
-    └── rules/                        # ~35 ready-to-adapt rule templates, by category:
-        ├── boundary/   # layer direction, DB isolation, SDK containment, import restrictions
-        ├── api/        # public-API barrels, server/client barrel direction
-        ├── structure/  # file placement, naming, server-function validation
-        ├── graph/      # cross-file dependency-cycle and coupling analysis
-        ├── health/     # file size, nested ternaries, no-op trampolines
-        └── react/      # derived state, direct fetch, async effects, hook/prop counts
-```
-
-## Principles, briefly
-
-- **Mechanical enforcement is knowledge transfer.** If a constraint isn't enforced by tooling, it doesn't exist for agents. The rules teach by blocking.
-- **Predictable structure enables autonomous navigation.** An agent should answer "where does this code live?" from the directory layout alone. "Mostly consistent" is worse than "never," because it breeds false confidence.
-- **Anti-ceremony.** The goal is the *minimum* structure that protects your dependency invariants. Layers are optional — but if a layer exists, you can't bypass it. No empty directories, no scaffolding for hypothetical needs.
-- **Blocking from day one.** Agents treat warnings like "it's fine." Every rule either blocks or isn't a rule yet.
-
-The full reasoning lives in [`architecture-principles.md`](skills/enforced-architecture/references/architecture-principles.md).
 
 ## Installation
 
