@@ -8,7 +8,9 @@ A Claude Code skill plus a catalog of ~35 ready-to-steal enforcement rules for T
 
 Agents are prolific. It's like having an army of interns.
 
-You can't fix this with documentation. Docs are advisory. Rules that *block* bad behavior are *authoritative*. An agent runs into a wall, reads the error, and does it the right way.
+You can't fix their problems with documentation. Docs are advisory and quickly go out of date.
+
+Rules that *block* bad behavior are *authoritative*. An agent writes something incorrectly, gets an error, and changes course to do it the right way.
 
 This is heavily inspired by OpenAI's [harness engineering](https://openai.com/index/harness-engineering/) writeup, where their team shipped a 1M line codebase with essentially zero hand-written code by leaning on layered domains, fixed dependency direction, and custom linters with agent-targeted error messages. As they put it:
 
