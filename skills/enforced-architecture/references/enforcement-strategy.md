@@ -70,6 +70,8 @@ All checks run in parallel at commit time: Biome lint (GritQL rules), structural
 - Type checking catches type errors introduced by import changes.
 - Tests catch behavioral regressions.
 
+**Warning scope.** Pre-commit is local and interactive, so advisory warnings are scoped to the staged diff — a commit isn't nagged about pre-existing drift in files it never touched. Blocking errors are never scoped; they surface wherever they live. (Tier 3 and manual full runs warn repo-wide — the full picture belongs there.) See [enforcement-implementation.md](enforcement-implementation.md) for the mechanism.
+
 **Target latency:** Under 15 seconds for most projects. Parallel execution is critical.
 
 ### Tier 3: CI

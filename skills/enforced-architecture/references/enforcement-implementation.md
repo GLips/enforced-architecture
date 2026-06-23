@@ -21,12 +21,32 @@ Key configuration points:
 An orchestrator script runs all structural checks. Each check is a function (inline or delegated to a TypeScript script) that increments an `ERRORS` counter (blocking) or `WARNINGS` counter (non-blocking).
 
 **Orchestration pattern:**
-- Each check runs independently and reports its own violations.
-- Blocking checks increment `ERRORS`. Non-blocking checks increment `WARNINGS`.
-- Exit code 1 if any `ERRORS`. Exit code 0 if only `WARNINGS` or clean.
+- Each check runs independently and returns its own findings — both errors (blocking) and warnings (non-blocking), each tied to the file it concerns.
+- The orchestrator reports every error, reports the warnings that survive scoping (below), and counts both.
+- Exit code 1 if any errors. Exit code 0 if only warnings or clean.
 - Delegated TypeScript scripts use exit code 0 for pass/warnings-only and non-zero for errors.
 
 Simple checks (file size, layer occupancy) can be inline shell functions. Complex checks (graph analysis, transitive import tracing) should be delegated to TypeScript scripts for maintainability.
+
+### Staged-scoped warnings
+
+At pre-commit, advisory warnings are scoped to the files the commit touches; blocking errors always surface repo-wide (the rationale lives in [enforcement-strategy.md](enforcement-strategy.md) under Tier 2). Two requirements make this work:
+
+- **Each warning carries its file path as structured data** — a `{ file, message }` finding, not a path buried in the message string. Errors don't need it; they're never filtered. This is why warning-emitting checks *return findings* rather than incrementing a counter inline: a counter can't be filtered after the fact.
+- **The orchestrator is handed the staged set and filters before reporting.** The set is *injected*, not discovered — the orchestrator reads an env var and stays agnostic to which pre-commit tool produced it. Unset means no filter, so CI and manual `check:arch` runs warn across the whole repo.
+
+```typescript
+// Unset (CI, manual run) => undefined => no filtering: warn across the repo.
+const staged = process.env.STAGED_FILES?.split(/\s+/).filter(Boolean);
+// A finding with no file can't be matched, so keep it rather than hide it.
+const inDiff = (w: { file?: string }) =>
+  !staged || w.file === undefined || staged.includes(w.file);
+
+for (const { errors, warnings } of results) {
+  errors.forEach(report);                    // always, repo-wide
+  warnings.filter(inDiff).forEach(report);   // scoped to the staged diff
+}
+```
 
 ---
 
@@ -40,6 +60,18 @@ Use lefthook (or husky, lint-staged, etc.) to run all checks in parallel at comm
 - **Structural checks** — runs the orchestrator script.
 
 All four should run in parallel since they don't depend on each other. Target latency: under 15 seconds.
+
+**Passing the staged set.** Pass the staged files to the orchestrator so it can scope warnings (see Structural Script Orchestration). Compute the set from git in the command itself rather than the pre-commit tool's file template:
+
+```yaml
+check-arch:
+  # Errors surface repo-wide; warnings are scoped to this commit's staged files.
+  run: STAGED_FILES="$(git diff --cached --name-only --diff-filter=ACMR)" bun run check:arch
+```
+
+The orchestrator only reads `STAGED_FILES`, so it stays agnostic to the pre-commit tool. `--diff-filter=ACMR` lists added/copied/modified/renamed paths (skipping deletions). The whole newline-separated list lands in one env value via `$(…)`.
+
+**Gotcha — don't use the tool's file template inline.** It's tempting to write `STAGED_FILES="{staged_files}"` (lefthook) or the husky/lint-staged equivalent. It breaks: these templates quote each path individually, and a quoted list can't be the right-hand side of an env-var assignment — `ENV="a" "b" cmd` sets `ENV=a` and runs `b` as a command (exit 126, "permission denied"). File templates are built to be a command's *arguments*, not an env value. Computing the set from git sidesteps the quoting entirely.
 
 ---
 
@@ -96,7 +128,7 @@ GritQL per-file rules cannot aggregate or count matches within a file. Rules tha
 
 1. Read the relevant rule template from `rules/<tag>/<name>.md`
 2. Implement as an inline function or delegated TypeScript script
-3. Wire it into the orchestrator: increment `ERRORS` for blocking, `WARNINGS` for non-blocking
+3. Wire it into the orchestrator: return errors for blocking findings and warnings for non-blocking ones, each tied to its file (so warnings can be staged-scoped)
 4. Smoke test (see below)
 5. Run `bun run check:arch` to verify
 
