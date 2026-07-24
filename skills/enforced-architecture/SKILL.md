@@ -37,6 +37,7 @@ Rule templates live in `references/rules/` organized by tag:
 | `rules/boundary/` | boundary | Layer direction, import restrictions — GritQL + scripts |
 | `rules/api/` | api | Public API surface, barrel conventions — GritQL + scripts |
 | `rules/structure/` | structure | File placement, naming, server function validation — GritQL |
+| `rules/naming/` | naming | Searchability — greppable public barrels, mirrored test names — scripts |
 | `rules/graph/` | graph | Cross-file dependency analysis — scripts |
 | `rules/health/` | health | Code quality metrics — scripts |
 | `rules/react/` | react | React-specific code smell detection — GritQL + scripts |
@@ -92,6 +93,8 @@ Using the chosen configuration, propose:
 
 **Calibration:** For every proposed layer, directory, or abstraction, ask: does this earn its place? If a service layer would just forward calls, don't propose it.
 
+**Navigability:** Structure is how agents find code, but names are how they *search* it — agents grep symbol names far more than they trace imports or types. Directories and public exports should be named after the domain concepts they contain, specifically enough that a name works as an address (`createStripeClient`, not `create`). Name *quality* is a judgment call, not a mechanical rule — carry it through the whole proposal, since every directory and barrel name is a search term an agent will type. The `naming/` rule tag enforces only the mechanical piece: keeping the public barrel surface greppable (no `export *` / renamed re-exports) and test names mirrored to their source.
+
 **Done when:** An agent reading only the target structure section could answer "where does this code live?" for any type of work.
 
 ### Phase 3: Design enforcement rules
@@ -140,6 +143,7 @@ Read [enforcement-implementation.md](references/enforcement-implementation.md) f
 - One subagent for `boundary/` rules (reads templates, adapts to project paths, writes `.grit` files)
 - One subagent for `api/` rules
 - One subagent for `structure/` rules
+- One subagent for `naming/` scripts (`barrel-discoverability`, `test-file-mirror`)
 - One subagent for structural scripts (`graph/`, `health/`)
 - One subagent for `react/` rules (if applicable)
 

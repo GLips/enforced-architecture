@@ -64,6 +64,15 @@ Complete index of enforcement rules. Each rule has a template in its tag directo
 | [health/no-nested-ternary](health/no-nested-ternary.grit) | GritQL | Yes | Ternary expressions nested 3+ levels deep (extract to variables or helpers) |
 | [health/trampolines](health/trampolines.md) | Script | No | Pass-through wrapper functions that add no behavior |
 
+### naming — Searchability and discoverability
+
+Agents navigate this codebase by grepping symbol names more than by tracing imports or types, so names are the primary index. These rules keep the public surface visible to plain text. (Name *quality* — specific, domain-laden export names and consistent terminology — is a judgment call left to CLAUDE.md guidance, not mechanically enforced.)
+
+| Rule | Mechanism | Blocking | What it prevents |
+|---|---|---|---|
+| [naming/barrel-discoverability](naming/barrel-discoverability.md) | Script | Yes | Public barrels using `export *` or renamed re-exports (`export { X as Y }`) that hide or rename symbols from text search |
+| [naming/test-file-mirror](naming/test-file-mirror.md) | Script | No | Test files whose names don't mirror their source, so they don't surface alongside the code they cover |
+
 ### react — React code smell detection
 
 | Rule | Mechanism | Blocking | What it prevents |
@@ -89,4 +98,6 @@ Not every project needs every rule. Use audit findings to guide selection:
 | Intra-feature layers | `structure/layer-direction`, `boundary/layer-occupancy`, `boundary/server-no-upward` |
 | React UI | All `react/` rules (including `no-async-effect` if using TanStack Query or similar) |
 | External SDK integrations | `boundary/sdk-containment` |
+| Public barrels (two-barrel API) | `naming/barrel-discoverability` |
+| Co-located tests | `naming/test-file-mirror` |
 | Any TypeScript project | `boundary/cross-boundary-alias`, `boundary/no-test-imports`, `boundary/shared-purity`, `health/file-size`, `health/no-nested-ternary` |
