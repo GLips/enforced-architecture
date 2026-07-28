@@ -52,14 +52,21 @@ for (const { errors, warnings } of results) {
 
 ## Pre-commit Configuration
 
-Use lefthook (or husky, lint-staged, etc.) to run all checks in parallel at commit time:
+Use lefthook (or husky, lint-staged, etc.) for two kinds of commit-time work — keep them distinct, because they have opposite shapes:
 
-- **Biome lint + format** — auto-formats, re-stages, and runs GritQL rules. Use `--write` so agents never see formatting issues.
-- **Type checking** — catches type errors introduced by import changes.
-- **Tests** — catches behavioral regressions.
-- **Structural checks** — runs the orchestrator script.
+- **Format & re-stage** (`biome check --write --linter-enabled=false`) — *mutates* the staged files to apply formatting and import sorting, then re-stages the result. Because it rewrites the index, it must not run **concurrently** with anything that reads the staged set — keep it in lefthook's default sequential mode rather than a `parallel: true` group.
+- **Verify** — read-only gates that block the commit and parallelize freely among themselves: the arch gate (`check:arch` = Biome lint + GritQL + structural), type checking, and tests. Target latency: under 15 seconds.
 
-All four should run in parallel since they don't depend on each other. Target latency: under 15 seconds.
+**Format must `--write` and re-stage — a lint-only hook is the trap.** If the hook only runs `check:arch`, formatting is never enforced at commit: unformatted code lands, then the drift surfaces later when someone runs `biome check --write` by hand and it reformats files from *earlier* commits, sweeping unrelated changes into the diff. Make the formatter part of the commit — and disable the linter on this step (`--linter-enabled=false`) so the lint/GritQL pass runs once, in the arch gate, not here too (`--write` still applies formatting and import sorting). In lefthook, `stage_fixed: true` re-stages whatever the command rewrote:
+
+```yaml
+format:
+  glob: "*.{ts,tsx,js,jsx,json,css}"
+  run: bunx biome check --write --linter-enabled=false --no-errors-on-unmatched {staged_files}
+  stage_fixed: true
+```
+
+**Monorepo: give it a root Biome config.** A monorepo should ~always have a root `biome.json` plus Biome as a root dependency. Without them there's no single Biome to run from the repo root and nothing telling it the per-workspace plugins, so `bunx biome` at the root pulls a *stray* version that fails to parse the config. Biome 2.x has native monorepo support: the root config is authoritative and each nested workspace `biome.json` adds `"root": false`, so one format command at the root covers every workspace. Stuck with per-workspace-only installs? Fall back to running the format step once per workspace via lefthook's `root:`, which scopes `{staged_files}` to that subtree, relativizes the paths, and runs from that dir so `bunx biome` resolves the workspace-local version and nearest `biome.json`.
 
 **Passing the staged set.** Pass the staged files to the orchestrator so it can scope warnings (see Structural Script Orchestration). Compute the set from git in the command itself rather than the pre-commit tool's file template:
 
