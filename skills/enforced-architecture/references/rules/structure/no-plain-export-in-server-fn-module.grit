@@ -1,0 +1,86 @@
+// ─── structure/no-plain-export-in-server-fn-module ────────────────────
+//
+// Tag:      structure
+// Mechanism: GritQL (per-file, real-time)
+// Blocking: Yes
+//
+// Prevents: A plain top-level `export function` co-located in a file that
+//           also defines a createServerFn. Same class as
+//           structure/middleware-colocation: the TanStack Start compiler
+//           strips only the createServerFn `.handler()` BODIES from the
+//           client bundle — a sibling plain export ships to the browser
+//           verbatim, dragging its imports with it. The day such a helper
+//           touches a server-only module (DB client, node: builtin) the
+//           whole chain lands in the client bundle and the app crashes at
+//           runtime ("X is not defined" / an externalized-module error).
+//
+//           This is the per-file GUARD for a bundle-graph problem GritQL
+//           can't see across files. Its cross-file complement is
+//           api/barrel-purity — whose server-fn-boundary short-circuit is
+//           only SOUND when server-fn modules hold server functions +
+//           types and nothing else. This rule enforces exactly that, so
+//           the two are designed to be adopted together.
+//
+//           The fix is structural: move server-only helpers to a
+//           `.server.ts` sibling, whose suffix is a hard client-import
+//           fence (via import protection).
+//
+// Applies:  All src/** files that contain createServerFn calls.
+//           Excludes test files, scripts, and *.server.ts (already fenced
+//           off the client, so a plain export there is safe).
+//
+// Error:    "Plain `export function` in a module that also defines a
+//            createServerFn ships to the client bundle (only handler
+//            bodies are stripped). Move server-only helpers to a
+//            .server.ts sibling — its suffix blocks client imports."
+//
+// ── Adapt ─────────────────────────────────────────────────────────────
+//
+// 1. Factory name:
+//    If your framework uses a different server-function factory,
+//    replace `createServerFn` with the correct identifier.
+//
+// 2. Server-only fence suffix:
+//    This template assumes `.server.ts` is the import-protected suffix
+//    (TanStack Start convention). If your project fences server-only
+//    modules differently, update the exclusion regex and the error.
+//
+// 3. Arrow-function exports:
+//    This template flags `export function` / `export async function`
+//    declarations — the common leak shape. It does NOT flag
+//    `export const foo = () => {...}`; `export const fooFn =
+//    createServerFn()...` (a call expression) must stay legal, and
+//    distinguishing a plain arrow from a server-fn chain adds arms for
+//    little gain. Tighten only if arrow-declared helpers leak in practice.
+//
+// 4. The four arms below cover function/async × with/without a
+//    return-type annotation. A `): T {` return type is a distinct node
+//    sitting BETWEEN the params and the body — a snippet with no slot for
+//    it (`($_args) { $... }`) silently fails to match any annotated
+//    function, the most common reason this rule appears to "do nothing."
+//    Keep all four arms.
+//
+// ──────────────────────────────────────────────────────────────────────
+
+file(name=$filename, body=$program) where {
+    // --- Global exclusions (shared across all rules) ---
+    ! $filename <: r".*\.test\.[tj]sx?$|.*\.integration\.test\.[tj]sx?$|.*__tests__.*|.*src/test/.*",
+    ! $filename <: r".*/scripts/.*",
+    ! $filename <: r".*\.server\.[tj]sx?$",
+
+    // Only check files that expose a client-imported server-fn stub.
+    $program <: contains `createServerFn`,
+
+    // Flag any plain exported function declaration in that same file.
+    $program <: contains bubble or {
+        `export function $name($_args): $_ret { $... }`,
+        `export async function $name($_args): $_ret { $... }`,
+        `export function $name($_args) { $... }`,
+        `export async function $name($_args) { $... }`
+    } as $leak where {
+        register_diagnostic(
+            span = $leak,
+            message = "Plain `export function` in a module that also defines a createServerFn ships to the client bundle (only handler bodies are stripped). Move server-only helpers to a .server.ts sibling — its suffix blocks client imports."
+        )
+    }
+}

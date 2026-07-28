@@ -43,6 +43,7 @@ Complete index of enforcement rules. Each rule has a template in its tag directo
 |---|---|---|---|
 | [structure/server-fn-placement](structure/server-fn-placement.grit) | GritQL | Yes | `createServerFn` outside `controllers/` directories |
 | [structure/middleware-colocation](structure/middleware-colocation.grit) | GritQL | Yes | `createServerFn` and `createMiddleware` in the same file (middleware imports survive compilation and leak into client bundles) |
+| [structure/no-plain-export-in-server-fn-module](structure/no-plain-export-in-server-fn-module.grit) | GritQL | Yes | Plain `export function` in a `createServerFn` file (only handler bodies are stripped — the sibling export leaks its imports into the client bundle) |
 | [structure/layer-direction](structure/layer-direction.grit) | GritQL | Yes | Within-feature layer import direction violations (e.g., repo importing controllers) |
 | [structure/deprecated-paths](structure/deprecated-paths.grit) | GritQL | Yes | Imports from removed/renamed paths (e.g., `@/components/*`) |
 | [structure/schema-placement](structure/schema-placement.grit) | GritQL | Yes | Drizzle schema declarations (`pgTable`, `relations`) outside `infrastructure/db/schema/` |
@@ -116,7 +117,7 @@ Not every project needs every rule. Use audit findings to guide selection:
 | `domains/` directory | `boundary/domain-purity`, `api/domain-public-api`, `graph/domain-cycles` |
 | Multiple features | `api/feature-public-api`, `graph/feature-deps` |
 | SSR / bundle splitting | `api/barrel-direction`, `api/barrel-purity`, `api/server-import-context`, `boundary/client-server-infra` |
-| `createServerFn` usage | `structure/server-fn-placement`, `structure/server-fn-validation`, `structure/middleware-colocation` |
+| `createServerFn` usage | `structure/server-fn-placement`, `structure/server-fn-validation`, `structure/middleware-colocation`, `structure/no-plain-export-in-server-fn-module` |
 | Intra-feature layers | `structure/layer-direction`, `boundary/layer-occupancy`, `boundary/server-no-upward` |
 | React UI | All `react/` rules (including `no-async-effect` if using TanStack Query or similar) |
 | A design system / component library | `style/no-raw-primitives`, `style/no-inline-color`, `style/no-inline-font-size`, `style/token-equality`, `style/shadow-source` |
