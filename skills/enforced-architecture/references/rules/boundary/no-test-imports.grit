@@ -53,7 +53,7 @@ file(name=$filename, body=$program) where {
     ! $filename <: r".*\.test\.[tj]sx?$|.*\.integration\.test\.[tj]sx?$|.*__tests__.*|.*src/test/.*",
     ! $filename <: r".*/scripts/.*",
 
-    $program <: contains bubble `import $_ from $source` as $import where {
+    $program <: contains bubble JsModuleSource() as $source where {
         or {
             // Importing from a .test. file
             $source <: r"\".*\.test\"",
@@ -65,7 +65,7 @@ file(name=$filename, body=$program) where {
             $source <: r"\".*src/test/.*\""
         },
         register_diagnostic(
-            span = $import,
+            span = $source,
             message = "Production code cannot import from test files. If this utility is needed by both tests and production, move it to src/shared/ or the appropriate production directory."
         )
     }

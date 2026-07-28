@@ -71,7 +71,7 @@ file(name=$filename, body=$program) where {
     ! $filename <: r".*/src/client\.[tj]sx?$",
     ! $filename <: r".*instrument\.server\.mjs$",
 
-    $program <: contains bubble `import $_ from $source` as $import where {
+    $program <: contains bubble JsModuleSource() as $source where {
         // --- Replace with your project's wrapped SDK packages ---
         or {
             $source <: r"\"stripe\"",
@@ -86,7 +86,7 @@ file(name=$filename, body=$program) where {
             // $source <: r"\"@sendgrid/.*\"",
         },
         register_diagnostic(
-            span = $import,
+            span = $source,
             message = "Direct provider SDK imports are restricted to infrastructure/ modules (except approved app entrypoints). Import the configured adapter from @/infrastructure/... instead. If this is a new SDK, create its adapter in infrastructure/ and add the package to this rule's restricted list."
         )
     }

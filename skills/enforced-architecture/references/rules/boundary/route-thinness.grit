@@ -51,13 +51,13 @@ file(name=$filename, body=$program) where {
     // --- Global exclusions (shared across all rules) ---
     ! $filename <: r".*\.test\.[tj]sx?$|.*\.integration\.test\.[tj]sx?$|.*__tests__.*|.*src/test/.*",
 
-    $program <: contains bubble `import $_ from $source` as $import where {
+    $program <: contains bubble JsModuleSource() as $source where {
         or {
             $source <: r"\"@/infrastructure/db.*\"",
             $source <: r"\"@/env\.server\""
         },
         register_diagnostic(
-            span = $import,
+            span = $source,
             message = "Routes must be thin adapters. Import data via feature barrels (@/features/<feature> or @/features/<feature>/index.server), not directly from DB or env.server."
         )
     }

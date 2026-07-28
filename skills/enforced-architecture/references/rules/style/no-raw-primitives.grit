@@ -80,18 +80,16 @@
 //
 // ── Implementation note ───────────────────────────────────────────────
 //
-// The RN arm gates on a file-level regex rather than an import snippet
-// because Biome's GritQL matches named-import snippets by ARITY:
-// `import $_ from $source` matches `import { View } from "react-native"`
-// but NOT `import { View, Text } from "react-native"`. Any rule keyed on
-// a named-import snippet silently misses every multi-specifier import —
-// a large hole, since that is the common shape. Verify this before
-// writing any import-shaped rule. Grit regexes are anchored (full
-// match), hence the `(?s).*` … `.*` wrapping.
+// The RN arm matches CST nodes (`JsImport`, `JsModuleSource`,
+// `JsShorthandNamedImportSpecifier`). Two details are load-bearing:
 //
-// Diagnostics are spanned on the JSX tag, not the import, so the arrow
-// lands on each use site and a type-only `import type { ViewProps }`
-// never gets blamed.
+// - The name test lives INSIDE the `contains` predicate, not after it.
+//   `contains or { ... } as $sp` followed by a separate `$sp <: ...`
+//   binds only the FIRST specifier, so `import { Platform, View }` would
+//   slip through. Putting the test inside makes `contains` keep looking
+//   until it finds a specifier that actually matches.
+// - `! $imp <: r"(?s)import\s+type\s.*"` drops type-only imports, so
+//   `import type { View }` is not blamed for rendering nothing.
 //
 // Known hole: namespace imports (`import * as RN from "react-native"`,
 // then `<RN.View>`) are not matched by either arm. If your codebase uses
@@ -102,12 +100,11 @@
 
 language js(typescript, jsx)
 
-// An import statement pulling a rendering primitive out of react-native.
-// `[^}]*` spans newlines, so multi-line (formatter-wrapped) imports match.
-// `import\s*\{` requires the brace to follow `import` directly, which is what
-// lets `import type { ViewProps }` through.
-pattern rn_primitive_import() {
-    r"(?s).*import\s*\{[^}]*\b(?:View|Text|Pressable|TouchableOpacity|ScrollView|TextInput|Image)\b[^}]*\}\s*from\s*\"react-native\".*"
+// The rendering primitives the design system owns. Utility APIs from
+// react-native (Platform, StyleSheet, useWindowDimensions) are not listed —
+// those are legitimate in feature code.
+pattern rn_rendering_primitive() {
+    r"^(?:View|Text|Pressable|TouchableOpacity|ScrollView|TextInput|Image)$"
 }
 
 file(name=$filename, body=$program) where {
@@ -121,36 +118,42 @@ file(name=$filename, body=$program) where {
     // --- Documented render boundaries (Adapt 4) ---
     ! $filename <: r".*/src/routes/__root\.tsx$",
 
-    // Four shapes cover {self-closing, has-children} x {no attrs, attrs},
-    // so the rule fires regardless of props or children.
-    $program <: contains bubble($program) or {
-        `<$tag />`,
-        `<$tag $_ />`,
-        `<$tag>$_</$_>`,
-        `<$tag $_>$_</$_>`
-    } where {
-        any {
-            // --- Web / DOM arm (Adapt 1) ---
-            and {
-                $tag <: r"^(?:div|span|p|main|section|header|footer|nav|aside|article|ul|ol|li|button|a|h1|h2|h3|h4|h5|h6|img)$",
-                register_diagnostic(
-                    span = $tag,
-                    message = "Raw HTML element (highlighted) — compose from the UI primitives instead (Box/Stack/Group for layout, Text/Title for type, Button, Anchor, Image), or `<Box as='...'>` with the tag name when you need the semantic element. A raw element has no token-aware defaults, so every value on it has to be invented. See docs/architecture/design-system.md."
-                )
-            },
+    any {
+        // --- Web / DOM arm (Adapt 1) ---
+        // Four shapes cover {self-closing, has-children} x {no attrs, attrs},
+        // so the rule fires regardless of props or children.
+        $program <: contains bubble or {
+            `<$tag />`,
+            `<$tag $_ />`,
+            `<$tag>$_</$_>`,
+            `<$tag $_>$_</$_>`
+        } where {
+            $tag <: r"^(?:div|span|p|main|section|header|footer|nav|aside|article|ul|ol|li|button|a|h1|h2|h3|h4|h5|h6|img)$",
+            register_diagnostic(
+                span = $tag,
+                message = "Raw HTML element (highlighted) — compose from the UI primitives instead (Box/Stack/Group for layout, Text/Title for type, Button, Anchor, Image), or `<Box as='...'>` with the tag name when you need the semantic element. A raw element has no token-aware defaults, so every value on it has to be invented. See docs/architecture/design-system.md."
+            )
+        },
 
-            // --- React Native arm (Adapt 1) ---
-            // The tag names are gated on the file actually importing them from
-            // react-native, so the app's OWN `<Text>` (from @/shared/ui) is not
-            // caught by the shared name.
-            and {
-                $tag <: r"^(?:View|Text|Pressable|TouchableOpacity|ScrollView|TextInput|Image)$",
-                $program <: rn_primitive_import(),
-                register_diagnostic(
-                    span = $tag,
-                    message = "Core react-native rendering primitive (highlighted) — import the app equivalent from @/shared/ui instead (Box/Stack for View, Text for Text, a Button/Pressable wrapper for touchables). Those take token props, so an off-system value cannot be passed. Utility APIs from react-native (Platform, StyleSheet, useWindowDimensions) are fine in feature code; only the rendering primitives are the design system's to own. See docs/architecture/design-system.md."
-                )
-            }
+        // --- React Native arm (Adapt 1) ---
+        // Keyed on the import, so the app's OWN `<Text>` from @/shared/ui is
+        // untouched: it is the module, not the name, that makes it a violation.
+        $program <: contains bubble JsImport() as $import where {
+            $import <: contains JsModuleSource() as $source,
+            $source <: r".*['\"]react-native['\"].*",
+            ! $import <: r"(?s)import\s+type\s.*",
+            $import <: contains or {
+                JsShorthandNamedImportSpecifier() as $specifier where {
+                    $specifier <: rn_rendering_primitive()
+                },
+                JsNamedImportSpecifier(name = $specifier) where {
+                    $specifier <: rn_rendering_primitive()
+                }
+            },
+            register_diagnostic(
+                span = $specifier,
+                message = "Core react-native rendering primitive (highlighted) — import the app equivalent from @/shared/ui instead (Box/Stack for View, Text for Text, a Button/Pressable wrapper for touchables). Those take token props, so an off-system value cannot be passed. Utility APIs from react-native (Platform, StyleSheet, useWindowDimensions) are fine in feature code; only the rendering primitives are the design system's to own. See docs/architecture/design-system.md."
+            )
         }
     }
 }

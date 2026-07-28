@@ -48,7 +48,7 @@ file(name=$filename, body=$program) where {
     ! $filename <: r".*\.test\.[tj]sx?$|.*\.integration\.test\.[tj]sx?$|.*__tests__.*|.*src/test/.*",
     ! $filename <: r".*/scripts/.*",
 
-    $program <: contains bubble `import $_ from $source` as $import where {
+    $program <: contains bubble JsModuleSource() as $source where {
         or {
             $source <: r"\"@/infrastructure.*\"",
             $source <: r"\"@/features.*\"",
@@ -58,7 +58,7 @@ file(name=$filename, body=$program) where {
             $source <: r"\"@/env\""
         },
         register_diagnostic(
-            span = $import,
+            span = $source,
             message = "Domain modules must be pure business logic. They cannot import from DB, infrastructure, features, routes, or env modules. Move side-effectful code to infrastructure/ and pass dependencies as parameters."
         )
     }

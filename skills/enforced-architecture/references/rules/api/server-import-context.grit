@@ -72,12 +72,12 @@ file(name=$filename, body=$program) where {
     ! $filename <: r".*/src/features/[^/]+/(?:controllers|repo|service)/.*",
     ! $filename <: r".*\.server\.[tj]sx?$",
 
-    $program <: contains bubble `import $_ from $source` as $import where {
+    $program <: contains bubble JsModuleSource() as $source where {
         // Match any import ending in /index.server
         $source <: r"\".*/index\.server\"",
 
         register_diagnostic(
-            span = $import,
+            span = $source,
             message = "Only server contexts (controllers/, repo/, service/, infrastructure/, routes/) may import */index.server paths. This file is in a client context. Use the feature barrel (@/features/<feature>) for client-safe imports like types and createServerFn references."
         )
     }

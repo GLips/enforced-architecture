@@ -54,7 +54,7 @@ file(name=$filename, body=$program) where {
     // --- Config file exclusions ---
     ! $filename <: r".*/drizzle\.config\.[tj]s$",
 
-    $program <: contains bubble `import $_ from $source` as $import where {
+    $program <: contains bubble JsModuleSource() as $source where {
         $source <: r"\"@/infrastructure/db.*\"",
 
         // ── Optional: also catch raw ORM/driver imports ──
@@ -66,7 +66,7 @@ file(name=$filename, body=$program) where {
         // },
 
         register_diagnostic(
-            span = $import,
+            span = $source,
             message = "DB client/schema imports are restricted to infrastructure/*, features/*/repo/*, and features/*/controllers/*. Move this DB access to a repo or controller module."
         )
     }

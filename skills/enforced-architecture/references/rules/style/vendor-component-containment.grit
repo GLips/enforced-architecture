@@ -30,13 +30,13 @@
 //
 // ── Adapt ─────────────────────────────────────────────────────────────
 //
-// 1. One rule per wrapped component, or one rule with an `or`:
-//    The pattern below names a single library and a single component.
-//    Wrapping several components from the same library is common — add
-//    them to the identifier alternation in `wrapped_component_import()`
-//    and generalise the message, or copy the file per component when the
-//    messages need to say different things. Prefer separate rules when
-//    the reasons differ; an agent fixes what the message explains.
+// 1. Name the library and the component:
+//    `vendor_module()` is the library; `wrapped_component()` is the
+//    identifier alternation. Wrapping several components from the same
+//    library is common — add them to the alternation and generalise the
+//    message, or copy the file per component when the messages need to
+//    say different things. Prefer separate rules when the reasons
+//    differ; an agent fixes what the message explains.
 //
 // 2. Write the rule when you write the wrapper, not later:
 //    A wrapper without this rule lasts about as long as the memory of
@@ -51,30 +51,31 @@
 //
 // ── Implementation note ───────────────────────────────────────────────
 //
-// This rule matches the import with a REGEX, not with an
-// `import $_ from $source` snippet, because Biome's GritQL matches
-// named-import snippets by ARITY: the snippet matches
-// `import { Textarea } from "@lib/core"` but NOT
-// `import { Textarea, TextInput } from "@lib/core"`. A snippet-based
-// version of this rule silently passes every multi-specifier import,
-// which is the common shape — so it would look like it works while
-// catching almost nothing. Verify this before writing any import-shaped
-// rule of your own.
+// The import is matched with CST nodes (`JsImport`, `JsModuleSource`,
+// `JsShorthandNamedImportSpecifier`), which handles every clause shape:
+// one specifier or many, aliased (`{ Textarea as TA }`), and combined
+// (`import def, { Textarea }`).
 //
-// Grit regexes are anchored (full match), hence the `(?s).*` … `.*`
-// wrapping. `[^}]*` spans newlines, so a formatter-wrapped multi-line
-// import still matches. The diagnostic is spanned on the module string
-// literal so the arrow lands on the import.
+// The name test lives INSIDE the `contains` predicate, not after it.
+// Written as `contains or { ... } as $spec` followed by a separate
+// `$spec <: ...`, only the FIRST specifier is ever tested, so
+// `import { Button, Textarea }` would slip through. Inside the
+// predicate, `contains` keeps looking until a specifier actually
+// matches.
+//
+// `! $import <: r"(?s)import\s+type\s.*"` drops type-only imports —
+// `import type { TextareaProps }` pulls in no component.
 //
 // ──────────────────────────────────────────────────────────────────────
 
 language js(typescript, jsx)
 
-// Adapt 1: the identifier alternation and the module name are the two things
-// to change. `\b` around the identifier keeps `TextareaProps` from matching.
-pattern wrapped_component_import() {
-    r"(?s).*import\s*\{[^}]*\b(?:Textarea)\b[^}]*\}\s*from\s*\"@mantine/core\".*"
-}
+// Adapt 1: the wrapped component names. `\b`-free anchoring on the whole
+// identifier keeps `TextareaProps` from matching `Textarea`.
+pattern wrapped_component() { r"^(?:Textarea)$" }
+
+// Adapt 1: the library the wrapper wraps.
+pattern vendor_module() { r".*['\"]@mantine/core['\"].*" }
 
 file(name=$filename, body=$program) where {
     $filename <: r".*/src/.*",
@@ -86,10 +87,20 @@ file(name=$filename, body=$program) where {
     // --- The wrapper module must import the original (Adapt 1) ---
     ! $filename <: r".*/src/shared/ui/textarea\.tsx$",
 
-    $program <: wrapped_component_import(),
-    $program <: contains bubble($program) r"\"@mantine/core\"" as $source where {
+    $program <: contains bubble JsImport() as $import where {
+        $import <: contains JsModuleSource() as $source,
+        $source <: vendor_module(),
+        ! $import <: r"(?s)import\s+type\s.*",
+        $import <: contains or {
+            JsShorthandNamedImportSpecifier() as $specifier where {
+                $specifier <: wrapped_component()
+            },
+            JsNamedImportSpecifier(name = $specifier) where {
+                $specifier <: wrapped_component()
+            }
+        },
         register_diagnostic(
-            span = $source,
+            span = $specifier,
             message = "Import Textarea from @/shared/ui/textarea, not @mantine/core. The app wrapper carries the convention every compose box shares (Enter submits, Shift+Enter inserts a newline, via onEnter); importing the library component directly reintroduces a field that hand-rolls or omits it. Only the wrapper itself may import the original. See docs/architecture/design-system.md."
         )
     }

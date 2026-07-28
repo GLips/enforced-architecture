@@ -57,7 +57,7 @@ file(name=$filename, body=$program) where {
 
     $filename <: r".*/src/.*",
 
-    $program <: contains bubble `import $_ from $source` as $import where {
+    $program <: contains bubble JsModuleSource() as $source where {
         // Only examine relative imports
         $source <: r"\"\.\..*\"",
         or {
@@ -93,7 +93,7 @@ file(name=$filename, body=$program) where {
             }
         },
         register_diagnostic(
-            span = $import,
+            span = $source,
             message = "Cross-boundary imports must use the @/ path alias. Use @/domains/..., @/features/..., etc. instead of relative paths. Relative imports are only valid within the same feature or the same top-level directory."
         )
     }

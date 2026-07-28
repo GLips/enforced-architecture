@@ -58,7 +58,7 @@ file(name=$filename, body=$program) where {
     ! $filename <: r".*/src/features/[^/]+/(?:controllers|repo|service)/.*",
     ! $filename <: r".*\.server\.[tj]sx?$",
 
-    $program <: contains bubble `import $_ from $source` as $import where {
+    $program <: contains bubble JsModuleSource() as $source where {
         $source <: r"\"@/infrastructure/.*\"",
 
         // --- Client-safe infrastructure allowlist ---
@@ -69,7 +69,7 @@ file(name=$filename, body=$program) where {
         // ! $source <: r"\"@/infrastructure/analytics/client\"",
 
         register_diagnostic(
-            span = $import,
+            span = $source,
             message = "Client contexts may only import client-safe infrastructure modules. Move this import to a server context (controllers/, repo/, service/, or a .server.ts file) or use the appropriate client-safe adapter."
         )
     }

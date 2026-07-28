@@ -49,7 +49,7 @@ file(name=$filename, body=$program) where {
     // --- Global exclusions (shared across all rules) ---
     ! $filename <: r".*\.test\.[tj]sx?$|.*\.integration\.test\.[tj]sx?$|.*__tests__.*|.*src/test/.*",
 
-    $program <: contains bubble `import $_ from $source` as $import where {
+    $program <: contains bubble JsModuleSource() as $source where {
         // --- Example: single deprecated path ---
         // Replace this with your project's actual deprecated paths.
         // For multiple deprecated paths, use an `or {}` block:
@@ -58,21 +58,21 @@ file(name=$filename, body=$program) where {
         //     and {
         //         $source <: r"\"@/components/.*\"",
         //         register_diagnostic(
-        //             span = $import,
+        //             span = $source,
         //             message = "The @/components/ directory no longer exists. Import from @/shared/ui/* (generic primitives) or @/features/*/ui/* (feature-owned UI) instead."
         //         )
         //     },
         //     and {
         //         $source <: r"\"@/lib/.*\"",
         //         register_diagnostic(
-        //             span = $import,
+        //             span = $source,
         //             message = "The @/lib/ directory no longer exists. Import from @/shared/* (pure utilities), @/infrastructure/* (external adapters), or @/domains/* (business logic) instead."
         //         )
         //     },
         //     and {
         //         $source <: r"\"@/utils/.*\"",
         //         register_diagnostic(
-        //             span = $import,
+        //             span = $source,
         //             message = "The @/utils/ directory no longer exists. Import from @/shared/* instead."
         //         )
         //     }
@@ -80,7 +80,7 @@ file(name=$filename, body=$program) where {
 
         $source <: r"\"@/components/.*\"",
         register_diagnostic(
-            span = $import,
+            span = $source,
             message = "The @/components/ directory no longer exists. Import from @/shared/ui/* (generic primitives) or @/features/*/ui/* (feature-owned UI) instead."
         )
     }

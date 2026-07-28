@@ -95,42 +95,78 @@ When adding a new server-only infrastructure module, add it to both lists. When 
 
 ---
 
+## Matching Imports in GritQL
+
+Most rules in the catalog are import rules, and they all match imports the same way. Follow this shape.
+
+### When the rule only cares about the module
+
+Match the module-source node and test its text. This is what nearly every `boundary/`, `api/`, and `structure/` rule does:
+
+```
+file(name=$filename, body=$program) where {
+    $filename <: r".*/src/shared/ui/.*",
+    ! $filename <: r".*\.test\.[tj]sx?$|.*\.integration\.test\.[tj]sx?$|.*__tests__.*|.*src/test/.*",
+
+    $program <: contains bubble JsModuleSource() as $source where {
+        $source <: r"\"@/features.*\"",
+        register_diagnostic(span = $source, message = "…")
+    }
+}
+```
+
+`JsModuleSource` is the node every import and re-export shares, so one pattern covers all of them: any number of named specifiers, default, namespace (`import * as x`), combined (`import def, { x }`), side-effect (`import "x"`), multi-line, and `export { x } from "…"`. A plain string that happens to contain the same path is *not* a module source, so it does not match.
+
+The node's text includes its quotes, and Grit regexes are anchored, so write `r"\"@/features.*\""` — or `r".*['\"]@/features.*['\"].*"` if you prefer to be explicit about both quote styles.
+
+### When the rule cares which names were imported
+
+Match the import, then the specifier. **Put the name test inside the `contains` predicate**, not after it:
+
+```
+pattern banned_component() { r"^(?:Textarea)$" }
+
+$program <: contains bubble JsImport() as $import where {
+    $import <: contains JsModuleSource() as $source,
+    $source <: r".*['\"]@mantine/core['\"].*",
+    ! $import <: r"(?s)import\s+type\s.*",
+    $import <: contains or {
+        JsShorthandNamedImportSpecifier() as $specifier where {
+            $specifier <: banned_component()
+        },
+        JsNamedImportSpecifier(name = $specifier) where {
+            $specifier <: banned_component()
+        }
+    },
+    register_diagnostic(span = $specifier, message = "…")
+}
+```
+
+Three details carry the weight:
+
+- **The test goes inside the predicate.** Written as `contains or { … } as $specifier` with a separate `$specifier <: …` afterwards, only the *first* specifier is ever tested — `import { Button, Textarea }` passes silently. Inside the predicate, `contains` keeps searching until a specifier actually matches.
+- **Two specifier nodes.** `JsShorthandNamedImportSpecifier` is `{ Textarea }`; `JsNamedImportSpecifier` is `{ Textarea as TA }`. Cover both.
+- **Drop type-only imports** with `! $import <: r"(?s)import\s+type\s.*"`. A type import pulls in no runtime value.
+
+Anchor the identifier alternation end to end (`r"^(?:Textarea)$"`) so `TextareaProps` does not match.
+
+### CST node names are PascalCase
+
+`JsImport`, `JsModuleSource`, `JsShorthandNamedImportSpecifier`, `JsNamedImportSpecifier`, `JsImportNamedClause`, `JsNamedImportSpecifiers`. A snake_case name fails with a bare "Failed to compile the Grit plugin" and no further detail, so check the casing first when a rule will not load. Field access works on these: `JsImportNamedClause(source = $s, named_specifiers = $ns)`.
+
+Note that not every field name is valid — `JsModuleSource(value_token = $v)` fails to compile. Match the node and regex its text instead.
+
+---
+
 ## Biome GritQL Limitations
 
 ### No `#` Comments
 
 Biome's GritQL compiler does not support `#` comments. The only diagnostic is "Failed to compile the Grit plugin" with no detail about the cause. All `.grit` rule files must use `//` comments exclusively. Keep documentation in the companion `.md` files or in `//` comment blocks within the `.grit` file.
 
-### No `export ... from` Pattern Matching
-
-The backtick pattern `` export $_ from $source `` does not match ES re-export syntax like `export { x } from "./server"`. Only `import` statements are reliably matched. For rules that need to catch re-exports, match the string literal directly (e.g., `` `"./server"` ``) instead of trying to match the export syntax. See `api/barrel-direction.grit` for an example.
-
 ### `$args` Matches Empty Parentheses
 
 GritQL's metavariable `$args` matches even when there are zero arguments. The pattern `createServerFn($args)` matches both `createServerFn({ method: "POST" })` and `createServerFn()`. To exclude the empty case, use `! $args <: .` — the `.` (dot) matches an empty/absent node. See `structure/server-fn-validation.grit` for an example.
-
-### Named Imports Match by Arity
-
-The pattern `` `import $_ from $source` `` matches `import { Textarea } from "@lib/core"` but **not** `import { Textarea, TextInput } from "@lib/core"`. The snippet parser matches the specifier list positionally, so `` `import {$a, $b} from $source` `` matches exactly two specifiers and nothing else.
-
-This is the most dangerous limitation on this page, because a rule written this way *looks* like it works — it fires on the single-specifier fixture you smoke tested with, then silently passes every multi-specifier import, which is the common shape in real code.
-
-For any rule keyed on a named import, match the import with a regex on the file body instead, and span the diagnostic on the module string literal (or on the use site) so the arrow still lands somewhere useful:
-
-```
-pattern wrapped_component_import() {
-    r"(?s).*import\s*\{[^}]*\b(?:Textarea)\b[^}]*\}\s*from\s*\"@lib/core\".*"
-}
-
-file(name=$filename, body=$program) where {
-    $program <: wrapped_component_import(),
-    $program <: contains bubble($program) r"\"@lib/core\"" as $source where {
-        register_diagnostic(span = $source, message = "…")
-    }
-}
-```
-
-`[^}]*` spans newlines, so a formatter-wrapped multi-line import still matches. See `style/vendor-component-containment.grit` and `style/no-raw-primitives.grit` for worked examples.
 
 ### Regexes Are Anchored
 

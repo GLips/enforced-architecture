@@ -53,14 +53,14 @@ file(name=$filename, body=$program) where {
     ! $filename <: r".*\.test\.[tj]sx?$|.*\.integration\.test\.[tj]sx?$|.*__tests__.*|.*src/test/.*",
     ! $filename <: r".*/scripts/.*",
 
-    $program <: contains bubble `import $_ from $source` as $import where {
+    $program <: contains bubble JsModuleSource() as $source where {
         or {
             $source <: r"\"@/features.*\"",
             $source <: r"\"@/domains.*\"",
             $source <: r"\"@/routes.*\""
         },
         register_diagnostic(
-            span = $import,
+            span = $source,
             message = "Infrastructure modules cannot import from features, domains, or routes. Infrastructure provides services to upper layers — it does not consume them. If this module needs feature-specific behavior, accept it as a parameter."
         )
     }
