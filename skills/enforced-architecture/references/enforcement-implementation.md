@@ -18,10 +18,10 @@ Key configuration points:
 
 ## Structural Script Orchestration
 
-An orchestrator script runs all structural checks. Each check is a function (inline or delegated to a TypeScript script) that increments an `ERRORS` counter (blocking) or `WARNINGS` counter (non-blocking).
+An orchestrator script runs all structural checks. Each check is a function (inline or delegated to a TypeScript script) that returns its findings — errors (blocking) and warnings (non-blocking).
 
 **Orchestration pattern:**
-- Each check runs independently and returns its own findings — both errors (blocking) and warnings (non-blocking), each tied to the file it concerns.
+- Each check runs independently; every finding is tied to the file it concerns.
 - The orchestrator reports every error, reports the warnings that survive scoping (below), and counts both.
 - Exit code 1 if any errors. Exit code 0 if only warnings or clean.
 - Delegated TypeScript scripts use exit code 0 for pass/warnings-only and non-zero for errors.
