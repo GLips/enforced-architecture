@@ -1,0 +1,96 @@
+// ─── style/vendor-component-containment ───────────────────────────────
+//
+// Tag:      style
+// Mechanism: GritQL (per-file, real-time)
+// Blocking: Yes
+//
+// Prevents: Feature code importing a UI-library component directly when
+//           the project ships its own wrapper for it.
+//
+//           A wrapper exists because the raw component was missing a
+//           convention every use site needs — Enter-to-submit on a
+//           compose box, a loading state on every button, an analytics
+//           id on every link. The wrapper holds that convention in one
+//           place. An import that goes around it silently reintroduces a
+//           component that hand-rolls the convention, or omits it, and
+//           the two versions drift apart from there. Nothing about the
+//           bypassing call site looks wrong, which is why this needs a
+//           rule and not a review.
+//
+//           This is the design-system sibling of
+//           `boundary/sdk-containment`: same containment shape, applied
+//           to component libraries rather than service SDKs.
+//
+// Applies:  All source files EXCEPT:
+//           - The wrapper module itself (it must import the original)
+//           - Test files and scripts
+//
+// Error:    "Import <Component> from the app wrapper, not the library —
+//            the wrapper carries the convention every use site needs."
+//
+// ── Adapt ─────────────────────────────────────────────────────────────
+//
+// 1. One rule per wrapped component, or one rule with an `or`:
+//    The pattern below names a single library and a single component.
+//    Wrapping several components from the same library is common — add
+//    them to the identifier alternation in `wrapped_component_import()`
+//    and generalise the message, or copy the file per component when the
+//    messages need to say different things. Prefer separate rules when
+//    the reasons differ; an agent fixes what the message explains.
+//
+// 2. Write the rule when you write the wrapper, not later:
+//    A wrapper without this rule lasts about as long as the memory of
+//    the person who wrote it. The bypass is invisible in review, so the
+//    rule is the only thing that keeps the wrapper canonical.
+//
+// 3. Do not exempt "just this once":
+//    If a call site genuinely needs the unwrapped component, that is
+//    usually a missing prop on the wrapper. Add the prop. An exemption
+//    list here becomes the second implementation the rule existed to
+//    prevent.
+//
+// ── Implementation note ───────────────────────────────────────────────
+//
+// This rule matches the import with a REGEX, not with an
+// `import $_ from $source` snippet, because Biome's GritQL matches
+// named-import snippets by ARITY: the snippet matches
+// `import { Textarea } from "@lib/core"` but NOT
+// `import { Textarea, TextInput } from "@lib/core"`. A snippet-based
+// version of this rule silently passes every multi-specifier import,
+// which is the common shape — so it would look like it works while
+// catching almost nothing. Verify this before writing any import-shaped
+// rule of your own.
+//
+// Grit regexes are anchored (full match), hence the `(?s).*` … `.*`
+// wrapping. `[^}]*` spans newlines, so a formatter-wrapped multi-line
+// import still matches. The diagnostic is spanned on the module string
+// literal so the arrow lands on the import.
+//
+// ──────────────────────────────────────────────────────────────────────
+
+language js(typescript, jsx)
+
+// Adapt 1: the identifier alternation and the module name are the two things
+// to change. `\b` around the identifier keeps `TextareaProps` from matching.
+pattern wrapped_component_import() {
+    r"(?s).*import\s*\{[^}]*\b(?:Textarea)\b[^}]*\}\s*from\s*\"@mantine/core\".*"
+}
+
+file(name=$filename, body=$program) where {
+    $filename <: r".*/src/.*",
+
+    // --- Global exclusions (shared across all rules) ---
+    ! $filename <: r".*\.test\.[tj]sx?$|.*\.integration\.test\.[tj]sx?$|.*__tests__.*|.*src/test/.*",
+    ! $filename <: r".*/scripts/.*",
+
+    // --- The wrapper module must import the original (Adapt 1) ---
+    ! $filename <: r".*/src/shared/ui/textarea\.tsx$",
+
+    $program <: wrapped_component_import(),
+    $program <: contains bubble($program) r"\"@mantine/core\"" as $source where {
+        register_diagnostic(
+            span = $source,
+            message = "Import Textarea from @/shared/ui/textarea, not @mantine/core. The app wrapper carries the convention every compose box shares (Enter submits, Shift+Enter inserts a newline, via onEnter); importing the library component directly reintroduces a field that hand-rolls or omits it. Only the wrapper itself may import the original. See docs/architecture/design-system.md."
+        )
+    }
+}

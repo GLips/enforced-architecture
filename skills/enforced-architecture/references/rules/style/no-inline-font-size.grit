@@ -1,0 +1,75 @@
+// ─── style/no-inline-font-size ────────────────────────────────────────
+//
+// Tag:      style
+// Mechanism: GritQL (per-file, real-time)
+// Blocking: Yes
+//
+// Prevents: Raw `fontSize` overrides in style objects and props.
+//
+//           Type scale is a closed set by nature — a project has a
+//           handful of named sizes, and any value outside them is drift.
+//           Unlike a width or a height, there is no such thing as a
+//           legitimate one-off font size: if a surface needs a size the
+//           scale does not have, the scale is wrong, and hand-writing
+//           `fontSize: 13` hides that instead of surfacing it. So this
+//           rule bans the property outright rather than checking the
+//           value, which is what separates it from
+//           `style/token-equality`.
+//
+// Applies:  All source files EXCEPT:
+//           - The token source itself
+//           - Non-UI layers with no styling
+//           - Test files and scripts
+//           - Documented raster/canvas boundaries (see Adapt section 2)
+//
+//           NOT `.css` files — see `style/css-tokens` for that surface.
+//
+// Error:    "Raw fontSize override. Use a named size from the type
+//            scale."
+//
+// ── Adapt ─────────────────────────────────────────────────────────────
+//
+// 1. Name the fix (the message):
+//    Point at the project's actual type scale and the prop that reaches
+//    it — `size="caption"`, `fz="var(--text-caption)"`,
+//    `variant="heading-xs"`, `theme.typography.caption`. Include the
+//    file the scale lives in; that is where an agent goes next when the
+//    size it wanted is not there.
+//
+// 2. Exemptions:
+//    - The token source (`theme.ts`, `styles.css` companion, `tokens.ts`).
+//    - Renderers that take a size as an API argument rather than as
+//      chrome typography — a canvas terminal, a PDF generator, a chart
+//      library config. Exempt by path with a comment, and derive the
+//      number from the scale inside that file.
+//
+// 3. Related properties:
+//    `fontWeight`, `lineHeight`, and `letterSpacing` are usually part of
+//    the same closed scale. If your tokens bundle them into a single
+//    `variant` (the stronger design — one decision, not four), extend
+//    the pattern below to an `or` over all four keys. If your tokens
+//    expose them separately, leave this rule on `fontSize` alone rather
+//    than banning properties that have no token to point at.
+//
+// ──────────────────────────────────────────────────────────────────────
+
+language js(typescript, jsx)
+
+file(name=$filename, body=$program) where {
+    // --- Global exclusions (shared across all rules) ---
+    ! $filename <: r".*\.test\.[tj]sx?$|.*\.integration\.test\.[tj]sx?$|.*__tests__.*|.*src/test/.*",
+    ! $filename <: r".*/scripts/.*",
+
+    // --- Token source: defines the scale by design (Adapt 2) ---
+    ! $filename <: r".*/src/shared/ui/theme\.ts$",
+
+    // --- Non-UI layers carry no styling (Adapt 2) ---
+    ! $filename <: r".*/src/domains/.*",
+
+    $program <: contains bubble `fontSize: $value` as $match where {
+        register_diagnostic(
+            span = $match,
+            message = "Raw fontSize override. Use a named size from the type scale instead — a size prop on the text primitive (`size='caption'`, `variant='heading-xs'`) or the scale token (`var(--text-caption)`, `theme.typography.caption`). If the size you want is not on the scale, add it to the scale rather than writing it here. See docs/architecture/design-system.md."
+        )
+    }
+}

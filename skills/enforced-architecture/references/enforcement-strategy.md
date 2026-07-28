@@ -4,6 +4,22 @@ The two-layer enforcement model, three-tier pipeline, and rule design principles
 
 ---
 
+## Layer 0: Types
+
+Before writing a rule, check whether the type system can hold the constraint instead. A typed closed set is strictly better than a lint rule on the same axis: it fails at compile time rather than at lint time, it needs no exclusion list, it cannot fall out of sync with what it guards, and it surfaces in autocomplete — so the agent sees the allowed values while writing, not the forbidden one after.
+
+This is most of the answer for anything shaped like "the value must come from this closed set":
+
+- A variant prop should be a union of token names (`size: "s" | "m" | "l"`), not a `string` a rule then polices.
+- A component's own props should be semantic and closed — a `tone`, not an open `color`.
+- A helper that builds a class or a style should take the union, not the value.
+
+Types have one structural gap, and it is the reason the other layers exist: **libraries you did not write also accept escape hatches.** A component library may type `gap` as a token union *and* accept a raw number; a `className` is a string no matter what. Layer 0 closes what it can, and Layers 1 and 2 police what it cannot.
+
+Write the rule only for the leaks. A rule that duplicates a constraint the types already hold is maintenance with no coverage.
+
+---
+
 ## Two-Layer Enforcement
 
 ### Layer 1: GritQL Per-File Rules (via Biome)

@@ -1,0 +1,135 @@
+// ─── style/no-arbitrary-class-values ──────────────────────────────────
+//
+// Tag:      style
+// Mechanism: GritQL (per-file, real-time)
+// Blocking: Yes
+//
+// Prevents: Utility-class strings that carry a raw value or a raw scale
+//           step instead of a semantic token — `text-[13px]`,
+//           `bg-[#0a0c10]`, `bg-[var(--background)]`, `text-sm`.
+//
+//           This is the rule for projects on Tailwind or another
+//           utility-CSS framework, and it exists because a class string
+//           is untyped. Everything else the type system can hold shut,
+//           `className` reopens: arbitrary-value syntax (`p-[7px]`) is a
+//           blank cheque, and the framework's own generic scale
+//           (`text-sm`, `text-2xl`) is a second vocabulary competing
+//           with the project's semantic one. Both give a model infinite
+//           room to be slightly wrong, in a surface no compiler reads.
+//
+// Applies:  All source files EXCEPT:
+//           - The token / theme configuration
+//           - Test files and scripts
+//
+// Error:    "Off-token utility class. Use the semantic token class."
+//
+// ── Adapt ─────────────────────────────────────────────────────────────
+//
+// 1. Three independent arms. Keep the ones that match your setup:
+//
+//    - **arbitrary_value_utility** — `text-[13px]`, `p-[7px]`,
+//      `bg-[#fff]`. Always keep this one; the bracket syntax has no
+//      legitimate use in a tokenised project.
+//
+//    - **arbitrary_var_utility** — `bg-[var(--background)]`. Reaching a
+//      CSS variable through bracket syntax works, which is exactly why
+//      it is worth banning: it bypasses the theme mapping, so the token
+//      exists in two places and only one of them is checked. Keep this
+//      if your tokens are registered in the framework theme (they should
+//      be) — then `bg-background` is the supported spelling.
+//
+//    - **generic_scale_utility** — `text-sm`, `text-2xl`. Keep this only
+//      once semantic type classes exist to replace them (`text-body`,
+//      `text-caption`, `text-section-title`). Turning it on before the
+//      semantic scale is defined leaves agents with a banned class and
+//      no allowed one, and they will reach for the bracket syntax
+//      instead. Define the scale first, then close the generic one.
+//
+// 2. Extending the utility prefixes:
+//    `arbitrary_value_utility` matches any `<prefix>-[...]`. If your
+//    project has a sanctioned bracket use (a grid template, an animation
+//    keyframe reference), narrow the arm to the prefixes you care about
+//    rather than adding a suppression convention.
+//
+// 3. One diagnostic per string, per pass:
+//    Biome reports the FIRST arm that matches a given string node, so
+//    `className="text-[13px] text-sm"` surfaces the arbitrary-value
+//    violation now and the generic-scale one after the next run. That is
+//    tolerable for occasional violations and tedious for a codebase mid
+//    migration. If yours is, split the three arms into three plugin
+//    files — Biome evaluates each plugin independently, so all three
+//    then report on the same string in one pass. Same rules, one catalog
+//    entry, three files.
+//
+// 4. Where this rule cannot see:
+//    It matches string literals, so classes assembled at runtime
+//    (`cn(\`text-\${size}\`)`) pass. Constrain those at the source: a
+//    helper taking a closed union of size names cannot produce an
+//    off-scale class in the first place. That is the type tier doing
+//    what the lint tier structurally cannot.
+//
+// ──────────────────────────────────────────────────────────────────────
+
+language js(typescript, jsx)
+
+// Each pattern below describes a WHOLE string literal — `\"` at both ends, no
+// `.*` wrapper. That is load-bearing: Grit regexes are anchored, so a pattern
+// written as `(?s).*X.*` matches every enclosing node whose text contains X (the
+// JSX element, the return statement, the function), producing a pile of
+// duplicate diagnostics on nonsense spans. Anchoring to the string node is what
+// keeps one violation to one diagnostic. The `[^\"]*` on either side is how a
+// class appears mid-string among other classes.
+
+// `p-[7px]`, `text-[13px]`, `bg-[#fff]` — the arbitrary-value bracket syntax
+// carrying a literal length, percentage, or color. A `md:` / `hover:` variant
+// prefix is absorbed by the leading `[^\"]*`.
+pattern arbitrary_value_utility() {
+    r"\"[^\"]*\b[a-z-]+-\[[^\]]*(?:px|rem|em|%|#[0-9a-fA-F]{3,8})[^\]]*\][^\"]*\""
+}
+
+// `bg-[var(--background)]` — a token reached around the theme mapping.
+pattern arbitrary_var_utility() {
+    r"\"[^\"]*\b(?:bg|text|border|outline|ring|fill|stroke|divide|from|via|to)-\[var\(--[^\"]*\""
+}
+
+// `text-sm`, `text-2xl` — the framework's generic type scale competing with
+// the project's semantic one.
+pattern generic_scale_utility() {
+    r"\"[^\"]*\btext-(?:xs|sm|base|lg|xl|2xl|3xl|4xl|5xl|6xl|7xl|8xl|9xl)\b[^\"]*\""
+}
+
+file(name=$filename, body=$program) where {
+    // --- Global exclusions (shared across all rules) ---
+    ! $filename <: r".*\.test\.[tj]sx?$|.*\.integration\.test\.[tj]sx?$|.*__tests__.*|.*src/test/.*",
+    ! $filename <: r".*/scripts/.*",
+
+    // --- Theme configuration defines the tokens ---
+    ! $filename <: r".*/tailwind\.config\.[tj]s$",
+
+    // `any`, not `or`: a className string routinely carries several off-token
+    // classes at once, and `or` stops at the first arm that matches — the agent
+    // would fix one, re-run, and find the next. `any` reports every arm that
+    // matches the same string in one pass.
+    $program <: contains bubble any {
+        arbitrary_value_utility() as $match where {
+            register_diagnostic(
+                span = $match,
+                message = "Arbitrary-value utility class. Use a semantic token class instead (text-body not text-[13px], p-m not p-[12px], bg-surface not bg-[#0a0c10]). If no token fits, add one to the theme — the bracket syntax is a blank cheque no compiler reads. See docs/architecture/design-system.md."
+            )
+        },
+
+        arbitrary_var_utility() as $match where {
+            register_diagnostic(
+                span = $match,
+                message = "CSS variable reached through arbitrary-value syntax. Register the token in the theme and use the mapped class (bg-background, not bg-[var(--background)]) so the token has one definition and the checker can see it. See docs/architecture/design-system.md."
+            )
+        },
+
+        generic_scale_utility() as $match where {
+            register_diagnostic(
+                span = $match,
+                message = "Generic type-scale class. Use the project's semantic type class instead (text-body, text-caption, text-section-title) so type has one vocabulary rather than two competing ones. See docs/architecture/design-system.md."
+            )
+        }
+    }
+}

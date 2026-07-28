@@ -109,6 +109,47 @@ The backtick pattern `` export $_ from $source `` does not match ES re-export sy
 
 GritQL's metavariable `$args` matches even when there are zero arguments. The pattern `createServerFn($args)` matches both `createServerFn({ method: "POST" })` and `createServerFn()`. To exclude the empty case, use `! $args <: .` — the `.` (dot) matches an empty/absent node. See `structure/server-fn-validation.grit` for an example.
 
+### Named Imports Match by Arity
+
+The pattern `` `import $_ from $source` `` matches `import { Textarea } from "@lib/core"` but **not** `import { Textarea, TextInput } from "@lib/core"`. The snippet parser matches the specifier list positionally, so `` `import {$a, $b} from $source` `` matches exactly two specifiers and nothing else.
+
+This is the most dangerous limitation on this page, because a rule written this way *looks* like it works — it fires on the single-specifier fixture you smoke tested with, then silently passes every multi-specifier import, which is the common shape in real code.
+
+For any rule keyed on a named import, match the import with a regex on the file body instead, and span the diagnostic on the module string literal (or on the use site) so the arrow still lands somewhere useful:
+
+```
+pattern wrapped_component_import() {
+    r"(?s).*import\s*\{[^}]*\b(?:Textarea)\b[^}]*\}\s*from\s*\"@lib/core\".*"
+}
+
+file(name=$filename, body=$program) where {
+    $program <: wrapped_component_import(),
+    $program <: contains bubble($program) r"\"@lib/core\"" as $source where {
+        register_diagnostic(span = $source, message = "…")
+    }
+}
+```
+
+`[^}]*` spans newlines, so a formatter-wrapped multi-line import still matches. See `style/vendor-component-containment.grit` and `style/no-raw-primitives.grit` for worked examples.
+
+### Regexes Are Anchored
+
+A Grit regex must match the **entire** node's text, not a substring. `$program <: r"react-native"` never matches; `$program <: r"(?s).*react-native.*"` does.
+
+The corollary matters more than the rule: a `(?s).*X.*` pattern used inside `contains` matches **every enclosing node** whose text contains `X` — the string literal, the JSX attribute, the element, the return statement, the function. That produces a pile of duplicate diagnostics on nonsense spans. When matching a string literal, anchor to the literal itself (`r"\"[^\"]*X[^\"]*\""`) and reserve the `.*`-wrapped form for whole-file matches against `$program`.
+
+### `or` Reports Only the First Matching Arm
+
+Within one rule, `or { … }` stops at the first arm that matches a given node, so a node violating three arms produces one diagnostic. `any { … }` continues past a failed arm to try the rest, which is what you want when arms are alternatives that should each get a chance — but it still yields one diagnostic per node per pass.
+
+If a single node genuinely needs several simultaneous diagnostics (a `className` carrying three different off-token classes), split the arms into separate `.grit` plugin files. Biome evaluates each plugin independently.
+
+### Backslash Escapes Corrupt Diagnostic Messages
+
+Do **not** write `\"` inside a `register_diagnostic` message. The escape handling desyncs after the first one: the rest of the message is emitted with `t` rendered as a tab, `n` as a newline, and the closing `\"` printed literally. The message becomes unreadable, and nothing warns you — the rule still fires, so a smoke test that only checks "did the diagnostic appear" passes.
+
+Use single quotes or backticks for quoting inside messages: ``"Use `<Box as='nav'>` instead."`` Read at least one rendered message end to end when smoke testing.
+
 ### No Per-File Counting
 
 GritQL per-file rules cannot aggregate or count matches within a file. Rules that need counting (hook-count, prop-count, file-size) must be structural scripts.

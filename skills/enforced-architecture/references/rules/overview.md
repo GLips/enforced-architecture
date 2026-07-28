@@ -73,6 +73,28 @@ Agents navigate this codebase by grepping symbol names more than by tracing impo
 | [naming/barrel-discoverability](naming/barrel-discoverability.md) | Script | Yes | Public barrels using `export *` or renamed re-exports (`export { X as Y }`) that hide or rename symbols from text search |
 | [naming/test-file-mirror](naming/test-file-mirror.md) | Script | No | Test files whose names don't mirror their source, so they don't surface alongside the code they cover |
 
+### style — Design-system adherence
+
+Styling is where generated code drifts hardest and least visibly. A model reaches for a plausible gray, a raw `fontSize`, a `16px` where `"md"` was meant — each one defensible on its own, none of them canonically yours, and across enough generations the interface quietly stops matching itself. A design doc does not stop this: anything written in prose is a probability the model weighs against everything else in its context, not a guarantee. These rules make off-system styling *hard to express* rather than discouraged.
+
+Enforcement runs in three tiers, and picking the right one per axis is most of the work:
+
+1. **Types** — closed props on your own primitives (a `tone`, not an open `color`; a `size` from a small union). The wrong value does not compile. This is the strongest tier and the cheapest; put every axis here that will fit. It is also the answer for "the variant value must come from the token union" — that is a type-system job, not a lint job.
+2. **GritQL** — the escape hatches types leave open (component libraries that also accept any string, inline style objects, `className`). Per-file, real-time, JS/TS AST only.
+3. **Structural scripts** — anything needing the token source, cross-file knowledge, or the CSS surface, which GritQL structurally cannot see.
+
+| Rule | Mechanism | Blocking | What it prevents |
+|---|---|---|---|
+| [style/no-raw-primitives](style/no-raw-primitives.grit) | GritQL | Yes | Feature code using raw `<div>`/`<span>` (web) or `View`/`Text` from `react-native`, instead of composing the design system's primitives |
+| [style/no-inline-color](style/no-inline-color.grit) | GritQL | Yes | Raw hex / `rgb()` / `hsl()` values in style objects and color props (breaks light/dark, which tokens hold together) |
+| [style/no-inline-font-size](style/no-inline-font-size.grit) | GritQL | Yes | Raw `fontSize` overrides instead of a named size from the type scale |
+| [style/no-inline-style-prop](style/no-inline-style-prop.grit) | GritQL | Yes | Inline `style={{…}}` objects outside the primitives layer (strictest rule in the tag — see its Adapt section before taking it) |
+| [style/no-arbitrary-class-values](style/no-arbitrary-class-values.grit) | GritQL | Yes | Utility classes carrying raw values (`text-[13px]`, `bg-[#fff]`) or the framework's generic scale (`text-sm`) instead of semantic tokens |
+| [style/vendor-component-containment](style/vendor-component-containment.grit) | GritQL | Yes | Importing a UI-library component directly when the project ships a wrapper that carries a shared convention |
+| [style/token-equality](style/token-equality.md) | Script | Yes | Raw values that exactly equal a named token (`gap={16}` when that IS `"md"`). Off-scale one-offs pass deliberately |
+| [style/css-tokens](style/css-tokens.md) | Script | Yes | Raw color and font-size in stylesheets — the surface GritQL plugins cannot see |
+| [style/shadow-source](style/shadow-source.md) | Script | Yes | `box-shadow` / elevation outside the one curated shadow file |
+
 ### react — React code smell detection
 
 | Rule | Mechanism | Blocking | What it prevents |
@@ -97,6 +119,11 @@ Not every project needs every rule. Use audit findings to guide selection:
 | `createServerFn` usage | `structure/server-fn-placement`, `structure/server-fn-validation`, `structure/middleware-colocation` |
 | Intra-feature layers | `structure/layer-direction`, `boundary/layer-occupancy`, `boundary/server-no-upward` |
 | React UI | All `react/` rules (including `no-async-effect` if using TanStack Query or similar) |
+| A design system / component library | `style/no-raw-primitives`, `style/no-inline-color`, `style/no-inline-font-size`, `style/token-equality`, `style/shadow-source` |
+| Stylesheets (`.css`, CSS modules) | `style/css-tokens` |
+| Utility CSS (Tailwind or similar) | `style/no-arbitrary-class-values` |
+| A stylesheet layer inline styles would bypass (Unistyles, StyleX, vanilla-extract) | `style/no-inline-style-prop` |
+| Wrapped UI-library components | `style/vendor-component-containment` |
 | External SDK integrations | `boundary/sdk-containment` |
 | Public barrels (two-barrel API) | `naming/barrel-discoverability` |
 | Co-located tests | `naming/test-file-mirror` |

@@ -41,6 +41,7 @@ Rule templates live in `references/rules/` organized by tag:
 | `rules/graph/` | graph | Cross-file dependency analysis — scripts |
 | `rules/health/` | health | Code quality metrics — scripts |
 | `rules/react/` | react | React-specific code smell detection — GritQL + scripts |
+| `rules/style/` | style | Design-system adherence — tokens over values, primitives over raw elements — GritQL + scripts |
 
 ## Process
 
@@ -90,6 +91,7 @@ Using the chosen configuration, propose:
 8. **Error architecture** — Based on chosen configuration.
 9. **SDK containment** — Classify every third-party SDK as wrapped or layer-restricted.
 10. **Test placement** — Co-located. Tests excluded from boundary enforcement.
+11. **Design-system boundary** — Where the primitives layer lives, what closed scales exist (color, type, spacing, radius, elevation), and which module owns each. The `style/` rules all key off these two answers: the primitives path is what every rule exempts, and the token source is what `style/token-equality` imports. If the project has no design system yet, say so — the tag is then a later phase, not a rule set to adapt now.
 
 **Calibration:** For every proposed layer, directory, or abstraction, ask: does this earn its place? If a service layer would just forward calls, don't propose it.
 
@@ -146,6 +148,7 @@ Read [enforcement-implementation.md](references/enforcement-implementation.md) f
 - One subagent for `naming/` scripts (`barrel-discoverability`, `test-file-mirror`)
 - One subagent for structural scripts (`graph/`, `health/`)
 - One subagent for `react/` rules (if applicable)
+- One subagent for `style/` rules (if the project has a design system — GritQL rules plus the token-source-reading scripts)
 
 Each subagent reads the relevant templates from the skill's `references/rules/<tag>/` directory, reads the project's directory structure, and writes the adapted rule into the project's `biome/` directory (for GritQL rules) or `scripts/` directory (for structural scripts). The parent agent verifies with `bun run check:arch` after all rules land.
 
