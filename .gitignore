@@ -1,1 +1,2 @@
 *.local.md
+.agent_cache/
