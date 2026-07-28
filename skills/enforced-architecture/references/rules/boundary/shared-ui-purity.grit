@@ -48,7 +48,10 @@ file(name=$filename, body=$program) where {
     // --- Global exclusions (shared across all rules) ---
     ! $filename <: r".*\.test\.[tj]sx?$|.*\.integration\.test\.[tj]sx?$|.*__tests__.*|.*src/test/.*",
 
-    $program <: contains bubble JsModuleSource() as $source where {
+    $program <: contains bubble or {
+        JsModuleSource() as $source,
+        `import($source)`
+    } where {
         or {
             $source <: r"\"@/features.*\"",
             $source <: r"\"@/domains.*\"",

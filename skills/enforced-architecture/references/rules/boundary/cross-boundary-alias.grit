@@ -57,7 +57,10 @@ file(name=$filename, body=$program) where {
 
     $filename <: r".*/src/.*",
 
-    $program <: contains bubble JsModuleSource() as $source where {
+    $program <: contains bubble or {
+        JsModuleSource() as $source,
+        `import($source)`
+    } where {
         // Only examine relative imports
         $source <: r"\"\.\..*\"",
         or {

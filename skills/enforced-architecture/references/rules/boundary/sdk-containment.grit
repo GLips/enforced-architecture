@@ -71,7 +71,10 @@ file(name=$filename, body=$program) where {
     ! $filename <: r".*/src/client\.[tj]sx?$",
     ! $filename <: r".*instrument\.server\.mjs$",
 
-    $program <: contains bubble JsModuleSource() as $source where {
+    $program <: contains bubble or {
+        JsModuleSource() as $source,
+        `import($source)`
+    } where {
         // --- Replace with your project's wrapped SDK packages ---
         or {
             $source <: r"\"stripe\"",

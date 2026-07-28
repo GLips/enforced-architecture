@@ -115,16 +115,21 @@ file(name=$filename, body=$program) where {
     $filename <: r".*/src/shared/ui/.*",
     ! $filename <: r".*\.test\.[tj]sx?$|.*\.integration\.test\.[tj]sx?$|.*__tests__.*|.*src/test/.*",
 
-    $program <: contains bubble JsModuleSource() as $source where {
+    $program <: contains bubble or {
+        JsModuleSource() as $source,
+        `import($source)`
+    } where {
         $source <: r"\"@/features.*\"",
         register_diagnostic(span = $source, message = "…")
     }
 }
 ```
 
-`JsModuleSource` is the node every import and re-export shares, so one pattern covers all of them: any number of named specifiers, default, namespace (`import * as x`), combined (`import def, { x }`), side-effect (`import "x"`), multi-line, and `export { x } from "…"`. A plain string that happens to contain the same path is *not* a module source, so it does not match.
+`JsModuleSource` is the node every *static* import and re-export shares, so one pattern covers all of them: any number of named specifiers, default, namespace (`import * as x`), combined (`import def, { x }`), side-effect (`import "x"`), multi-line, and `export { x } from "…"`. A plain string that happens to contain the same path is *not* a module source, so it does not match.
 
-The node's text includes its quotes, and Grit regexes are anchored, so write `r"\"@/features.*\""` — or `r".*['\"]@/features.*['\"].*"` if you prefer to be explicit about both quote styles.
+A dynamic `import("…")` is a call expression, not a module source, so `JsModuleSource` does **not** see it. That is the second arm's whole job. Keep it on every containment rule — a rule that says "this module is unreachable from here" is false the moment `await import()` gets past it, and the bypass is one keystroke away from anyone who hits the error.
+
+The node's text includes its quotes, and Grit regexes are anchored, so write `r"\"@/features.*\""` — or `r".*['\"]@/features.*['\"].*"` if you prefer to be explicit about both quote styles. The same regex serves both arms: `$source` is the quoted string either way.
 
 ### When the rule cares which names were imported
 

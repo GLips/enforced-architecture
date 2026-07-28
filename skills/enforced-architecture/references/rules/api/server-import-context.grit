@@ -72,7 +72,10 @@ file(name=$filename, body=$program) where {
     ! $filename <: r".*/src/features/[^/]+/(?:controllers|repo|service)/.*",
     ! $filename <: r".*\.server\.[tj]sx?$",
 
-    $program <: contains bubble JsModuleSource() as $source where {
+    $program <: contains bubble or {
+        JsModuleSource() as $source,
+        `import($source)`
+    } where {
         // Match any import ending in /index.server
         $source <: r"\".*/index\.server\"",
 

@@ -54,7 +54,10 @@ file(name=$filename, body=$program) where {
     // --- Config file exclusions ---
     ! $filename <: r".*/drizzle\.config\.[tj]s$",
 
-    $program <: contains bubble JsModuleSource() as $source where {
+    $program <: contains bubble or {
+        JsModuleSource() as $source,
+        `import($source)`
+    } where {
         $source <: r"\"@/infrastructure/db.*\"",
 
         // ── Optional: also catch raw ORM/driver imports ──
