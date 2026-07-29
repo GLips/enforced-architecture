@@ -285,7 +285,11 @@ GritQL per-file rules cannot aggregate or count matches within a file. Rules tha
 
 **Fixtures are permanent and they run in CI.** A rule is code with exactly one job, and its failure mode is silent by construction: a rule that stops matching does not error, it goes green. Enforcement code needs regression tests more than application code does, because application code has users who notice.
 
-The GritQL templates this skill ships are themselves proved this way, against the three cases below, on every change. **Twelve of the thirty-one were broken when the harness first ran** — seven caught directly by a failing fixture, five more found by looking for the same defect in their siblings once a fixture had named it. They over-matched neighbouring paths, reported one violation per file instead of all of them, treated an import as a call, and in one case fired on the correct spelling while missing the incorrect one entirely. Every one had been reviewed by reading. None had a fixture.
+The GritQL templates this skill ships are themselves proved this way, against the three cases below, on every change. **Eleven of the thirty-one had a behavioural defect when the harness first ran**, and a twelfth described itself incorrectly while behaving fine — seven caught directly by a failing fixture, the rest found by looking for the same defect in their siblings once a fixture had named it.
+
+Severity is worth stating honestly, because "broken" overstates it: **none was a dead no-op, and all eleven still caught the violations they were aimed at.** Five over-matched a neighbouring path, two reported a duplicate on the import line, two surfaced one finding per run instead of all of them, one missed two export forms, and exactly one fired on the correct spelling while missing the incorrect one. Nor were the defects independent — they trace to roughly four misconceptions copied from template to template, which is the actual risk in a catalog meant to be pasted from.
+
+Every one had been reviewed by reading. None had a fixture.
 
 Do not smoke test once and delete the fixture. That is the single practice that produces broken rules at scale — it has now been observed to yield fifteen ungoverned invariants across four repositories, every one of them behind a green check. The deleted fixture takes the evidence with it and leaves a rule nobody can distinguish from a working one.
 

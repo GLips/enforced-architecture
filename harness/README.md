@@ -1,6 +1,8 @@
 # Rule fixture harness
 
-Proves that every GritQL rule template in `skills/enforced-architecture/references/rules/` catches what its header claims, and fails CI when one stops.
+Runs every GritQL rule template in `skills/enforced-architecture/references/rules/` against fixtures, and fails CI when one stops behaving.
+
+It proves the **chosen examples**, not the header claim in general. The fixtures and the rule come from the same author, so an unimagined violation spelling is unimagined in both. Treat a green run as "the contract I wrote down still holds", not as "this rule is correct."
 
 ```
 bun run check:rules
@@ -66,7 +68,7 @@ The suite asserts the diagnostic set **exactly**. A missing one is reported as U
 
 Both of Biome's plugin-load failures are silent in ordinary use, and each gets its own detection so it does not surface as "every expected diagnostic is missing":
 
-- **Compile failure** (a `#` comment, a snake_case node name) writes no JSON at all.
+- **Compile failure** (a `#` comment, a misspelled node name, a bare top-level `$program <:`) writes no JSON at all. Note that a *snake_case* node name like `call_expression()` is **not** one of these — it compiles and matches.
 - **Runtime failure** (the regex-capture-group trap) is reported at severity `info`. The build stays green and the rule reports nothing, forever. This is the failure the harness was built for.
 
 One plugin per Biome run. Biome files every plugin diagnostic under the bare category `plugin` with no rule name attached, so loading two at once makes attribution impossible — and a rule firing for the wrong reason is exactly what this exists to catch.

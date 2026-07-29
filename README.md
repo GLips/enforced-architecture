@@ -44,7 +44,9 @@ A lint rule fails silently. When it stops matching it doesn't error — it goes 
 
 So every GritQL rule in this repo runs in CI against three fixtures: the obvious violation, the *adversarial* one written the way the rule's pattern is likely to miss, and a legal neighbour that must stay silent (over-matching is what trains people to ignore a rule). Edit a rule and break it, the build fails.
 
-This found real bugs. Twelve of the thirty-one rules were broken the first time it ran — one was firing on the *correct* code while missing the incorrect code entirely. All of them had been reviewed by reading. Reading doesn't work; the reviewer has the same blind spot as the author.
+This found real bugs. Eleven of the thirty-one rules had a behavioural defect the first time it ran, and one more carried a false explanation of itself. Worth being precise about severity, because "broken" oversells it: **none was a dead no-op.** Every one of the eleven still caught the violations it was aimed at. Five were *over*-matching (`@/features.*` also hit `@/features-legacy`), two reported a duplicate on the import line, two surfaced one finding per run instead of all of them, one missed two export forms — and exactly one was inverted, reporting the *correct* spelling while missing the incorrect one.
+
+The defects also weren't independent: they trace to about four misconceptions copied across templates. That's the real lesson — a shared idiom propagates its bug everywhere it's pasted. All of these had been reviewed by reading. Reading doesn't work; the reviewer has the same blind spot as the author.
 
 Details in [`harness/README.md`](harness/README.md). Steal the approach along with the rules — it's the part that keeps them honest.
 
