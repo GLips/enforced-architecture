@@ -38,7 +38,7 @@
 //    The template allows shared UI to import @/env.client (for
 //    client-safe config like CDN URLs or feature flags). If your
 //    project requires shared UI to be completely env-agnostic, add:
-//      $source <: r"[\"']@/env.*[\"']"
+//      $source <: r"[\"']@/env(?:\..*)?[\"']"
 //
 // ──────────────────────────────────────────────────────────────────────
 
@@ -53,10 +53,10 @@ file(name=$filename, body=$program) where {
         `import($source)`
     } where {
         or {
-            $source <: r"[\"']@/features.*[\"']",
-            $source <: r"[\"']@/domains.*[\"']",
-            $source <: r"[\"']@/infrastructure.*[\"']",
-            $source <: r"[\"']@/routes.*[\"']"
+            $source <: r"[\"']@/features(?:/.*)?[\"']",
+            $source <: r"[\"']@/domains(?:/.*)?[\"']",
+            $source <: r"[\"']@/infrastructure(?:/.*)?[\"']",
+            $source <: r"[\"']@/routes(?:/.*)?[\"']"
         },
         register_diagnostic(
             span = $source,

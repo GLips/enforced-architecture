@@ -58,11 +58,11 @@ file(name=$filename, body=$program) where {
         JsModuleSource() as $source,
         `import($source)`
     } where {
-        $source <: r"[\"']@/infrastructure/db.*[\"']",
+        $source <: r"[\"']@/infrastructure/db(?:/.*)?[\"']",
 
         // ── Optional: also catch raw ORM/driver imports ──
         // or {
-        //     $source <: r"[\"']@/infrastructure/db.*[\"']",
+        //     $source <: r"[\"']@/infrastructure/db(?:/.*)?[\"']",
         //     $source <: r"[\"']drizzle-orm[\"']",
         //     $source <: r"[\"']drizzle-orm/.*[\"']",
         //     $source <: r"[\"']pg[\"']"
