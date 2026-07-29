@@ -24,15 +24,17 @@ Without this check, a feature could have well-organized service/ and repo/ direc
 
 ## Algorithm
 
-Filesystem-aware, not AST-based. Checks directory presence then scans for import patterns.
+Consumes the resolved import graph — see [graph/import-graph.md](../graph/import-graph.md). Filesystem presence decides *whether* to check; the graph decides *what* the edge is.
 
-1. **Enumerate features** — Walk `src/features/*/` directories.
-2. **Check for layers** — For each feature, test if `repo/` and/or `service/` exist. If neither exists, skip.
-3. **Scan controllers** — Find all `.ts`/`.tsx` files in `controllers/` (excluding tests).
-4. **Check for schema imports** — When `repo/` exists, grep for imports matching `@/infrastructure/db/schema`.
-5. **Check for repo imports** — When both `service/` and `repo/` exist, grep for relative imports matching `../repo/`.
-6. **Exclude type-only imports** — Filter out `import type` statements for both checks. Type imports create no runtime dependency.
-7. **Report** — Emit the feature name, file path, and a fix instruction for each violation.
+1. **Enumerate features** and test which layer directories exist. If neither `repo/` nor `service/` is present, skip the feature.
+2. **Take the feature's edges from the graph**, already classified by source and target layer.
+3. **Flag bypassed present layers** — a controller→schema edge when `repo/` exists; a controller→repo edge when `service/` also exists.
+4. **Exclude type-only imports.** They create no runtime dependency.
+5. **Report** the feature name, file path, and a fix instruction.
+
+**Do not grep for `../repo/`.** The bypass survives being written one directory deeper (`../../repo/x` from a nested controller) or as an alias (`@/features/<self>/repo/x`), and both spellings are ordinary code that a pattern-matching version reports as clean. The same defect hits `structure/layer-direction`, which is why both consume one graph.
+
+Extend the check to the whole direction, not just the controller edge. UI calling service or repo directly bypasses present layers in exactly the same way, and a check covering one edge of the order reads as covering the order.
 
 ### Why schema but not client?
 
@@ -57,14 +59,11 @@ const TYPE_ONLY_IMPORT = /^import type /;
 
 ## Implementation
 
-Bun TypeScript script, delegated from the structural check orchestrator. Can also be implemented as a shell function — the logic is simple enough for either.
+A function behind the structural check orchestrator, returning findings tied to their files. Feature enumeration uses directory listing rather than glob, so it does not expand into subdirectories; layer presence is a directory test. Everything about the imports themselves comes from the shared graph.
 
-Key implementation details:
-- **Feature enumeration** uses directory listing, not glob, to avoid expanding into subdirectories.
-- **Repo existence check** is a simple directory test (`[ -d "$feature_dir/repo" ]`).
-- **Import scanning** uses `grep` for speed. Full AST parsing is unnecessary — the import pattern `from "@/infrastructure/db/schema` is unambiguous.
-- **Type-only filtering** greps the matching lines for `^import type` and excludes them. This prevents false positives from type imports used for parameter type annotations.
-- **Exit code** contributes to the overall structural check pass/fail. Each violation increments the error counter.
+## Fixtures
+
+The two that a grep-based version passes: an upward import written `../../repo/x` from a nested controller, and one written as a same-feature alias. Plus the legal neighbour — a controller importing the DB *client* while `repo/` exists, which is allowed.
 
 ## Example output
 
