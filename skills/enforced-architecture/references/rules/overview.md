@@ -18,7 +18,7 @@ The **Mechanism** column below is also the coverage line, and it is worth readin
 - **GritQL** templates are runnable code, and every one of them is proved in this repo's CI against three fixtures — the obvious violation, the adversarial spelling, and the legal neighbour that must stay silent. A template edit that breaks a rule fails the pull request. See [harness/README.md](../../../../harness/README.md).
 - **Script** templates are **not fixture-tested here**. They describe an algorithm rather than shipping code, so there is nothing to load and nothing to run. Their correctness is established in the consuming project, by the fixtures that project writes alongside its implementation — which is not a lesser bar, but it *is* a later one, and until then a script template is an untested design.
 
-What the harness does not cover for either kind: whether a template survives **adaptation**. Repointing a path pattern, extending a package list, or adding an exclusion is unverified work, and it is where the last several rounds of defects came from. Write the project's own fixtures at the same time as the adaptation, not after.
+What the harness does not cover for either kind: whether a template survives **adaptation**. Repointing a path pattern, extending a package list, or adding an exclusion is unverified work. Write the project's own fixtures at the same time as the adaptation, not after.
 
 ## Rule Index
 

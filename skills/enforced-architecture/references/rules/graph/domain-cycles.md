@@ -23,11 +23,11 @@ Only relevant when the project has two or more domain modules. Projects without 
 ## Algorithm
 
 1. **Enumerate domains** — List subdirectories of `src/domains/`. Each directory is a node in the graph.
-2. **Collect production files** — For each domain, find `.ts`/`.tsx` files excluding `*.test.*`, `*.integration.test.*`, `__tests__/`, and `scripts/`.
-3. **Extract cross-domain imports** — Filter the resolved graph, do not scan for patterns: keep edges whose two ends sit in different `domains/<name>` boundaries. See [graph/import-graph.md](import-graph.md). Resolution is what makes the aliased and relative spellings one edge, and this check must not assume [boundary/cross-boundary-alias](../boundary/cross-boundary-alias.md) already ran.
+2. **Collect production files** via the shared library's walker, which applies the global exclusions once. Do not restate them here.
+3. **Extract cross-domain imports** — Filter the resolved graph, do not scan for patterns: keep edges whose two ends sit in different `domains/<name>` boundaries. See [graph/import-graph.md](import-graph.md). Resolution is what makes the aliased and relative spellings one edge, and this check must not assume `boundary/cross-boundary-alias` already ran.
 4. **Build directed graph** — Each domain is a node. An edge A -> B exists if any production file in domain A imports from domain B.
 5. **Detect cycles** — DFS with three-color marking, or Tarjan's SCCs of size > 1. Domain graphs run under 20 nodes; take whichever reads clearer.
-6. **Report** — For each cycle, emit the participating domains and exit with code 1.
+6. **Report** — Return one error finding per cycle, naming the participating domains. The orchestrator owns the exit code.
 
 ## Configuration
 

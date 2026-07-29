@@ -29,7 +29,7 @@ Only relevant when the project has two or more feature modules. Projects with a 
 ### Graph construction
 
 1. **Enumerate features** — List subdirectories of `src/features/`. Each directory is a node.
-2. **Collect production files** — For each feature, find `.ts`/`.tsx` files excluding `*.test.*`, `*.integration.test.*`, `__tests__/`, and `scripts/`.
+2. **Collect production files** via the shared library's walker, which applies the global exclusions once. Do not restate them here.
 3. **Extract cross-feature imports** — Filter the resolved graph, do not scan for patterns: keep edges whose two ends sit in different `features/<name>` boundaries. See [graph/import-graph.md](import-graph.md). A pattern on `@/features/<name>` misses the relative spelling of the same edge, so a cycle written relatively would be invisible to exactly the check meant to catch it.
    - Deduplicate targets per file (a file importing the same feature twice still creates one edge).
 4. **Build directed graph** — Each feature is a node. An edge A -> B is annotated with the list of files in feature A that import feature B.
@@ -67,10 +67,9 @@ Bun TypeScript script, delegated from the structural check orchestrator.
 
 Key implementation details:
 - **Edge tracking** stores the list of importing files per edge, not just the edge existence. This is needed for pair saturation reporting and for actionable error messages that tell the agent exactly which files create the dependency.
-- **Exit code logic**: exit 1 if any cycles found (even if thresholds also warn). Exit 0 if only threshold warnings. Exit 0 with no output if everything passes.
+- **Return findings, not an exit code.** Cycles are errors, threshold breaches are warnings; the orchestrator aggregates and owns the process exit. A check that exits on its own hides every check after it.
 - **Relative path display** in output — convert absolute paths to project-relative for readable error messages.
 - **`--baseline` mode** prints the full dependency snapshot (all edges, file lists, out-degrees) and exits. No enforcement. Used to capture the current state before calibrating thresholds.
-- **File exclusion** must match the global test exclusion patterns: `*.test.*`, `*.integration.test.*`, `__tests__/`, `scripts/`.
 
 ## Example output
 

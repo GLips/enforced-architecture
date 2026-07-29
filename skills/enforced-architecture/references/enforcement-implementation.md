@@ -55,7 +55,9 @@ At pre-commit, advisory warnings are scoped to the files the commit touches; blo
 
 ```typescript
 // Unset (CI, manual run) => undefined => no filtering: warn across the repo.
-const staged = process.env.STAGED_FILES?.split(/\s+/).filter(Boolean);
+// Split on newlines only: `git diff --name-only` is newline-separated, and a
+// path containing a space would otherwise become two entries that match nothing.
+const staged = process.env.STAGED_FILES?.split("\n").filter(Boolean);
 // A finding with no file can't be matched, so keep it rather than hide it.
 const inDiff = (w: { file?: string }) =>
   !staged || w.file === undefined || staged.includes(w.file);
@@ -116,7 +118,7 @@ pre-commit:
 ## Package.json Scripts
 
 Two architecture-specific scripts:
-- `check:arch` — chains Biome lint then structural checks. Both must pass. This is the single command that verifies all architectural constraints.
+- `check:arch` — runs Biome lint and the structural checks **independently** and aggregates, so a lint failure cannot hide every structural finding (see *One process, one exit code* above). This is the single command that verifies all architectural constraints.
 - `check:structure` — runs only structural checks. Useful when iterating on script changes without re-running lint.
 
 ---
@@ -307,7 +309,7 @@ Keep the fixture tree outside the source root so the architecture rules do not g
 
 ### Adversarial checklist
 
-Every entry below has broken a real rule that had passed its own smoke test. Write the fixture even when you are confident:
+Write the fixture even when you are confident:
 
 | Axis | The shape that gets past |
 |---|---|

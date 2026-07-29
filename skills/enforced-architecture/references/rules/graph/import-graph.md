@@ -30,12 +30,24 @@ The failure is worse than a miss. Every other boundary rule matches the *aliased
 1. **Collect source files** via the shared library's walker.
 2. **Extract every module specifier with a real reader** — `Bun.Transpiler.scanImports`, never a pattern over the source. See [Extraction](#extraction) below; this is the step where silent failure lives.
 3. **Resolve each specifier** against the importing file: relative paths through `resolve(dirname(file), specifier)`, aliased paths by stripping the alias prefix. Discard anything landing outside the source root — that is a package or a config question, not a boundary one.
-4. **Classify both ends** into `{ boundary, feature, layer }`.
-5. **Hand consumers the edge list.** Every question below is then a comparison of two classifications, and depth and spelling stop mattering.
+4. **Classify both ends** into `{ boundary, feature, layer }`, and **keep the resolved target path alongside them.** Classification alone collapses distinctions a consumer still needs — `layer-occupancy` has to tell `infrastructure/db/schema` from `infrastructure/db/client`, and both classify as `infrastructure`. A consumer that matches the raw specifier instead is back to matching spellings, which is the bypass this tier exists to close.
+5. **Hand consumers the edge list.** Every question below is then a comparison of two classifications plus, where a rule names specific modules, a comparison of resolved paths. Depth and spelling stop mattering either way.
+
+```typescript
+type ImportEdge = {
+  file: string;                    // importing file, project-relative
+  line: number | undefined;        // see Extraction — undefined is a real case
+  specifier: string;               // as written, for the error message only
+  relative: boolean;
+  target: string;                  // RESOLVED path from the source root
+  from: Classification;
+  to: Classification;
+};
+```
 
 ### Extraction
 
-**Use `Bun.Transpiler.scanImports`. Do not write a pattern that matches import statements.** It is the same code path that runs the project's TypeScript, so it is the authority on where code ends and text begins.
+**Use `Bun.Transpiler.scanImports`. Do not write a pattern that matches import statements.** It lexes the source the way a compiler does, so it decides where code ends and text begins instead of guessing. Bun documents `scanImports` as possibly marginally less accurate than `scan()`; that is a tradeoff against a pattern-matcher's failure mode, not a tie.
 
 That is the whole question here, and it is a lexer's: comments, both quote styles, template literals, `${…}` holes, templates nested in those holes, escapes, regex literals, JSX text. Get one wrong and a pattern pairs the wrong delimiters and swallows every statement between them. **Silently** — a matcher that stops matching reports nothing, so a clean run is indistinguishable from a working one, and the loss surfaces only through a fixture written to catch it.
 
@@ -63,6 +75,21 @@ const specifiers = (path.endsWith(".tsx") ? READERS.tsx : READERS.ts)
 It returns static imports, `export … from`, side-effect imports, dynamic `import()` and `require()` — each tagged with its `kind` — and it is unmoved by every shape a pattern gets wrong. Statically analysable literal specifiers only: `require("./" + name)` has no path to return.
 
 **Catch a scan failure and rethrow it with the file path.** A bare `error: Syntax Error at input.tsx:11` names a file nobody has, which is poor output from a check whose whole job is telling someone where to look.
+
+#### It reports imports that are not in the file
+
+Under a JSX loader, `scanImports` returns the JSX runtime imports **Bun injects**, which appear nowhere in the source. One `import { useState } from "react"` in a `.tsx` file comes back as three entries:
+
+```
+{ kind: "import-statement", path: "react" }              // the real one
+{ kind: "require-call",     path: "react/jsx-dev-runtime" }   // injected
+{ kind: "require-call",     path: "react" }                   // injected, a duplicate
+```
+
+They are **not** tagged `internal` — they arrive as `require-call`, indistinguishable from a real `require()`. `scan()` filters them; `scanImports()` does not. Two consequences:
+
+- **Counts per specifier are inflated,** so a lookup expecting two occurrences of `"react"` finds one and the extra edge comes back lineless. Harmless in the graph, because bare specifiers are discarded before classification anyway — measured across two real repos, `scanImports` was a strict superset of `scan` and never lost an edge.
+- **A check whose subject IS bare package names must filter or use `scan()`.** That is `api/barrel-purity`: a blocklist pattern matching an injected path reports a file that imports no such thing.
 
 #### The two things the reader will not do
 
@@ -119,10 +146,6 @@ So pick a policy deliberately rather than inheriting this one:
 3. **When complete type coupling actually matters,** use the TypeScript compiler AST. A source rewrite is the wrong foundation for an invariant you intend to claim.
 
 If a consumer needs to *skip* type-only edges, mark a specifier type-only only when the file has **no** runtime import of that same specifier — a file with both spellings reports every occurrence as runtime, which is the loud direction.
-
-One more thing to do before the first scan:
-
-- **Blank comments before locating lines**, or a commented-out import claims the line number of the real one below it. Only for the lookup — the reader lexes comments correctly, backticks inside them included, so feeding it the raw source is right.
 
 ### Classification
 
@@ -203,6 +226,6 @@ Then fixture the extractor against the shapes that make a pattern lose a file. E
 | A type-only import of one module beside a runtime import of another | The type-only marking is per specifier, not per file |
 | A generic arrow (`const f = <T>(x: T[]) => …`) in a plain `.ts` file | The per-extension loader. Under `tsx` this throws and takes the whole run with it |
 | A file starting with a shebang | Same abort, different cause |
-| A crossing whose specifier is written with a `\u` escape | The lineless path. Throwing here aborted a whole real repo's graph |
+| A crossing whose specifier is written with a `\u` escape | The lineless path, which aborts the graph if it throws |
 
 See *Rule Fixtures* in [enforcement-implementation.md](../../enforcement-implementation.md).

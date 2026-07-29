@@ -134,7 +134,7 @@ Each migration phase specifies:
 **Rules activated:** `boundary/cross-boundary-alias`.
 
 **Changes (all mechanical):**
-- Write the `boundary/cross-boundary-alias` GritQL rule
+- Build [graph/import-graph](rules/graph/import-graph.md) in the shared library, then write `boundary/cross-boundary-alias` as its first consumer — it is a structural script, not a GritQL rule, and it has nothing to run against until the graph exists
 - Run `bun run check:arch` — violations list every relative import crossing a boundary
 - Rewrite each to use the `@/` alias
 
@@ -146,7 +146,7 @@ Each migration phase specifies:
 
 **Goal:** Files live in the correct layers. Layer direction is enforced.
 
-**Rules activated:** `boundary/domain-purity`, `boundary/route-thinness`, `boundary/shared-ui-purity`, `structure/server-fn-placement`, `boundary/server-no-upward`, `boundary/shared-purity`, `structure/schema-placement`.
+**Rules activated:** `structure/layer-direction`, `boundary/domain-purity`, `boundary/route-thinness`, `boundary/shared-ui-purity`, `structure/server-fn-placement`, `boundary/server-no-upward`, `boundary/shared-purity`, `structure/schema-placement`.
 
 **Changes:**
 - Write all remaining GritQL rules for this phase
