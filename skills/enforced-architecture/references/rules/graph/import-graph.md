@@ -138,7 +138,7 @@ If a consumer needs to *skip* type-only edges, mark a specifier type-only only w
 
 One more thing to do before the first scan:
 
-- **Blank comments before locating lines**, or a commented-out import claims the line number of the real one below it. Blank them for the *scans* too: a backtick in a comment is a delimiter the reader has no reason to forgive.
+- **Blank comments before locating lines**, or a commented-out import claims the line number of the real one below it. Only for the lookup — the reader lexes comments correctly, backticks inside them included, so feeding it the raw source is right.
 
 ### Classification
 
