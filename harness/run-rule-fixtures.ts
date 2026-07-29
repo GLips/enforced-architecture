@@ -44,8 +44,10 @@ type CaseKind = (typeof CASE_KINDS)[number];
  * `// EXPECT+3: why` expects one three lines below the marker — for statements
  * whose reported span (the module source, the JSX attribute) is not on the line
  * the statement starts on.
+ * `// EXPECT x2: why` expects two on that line. Only for shapes Biome genuinely
+ * double-reports; writing it to silence a surprise hides the surprise.
  */
-const EXPECT_MARKER = /^\s*(?:\/\/|\/\*)\s*EXPECT(?:\+(\d+))?\s*:/;
+const EXPECT_MARKER = /^\s*(?:\/\/|\/\*)\s*EXPECT(?:\+(\d+))?(?:\s*x(\d+))?\s*:/;
 
 /** A blank or comment-only line can never carry a diagnostic, so a marker aimed
  * at one is always an authoring slip — most often a `why` note that wrapped. */
@@ -87,12 +89,15 @@ async function readExpectedDiagnostics(file: string): Promise<ExpectedDiagnostic
     if (marker === null) return;
     const offset = marker[1] === undefined ? 1 : Number(marker[1]);
     const line = index + 1 + offset;
-    expected.push({
+    const one: ExpectedDiagnostic = {
       file,
       line,
       why: text.slice(marker[0].length).trim(),
       targetsCode: !NON_CODE_LINE.test(lines[line - 1] ?? ""),
-    });
+    };
+    for (let n = marker[2] === undefined ? 1 : Number(marker[2]); n > 0; n -= 1) {
+      expected.push(one);
+    }
   });
   return expected;
 }

@@ -106,10 +106,19 @@ file(name=$filename, body=$program) where {
     // --- Theme configuration defines the tokens ---
     ! $filename <: r".*/tailwind\.config\.[tj]s$",
 
-    // `any`, not `or`: a className string routinely carries several off-token
-    // classes at once, and `or` stops at the first arm that matches — the agent
-    // would fix one, re-run, and find the next. `any` reports every arm that
-    // matches the same string in one pass.
+    // `any`, not `or`, and the reason is narrower than it looks. `or` abandons
+    // a node once an arm FAILS on it, so `bg-[var(--background)]` — which
+    // carries no px, rem or hex and therefore does not match the first arm —
+    // would never reach the second. `any` gives every arm its turn, which is
+    // what makes arms two and three reachable at all.
+    //
+    // It does NOT mean one string gets three diagnostics. Measured against
+    // Biome 2.5.6: `any` still yields ONE diagnostic per node per pass, so a
+    // className carrying all three shapes reports the first and the author
+    // fixes them across three runs. Splitting the arms into three .grit files
+    // is the only way to report them simultaneously — Biome evaluates each
+    // plugin independently. Take that trade only if strings in your codebase
+    // routinely carry more than one off-token class.
     $program <: contains bubble any {
         arbitrary_value_utility() as $match where {
             register_diagnostic(
