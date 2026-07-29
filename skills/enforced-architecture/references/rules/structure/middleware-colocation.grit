@@ -42,11 +42,14 @@ file(name=$filename, body=$program) where {
     ! $filename <: r".*\.test\.[tj]sx?$|.*\.integration\.test\.[tj]sx?$|.*__tests__.*|.*src/test/.*",
     ! $filename <: r".*/scripts/.*",
 
-    // Only check files that contain createServerFn
-    $program <: contains `createServerFn`,
+    // Match the CALL, not the bare identifier. `createServerFn` on its own
+    // also matches the import specifier, so a file that merely imports the
+    // symbol without calling it passes the gate, and the real violation gets a
+    // duplicate diagnostic on the import line. The same applies below.
+    $program <: contains `createServerFn($_)`,
 
     // Flag any createMiddleware in the same file
-    $program <: contains bubble `createMiddleware` as $middleware where {
+    $program <: contains bubble `createMiddleware($_)` as $middleware where {
         register_diagnostic(
             span = $middleware,
             message = "createServerFn and createMiddleware must not share a file. The compiler prunes server-only imports from createServerFn handlers but NOT from createMiddleware. Move the middleware to a separate .server.ts file."

@@ -43,7 +43,10 @@ file(name=$filename, body=$program) where {
     ! $filename <: r".*\.test\.[tj]sx?$|.*\.integration\.test\.[tj]sx?$|.*__tests__.*|.*src/test/.*",
     ! $filename <: r".*/scripts/.*",
 
-    $program <: contains bubble `createServerFn` as $call where {
+    // The CALL, not the bare identifier. `createServerFn` alone also matches
+    // the import specifier, which reports the import line as a second
+    // violation and flags a file that imports the symbol without calling it.
+    $program <: contains bubble `createServerFn($_)` as $call where {
         // --- Only controllers/ may define server functions ---
         ! $filename <: r".*/src/features/[^/]+/controllers/.*",
 

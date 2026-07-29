@@ -67,14 +67,21 @@ file(name=$filename, body=$program) where {
     ! $filename <: r".*\.test\.[tj]sx?$|.*\.integration\.test\.[tj]sx?$|.*__tests__.*|.*src/test/.*",
     ! $filename <: r".*/scripts/.*",
 
+    // A method-call snippet MUST name its receiver. A leading-dot pattern such
+    // as `.returning()` compiles without complaint and then matches nothing,
+    // ever — which broke this rule in both directions at once: the
+    // onConflictDoNothing arm never fired, so the whole insert path went
+    // ungoverned, and the .returning() guard never held, so the CORRECT
+    // spelling was reported as the violation. `$_` binds the receiver and
+    // matches any chain in front of the call.
     $program <: contains bubble `return $expr` as $return where {
         // Match Drizzle write operations that produce raw driver Results
         or {
             $expr <: contains `db.delete($_)`,
-            $expr <: contains `.onConflictDoNothing()`
+            $expr <: contains `$_.onConflictDoNothing()`
         },
         // .returning() converts the result to plain row objects — safe to return
-        ! $expr <: contains `.returning()`,
+        ! $expr <: contains `$_.returning()`,
         register_diagnostic(
             span = $return,
             message = "Returning a Drizzle write without .returning() produces an unserializable postgres Result object. Either add .returning() to get row data, or await without returning."

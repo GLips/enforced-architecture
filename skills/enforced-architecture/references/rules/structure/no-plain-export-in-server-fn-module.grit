@@ -45,20 +45,27 @@
 //    (TanStack Start convention). If your project fences server-only
 //    modules differently, update the exclusion regex and the error.
 //
-// 3. Arrow-function exports:
-//    This template flags `export function` / `export async function`
-//    declarations — the common leak shape. It does NOT flag
-//    `export const foo = () => {...}`; `export const fooFn =
-//    createServerFn()...` (a call expression) must stay legal, and
-//    distinguishing a plain arrow from a server-fn chain adds arms for
-//    little gain. Tighten only if arrow-declared helpers leak in practice.
+// 3. What the arms cover, and why each one is there:
+//    - Four `export function` arms: function/async × with/without a
+//      return-type annotation. A `): T {` return type is a distinct node
+//      sitting BETWEEN the params and the body — a snippet with no slot
+//      for it (`($_args) { $... }`) silently fails to match any annotated
+//      function, the most common reason this rule appears to "do nothing."
+//    - `export default function`, which carries exactly the same imports.
+//    - `export const $name = ($_args) => $body`, which covers the plain
+//      AND async arrow in one arm. It does NOT match
+//      `export const fooFn = createServerFn()…`, because that
+//      initialiser is a call expression rather than an arrow, so the
+//      server-fn chain stays legal without an exception.
 //
-// 4. The four arms below cover function/async × with/without a
-//    return-type annotation. A `): T {` return type is a distinct node
-//    sitting BETWEEN the params and the body — a snippet with no slot for
-//    it (`($_args) { $... }`) silently fails to match any annotated
-//    function, the most common reason this rule appears to "do nothing."
-//    Keep all four arms.
+//    NEGATIVE SPACE — one leak shape this rule does NOT catch:
+//    `function helper() {}` declared plainly and exported on a later line
+//    as `export { helper }`. Deciding whether the exported name is a
+//    function needs the declaration and the export list correlated by
+//    name, which a per-file GritQL pattern will not do (measured against
+//    Biome 2.5.6). Treat it as a known bypass rather than a guarantee:
+//    if it shows up in practice it belongs in the structural tier, which
+//    can resolve the binding.
 //
 // ──────────────────────────────────────────────────────────────────────
 
@@ -68,19 +75,24 @@ file(name=$filename, body=$program) where {
     ! $filename <: r".*/scripts/.*",
     ! $filename <: r".*\.server\.[tj]sx?$",
 
-    // Only check files that expose a client-imported server-fn stub.
-    $program <: contains `createServerFn`,
+    // The CALL, not the bare identifier — `createServerFn` alone also matches
+    // the import specifier, so a file that only imports the symbol would trip
+    // the gate and have its ordinary exports reported.
+    $program <: contains `createServerFn($_)`,
 
-    // Flag any plain exported function declaration in that same file.
+    // Flag any plain exported function in that same file, in every
+    // declaration form that carries the module's imports to the client.
     $program <: contains bubble or {
         `export function $name($_args): $_ret { $... }`,
         `export async function $name($_args): $_ret { $... }`,
         `export function $name($_args) { $... }`,
-        `export async function $name($_args) { $... }`
+        `export async function $name($_args) { $... }`,
+        `export default function $name($_args) { $... }`,
+        `export const $name = ($_args) => $body`
     } as $leak where {
         register_diagnostic(
             span = $leak,
-            message = "Plain `export function` in a module that also defines a createServerFn ships to the client bundle (only handler bodies are stripped). Move server-only helpers to a .server.ts sibling — its suffix blocks client imports."
+            message = "A plain exported function in a module that also defines a createServerFn ships to the client bundle (only handler bodies are stripped). Move server-only helpers to a .server.ts sibling — its suffix blocks client imports."
         )
     }
 }
