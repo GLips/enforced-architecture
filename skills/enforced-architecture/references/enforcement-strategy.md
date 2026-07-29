@@ -44,6 +44,8 @@ GritQL rules examine a single file's imports against AST patterns. They detect v
 - Anything requiring cross-file analysis (cycles, file sizes, coupling metrics)
 - Anything requiring filesystem awareness (does this feature have a repo/ directory?)
 - Transitive import analysis (does this barrel transitively pull in server-only code?)
+- **Anything whose answer depends on where the importing file sits.** Whether `../../beta` leaves the current feature is a function of the importing file's depth, not of the import string, so it has to be *resolved and compared*, never matched. This is the least obvious of the four and the most damaging: the rule looks right, passes its fixture, and silently permits the shortest spelling of the violation. See [rules/graph/import-graph.md](rules/graph/import-graph.md).
+- **Anything that counts.** Backtick patterns match by arity — `` `export function $name($_) { $_ }` `` passes only one-parameter functions — and no per-file aggregation exists. Hook counts, prop counts, and "how many components does this file export" are all scripts.
 
 ### Layer 2: Structural Scripts (Cross-File Analysis)
 
@@ -78,15 +80,20 @@ GritQL rules surface in the editor via the Biome language server. An agent sees 
 
 ### Tier 2: Pre-commit
 
-All checks run in parallel at commit time: Biome lint (GritQL rules), structural scripts, type checking, and tests.
+The formatter runs first and alone, then the read-only gates run in parallel: Biome lint (GritQL rules), structural scripts, type checking, and tests.
 
-- `biome check --write` auto-formats and re-stages silently. Agents never see formatting issues.
+- Formatting is applied and re-staged silently. Agents never see formatting issues.
 - GritQL rules (inside `biome lint`) catch per-file violations.
 - Structural scripts catch cross-file violations.
 - Type checking catches type errors introduced by import changes.
 - Tests catch behavioral regressions.
 
-**Warning scope.** Pre-commit is local and interactive, so advisory warnings are scoped to the staged diff — a commit isn't nagged about pre-existing drift in files it never touched. Blocking errors are never scoped; they surface wherever they live. (Tier 3 and manual full runs warn repo-wide — the full picture belongs there.) See [enforcement-implementation.md](enforcement-implementation.md) for the mechanism.
+**Scope follows the check.** Agents commit against a shared working tree, so a commit must not block on another agent's unfinished work.
+
+- **Format and lint — the staged files only.** A repo-wide formatter would rewrite files another agent is mid-edit on, and a per-file violation elsewhere isn't this commit's problem.
+- **Type checking, tests, structural checks — the whole repo.** These catch what is broken no matter who wrote it. Their advisory warnings still narrow to the staged diff, so a commit isn't nagged about pre-existing drift; their errors do not narrow.
+
+Tier 3 and manual full runs warn repo-wide — the full picture belongs there. See [enforcement-implementation.md](enforcement-implementation.md) for the mechanism.
 
 **Target latency:** Under 15 seconds for most projects. Parallel execution is critical.
 
