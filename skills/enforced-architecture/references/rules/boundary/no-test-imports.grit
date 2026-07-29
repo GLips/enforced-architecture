@@ -36,8 +36,8 @@
 // 2. Test infrastructure directory:
 //    If your project places shared test utilities elsewhere (e.g.,
 //    test/, __fixtures__/, .storybook/), add those patterns:
-//      $source <: r"\".*__fixtures__.*\""
-//      $source <: r"\".*\.storybook.*\""
+//      $source <: r"[\"'].*__fixtures__.*[\"']"
+//      $source <: r"[\"'].*\.storybook.*[\"']"
 //
 // 3. Vitest/Jest globals:
 //    This rule targets import statements, not global test APIs
@@ -59,13 +59,13 @@ file(name=$filename, body=$program) where {
     } where {
         or {
             // Importing from a .test. file
-            $source <: r"\".*\.test\"",
-            $source <: r"\".*\.test\..*\"",
+            $source <: r"[\"'].*\.test[\"']",
+            $source <: r"[\"'].*\.test\..*[\"']",
             // Importing from __tests__/ directory
-            $source <: r"\".*__tests__.*\"",
+            $source <: r"[\"'].*__tests__.*[\"']",
             // Importing from src/test/ shared infrastructure
-            $source <: r"\"@/test/.*\"",
-            $source <: r"\".*src/test/.*\""
+            $source <: r"[\"']@/test/.*[\"']",
+            $source <: r"[\"'].*src/test/.*[\"']"
         },
         register_diagnostic(
             span = $source,

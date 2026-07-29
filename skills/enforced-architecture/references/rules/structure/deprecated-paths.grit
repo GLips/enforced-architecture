@@ -59,21 +59,21 @@ file(name=$filename, body=$program) where {
         //
         // or {
         //     and {
-        //         $source <: r"\"@/components/.*\"",
+        //         $source <: r"[\"']@/components/.*[\"']",
         //         register_diagnostic(
         //             span = $source,
         //             message = "The @/components/ directory no longer exists. Import from @/shared/ui/* (generic primitives) or @/features/*/ui/* (feature-owned UI) instead."
         //         )
         //     },
         //     and {
-        //         $source <: r"\"@/lib/.*\"",
+        //         $source <: r"[\"']@/lib/.*[\"']",
         //         register_diagnostic(
         //             span = $source,
         //             message = "The @/lib/ directory no longer exists. Import from @/shared/* (pure utilities), @/infrastructure/* (external adapters), or @/domains/* (business logic) instead."
         //         )
         //     },
         //     and {
-        //         $source <: r"\"@/utils/.*\"",
+        //         $source <: r"[\"']@/utils/.*[\"']",
         //         register_diagnostic(
         //             span = $source,
         //             message = "The @/utils/ directory no longer exists. Import from @/shared/* instead."
@@ -81,7 +81,7 @@ file(name=$filename, body=$program) where {
         //     }
         // }
 
-        $source <: r"\"@/components/.*\"",
+        $source <: r"[\"']@/components/.*[\"']",
         register_diagnostic(
             span = $source,
             message = "The @/components/ directory no longer exists. Import from @/shared/ui/* (generic primitives) or @/features/*/ui/* (feature-owned UI) instead."

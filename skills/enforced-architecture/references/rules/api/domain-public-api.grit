@@ -57,10 +57,10 @@ file(name=$filename, body=$program) where {
         `import($source)`
     } where {
         // Match any deep import into a domain: @/domains/<name>/<anything>
-        $source <: r"\"@/domains/[^/]+/.+\"",
+        $source <: r"[\"']@/domains/[^/]+/.+[\"']",
 
         // Allow the server barrel: @/domains/<name>/index.server
-        ! $source <: r"\"@/domains/[^/]+/index\.server\"",
+        ! $source <: r"[\"']@/domains/[^/]+/index\.server[\"']",
 
         register_diagnostic(
             span = $source,

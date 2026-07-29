@@ -41,7 +41,7 @@
 // 3. Domain imports:
 //    Routes typically should not import domains directly (they go
 //    through features). If your project enforces this, add:
-//      $source <: r"\"@/domains.*\""
+//      $source <: r"[\"']@/domains.*[\"']"
 //
 // ──────────────────────────────────────────────────────────────────────
 
@@ -56,8 +56,8 @@ file(name=$filename, body=$program) where {
         `import($source)`
     } where {
         or {
-            $source <: r"\"@/infrastructure/db.*\"",
-            $source <: r"\"@/env\.server\""
+            $source <: r"[\"']@/infrastructure/db.*[\"']",
+            $source <: r"[\"']@/env\.server[\"']"
         },
         register_diagnostic(
             span = $source,

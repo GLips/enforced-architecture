@@ -58,9 +58,9 @@ file(name=$filename, body=$program) where {
         `import($source)`
     } where {
         or {
-            $source <: r"\"@/features.*\"",
-            $source <: r"\"@/domains.*\"",
-            $source <: r"\"@/routes.*\""
+            $source <: r"[\"']@/features.*[\"']",
+            $source <: r"[\"']@/domains.*[\"']",
+            $source <: r"[\"']@/routes.*[\"']"
         },
         register_diagnostic(
             span = $source,

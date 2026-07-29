@@ -62,14 +62,14 @@ file(name=$filename, body=$program) where {
         JsModuleSource() as $source,
         `import($source)`
     } where {
-        $source <: r"\"@/infrastructure/.*\"",
+        $source <: r"[\"']@/infrastructure/.*[\"']",
 
         // --- Client-safe infrastructure allowlist ---
         // Replace with your project's client-safe infra modules.
-        ! $source <: r"\"@/infrastructure/auth/client\"",
-        ! $source <: r"\"@/infrastructure/providers/query-client\"",
+        ! $source <: r"[\"']@/infrastructure/auth/client[\"']",
+        ! $source <: r"[\"']@/infrastructure/providers/query-client[\"']",
         // Add your project's client-safe infrastructure modules:
-        // ! $source <: r"\"@/infrastructure/analytics/client\"",
+        // ! $source <: r"[\"']@/infrastructure/analytics/client[\"']",
 
         register_diagnostic(
             span = $source,

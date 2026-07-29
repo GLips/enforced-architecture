@@ -77,7 +77,7 @@ language js(typescript, jsx)
 // The digit requirement in the function forms is what lets `rgb(var(--x))` pass.
 // Grit regexes are anchored, so the pattern spans the whole string node.
 pattern raw_color_value() {
-    r"\"[^\"]*(?:#[0-9a-fA-F]{3,8}\b|(?:rgb|rgba|hsl|hsla)\([^)]*[0-9])[^\"]*\""
+    r"[\"'][^\"]*(?:#[0-9a-fA-F]{3,8}\b|(?:rgb|rgba|hsl|hsla)\([^)]*[0-9])[^\"]*[\"']"
 }
 
 file(name=$filename, body=$program) where {

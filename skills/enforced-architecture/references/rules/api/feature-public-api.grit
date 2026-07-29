@@ -61,7 +61,7 @@ file(name=$filename, body=$program) where {
         `import($source)`
     } where {
         // Match any deep import into a feature: @/features/<name>/<anything>
-        $source <: r"\"@/features/[^/]+/.+\"",
+        $source <: r"[\"']@/features/[^/]+/.+[\"']",
 
         or {
             // --- Branch 1: Routes ---
@@ -69,8 +69,8 @@ file(name=$filename, body=$program) where {
             // deep imports are violations.
             and {
                 $filename <: r".*/src/routes/.*",
-                ! $source <: r"\"@/features/[^/]+/index\.server\"",
-                ! $source <: r"\"@/features/[^/]+/ui(?:/.*)?\"",
+                ! $source <: r"[\"']@/features/[^/]+/index\.server[\"']",
+                ! $source <: r"[\"']@/features/[^/]+/ui(?:/.*)?[\"']",
                 register_diagnostic(
                     span = $source,
                     message = "Routes may only deep-import from features via @/features/<feature>/index.server or @/features/<feature>/ui/*. Use the feature barrel (@/features/<feature>) for other exports, or add the needed export to the feature's barrel."
@@ -82,9 +82,9 @@ file(name=$filename, body=$program) where {
             // Same-feature imports are excluded (the feature names match).
             and {
                 $filename <: r".*/src/features/([^/]+)/.*"($file_feat),
-                $source <: r"\"@/features/([^/]+)/.+\""($import_feat),
+                $source <: r"[\"']@/features/([^/]+)/.+[\"']"($import_feat),
                 ! $file_feat <: $import_feat,
-                ! $source <: r"\"@/features/[^/]+/index\.server\"",
+                ! $source <: r"[\"']@/features/[^/]+/index\.server[\"']",
                 register_diagnostic(
                     span = $source,
                     message = "Cross-feature deep imports are limited to @/features/<feature>/index.server. Use the feature barrel (@/features/<feature>) for other exports."

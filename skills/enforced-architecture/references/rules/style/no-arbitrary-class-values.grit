@@ -84,18 +84,18 @@ language js(typescript, jsx)
 // carrying a literal length, percentage, or color. A `md:` / `hover:` variant
 // prefix is absorbed by the leading `[^\"]*`.
 pattern arbitrary_value_utility() {
-    r"\"[^\"]*\b[a-z-]+-\[[^\]]*(?:px|rem|em|%|#[0-9a-fA-F]{3,8})[^\]]*\][^\"]*\""
+    r"[\"'][^\"]*\b[a-z-]+-\[[^\]]*(?:px|rem|em|%|#[0-9a-fA-F]{3,8})[^\]]*\][^\"]*[\"']"
 }
 
 // `bg-[var(--background)]` — a token reached around the theme mapping.
 pattern arbitrary_var_utility() {
-    r"\"[^\"]*\b(?:bg|text|border|outline|ring|fill|stroke|divide|from|via|to)-\[var\(--[^\"]*\""
+    r"[\"'][^\"]*\b(?:bg|text|border|outline|ring|fill|stroke|divide|from|via|to)-\[var\(--[^\"]*[\"']"
 }
 
 // `text-sm`, `text-2xl` — the framework's generic type scale competing with
 // the project's semantic one.
 pattern generic_scale_utility() {
-    r"\"[^\"]*\btext-(?:xs|sm|base|lg|xl|2xl|3xl|4xl|5xl|6xl|7xl|8xl|9xl)\b[^\"]*\""
+    r"[\"'][^\"]*\btext-(?:xs|sm|base|lg|xl|2xl|3xl|4xl|5xl|6xl|7xl|8xl|9xl)\b[^\"]*[\"']"
 }
 
 file(name=$filename, body=$program) where {

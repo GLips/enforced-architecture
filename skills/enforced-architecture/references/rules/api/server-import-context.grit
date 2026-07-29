@@ -77,7 +77,7 @@ file(name=$filename, body=$program) where {
         `import($source)`
     } where {
         // Match any import ending in /index.server
-        $source <: r"\".*/index\.server\"",
+        $source <: r"[\"'].*/index\.server[\"']",
 
         register_diagnostic(
             span = $source,
