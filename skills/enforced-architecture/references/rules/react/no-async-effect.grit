@@ -87,9 +87,12 @@ file(name=$filename, body=$program) where {
     ! $filename <: r".*/scripts/.*",
 
     // `any`, not `or`. These two arms are independent findings about the same
-    // FILE, and `or` stops at the first arm that matches — so in any component
-    // carrying both, the async useCallback went unreported forever. `any` gives
-    // every arm its turn.
+    // FILE, so a component can satisfy both at once — and `or` stops at the
+    // first arm that SUCCEEDS. Under `or` a file carrying both reports the
+    // effect and holds the useCallback back until the next run; the finding is
+    // deferred, not lost. `any` gives every arm its turn and surfaces both in
+    // one pass. (A failing arm does not abandon the node under either
+    // operator — that is a separate and commonly misstated point.)
     $program <: any {
         // Pattern 1: async inside useEffect without cleanup return
         contains bubble `useEffect($callback, $_)` as $effect where {
