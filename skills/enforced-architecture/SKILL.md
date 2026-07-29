@@ -131,7 +131,7 @@ Read [enforcement-implementation.md](references/enforcement-implementation.md) f
 
 **Greenfield sequence:**
 1. Biome config + GritQL rule files in `biome/` directory
-2. Structural check scripts in `scripts/`
+2. The shared `scripts/lib.ts` and the resolved import graph ([rules/graph/import-graph.md](references/rules/graph/import-graph.md)), then the structural checks behind one orchestrator
 3. Package.json scripts (`check:arch`)
 4. Lefthook pre-commit config
 5. Framework import protection (vite.config.ts)
@@ -146,15 +146,15 @@ Read [enforcement-implementation.md](references/enforcement-implementation.md) f
 - One subagent for `api/` rules
 - One subagent for `structure/` rules
 - One subagent for `naming/` scripts (`barrel-discoverability`, `test-file-mirror`)
-- One subagent for structural scripts (`graph/`, `health/`)
+- One subagent for structural scripts (`graph/`, `health/`) — **this one goes first, not in parallel.** It builds the import graph that `cross-boundary-alias`, `layer-direction`, `layer-occupancy` and `feature-deps` all consume, so the others have nothing to write against until it lands.
 - One subagent for `react/` rules (if applicable)
 - One subagent for `style/` rules (if the project has a design system — GritQL rules plus the token-source-reading scripts)
 
 Each subagent reads the relevant templates from the skill's `references/rules/<tag>/` directory, reads the project's directory structure, and writes the adapted rule into the project's `biome/` directory (for GritQL rules) or `scripts/` directory (for structural scripts). The parent agent verifies with `bun run check:arch` after all rules land.
 
-**Smoke testing is required for every rule.** After writing each rule, create a minimal fixture file that should trigger it and verify the diagnostic appears. For GritQL rules, write a `.ts` file with the violating import and run `bunx biome lint` against it. For structural scripts, create a fixture directory structure and run the script. A rule that hasn't been smoke tested is a rule you don't know works. See [enforcement-implementation.md](references/enforcement-implementation.md) for the smoke test procedure.
+**Every rule ships with permanent fixtures, and one of them is adversarial.** A rule's failure mode is silent: when it stops matching it goes green, not red. Verifying it once against the shape you had in mind and deleting the fixture is how a tier ends up governing its canonical examples and nothing else — the third case, the violation written the way your pattern *misses*, is the one that decides whether the rule works. Fixtures live in the repo and run inside `check:arch`. See *Rule Fixtures* in [enforcement-implementation.md](references/enforcement-implementation.md) for the three cases and the adversarial checklist.
 
-**Done when:** Numbered phases with specific file-level changes, the rules that activate in each phase, and a verification step. Every rule has been smoke tested.
+**Done when:** Numbered phases with specific file-level changes, the rules that activate in each phase, and a verification step. Every rule has its fixture set, and the suite runs in the gate.
 
 ### Phase 5: Assemble the plan document
 

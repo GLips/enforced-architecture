@@ -7,7 +7,9 @@ Complete index of enforcement rules. Each rule has a template in its tag directo
 1. **During Phase 3 (rule design):** Scan this table to select rules that apply to the project.
 2. **During Phase 4 (implementation):** Read each selected rule's template file, adapt it to the project's directory structure and import patterns, and write the adapted rule into the project.
 3. **GritQL rules** (`.grit` files) go into the project's `biome/<tag>/` subdirectory (e.g., `biome/boundary/db-isolation.grit`).
-4. **Structural scripts** (`.md` descriptions) are implemented as Bun TypeScript scripts in the project's `scripts/` directory.
+4. **Structural scripts** (`.md` descriptions) are implemented as Bun TypeScript functions behind one orchestrator in the project's `scripts/` directory, sharing a `lib.ts`.
+5. **Build [graph/import-graph](graph/import-graph.md) before its consumers.** Four rules answer *where an import lands* rather than *how it is spelled*, and they are the ones that break silently when they don't.
+6. **Every rule ships with its fixtures**, including one adversarial case. See *Rule Fixtures* in [enforcement-implementation.md](../enforcement-implementation.md) — a rule tested only against the shape its author imagined is a rule you don't know works.
 
 ## Rule Index
 
@@ -16,16 +18,17 @@ Complete index of enforcement rules. Each rule has a template in its tag directo
 | Rule | Mechanism | Blocking | What it prevents |
 |---|---|---|---|
 | [boundary/db-isolation](boundary/db-isolation.grit) | GritQL | Yes | Code outside data-access layers importing DB modules directly |
-| [boundary/domain-purity](boundary/domain-purity.grit) | GritQL | Yes | Domains importing infrastructure, features, routes, or env |
+| [boundary/domain-purity](boundary/domain-purity.grit) | GritQL | Yes | Domains importing anything outside the domain layer — allowlist, not blocklist, so SDKs and React are caught too |
 | [boundary/route-thinness](boundary/route-thinness.grit) | GritQL | Yes | Routes importing DB, raw SDKs, or infrastructure internals |
 | [boundary/shared-ui-purity](boundary/shared-ui-purity.grit) | GritQL | Yes | Shared UI gaining feature, domain, or infrastructure dependencies |
 | [boundary/shared-purity](boundary/shared-purity.grit) | GritQL | Yes | Shared utilities importing app modules (features, domains, etc.) |
 | [boundary/sdk-containment](boundary/sdk-containment.grit) | GritQL | Yes | Direct SDK imports outside designated infrastructure wrappers |
 | [boundary/client-server-infra](boundary/client-server-infra.grit) | GritQL | Yes | Client contexts importing server-only infrastructure modules |
-| [boundary/cross-boundary-alias](boundary/cross-boundary-alias.grit) | GritQL | Yes | Relative imports that cross top-level directory or feature boundaries |
+| [boundary/cross-boundary-alias](graph/import-graph.md) | Script | Yes | Relative imports that cross a boundary — a bypass for every rule that matches the aliased path. Consumes the import graph |
 | [boundary/server-no-upward](boundary/server-no-upward.grit) | GritQL | Yes | Controllers/server code importing from UI or route layers |
 | [boundary/no-test-imports](boundary/no-test-imports.grit) | GritQL | Yes | Production code importing from test files |
 | [boundary/layer-occupancy](boundary/layer-occupancy.md) | Script | Yes | Bypassing present layers (e.g., controllers importing schema when repo/ exists, or importing repo when service/ exists) |
+| [boundary/env-access](boundary/env-access.grit) | GritQL | Yes | Any module but the env module reading `process.env` directly |
 
 ### api — Public API surface and barrel conventions
 
@@ -44,7 +47,8 @@ Complete index of enforcement rules. Each rule has a template in its tag directo
 | [structure/server-fn-placement](structure/server-fn-placement.grit) | GritQL | Yes | `createServerFn` outside `controllers/` directories |
 | [structure/middleware-colocation](structure/middleware-colocation.grit) | GritQL | Yes | `createServerFn` and `createMiddleware` in the same file (middleware imports survive compilation and leak into client bundles) |
 | [structure/no-plain-export-in-server-fn-module](structure/no-plain-export-in-server-fn-module.grit) | GritQL | Yes | Plain `export function` in a `createServerFn` file (only handler bodies are stripped — the sibling export leaks its imports into the client bundle) |
-| [structure/layer-direction](structure/layer-direction.grit) | GritQL | Yes | Within-feature layer import direction violations (e.g., repo importing controllers) |
+| [structure/layer-direction](graph/import-graph.md) | Script | Yes | Within-feature layer direction violations (e.g., repo importing controllers), at any nesting depth and in either spelling. Consumes the import graph |
+| [structure/topology](structure/topology.md) | Script | Yes | Files living where no rule looks — unlisted `src/` roots, modules at a feature root, routes reaching into infrastructure |
 | [structure/deprecated-paths](structure/deprecated-paths.grit) | GritQL | Yes | Imports from removed/renamed paths (e.g., `@/components/*`) |
 | [structure/schema-placement](structure/schema-placement.grit) | GritQL | Yes | Drizzle schema declarations (`pgTable`, `relations`) outside `infrastructure/db/schema/` |
 | [structure/server-fn-validation](structure/server-fn-validation.grit) | GritQL | Yes | `createServerFn` chaining `.handler()` without `.validator()` |
@@ -54,6 +58,7 @@ Complete index of enforcement rules. Each rule has a template in its tag directo
 
 | Rule | Mechanism | Blocking | What it prevents |
 |---|---|---|---|
+| [graph/import-graph](graph/import-graph.md) | Script | — | Not a rule: the resolved import graph four rules consume instead of matching import strings. Build it first |
 | [graph/domain-cycles](graph/domain-cycles.md) | Script | Yes | Circular dependencies between domains |
 | [graph/feature-deps](graph/feature-deps.md) | Script | Mixed | Cycles: hard fail. Coupling thresholds (edge count, pair saturation, fan-out): warnings |
 
@@ -102,7 +107,7 @@ Enforcement runs in three tiers, and picking the right one per axis is most of t
 |---|---|---|---|
 | [react/derived-state](react/derived-state.grit) | GritQL | Yes | `useState` + `useEffect` for values that should be computed inline or with `useMemo` |
 | [react/no-direct-fetch](react/no-direct-fetch.grit) | GritQL | Yes | `fetch()` calls in `.tsx` component files (use server functions or TanStack Query) |
-| [react/single-component-export](react/single-component-export.grit) | GritQL | Yes | Multiple exported React components in one file (compound components via `Object.assign` are fine) |
+| [react/single-component-export](react/single-component-export.md) | Script | No | Multiple exported React components in one file (compound components via `Object.assign` are fine) |
 | [react/no-async-effect](react/no-async-effect.grit) | GritQL | Yes | Async operations in useEffect without cleanup, or async useCallback (typically called from effects without cleanup) |
 | [react/hook-count](react/hook-count.md) | Script | No | Components with 7+ hook calls (doing too much, extract custom hook) |
 | [react/prop-count](react/prop-count.md) | Script | No | Components with 8+ props (needs decomposition or context) |
@@ -118,7 +123,7 @@ Not every project needs every rule. Use audit findings to guide selection:
 | Multiple features | `api/feature-public-api`, `graph/feature-deps` |
 | SSR / bundle splitting | `api/barrel-direction`, `api/barrel-purity`, `api/server-import-context`, `boundary/client-server-infra` |
 | `createServerFn` usage | `structure/server-fn-placement`, `structure/server-fn-validation`, `structure/middleware-colocation`, `structure/no-plain-export-in-server-fn-module` |
-| Intra-feature layers | `structure/layer-direction`, `boundary/layer-occupancy`, `boundary/server-no-upward` |
+| Intra-feature layers | `graph/import-graph`, `structure/layer-direction`, `boundary/layer-occupancy`, `boundary/server-no-upward` |
 | React UI | All `react/` rules (including `no-async-effect` if using TanStack Query or similar) |
 | A design system / component library | `style/no-raw-primitives`, `style/no-inline-color`, `style/no-inline-font-size`, `style/token-equality`, `style/shadow-source` |
 | Stylesheets (`.css`, CSS modules) | `style/css-tokens` |
@@ -128,4 +133,4 @@ Not every project needs every rule. Use audit findings to guide selection:
 | External SDK integrations | `boundary/sdk-containment` |
 | Public barrels (two-barrel API) | `naming/barrel-discoverability` |
 | Co-located tests | `naming/test-file-mirror` |
-| Any TypeScript project | `boundary/cross-boundary-alias`, `boundary/no-test-imports`, `boundary/shared-purity`, `health/file-size`, `health/no-nested-ternary` |
+| Any TypeScript project | `graph/import-graph`, `boundary/cross-boundary-alias`, `boundary/env-access`, `boundary/no-test-imports`, `boundary/shared-purity`, `structure/topology`, `health/file-size`, `health/no-nested-ternary` |
