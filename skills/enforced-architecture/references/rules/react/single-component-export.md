@@ -24,7 +24,7 @@ All `.tsx` files in the component tree, excluding tests and barrels (`index.tsx`
 
 ## Algorithm
 
-Shares its file walk and comment-blanking with [hook-count](hook-count.md) and [prop-count](prop-count.md) — implement all three in one script, since they read the same files and answer the same kind of question.
+Shares its file walk and comment-blanking with [hook-count](hook-count.md) and [prop-count](prop-count.md). Folding all three into one script is the obvious economy, and neither deployment did it — both wrote three scripts that walk the same tree three times. Treat that as a suggestion. What is not optional is that the three **agree on which declarations count as a component**: a form one of them cannot see is a form it silently under-reports, and the three have drifted apart on exactly that twice.
 
 1. **Blank comments** rather than stripping them, so line numbers stay true and a component name mentioned in prose cannot be counted.
 2. **Collect exported component declarations** — `export [default] function Name(`, the generic `Name<T>(` spelling of it, and `export const Name = (` / `= function`, PascalCase only.

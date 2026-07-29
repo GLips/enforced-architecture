@@ -43,6 +43,8 @@ Line-based heuristic scan on function signatures and TypeScript type annotations
 3. **Count props** — Two strategies, tried in order:
    a. **Type annotation approach:** Find the Props type/interface for the component (e.g., `type ChatPanelProps = { ... }` or `interface ChatPanelProps { ... }`). Count the number of property signatures in the type body.
    b. **Destructuring approach:** If no explicit Props type is found, examine the function parameter destructuring pattern (e.g., `function Component({ a, b, c, d }: Props)`). Count the destructured identifiers.
+
+   **Count the destructure only, not everything up to the last brace.** Most components annotate with an inline type literal — `({ a, b }: { a: string; b: string })` — which repeats every name immediately after the pattern. A region read to the final brace in the signature counts every prop twice. One deployment scored a nine-prop component at eleven, and the arithmetic was invisible because both numbers were over the threshold; only a legal fixture sitting one prop *under* it exposes this.
 4. **Report** — For each component exceeding the threshold, emit file path, component name, line number, and prop count.
 
 ### Why two strategies
@@ -94,7 +96,7 @@ const EXCLUDE_PATTERNS = [
 Bun TypeScript script, delegated from the structural check orchestrator.
 
 Key implementation details:
-- **Props type extraction** searches for `type XProps =` or `interface XProps` declarations. Matches the type name to the component name (e.g., `ChatPanelProps` for `ChatPanel`). Falls back to any `*Props` type in the same file if no exact match is found.
+- **Props type extraction** searches for `type XProps =` or `interface XProps` declarations. Matches the type name to the component name (e.g., `ChatPanelProps` for `ChatPanel`). Allow a type-parameter list after the name — `interface OptionListProps<T> {` is the ordinary generic spelling, and a pattern requiring `{` or `=` immediately after the name does not see it. Resolving the parameter's actual type beats assuming the name, which misses an imported or differently-named Props type.
 - **Property counting in types** uses brace-depth tracking to find the type body, then counts lines containing property signatures (lines with `:` that are not method signatures or comments).
 - **Destructuring fallback** parses the function parameter list when no Props type is found. Counts comma-separated identifiers in the destructuring pattern, handling default values and rest parameters.
 - **Spread props exclusion** — Props that spread via `...rest` are counted as 1 regardless of what the rest object contains, since the component is explicitly forwarding them rather than consuming them.

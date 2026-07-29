@@ -86,7 +86,7 @@ Bun TypeScript script, delegated from the structural check orchestrator.
 Key implementation details:
 - **Component extraction** handles both `export function ComponentName()` and `export const ComponentName = () =>` patterns. Only PascalCase names are considered components.
 - **Brace-depth tracking** finds component function boundaries without a parser. Walk forward from the function signature, counting `{` and `}`, collecting lines between depth 1 and depth 0.
-- **Hook counting** uses the `use[A-Z]` pattern on each line within the component boundary. Counts unique hook calls per line (a line with `const [a, setA] = useState(0)` counts as 1).
+- **Hook counting** uses the `use[A-Z]` pattern on each line within the component boundary. Count EVERY match on a line, not the first — `const a = useA(), b = useB()` is two hooks, and a per-line count understates exactly the crowded components this rule exists to find. Use `matchAll`; a shared `/g` regex with `.test()` carries a stateful `lastIndex` that skips every other match.
 - **Comment/string stripping** before pattern matching prevents false positives from hooks mentioned in comments or string literals.
 
 ## Example output
