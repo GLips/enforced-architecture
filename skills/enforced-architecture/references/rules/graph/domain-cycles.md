@@ -24,9 +24,7 @@ Only relevant when the project has two or more domain modules. Projects without 
 
 1. **Enumerate domains** — List subdirectories of `src/domains/`. Each directory is a node in the graph.
 2. **Collect production files** — For each domain, find `.ts`/`.tsx` files excluding `*.test.*`, `*.integration.test.*`, `__tests__/`, and `scripts/`.
-3. **Extract cross-domain imports** — Scan each file for import statements targeting other domains:
-   - Aliased: `from "@/domains/<other-domain>"` or `from "@/domains/<other-domain>/..."`
-   - Relative: `from "../<other-domain>"` or `from "../../<other-domain>"` (these are also caught by the cross-boundary-alias rule, but the cycle check should not assume the cross-boundary-alias rule has already been applied)
+3. **Extract cross-domain imports** — Filter the resolved graph, do not scan for patterns: keep edges whose two ends sit in different `domains/<name>` boundaries. See [graph/import-graph.md](import-graph.md). Resolution is what makes the aliased and relative spellings the same edge, and the cycle check must not assume [boundary/cross-boundary-alias](../boundary/cross-boundary-alias.md) has already run — a pattern pair for the two spellings has to guess how deep `../` climbs, and the graph simply knows.
 4. **Build directed graph** — Each domain is a node. An edge A -> B exists if any production file in domain A imports from domain B.
 5. **Detect cycles** — Run DFS with three-color marking (white/gray/black). A back-edge (encountering a gray node) indicates a cycle. Alternatively, use Tarjan's algorithm to find strongly connected components of size > 1.
 6. **Report** — For each cycle, emit the participating domains and exit with code 1.
@@ -41,14 +39,10 @@ Either algorithm works. DFS with three-color marking is simpler to implement and
 // Directory containing domain modules
 const DOMAINS_DIR = "src/domains";
 
-// Import patterns to detect cross-domain references
-const ALIASED_IMPORT = /from\s+["']@\/domains\/([^/"']+)/g;
-const RELATIVE_IMPORT = /from\s+["']\.\.\/([^/"']+)/g;
 ```
 
 **Adjustments:**
-- If the project uses a different path alias (e.g., `~/` instead of `@/`), update the aliased import pattern.
-- The relative import pattern catches `../<domain>` which is the most common relative cross-domain path. Add deeper patterns (`../../<domain>`) if the domain directory structure is nested.
+- The alias prefix is configured once, in the graph. Nothing here needs to know it.
 - No thresholds to configure. Any cycle is a hard failure.
 
 ## Implementation

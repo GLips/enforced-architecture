@@ -42,20 +42,26 @@ The DB client import (`@/infrastructure/db/client`) is allowed from controllers 
 
 ## Configuration
 
+Both questions are asked of the resolved graph, not of the source text. What is configured here is *which targets count*, expressed as resolved paths from the source root:
+
 ```typescript
 // Direct DB query construction (controllers → schema when repo/ exists)
-const SCHEMA_IMPORT_PATTERN = /from ['"]@\/infrastructure\/db\/schema/;
+const SCHEMA_TARGET = "infrastructure/db/schema";
 
-// Direct repo access (controllers → repo when service/ exists)
-const REPO_IMPORT_PATTERN = /from ['"]\.\.\/repo\//;
+// Direct repo access (controllers → repo when service/ exists). Compared as a
+// resolved path, so `../repo/x` and `@/features/alpha/repo/x` are one edge —
+// which is the whole reason this consumes the graph. A pattern on `../repo/`
+// sees the first and not the second.
+const REPO_LAYER = "repo";
 
-// Type-only imports are excluded from both checks
-const TYPE_ONLY_IMPORT = /^import type /;
+// Type-only edges carry no runtime coupling, so both checks skip them. The graph
+// marks them; see the type-only discussion in graph/import-graph.md, including
+// which spellings it does not catch.
 ```
 
 **Adjustments:**
-- If your DB schema lives elsewhere (e.g., `@/db/schema`), update `SCHEMA_IMPORT_PATTERN`.
-- If your project uses different layer names (e.g., `data/` instead of `repo/`, `usecases/` instead of `service/`), update the directory checks and import patterns accordingly.
+- If your DB schema lives elsewhere (e.g., `@/db/schema`), update `SCHEMA_TARGET` to its resolved path.
+- If your project uses different layer names (e.g., `data/` instead of `repo/`, `usecases/` instead of `service/`), update the directory checks and `LAYER_ORDER` in the graph. The alias prefix is the graph's business, not this rule's.
 
 ## Implementation
 

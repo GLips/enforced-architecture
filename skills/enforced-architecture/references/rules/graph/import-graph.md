@@ -6,7 +6,7 @@
 | **Mechanism** | Structural script — the shared substrate, not a rule itself |
 | **Blocking** | Its consumers are |
 
-Not a rule. This is the resolved import graph that four rules consume instead of each matching import strings on its own: `boundary/cross-boundary-alias`, `structure/layer-direction`, `boundary/layer-occupancy`, and `graph/feature-deps`. Build it once in the shared `lib.ts`.
+Not a rule. This is the resolved import graph that five rules consume instead of each matching import strings on its own: `boundary/cross-boundary-alias`, `structure/layer-direction`, `boundary/layer-occupancy`, `graph/feature-deps`, and `graph/domain-cycles`. Build it once in the shared `lib.ts`.
 
 ## Why these rules cannot be GritQL
 
@@ -28,10 +28,112 @@ The failure is worse than a miss. Every other boundary rule matches the *aliased
 ## Algorithm
 
 1. **Collect source files** via the shared library's walker.
-2. **Extract every module specifier from the TypeScript AST** — static imports, `export … from`, side-effect imports, dynamic `import()`, and `require()`. Line regexes lose multi-line forms and `require` silently; a cycle built out of side-effect imports is invisible to a graph that only recorded `from` clauses.
+2. **Extract every module specifier with a real reader** — `Bun.Transpiler.scanImports`, never a pattern over the source. See [Extraction](#extraction) below; this is the step that has produced every silent failure this substrate has had.
 3. **Resolve each specifier** against the importing file: relative paths through `resolve(dirname(file), specifier)`, aliased paths by stripping the alias prefix. Discard anything landing outside the source root — that is a package or a config question, not a boundary one.
 4. **Classify both ends** into `{ boundary, feature, layer }`.
 5. **Hand consumers the edge list.** Every question below is then a comparison of two classifications, and depth and spelling stop mattering.
+
+### Extraction
+
+**Use `Bun.Transpiler.scanImports`. Do not write a pattern that matches import statements.** It is the same code path that runs the project's TypeScript, so it is the authority on where code ends and text begins — the one question a pattern over the source cannot answer.
+
+```typescript
+// One reader PER EXTENSION. Under the `tsx` loader a generic arrow in a plain
+// .ts file — `const stamp = <T>(rows: T[]) => …` — is read as an unclosed JSX
+// tag and the reader THROWS. Nothing catches it, so one such file aborts the
+// whole graph rather than losing its own edges.
+const READERS = {
+  ts: new Bun.Transpiler({ loader: "ts" }),
+  tsx: new Bun.Transpiler({ loader: "tsx" }),
+} as const;
+
+const specifiers = (path.endsWith(".tsx") ? READERS.tsx : READERS.ts)
+  .scanImports(source)
+  .map((entry) => entry.path);
+```
+
+It returns static imports, `export … from`, side-effect imports, dynamic `import()` and `require()` — each tagged with its `kind` — and it is unmoved by every shape a pattern gets wrong. Statically analysable literal specifiers only: `require("./" + name)` has no path to return.
+
+**Catch a scan failure and rethrow it with the file path.** A bare `error: Syntax Error at input.tsx:11` names a file nobody has, which is poor output from a check whose whole job is telling someone where to look.
+
+#### Why a pattern is the wrong tool here
+
+Extraction reads like string work and is not. The real question is *which characters are code*, and answering it means handling comments, both quote styles, template literals, `${…}` holes, templates nested inside those holes, escapes, regex literals and JSX text. That is a lexer. Three review rounds of a hand-written one each ended the same way:
+
+```ts
+export const TIP = "wrap it in a ` to render as code";
+import { x } from "../../beta/service";   // ← lost: the backtick opened a "template"
+                                          //   that ran to the next real delimiter
+const tick = /`/;
+const beta = import("../../beta/service"); // ← lost the same way, from a regex literal
+
+export const DOC = `await import("../../beta/service")`;  // ← invented: prose read as code
+```
+
+Every one of these is **silent**. A matcher that stops matching reports nothing, and a clean run is indistinguishable from a working one — so this failure mode does not surface through use, only through a fixture that was written to catch it.
+
+#### The two things the reader will not do
+
+**It gives you no line numbers.** Locate the specifier literal in the text yourself:
+
+```typescript
+const needles = [`"${specifier}"`, `'${specifier}'`];   // indexOf, not a regex —
+                                                        // a specifier can hold regex metacharacters
+```
+
+Take the reader as the authority on *which* specifiers exist and *how many* times; use the text only to find *where*. That inverts the risk: prose quoting the same path can claim a line ahead of the real import, which costs a wrong line number on a finding you still report — never a lost finding.
+
+Three things to get right, because this lookup is **best-effort by construction**:
+
+- **A repeated path needs consumed occurrences,** not `indexOf` from zero each time. Collect every offset for the specifier, sort them, and take as many as the reader reported.
+- **The reader returns the COOKED path,** so a specifier written with an escape — `import "./f\u006fo"` comes back as `./foo` — matches no literal in the text at all. **Report the file with no line. Do not throw:** nothing catches it, so one such import anywhere aborts the whole graph. Do not fall back to line 1 either — a wrong line on a blocking check sends someone to the wrong place. That means the line is `number | undefined` in the edge type and every consumer formats around it.
+- **Source order is observed behaviour, not documented API.** Don't make correctness depend on it: group by specifier, then sort by line at the end.
+
+Blanking comments only changes *which* wrong occurrence can claim the line. It does not make the lookup lexical, and nothing will.
+
+**It erases type-only imports.** They emit no runtime code, so `scanImports` drops `import type`, `export type … from`, `import type X = require(…)`, and an all-inline `import { type A }`. A type-only import across a boundary is still coupling, so scan a second time with the type keywords removed and union the two results per specifier:
+
+```typescript
+const IMPORT_CLAUSE = /\b(?:import|export)\s*\{[^{}]*\}\s*from\s*["'][^"']+["']/g;
+
+function revealTypeImports(source: string): string {
+  return source
+    .replace(/\bimport\s+type\b/g, "import")            // always an import — safe
+    .replace(/\bexport\s+type\s+(?=[{*])/g, "export ")  // re-export forms ONLY
+    .replace(IMPORT_CLAUSE, (clause) => clause.replace(/([{,]\s*)type\s+/g, "$1"));
+}
+```
+
+The narrowness is load-bearing, because **the reader throws on code it cannot parse rather than tolerating it**, and nothing catches that — one unparseable file aborts the whole graph, not just its own edges:
+
+- `export type` usually opens a type *alias*. Stripping it turns `export type Foo = …` into `export Foo = …` and takes the run down. Only `export type {` and `export type *` may be touched.
+- Inline `{ type A }` may only be stripped inside a span already matched as an import clause ending in `from "…"`. Applied loosely, it turns a local `function f() { type A<T> = T }` into a parse error.
+- Rewriting inert text — a string, a comment, prose in a template — cannot create or destroy an import, which is what makes the replacements safe where they *do* misfire.
+
+Union rather than substitute, so a shape none of these reveal can never cost a **runtime** edge — the first scan already had it.
+
+**It does cost the whole type-only edge, not just its marking.** These are all valid and neither scan sees any of them:
+
+```ts
+import /* why */ type { A } from "./a";     // a comment between the keywords
+export type /* why */ { B } from "./b";
+import { type A /* } */ } from "./a";       // a brace in a comment ends the clause match early
+type C = import("./c").C;                   // an import type in a type position
+type D = typeof import("./d");
+```
+
+So pick a policy deliberately rather than inheriting this one:
+
+1. **Simplest, and the right default.** Build the runtime graph from `scanImports` alone and state plainly that erased type coupling is not represented. A rule that under-reports on a documented axis beats one that claims completeness it does not have.
+2. **Best-effort augmentation.** Keep the reveal scan, label it incomplete, list the forms above as known-missing, wrap the second scan so its failure cannot abort or replace the runtime graph, and fixture all four replacements — statement `import type`, `export type` re-exports, `import type X = require(…)`, and an all-inline `import { type A }`.
+3. **When complete type coupling actually matters,** use the TypeScript compiler AST. A source rewrite is the wrong foundation for an invariant you intend to claim.
+
+If a consumer needs to *skip* type-only edges, mark a specifier type-only only when the file has **no** runtime import of that same specifier — a file with both spellings reports every occurrence as runtime, which is the loud direction.
+
+Two more shapes to handle before the first scan:
+
+- **A shebang.** Valid at the top of an executable source file; the reader rejects it outright, and that is another whole-run abort. Blank it rather than strip it, so later offsets still map to the right line.
+- **Blank comments before locating lines**, or a commented-out import claims the line number of the real one below it.
 
 ### Classification
 
@@ -97,4 +199,20 @@ FAIL [layer-direction] src/features/alpha/repo/nested/deep.ts:2
 
 ## Fixtures
 
-The three that decide whether this works, all of which pass a spelling-matched implementation: a sibling-feature import (`../../beta/…`), an upward import from a nested directory (`../../service/x`), and a same-feature *aliased* upward import. Add a `require()` edge and a side-effect import edge for the extractor. See *Rule Fixtures* in [enforcement-implementation.md](../../enforcement-implementation.md).
+The three that decide whether resolution works, all of which pass a spelling-matched implementation: a sibling-feature import (`../../beta/…`), an upward import from a nested directory (`../../service/x`), and a same-feature *aliased* upward import. Add a `require()` edge and a side-effect import edge for the extractor.
+
+Then fixture the extractor against the shapes that make a pattern lose a file. Each of these needs a **real violation** inside the affected span — written with a legal import instead, the edge is lost just the same and the suite stays green:
+
+| Fixture | Guards |
+|---|---|
+| A crossing between a backtick in a quoted string and the next real template | The reader classifies delimiters; a pattern swallows the span between them |
+| A crossing after a regex literal containing a backtick | Same failure, from a syntax class a string-only fix does not cover |
+| A crossing inside a `${…}` interpolation | Interpolations are code. Blanking a template wholesale — the obvious way to stop prose being read as an import — deletes a real edge |
+| A code sample in a template literal, expected **silent** | The other half of that pair. This check blocks, so documentation would fail the commit |
+| A wrapped `import`, `require`, `from`, and `export … from` | All four spellings, since a formatter breaks any of them once the line gets long |
+| A type-only import of one module beside a runtime import of another | The type-only marking is per specifier, not per file |
+| A generic arrow (`const f = <T>(x: T[]) => …`) in a plain `.ts` file | The per-extension loader. Under `tsx` this throws and takes the whole run with it |
+| A file starting with a shebang | Same abort, different cause |
+| A crossing whose specifier is written with a `\u` escape | The lineless path. Throwing here aborted a whole real repo's graph |
+
+See *Rule Fixtures* in [enforcement-implementation.md](../../enforcement-implementation.md).

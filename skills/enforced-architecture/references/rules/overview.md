@@ -67,7 +67,7 @@ What the harness does not cover for either kind: whether a template survives **a
 
 | Rule | Mechanism | Blocking | What it prevents |
 |---|---|---|---|
-| [graph/import-graph](graph/import-graph.md) | Script | — | Not a rule: the resolved import graph four rules consume instead of matching import strings. Build it first |
+| [graph/import-graph](graph/import-graph.md) | Script | — | Not a rule: the resolved import graph five rules consume instead of matching import strings. Build it first |
 | [graph/domain-cycles](graph/domain-cycles.md) | Script | Yes | Circular dependencies between domains |
 | [graph/feature-deps](graph/feature-deps.md) | Script | Mixed | Cycles: hard fail. Coupling thresholds (edge count, pair saturation, fan-out): warnings |
 

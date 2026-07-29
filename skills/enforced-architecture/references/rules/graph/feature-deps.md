@@ -30,9 +30,7 @@ Only relevant when the project has two or more feature modules. Projects with a 
 
 1. **Enumerate features** — List subdirectories of `src/features/`. Each directory is a node.
 2. **Collect production files** — For each feature, find `.ts`/`.tsx` files excluding `*.test.*`, `*.integration.test.*`, `__tests__/`, and `scripts/`.
-3. **Extract cross-feature imports** — Scan each file for imports targeting other features:
-   - Static: `from "@/features/<other-feature>"` or `from "@/features/<other-feature>/..."`
-   - Dynamic: `import("@/features/<other-feature>...")`
+3. **Extract cross-feature imports** — Filter the resolved graph, do not scan for patterns: keep edges whose two ends sit in different `features/<name>` boundaries. See [graph/import-graph.md](import-graph.md). A pattern on `@/features/<name>` misses the relative spelling of the same import entirely, which is the bypass [boundary/cross-boundary-alias](../boundary/cross-boundary-alias.md) exists to close — so a cycle written relatively would be invisible to exactly the rule meant to catch it.
    - Deduplicate targets per file (a file importing the same feature twice still creates one edge).
 4. **Build directed graph** — Each feature is a node. An edge A -> B is annotated with the list of files in feature A that import feature B.
 
@@ -56,10 +54,6 @@ Feature graphs tend to be larger than domain graphs (10-30 features vs. 2-10 dom
 ```typescript
 // Directory containing feature modules
 const FEATURES_DIR = "src/features";
-
-// Import patterns to detect cross-feature references
-const STATIC_IMPORT = /from\s+["']@\/features\/([^/"']+)/g;
-const DYNAMIC_IMPORT = /import\s*\(\s*["']@\/features\/([^/"']+)/g;
 
 // Coupling thresholds (non-blocking)
 const TOTAL_EDGE_THRESHOLD = 4;

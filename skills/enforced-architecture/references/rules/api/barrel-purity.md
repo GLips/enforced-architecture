@@ -64,8 +64,12 @@ const MAX_TRACE_DEPTH = 6;
 Bun TypeScript script, delegated from the structural check orchestrator.
 
 Key implementation details:
-- **Import extraction** uses regex, not a full parser. Matches `import/export ... from "..."` patterns including multi-line statements. Detects `type` keyword for type-only filtering.
-- **Type-only filtering** is critical. A `type`-only import is erased at compile time and cannot pull in server-only code at runtime. Mixed re-exports (`export { type Foo, bar } from "..."`) are treated conservatively as runtime (the non-type export `bar` is a runtime dependency).
+- **Import extraction** uses `Bun.Transpiler.scanImports`, per [Extraction](../graph/import-graph.md#extraction) — not a pattern over the source, which cannot tell a real import from a code sample in a template literal. Read that section for the loader and shebang traps, both of which abort rather than degrade.
+
+  It does **not** consume the resolved import graph, and that is the one place this rule differs from the graph's five consumers: graph resolution discards bare package specifiers as "not a boundary question", and bare package names are precisely this rule's subject. Reuse the extraction, not the graph.
+- **Type-only filtering** is critical — a `type`-only import is erased at compile time and cannot pull in server-only code at runtime — and the reader gives it away for free. `scanImports` returns what survives to runtime, so type-only imports are already absent and there is nothing to filter. Mixed re-exports (`export { type Foo, bar } from "..."`) come back present, which is the correct conservative answer: `bar` is a runtime dependency.
+
+  This is the inverse of the graph's problem. The graph has to work to *recover* the type-only edges the reader erases, because a type-only import across a boundary is still coupling. Here the erasure is exactly the semantics wanted, so take it and do not reach for the reveal pass.
 - **Resolution order** tries exact path first, then `.ts`, `.tsx`, `/index.ts`, `/index.tsx`. This matches TypeScript's module resolution without needing the compiler API.
 - **Server function detection** scans file content for the framework's server function constructor (`createServerFn` for TanStack Start). This is a string match, not AST analysis -- fast and sufficient for the purpose.
 - **Cycle handling** uses a visited-file set per barrel check. Once a file is visited, it is not re-traced even if reached via a different import chain.
