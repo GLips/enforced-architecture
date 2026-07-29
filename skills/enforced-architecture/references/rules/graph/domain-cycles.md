@@ -24,14 +24,10 @@ Only relevant when the project has two or more domain modules. Projects without 
 
 1. **Enumerate domains** — List subdirectories of `src/domains/`. Each directory is a node in the graph.
 2. **Collect production files** — For each domain, find `.ts`/`.tsx` files excluding `*.test.*`, `*.integration.test.*`, `__tests__/`, and `scripts/`.
-3. **Extract cross-domain imports** — Filter the resolved graph, do not scan for patterns: keep edges whose two ends sit in different `domains/<name>` boundaries. See [graph/import-graph.md](import-graph.md). Resolution is what makes the aliased and relative spellings the same edge, and the cycle check must not assume [boundary/cross-boundary-alias](../boundary/cross-boundary-alias.md) has already run — a pattern pair for the two spellings has to guess how deep `../` climbs, and the graph simply knows.
+3. **Extract cross-domain imports** — Filter the resolved graph, do not scan for patterns: keep edges whose two ends sit in different `domains/<name>` boundaries. See [graph/import-graph.md](import-graph.md). Resolution is what makes the aliased and relative spellings one edge, and this check must not assume [boundary/cross-boundary-alias](../boundary/cross-boundary-alias.md) already ran.
 4. **Build directed graph** — Each domain is a node. An edge A -> B exists if any production file in domain A imports from domain B.
-5. **Detect cycles** — Run DFS with three-color marking (white/gray/black). A back-edge (encountering a gray node) indicates a cycle. Alternatively, use Tarjan's algorithm to find strongly connected components of size > 1.
+5. **Detect cycles** — DFS with three-color marking, or Tarjan's SCCs of size > 1. Domain graphs run under 20 nodes; take whichever reads clearer.
 6. **Report** — For each cycle, emit the participating domains and exit with code 1.
-
-### Why DFS over Tarjan's
-
-Either algorithm works. DFS with three-color marking is simpler to implement and produces clear "A <-> B" cycle reports. Tarjan's is more efficient when the graph is large and you want all SCCs in one pass. For domain graphs (typically < 20 nodes), the choice is irrelevant. Use whichever the implementing agent finds clearer.
 
 ## Configuration
 

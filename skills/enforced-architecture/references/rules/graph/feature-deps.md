@@ -30,13 +30,13 @@ Only relevant when the project has two or more feature modules. Projects with a 
 
 1. **Enumerate features** — List subdirectories of `src/features/`. Each directory is a node.
 2. **Collect production files** — For each feature, find `.ts`/`.tsx` files excluding `*.test.*`, `*.integration.test.*`, `__tests__/`, and `scripts/`.
-3. **Extract cross-feature imports** — Filter the resolved graph, do not scan for patterns: keep edges whose two ends sit in different `features/<name>` boundaries. See [graph/import-graph.md](import-graph.md). A pattern on `@/features/<name>` misses the relative spelling of the same import entirely, which is the bypass [boundary/cross-boundary-alias](../boundary/cross-boundary-alias.md) exists to close — so a cycle written relatively would be invisible to exactly the rule meant to catch it.
+3. **Extract cross-feature imports** — Filter the resolved graph, do not scan for patterns: keep edges whose two ends sit in different `features/<name>` boundaries. See [graph/import-graph.md](import-graph.md). A pattern on `@/features/<name>` misses the relative spelling of the same edge, so a cycle written relatively would be invisible to exactly the check meant to catch it.
    - Deduplicate targets per file (a file importing the same feature twice still creates one edge).
 4. **Build directed graph** — Each feature is a node. An edge A -> B is annotated with the list of files in feature A that import feature B.
 
 ### Cycle detection (blocking)
 
-5. **Find strongly connected components** — Use Tarjan's algorithm to identify SCCs of size > 1. Each SCC is a cycle.
+5. **Find strongly connected components** — Tarjan's, so every independent cycle surfaces in one pass rather than one per run. Each SCC of size > 1 is a cycle.
 6. **Report cycles** — For each SCC, emit the participating features, the specific edges forming the cycle, and exit with code 1.
 
 ### Coupling thresholds (non-blocking warnings)
@@ -44,10 +44,6 @@ Only relevant when the project has two or more feature modules. Projects with a 
 7. **Total edge count** — Count unique edges. Warn if count exceeds the threshold.
 8. **Pair saturation** — For each edge, check if the file count exceeds the threshold. Warn per-edge.
 9. **Fan-out** — For each feature, count distinct import targets (out-degree). Warn if out-degree exceeds the threshold.
-
-### Why Tarjan's for features
-
-Feature graphs tend to be larger than domain graphs (10-30 features vs. 2-10 domains) and may contain multiple independent cycles. Tarjan's algorithm finds all SCCs in a single O(V+E) pass, making it more suitable than repeated DFS cycle detection.
 
 ## Configuration
 
@@ -63,16 +59,14 @@ const FAN_OUT_THRESHOLD = 2;
 
 **Adjustments:**
 - **Thresholds are starting points.** Calibrate to the project's actual coupling level. A project with 15 features will naturally have more edges than one with 3. The thresholds should signal "this is getting complex, consider extraction" rather than fire on every project.
-- If the project uses a different path alias (e.g., `~/` instead of `@/`), update the import patterns.
 - Add a `--baseline` flag to print the current dependency snapshot without enforcing thresholds. This is useful when onboarding the check to an existing project — capture the current state, then set thresholds just above it.
 
 ## Implementation
 
-Bun TypeScript script, delegated from the structural check orchestrator. TypeScript is preferred over bash for this check because graph algorithms (Tarjan's) are more readable and maintainable in a real programming language.
+Bun TypeScript script, delegated from the structural check orchestrator.
 
 Key implementation details:
 - **Edge tracking** stores the list of importing files per edge, not just the edge existence. This is needed for pair saturation reporting and for actionable error messages that tell the agent exactly which files create the dependency.
-- **Tarjan's algorithm** uses the standard index/lowlink/stack approach. Each SCC of size > 1 is a cycle.
 - **Exit code logic**: exit 1 if any cycles found (even if thresholds also warn). Exit 0 if only threshold warnings. Exit 0 with no output if everything passes.
 - **Relative path display** in output — convert absolute paths to project-relative for readable error messages.
 - **`--baseline` mode** prints the full dependency snapshot (all edges, file lists, out-degrees) and exits. No enforcement. Used to capture the current state before calibrating thresholds.

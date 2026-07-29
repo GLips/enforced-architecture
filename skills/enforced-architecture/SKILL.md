@@ -146,7 +146,7 @@ Read [enforcement-implementation.md](references/enforcement-implementation.md) f
 - One subagent for `api/` rules
 - One subagent for `structure/` rules
 - One subagent for `naming/` scripts (`barrel-discoverability`, `test-file-mirror`)
-- One subagent for structural scripts (`graph/`, `health/`) — **this one goes first, not in parallel.** It builds the import graph that `cross-boundary-alias`, `layer-direction`, `layer-occupancy` and `feature-deps` all consume, so the others have nothing to write against until it lands.
+- One subagent for structural scripts (`graph/`, `health/`) — **this one goes first, not in parallel.** It builds the import graph that `cross-boundary-alias`, `layer-direction`, `layer-occupancy`, `feature-deps` and `domain-cycles` all consume, so the others have nothing to write against until it lands.
 - One subagent for `react/` rules (if applicable)
 - One subagent for `style/` rules (if the project has a design system — GritQL rules plus the token-source-reading scripts)
 

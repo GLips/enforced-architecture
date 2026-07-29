@@ -8,7 +8,7 @@ Complete index of enforcement rules. Each rule has a template in its tag directo
 2. **During Phase 4 (implementation):** Read each selected rule's template file, adapt it to the project's directory structure and import patterns, and write the adapted rule into the project.
 3. **GritQL rules** (`.grit` files) go into the project's `biome/<tag>/` subdirectory (e.g., `biome/boundary/db-isolation.grit`).
 4. **Structural scripts** (`.md` descriptions) are implemented as Bun TypeScript functions behind one orchestrator in the project's `scripts/` directory, sharing a `lib.ts`.
-5. **Build [graph/import-graph](graph/import-graph.md) before its consumers.** Four rules answer *where an import lands* rather than *how it is spelled*, and they are the ones that break silently when they don't.
+5. **Build [graph/import-graph](graph/import-graph.md) before its consumers.** Five rules answer *where an import lands* rather than *how it is spelled*, and they are the ones that break silently when they don't.
 6. **Every rule ships with its fixtures**, including one adversarial case. See *Rule Fixtures* in [enforcement-implementation.md](../enforcement-implementation.md) — a rule tested only against the shape its author imagined is a rule you don't know works.
 
 ## What Is Verified Before It Reaches You

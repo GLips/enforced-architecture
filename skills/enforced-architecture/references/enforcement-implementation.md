@@ -42,7 +42,7 @@ Structural checks share more than a file walker, and duplicating it across scrip
 - **The `Finding` / `CheckResult` shape** — `{ message, file? }` and `{ name, errors, warnings }` — which is what lets warnings be staged-scoped at all.
 - **The resolved import graph.** Extract imports with **`Bun.Transpiler.scanImports`, not a pattern over the source.** Every check that asks where an import *lands* consumes this rather than matching how the specifier is *spelled*. See [rules/graph/import-graph.md](rules/graph/import-graph.md) — it is the single most load-bearing piece of the structural tier, five catalog rules are consumers of it, and its [Extraction](rules/graph/import-graph.md#extraction) section is required reading before you write the extractor.
 
-A pattern loses multi-line re-exports, `require()`, computed and quoted keys, and arrow-function declarations, and each loss is silent. It also cannot tell code from text — a backtick inside a quoted string or a regex literal opens a "template" that swallows every statement until the next delimiter, and prose in a real template reads as an import. Centralising the *same* patterns into a shared file reduces duplication and fixes no correctness: reach for the reader at the same time, or the shared library is only tidier, not better.
+Centralising the *same* patterns into a shared file reduces duplication and fixes no correctness. Reach for the reader at the same time, or the shared library is only tidier, not better.
 
 **`Bun.Transpiler` answers questions about imports and exports, and nothing else.** It exposes import paths and kinds, export names, and transformed JavaScript — not component boundaries, call expressions, parameter structure, or TypeScript property signatures, and `transform()` erases the very annotations `prop-count` needs. So it retires the extraction patterns and no others. The counting checks legitimately stay on patterns, guarded by adversarial fixtures: what they need is a *count per component or file*, which neither the reader nor GritQL aggregates. If their heuristics ever get too expensive to maintain, the precise alternative is the TypeScript compiler AST — not another `Bun.Transpiler` method.
 
@@ -287,13 +287,11 @@ GritQL per-file rules cannot aggregate or count matches within a file. Rules tha
 
 **Fixtures are permanent and they run in CI.** A rule is code with exactly one job, and its failure mode is silent by construction: a rule that stops matching does not error, it goes green. Enforcement code needs regression tests more than application code does, because application code has users who notice.
 
-The GritQL templates this skill ships are themselves proved this way, against the three cases below, on every change. **Eleven of the thirty-one had a behavioural defect when the harness first ran**, and a twelfth described itself incorrectly while behaving fine — seven caught directly by a failing fixture, the rest found by looking for the same defect in their siblings once a fixture had named it.
-
-Severity is worth stating honestly, because "broken" overstates it: **none was a dead no-op, and all eleven still caught the violations they were aimed at.** Five over-matched a neighbouring path, two reported a duplicate on the import line, two surfaced one finding per run instead of all of them, one missed two export forms, and exactly one fired on the correct spelling while missing the incorrect one. Nor were the defects independent — they trace to roughly four misconceptions copied from template to template, which is the actual risk in a catalog meant to be pasted from.
+The GritQL templates this skill ships are themselves proved this way, against the three cases below, on every change. **Eleven of the thirty-one had a behavioural defect the first time the harness ran** — over-matching a neighbouring path, reporting one finding per run instead of all of them, catching the correct spelling but not the incorrect one. None was a dead no-op, and all eleven still caught the violations they were aimed at, so "broken" overstates it. They also were not independent: they trace to about four misconceptions copied from template to template, which is the real risk in a catalog meant to be pasted from.
 
 Every one had been reviewed by reading. None had a fixture.
 
-Do not smoke test once and delete the fixture. That is the single practice that produces broken rules at scale — it has now been observed to yield fifteen ungoverned invariants across four repositories, every one of them behind a green check. The deleted fixture takes the evidence with it and leaves a rule nobody can distinguish from a working one.
+**Do not smoke test once and delete the fixture.** The deleted fixture takes the evidence with it and leaves a rule nobody can distinguish from a working one — measured at fifteen ungoverned invariants across four repositories, every one behind a green check.
 
 ### The fixture set per rule
 

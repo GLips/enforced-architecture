@@ -28,14 +28,16 @@ The failure is worse than a miss. Every other boundary rule matches the *aliased
 ## Algorithm
 
 1. **Collect source files** via the shared library's walker.
-2. **Extract every module specifier with a real reader** — `Bun.Transpiler.scanImports`, never a pattern over the source. See [Extraction](#extraction) below; this is the step that has produced every silent failure this substrate has had.
+2. **Extract every module specifier with a real reader** — `Bun.Transpiler.scanImports`, never a pattern over the source. See [Extraction](#extraction) below; this is the step where silent failure lives.
 3. **Resolve each specifier** against the importing file: relative paths through `resolve(dirname(file), specifier)`, aliased paths by stripping the alias prefix. Discard anything landing outside the source root — that is a package or a config question, not a boundary one.
 4. **Classify both ends** into `{ boundary, feature, layer }`.
 5. **Hand consumers the edge list.** Every question below is then a comparison of two classifications, and depth and spelling stop mattering.
 
 ### Extraction
 
-**Use `Bun.Transpiler.scanImports`. Do not write a pattern that matches import statements.** It is the same code path that runs the project's TypeScript, so it is the authority on where code ends and text begins — the one question a pattern over the source cannot answer.
+**Use `Bun.Transpiler.scanImports`. Do not write a pattern that matches import statements.** It is the same code path that runs the project's TypeScript, so it is the authority on where code ends and text begins.
+
+That is the whole question here, and it is a lexer's: comments, both quote styles, template literals, `${…}` holes, templates nested in those holes, escapes, regex literals, JSX text. Get one wrong and a pattern pairs the wrong delimiters and swallows every statement between them. **Silently** — a matcher that stops matching reports nothing, so a clean run is indistinguishable from a working one, and the loss surfaces only through a fixture written to catch it.
 
 ```typescript
 // One reader PER SYNTAX FAMILY, not per file. Under the `tsx` loader a generic
@@ -62,22 +64,6 @@ It returns static imports, `export … from`, side-effect imports, dynamic `impo
 
 **Catch a scan failure and rethrow it with the file path.** A bare `error: Syntax Error at input.tsx:11` names a file nobody has, which is poor output from a check whose whole job is telling someone where to look.
 
-#### Why a pattern is the wrong tool here
-
-Extraction reads like string work and is not. The real question is *which characters are code*, and answering it means handling comments, both quote styles, template literals, `${…}` holes, templates nested inside those holes, escapes, regex literals and JSX text. That is a lexer. Three review rounds of a hand-written one each ended the same way:
-
-```ts
-export const TIP = "wrap it in a ` to render as code";
-import { x } from "../../beta/service";   // ← lost: the backtick opened a "template"
-                                          //   that ran to the next real delimiter
-const tick = /`/;
-const beta = import("../../beta/service"); // ← lost the same way, from a regex literal
-
-export const DOC = `await import("../../beta/service")`;  // ← invented: prose read as code
-```
-
-Every one of these is **silent**. A matcher that stops matching reports nothing, and a clean run is indistinguishable from a working one — so this failure mode does not surface through use, only through a fixture that was written to catch it.
-
 #### The two things the reader will not do
 
 **It gives you no line numbers.** Locate the specifier literal in the text yourself:
@@ -94,8 +80,7 @@ Three things to get right, because this lookup is **best-effort by construction*
 - **A repeated path needs consumed occurrences,** not `indexOf` from zero each time. Collect every offset for the specifier, sort them, and take as many as the reader reported.
 - **The reader returns the COOKED path,** so a specifier written with an escape — `import "./f\u006fo"` comes back as `./foo` — matches no literal in the text at all. **Report the file with no line. Do not throw:** nothing catches it, so one such import anywhere aborts the whole graph. Do not fall back to line 1 either — a wrong line on a blocking check sends someone to the wrong place. That means the line is `number | undefined` in the edge type and every consumer formats around it.
 - **Source order is observed behaviour, not documented API.** Don't make correctness depend on it: group by specifier, then sort by line at the end.
-
-Blanking comments only changes *which* wrong occurrence can claim the line. It does not make the lookup lexical, and nothing will.
+- **Blank comments before the lookup,** or a commented-out import claims the line of the real one below it. Blank, don't strip, so offsets stay aligned. Only for the lookup — feed the reader raw source; it lexes comments correctly, backticks inside them included.
 
 **It erases type-only imports.** They emit no runtime code, so `scanImports` drops `import type`, `export type … from`, `import type X = require(…)`, and an all-inline `import { type A }`. A type-only import across a boundary is still coupling, so scan a second time with the type keywords removed and union the two results per specifier:
 
@@ -114,11 +99,10 @@ The narrowness is load-bearing, because **the reader throws on code it cannot pa
 
 - `export type` usually opens a type *alias*. Stripping it turns `export type Foo = …` into `export Foo = …` and takes the run down. Only `export type {` and `export type *` may be touched.
 - Inline `{ type A }` may only be stripped inside a span already matched as an import clause ending in `from "…"`. Applied loosely, it turns a local `function f() { type A<T> = T }` into a parse error.
-- Rewriting inert text — a string, a comment, prose in a template — cannot create or destroy an import, which is what makes the replacements safe where they *do* misfire.
 
 Union rather than substitute, so a shape none of these reveal can never cost a **runtime** edge — the first scan already had it.
 
-**It does cost the whole type-only edge, not just its marking.** These are all valid and neither scan sees any of them:
+**An unrevealed shape costs the whole type-only edge, not just its marking.** These are all valid and neither scan sees any of them:
 
 ```ts
 import /* why */ type { A } from "./a";     // a comment between the keywords
@@ -173,6 +157,7 @@ A **layer** is the first segment inside a feature, when it is one of the configu
 | `structure/layer-direction` | Do both ends sit in the same feature, and does the edge run upward? | The target's layer is above the source's in the configured order. Covers relative and aliased spellings identically. |
 | `boundary/layer-occupancy` | Does the edge skip a layer that exists on disk? | A present layer is bypassed. "Skip absent layers, never bypass present ones." |
 | `graph/feature-deps` | What is the feature-to-feature edge set? | Cycles (Tarjan's SCC) block; coupling counts warn. |
+| `graph/domain-cycles` | Same question between domains. | Any cycle, at any transitive depth. Domains are the floor, so a cycle there means two domains are one. |
 
 ## Configuration
 

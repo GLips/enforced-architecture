@@ -53,7 +53,7 @@ Each migration phase specifies:
 | **Goal** | One sentence: what invariant does this phase establish? |
 | **Rules activated** | Which enforcement rules become active at the START of this phase — write/enable the rule, then run `check:arch` to get the violation list |
 | **Changes** | Fix each violation reported by the newly active rules. Classify each fix as mechanical or judgment. |
-| **Verification** | `bun run check:arch && bun run typecheck && bun run test`. All must pass. |
+| **Verification** | `check:arch`, `typecheck`, `test` — each run independently, all must pass. Chained with `&&`, the first failure hides the rest. |
 | **No shims** | No temporary compatibility layers. Each phase is complete in itself. |
 
 ---
@@ -179,7 +179,7 @@ Each migration phase specifies:
 
 **Activating too many rules at once.** Hard to debug which change caused which violation. Activate rules incrementally, verify after each.
 
-**Not verifying after each phase.** Violations compound. A missed import rewrite in Phase 4 causes cascading errors in Phase 5 and 6. Run `bun run check:arch && bun run typecheck && bun run test` after every phase.
+**Not verifying after each phase.** Violations compound. A missed import rewrite in Phase 4 causes cascading errors in Phase 5 and 6. Run `check:arch`, `typecheck` and `test` after every phase.
 
 **Creating shim layers "temporarily."** They become permanent. No re-export wrappers, no compatibility adapters, no "we will clean this up later" modules. Each phase is complete in itself.
 
