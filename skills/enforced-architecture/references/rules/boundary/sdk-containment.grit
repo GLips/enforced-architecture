@@ -25,16 +25,41 @@
 //
 // ── Adapt ─────────────────────────────────────────────────────────────
 //
-// 1. SDK package list (the `or` block matching $source):
-//    Replace with the actual SDK packages your project wraps.
-//    Each entry is a regex matching the package's import specifier.
-//    Examples:
-//      $source <: r"\"stripe\""
-//      $source <: r"\"better-auth\""
-//      $source <: r"\"better-auth/.*\""
-//      $source <: r"\"posthog-node\""
-//      $source <: r"\"@sentry/.*\""
-//      $source <: r"\"@aws-sdk/.*\""
+// 1. Which packages belong on the list — the criterion, not a catalog:
+//
+//    A package belongs here when a SECOND import site would have to
+//    repeat a decision. That is the whole test. Ask it of each candidate:
+//
+//    - Does it authenticate? A key, token, account id or signing secret
+//      means the answer to "which credential, from where" gets decided
+//      again at every call site that constructs a client.
+//    - Does it open a connection? An HTTP client, socket, or pool
+//      carries timeout, retry and cancellation policy with it.
+//    - Is it configured per environment? Base URL, region, sample rate.
+//      Two sites will drift, and the drift shows up in one environment.
+//    - Does its behaviour differ by platform or runtime? This is the
+//      sharp one on anything that might reach the browser: a package
+//      whose web implementation is an empty stub needs that difference
+//      handled in ONE place, not wherever it got imported. Storage,
+//      secure storage, filesystem and network all qualify.
+//    - Could you plausibly swap it for a competitor? Then the surface
+//      you depend on should be yours, not theirs.
+//
+//    Any one of those is enough. Platform and stdlib-shaped packages
+//    count as SDKs — the criterion is the decision, not the vendor.
+//
+//    What does NOT belong: a library with no credential, no IO and no
+//    per-environment config. Date maths, schema validation, immutable
+//    helpers. Wrapping those buys an indirection and nothing else, and a
+//    restricted list that grows past the packages meeting the criterion
+//    above teaches people the rule is arbitrary.
+//
+//    Write them as ONE alternation, not one entry per package. Pairing a
+//    bare package with its subpath form is then structural rather than a
+//    step you can forget — `stripe/lib/thing` and `@sentry/node` are
+//    covered by the same expression that covers `stripe`. Forgetting the
+//    pairing was the most common way an adaptation of this template came
+//    out weaker than the template; this shape removes the chance.
 //
 // 2. Infrastructure directory (the exclusion line):
 //    Adjust if your wrapper layer has a different name.
@@ -75,19 +100,14 @@ file(name=$filename, body=$program) where {
         JsModuleSource() as $source,
         `import($source)`
     } where {
-        // --- Replace with your project's wrapped SDK packages ---
-        or {
-            $source <: r"\"stripe\"",
-            $source <: r"\"better-auth\"",
-            $source <: r"\"better-auth/.*\"",
-            $source <: r"\"posthog-node\"",
-            $source <: r"\"@sentry/.*\"",
-            $source <: r"\"@loops-so/.*\""
-            // Add your project's wrapped SDK packages here:
-            // $source <: r"\"@aws-sdk/.*\"",
-            // $source <: r"\"firebase-admin\"",
-            // $source <: r"\"@sendgrid/.*\"",
-        },
+        // --- Replace the alternation with the packages YOUR project wraps ---
+        //
+        // The quote class matches either spelling, so the rule does not
+        // depend on the formatter's quote style. `(?:/.*)?` covers every
+        // subpath, so each package is named once. Both groups must be
+        // NON-CAPTURING: GritQL binds a capture group as a variable and
+        // the rule fails to load with "matched 1 variables, expected 0".
+        $source <: r"[\"'](?:stripe|better-auth|posthog-node|@sentry/.*|@loops-so/.*)(?:/.*)?[\"']",
         register_diagnostic(
             span = $source,
             message = "Direct provider SDK imports are restricted to infrastructure/ modules (except approved app entrypoints). Import the configured adapter from @/infrastructure/... instead. If this is a new SDK, create its adapter in infrastructure/ and add the package to this rule's restricted list."
