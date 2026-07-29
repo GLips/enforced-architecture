@@ -38,6 +38,16 @@ That single boundary kills an entire class of bugs because the import simply can
 
 The catalog covers boundaries like that, plus public-API barrels, SDK containment, server/client splitting, file placement, dependency-cycle detection, file-size limits, and a set of React code-smell checks (derived state, direct `fetch` in components, async effects without cleanup, and more). Most are [GritQL](https://biomejs.dev) rules that run per-file in real time; a few are cross-file scripts that run pre-commit.
 
+## The rules are tested
+
+A lint rule fails silently. When it stops matching it doesn't error — it goes green, and a passing check looks exactly like a working one. That's how you end up with a boundary everyone believes is enforced and nothing behind it.
+
+So every GritQL rule in this repo runs in CI against three fixtures: the obvious violation, the *adversarial* one written the way the rule's pattern is likely to miss, and a legal neighbour that must stay silent (over-matching is what trains people to ignore a rule). Edit a rule and break it, the build fails.
+
+This found real bugs. Twelve of the thirty-one rules were broken the first time it ran — one was firing on the *correct* code while missing the incorrect code entirely. All of them had been reviewed by reading. Reading doesn't work; the reviewer has the same blind spot as the author.
+
+Details in [`harness/README.md`](harness/README.md). Steal the approach along with the rules — it's the part that keeps them honest.
+
 ## How to use this repo
 
 **1. Steal the rules/run the skill.** If you run a Tanstack Start + Drizzle setup, the rules may be directly applicable. Tell your agent to crib what it can from the repo.

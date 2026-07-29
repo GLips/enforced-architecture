@@ -227,6 +227,35 @@ Do **not** write `\"` inside a `register_diagnostic` message. The escape handlin
 
 Use single quotes or backticks for quoting inside messages: ``"Use `<Box as='nav'>` instead."`` Read at least one rendered message end to end when smoke testing.
 
+### A Method-Call Snippet Must Name Its Receiver
+
+`` `.returning()` `` compiles without complaint and then matches nothing, ever. There is no load error and no diagnostic — the arm is simply dead, which is indistinguishable from a codebase that is clean.
+
+Write `` `$_.returning()` ``. The `$_` binds the receiver and matches any chain in front of the call.
+
+This is the worst trap in the list because it fails in both directions from one mistake. A positive arm written this way never fires, so the shape it names goes ungoverned; a *guard* written this way never holds, so the rule fires on the correct spelling it was supposed to exempt. `structure/no-raw-result` shipped with both at once.
+
+### A Bare Identifier Also Matches the Import Specifier
+
+`` `createServerFn` `` matches the identifier wherever it appears, and that includes `import { createServerFn } from "…"`. Two consequences, both wrong:
+
+- A file that merely *imports* the symbol without calling it trips the rule.
+- A file that does call it gets a second diagnostic on its import line.
+
+Match the call — `` `createServerFn($_)` `` — which does not match a specifier. Per *`$args` Matches Empty Parentheses* below, that still covers `createServerFn()`.
+
+### A Sole Object Member With a Trailing Comma Is Reported Twice
+
+`` `$key: $value` `` matches an object property at two levels of the CST when the property is the *only* member and carries a trailing comma:
+
+```ts
+const styles = {
+  fontSize: 13,   // two diagnostics, not one
+};
+```
+
+Add a second member or drop the comma and it reports once. This is a Biome quirk rather than a pattern error — it affects every `` `$key: $value` `` rule in the catalog, and Biome's formatter produces exactly this shape — so there is nothing to fix in the rule. Know it before you conclude a rule is double-firing for a reason.
+
 ### No Per-File Counting
 
 GritQL per-file rules cannot aggregate or count matches within a file. Rules that need counting (hook-count, prop-count, file-size) must be structural scripts.
@@ -255,6 +284,8 @@ GritQL per-file rules cannot aggregate or count matches within a file. Rules tha
 ## Rule Fixtures
 
 **Fixtures are permanent and they run in CI.** A rule is code with exactly one job, and its failure mode is silent by construction: a rule that stops matching does not error, it goes green. Enforcement code needs regression tests more than application code does, because application code has users who notice.
+
+The GritQL templates this skill ships are themselves proved this way, against the three cases below, on every change. **Twelve of the thirty-one were broken when the harness first ran** — seven caught directly by a failing fixture, five more found by looking for the same defect in their siblings once a fixture had named it. They over-matched neighbouring paths, reported one violation per file instead of all of them, treated an import as a call, and in one case fired on the correct spelling while missing the incorrect one entirely. Every one had been reviewed by reading. None had a fixture.
 
 Do not smoke test once and delete the fixture. That is the single practice that produces broken rules at scale — it has now been observed to yield fifteen ungoverned invariants across four repositories, every one of them behind a green check. The deleted fixture takes the evidence with it and leaves a rule nobody can distinguish from a working one.
 
