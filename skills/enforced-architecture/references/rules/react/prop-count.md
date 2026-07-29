@@ -37,7 +37,9 @@ Exclude test files and type definition files.
 Line-based heuristic scan on function signatures and TypeScript type annotations.
 
 1. **Find target files** — Walk configured directories, collect `.tsx` files (excluding tests).
-2. **Extract component signatures** — Identify exported function declarations and exported arrow function assignments with PascalCase names.
+2. **Extract component signatures** — Identify exported function declarations and exported arrow function assignments with PascalCase names. Two things make this harder than it looks, and an implementation that gets either wrong goes silent rather than wrong:
+   - **A generic component** puts its type-parameter list between the name and the paren (`export function OptionList<T extends string>({ items })`), so a pattern expecting them adjacent never matches.
+   - **The signature usually spans several lines.** A destructured parameter list of eight props is not written on one line by anyone, so a pattern anchored as `\(([^)]*)\)` matches only the small components — exactly the ones that were never going to breach the threshold. Accumulate the signature across lines by tracking paren depth. One deployment measured this at 32 of 121 components found.
 3. **Count props** — Two strategies, tried in order:
    a. **Type annotation approach:** Find the Props type/interface for the component (e.g., `type ChatPanelProps = { ... }` or `interface ChatPanelProps { ... }`). Count the number of property signatures in the type body.
    b. **Destructuring approach:** If no explicit Props type is found, examine the function parameter destructuring pattern (e.g., `function Component({ a, b, c, d }: Props)`). Count the destructured identifiers.
@@ -65,6 +67,13 @@ const PROPS_TYPE_PATTERNS = [
     /^(?:export\s+)?(?:type|interface)\s+(\w+Props)\s*[={]/,
     /^(?:export\s+)?(?:type|interface)\s+(\w+Properties)\s*[={]/,
 ];
+
+// Pattern to identify the component. It finds the NAME and the opening paren
+// only — the parameter list is then accumulated across lines by paren depth,
+// because a real eight-prop signature is never on one line. The `<…>` clause is
+// the generic component's type-parameter list.
+const COMPONENT_DECL_PATTERN =
+    /^export\s+(?:default\s+)?(?:async\s+)?function\s+([A-Z]\w*)\s*(?:<[^(;]*>)?\s*\(/;
 
 // Files to exclude
 const EXCLUDE_PATTERNS = [

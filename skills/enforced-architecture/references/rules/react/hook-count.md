@@ -33,8 +33,8 @@ Exclude custom hook definition files (`use*.ts`) — these are the extraction ta
 Line-based heuristic scan. Does not require a full AST parser.
 
 1. **Find target files** — Walk configured directories, collect `.tsx` files (excluding tests and `use*.ts` hook files).
-2. **Extract component boundaries** — Identify exported function declarations and exported arrow function assignments with PascalCase names. Use brace-depth tracking to find function boundaries.
-3. **Count hook calls** — Within each component boundary, count lines matching the hook call pattern: `use[A-Z]\w*\(`. This catches `useState`, `useEffect`, `useMemo`, `useCallback`, `useRef`, `useContext`, custom hooks like `useQuery`, etc.
+2. **Extract component boundaries** — Identify exported function declarations and exported arrow function assignments with PascalCase names. Use brace-depth tracking to find function boundaries. **A generic component puts its type-parameter list between the name and the paren** (`export function OptionList<T extends string>({ items })`), so a pattern expecting them adjacent never matches the declaration line and skips the component entirely.
+3. **Count hook calls** — Within each component boundary, count lines matching the hook call pattern: `use[A-Z]\w*\(`. This catches `useState`, `useEffect`, `useMemo`, `useCallback`, `useRef`, `useContext`, custom hooks like `useQuery`, etc. **The same gap appears one level down**: `useState<string | null>(…)` puts a type *argument* between the hook name and its parens, and that spelling is pervasive in TS React.
 4. **Report** — For each component exceeding the threshold, emit file path, component name, line number, and hook count.
 
 ### Why line-based, not AST
@@ -54,8 +54,16 @@ const TARGET_DIRS = [
     "src/routes",
 ];
 
-// Pattern to identify hook calls
-const HOOK_CALL_PATTERN = /\buse[A-Z]\w*\s*\(/;
+// Pattern to identify hook calls. The `<…>` clause is the generic type
+// argument — useState<string | null>(…), useRef<HTMLDivElement>(null). Without
+// it every generic-annotated hook is skipped and the component is undercounted;
+// one deployment was counting 2 hooks in a component that had 9.
+const HOOK_CALL_PATTERN = /\buse[A-Z]\w*\s*(?:<[^(;]*>)?\s*\(/;
+
+// Pattern to identify the component the hooks belong to. The same `<…>` clause
+// again, for the generic component declaration.
+const COMPONENT_DECL_PATTERN =
+  /^export\s+(?:default\s+)?(?:async\s+)?function\s+([A-Z]\w*)\s*(?:<[^(;]*>)?\s*\(/;
 
 // Files to exclude (custom hook definitions are the solution, not the problem)
 const EXCLUDE_PATTERNS = [
