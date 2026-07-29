@@ -38,14 +38,20 @@ The failure is worse than a miss. Every other boundary rule matches the *aliased
 **Use `Bun.Transpiler.scanImports`. Do not write a pattern that matches import statements.** It is the same code path that runs the project's TypeScript, so it is the authority on where code ends and text begins — the one question a pattern over the source cannot answer.
 
 ```typescript
-// One reader PER EXTENSION. Under the `tsx` loader a generic arrow in a plain
-// .ts file — `const stamp = <T>(rows: T[]) => …` — is read as an unclosed JSX
-// tag and the reader THROWS. Nothing catches it, so one such file aborts the
-// whole graph rather than losing its own edges.
+// One reader PER SYNTAX FAMILY, not per file. Under the `tsx` loader a generic
+// arrow in a plain .ts file — `const stamp = <T>(rows: T[]) => …` — is read as
+// an unclosed JSX tag and the reader THROWS. Nothing catches it, so one such
+// file aborts the whole graph rather than losing its own edges. Readers hold no
+// per-file state, so they live for the whole run.
 const READERS = {
-  ts: new Bun.Transpiler({ loader: "ts" }),
-  tsx: new Bun.Transpiler({ loader: "tsx" }),
-} as const;
+  ts: new Bun.Transpiler({ loader: "ts" }),    // .ts, .mts, .cts
+  tsx: new Bun.Transpiler({ loader: "tsx" }),  // .tsx
+} as const;                                    // add js/jsx if the walker collects them
+
+// A shebang is valid at the top of an executable source file and the reader
+// rejects it outright — another whole-run abort. Blanked rather than stripped,
+// so every later offset still maps to the right line.
+const source = raw.replace(/^#![^\n]*/, (match) => " ".repeat(match.length));
 
 const specifiers = (path.endsWith(".tsx") ? READERS.tsx : READERS.ts)
   .scanImports(source)
@@ -130,10 +136,9 @@ So pick a policy deliberately rather than inheriting this one:
 
 If a consumer needs to *skip* type-only edges, mark a specifier type-only only when the file has **no** runtime import of that same specifier — a file with both spellings reports every occurrence as runtime, which is the loud direction.
 
-Two more shapes to handle before the first scan:
+One more thing to do before the first scan:
 
-- **A shebang.** Valid at the top of an executable source file; the reader rejects it outright, and that is another whole-run abort. Blank it rather than strip it, so later offsets still map to the right line.
-- **Blank comments before locating lines**, or a commented-out import claims the line number of the real one below it.
+- **Blank comments before locating lines**, or a commented-out import claims the line number of the real one below it. Blank them for the *scans* too: a backtick in a comment is a delimiter the reader has no reason to forgive.
 
 ### Classification
 
