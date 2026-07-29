@@ -12,21 +12,37 @@ Key configuration points:
 - Each plugin is an explicit path to a `.grit` file. Biome does not auto-discover plugins — every rule must be listed.
 - `files.includes` scopes linting to `src/` and excludes generated files.
 - `overrides` can disable plugins for config files (e.g., `vite.config.ts`) that legitimately import server-only packages.
-- Organize rules in subdirectories by tag: `biome/boundary/db-isolation.grit`, `biome/api/feature-public-api.grit`, `biome/structure/layer-direction.grit`, etc.
+- Organize rules in subdirectories by tag: `biome/boundary/db-isolation.grit`, `biome/api/feature-public-api.grit`, `biome/structure/schema-placement.grit`, etc.
 
 ---
 
 ## Structural Script Orchestration
 
-An orchestrator script runs all structural checks. Each check is a function (inline or delegated to a TypeScript script) that returns its findings — errors (blocking) and warnings (non-blocking).
+An orchestrator script runs all structural checks. Each check is a function that returns its findings — errors (blocking) and warnings (non-blocking).
 
 **Orchestration pattern:**
 - Each check runs independently; every finding is tied to the file it concerns.
 - The orchestrator reports every error, reports the warnings that survive scoping (below), and counts both.
 - Exit code 1 if any errors. Exit code 0 if only warnings or clean.
-- Delegated TypeScript scripts use exit code 0 for pass/warnings-only and non-zero for errors.
 
-Simple checks (file size, layer occupancy) can be inline shell functions. Complex checks (graph analysis, transitive import tracing) should be delegated to TypeScript scripts for maintainability.
+**One process, one exit code. Never a shell chain.** `check-a && check-b && check-c` stops at the first non-zero exit, so a tree with four violations reports one, you fix it, and the next appears — four round trips where there should be one, and worst exactly when the tree is in the worst shape.
+
+The same trap catches the tiers *above* the orchestrator, and it is easy to fix the scripts and leave it in place one level up. Watch two:
+
+- `check:arch` written as `biome check && check:structure` lets a lint failure hide every structural finding.
+- `typecheck` written as `tsc --noEmit && tsc --noEmit -p scripts` lets an app type error hide every error in the check scripts themselves.
+
+Run each independently and aggregate. Reserve `&&` for steps where the second genuinely cannot run after the first fails.
+
+### The shared library
+
+Structural checks share more than a file walker, and duplicating it across scripts guarantees they drift apart on exclusions and on what counts as an import. One `lib.ts` owns:
+
+- **File collection**, with the global test/generated exclusions applied once.
+- **The `Finding` / `CheckResult` shape** — `{ message, file? }` and `{ name, errors, warnings }` — which is what lets warnings be staged-scoped at all.
+- **The resolved import graph.** Extract imports from the **TypeScript AST, not line regexes.** Every check that asks where an import *lands* consumes this rather than matching how the specifier is *spelled*. See [rules/graph/import-graph.md](rules/graph/import-graph.md) — it is the single most load-bearing piece of the structural tier, and four catalog rules are consumers of it.
+
+Line regexes lose multi-line re-exports, `require()`, computed and quoted keys, and arrow-function declarations, and each loss is silent. Centralising the *same* regexes into a shared file reduces duplication and fixes no correctness — do the AST move at the same time or the shared library is only tidier, not better.
 
 ### Staged-scoped warnings
 
@@ -54,29 +70,42 @@ for (const { errors, warnings } of results) {
 
 Use lefthook (or husky, lint-staged, etc.) for two kinds of commit-time work — keep them distinct, because they have opposite shapes:
 
-- **Format & re-stage** (`biome check --write --linter-enabled=false`) — *mutates* the staged files to apply formatting and import sorting, then re-stages the result. Because it rewrites the index, it must not run **concurrently** with anything that reads the staged set — keep it in lefthook's default sequential mode rather than a `parallel: true` group.
-- **Verify** — read-only gates that block the commit and parallelize freely among themselves: the arch gate (`check:arch` = Biome lint + GritQL + structural), type checking, and tests. Target latency: under 15 seconds.
+- **Format & re-stage** (`biome check --write --linter-enabled=false`) — *mutates* the staged files to apply formatting and import sorting, then re-stages the result. The only writer, so it runs alone and first.
+- **Verify** — read-only gates that block the commit and parallelize freely among themselves: Biome lint (the GritQL rules), the structural checks, type checking, and tests. Target latency: under 15 seconds.
 
-**Format must `--write` and re-stage — a lint-only hook is the trap.** If the hook only runs `check:arch`, formatting is never enforced at commit: unformatted code lands, then the drift surfaces later when someone runs `biome check --write` by hand and it reformats files from *earlier* commits, sweeping unrelated changes into the diff. Make the formatter part of the commit — and disable the linter on this step (`--linter-enabled=false`) so the lint/GritQL pass runs once, in the arch gate, not here too (`--write` still applies formatting and import sorting). In lefthook, `stage_fixed: true` re-stages whatever the command rewrote:
+**Order the writer ahead of the readers.** A writer sharing a parallel group with readers races them: typecheck and tests read files mid-rewrite, so the run describes content that never reaches the commit — green or red at random, and not reproducible. lefthook's `parallel` is a single hook-level switch, so a `commands:` block is all-sequential or all-concurrent. The `jobs:` array expresses both at once: it preserves order, and a `group:` runs its members in parallel.
 
 ```yaml
-format:
-  glob: "*.{ts,tsx,js,jsx,json,css}"
-  run: bunx biome check --write --linter-enabled=false --no-errors-on-unmatched {staged_files}
-  stage_fixed: true
+pre-commit:
+  jobs:
+    - name: format
+      glob: "*.{ts,tsx,js,jsx,json,css}"
+      run: bunx biome check --write --linter-enabled=false --no-errors-on-unmatched {staged_files}
+      stage_fixed: true
+    - name: gate
+      group:
+        parallel: true
+        jobs:
+          - name: lint
+            glob: "*.{ts,tsx,js,jsx,json,css}"
+            run: bunx biome lint --no-errors-on-unmatched {staged_files}
+          - name: structure
+            run: STAGED_FILES="$(git diff --cached --name-only --diff-filter=ACMR)" bun run check:structure
+          - name: typecheck
+            run: bun run typecheck
+          - name: test
+            run: bun run test
 ```
+
+**Format must `--write` and re-stage — a lint-only hook is the trap.** If the hook only verifies and never writes, formatting is never enforced at commit: unformatted code lands, then the drift surfaces later when someone runs `biome check --write` by hand and it reformats files from *earlier* commits, sweeping unrelated changes into the diff. Make the formatter part of the commit — and disable the linter on this step (`--linter-enabled=false`) so the lint/GritQL pass runs once, in the `lint` job, not here too (`--write` still applies formatting and import sorting).
+
+**Re-stage with `stage_fixed`, never `git add`.** `stage_fixed: true` re-stages only what the command rewrote. `git add {staged_files}` re-stages whole files, silently completing a deliberately partial `git add -p` — the diff the author reviewed is not the diff they committed.
 
 **Monorepo: give it a root Biome config.** A monorepo should ~always have a root `biome.json` plus Biome as a root dependency. Without them there's no single Biome to run from the repo root and nothing telling it the per-workspace plugins, so `bunx biome` at the root pulls a *stray* version that fails to parse the config. Biome 2.x has native monorepo support: the root config is authoritative and each nested workspace `biome.json` adds `"root": false`, so one format command at the root covers every workspace. Stuck with per-workspace-only installs? Fall back to running the format step once per workspace via lefthook's `root:`, which scopes `{staged_files}` to that subtree, relativizes the paths, and runs from that dir so `bunx biome` resolves the workspace-local version and nearest `biome.json`.
 
-**Passing the staged set.** Pass the staged files to the orchestrator so it can scope warnings (see Structural Script Orchestration). Compute the set from git in the command itself rather than the pre-commit tool's file template:
+**Lint and structure are separate jobs here.** `check:arch` chains them for CI and manual runs, but at pre-commit they scope differently — lint to the staged files, structural repo-wide (see Tier 2 in [enforcement-strategy.md](enforcement-strategy.md)) — so the hook calls each half directly.
 
-```yaml
-check-arch:
-  # Errors surface repo-wide; warnings are scoped to this commit's staged files.
-  run: STAGED_FILES="$(git diff --cached --name-only --diff-filter=ACMR)" bun run check:arch
-```
-
-The orchestrator only reads `STAGED_FILES`, so it stays agnostic to the pre-commit tool. `--diff-filter=ACMR` lists added/copied/modified/renamed paths (skipping deletions). The whole newline-separated list lands in one env value via `$(…)`.
+**Passing the staged set.** The `STAGED_FILES` assignment on `structure` above is what lets the orchestrator scope its warnings (see Structural Script Orchestration). Compute that set from git in the command itself rather than the pre-commit tool's file template. The orchestrator only reads `STAGED_FILES`, so it stays agnostic to the pre-commit tool. `--diff-filter=ACMR` lists added/copied/modified/renamed paths (skipping deletions). The whole newline-separated list lands in one env value via `$(…)`.
 
 **Gotcha — don't use the tool's file template inline.** It's tempting to write `STAGED_FILES="{staged_files}"` (lefthook) or the husky/lint-staged equivalent. It breaks: these templates quote each path individually, and a quoted list can't be the right-hand side of an env-var assignment — `ENV="a" "b" cmd` sets `ENV=a` and runs `b` as a command (exit 126, "permission denied"). File templates are built to be a command's *arguments*, not an env value. Computing the set from git sidesteps the quoting entirely.
 
@@ -210,45 +239,55 @@ GritQL per-file rules cannot aggregate or count matches within a file. Rules tha
 2. Adapt paths and patterns to the project's directory structure (the template's "Adapt" section explains what to customize)
 3. Write the adapted rule to `biome/<tag>/<name>.grit`
 4. Add the plugin path to `biome.json`'s `plugins` array
-5. Smoke test (see below)
+5. Write its three fixtures (see below) — the adversarial one decides whether the rule works
 6. Run `bun run check:arch` to verify no false positives on existing code
 
 ## Adding a New Structural Check
 
 1. Read the relevant rule template from `rules/<tag>/<name>.md`
-2. Implement as an inline function or delegated TypeScript script
+2. Implement as a function returning findings, using the shared library (below) for file collection and import resolution
 3. Wire it into the orchestrator: return errors for blocking findings and warnings for non-blocking ones, each tied to its file (so warnings can be staged-scoped)
-4. Smoke test (see below)
+4. Write its three fixtures (see below)
 5. Run `bun run check:arch` to verify
 
 ---
 
-## Smoke Testing Rules
+## Rule Fixtures
 
-Every rule must be smoke tested after implementation. A rule that hasn't been verified against a real violation is a rule you don't know works. GritQL pattern matching is subtle — a misplaced regex escape or an incorrect filename pattern silently passes violations through.
+**Fixtures are permanent and they run in CI.** A rule is code with exactly one job, and its failure mode is silent by construction: a rule that stops matching does not error, it goes green. Enforcement code needs regression tests more than application code does, because application code has users who notice.
 
-### GritQL Rules
+Do not smoke test once and delete the fixture. That is the single practice that produces broken rules at scale — it has now been observed to yield fifteen ungoverned invariants across four repositories, every one of them behind a green check. The deleted fixture takes the evidence with it and leaves a rule nobody can distinguish from a working one.
 
-1. **Create a minimal fixture file** that should trigger the rule. Place it in a temporary location within `src/` that matches the rule's scope. The fixture should contain exactly one violating import.
-2. **Run Biome lint** against the fixture: `bunx biome lint src/path/to/fixture.ts`
-3. **Verify the diagnostic appears.** If it doesn't, check the filename pattern, import source regex, and exception list.
-4. **Verify a valid file does NOT trigger.** Run the same lint against a file in an allowed directory.
-5. **Delete the fixture file.**
+### The fixture set per rule
 
-### Structural Scripts
+Three cases, not one:
 
-1. **Create a fixture that should trigger the check.** This may be a temporary file, directory, or modification.
-2. **Run the orchestrator** or the individual script directly.
-3. **Verify the expected output** — correct file path, threshold, or cycle path.
-4. **Clean up the fixture.**
+1. **The obvious violation** — the shape named in the rule's own description.
+2. **The adversarial violation** — the same violation written the way the rule's natural pattern *misses*. This is the case that matters, and it is the one an author writing their own fixture will not think of, because a fixture written by the rule's author encodes the rule's assumptions.
+3. **The legal neighbour** — code that looks like the violation and is allowed. This is what catches over-matching, which no positive fixture reveals. A rule that fires on `{ message: "#fff is white" }` passes every colour fixture ever written.
 
-### Smoke Test Tracking
+The suite asserts each rule produced *exactly* the expected diagnostics. `biome lint --reporter=json` gives rule name and span; structural scripts are matched on their `FAIL [name] path:line` lines.
 
-Include a checklist in the implementation plan. Every rule gets a row:
+Keep the fixture tree outside the source root so the architecture rules do not govern it — a fixture is deliberately illegal code. One narrow excluded path, not a list that grows.
 
-| Rule | Fixture | Expected diagnostic | Verified |
-|---|---|---|---|
-| boundary/db-isolation | `shared/test-violation.ts` importing `@/infrastructure/db` | "DB client/schema imports are restricted..." | [ ] |
-| ... | ... | ... | [ ] |
+### Adversarial checklist
 
-The implementing agent fills in the "Verified" column as each rule is smoke tested. All rows must be checked before the implementation phase is complete.
+Every entry below has broken a real rule that had passed its own smoke test. Write the fixture even when you are confident:
+
+| Axis | The shape that gets past |
+|---|---|
+| Import clause arity | `import { a, b } from "m"` where the fixture used `{ a }` — see *Matching Imports in GritQL* |
+| Function arity | zero-parameter and `export default function` where the pattern is `($_)` |
+| Path depth | `../../service/x` from a nested directory where the pattern assumed one `../` |
+| Alias spelling | `@/features/self/controllers/x` for a rule matching only relative paths, and vice versa |
+| Package subpath | `pkg/lib/thing` where the rule matched bare `pkg` |
+| Dynamic import | `await import("…")`, which `JsModuleSource` does not see |
+| Indirect member access | `process["env"].X`, `globalThis.process.env.X`, `React.useEffect` |
+| Non-static edge | `require("…")` and side-effect `import "…"` where the extractor only handled `from` |
+| Literal form | a template literal where the pattern matched quoted strings |
+| Multi-line | a re-export or type body spanning lines where the check reads one line at a time |
+| Spread and shorthand | `style={[base, {…}]}`, `{ fontSize }`, a computed key |
+
+### Where fixtures fit the pipeline
+
+The fixture suite runs inside `check:arch`, so a broken rule fails the same gate a broken boundary does. When a rule is known-broken and not yet repaired, land its fixture failing rather than omitting it — that is what makes the backlog visible instead of theoretical.
