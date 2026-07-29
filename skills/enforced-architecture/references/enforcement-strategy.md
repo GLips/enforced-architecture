@@ -45,7 +45,8 @@ GritQL rules examine a single file's imports against AST patterns. They detect v
 - Anything requiring filesystem awareness (does this feature have a repo/ directory?)
 - Transitive import analysis (does this barrel transitively pull in server-only code?)
 - **Anything whose answer depends on where the importing file sits.** Whether `../../beta` leaves the current feature is a function of the importing file's depth, not of the import string, so it has to be *resolved and compared*, never matched. This is the least obvious of the four and the most damaging: the rule looks right, passes its fixture, and silently permits the shortest spelling of the violation. See [rules/graph/import-graph.md](rules/graph/import-graph.md).
-- **Anything that counts.** Backtick patterns match by arity — `` `export function $name($_) { $_ }` `` passes only one-parameter functions — and no per-file aggregation exists. Hook counts, prop counts, and "how many components does this file export" are all scripts.
+- **Anything that counts.** No per-file aggregation exists. Hook counts, prop counts, and "how many components does this file export" are all scripts.
+- **Any named-import clause, matched as a snippet.** A metavariable spans a whole list only where Grit treats the position as a list pattern, and the named-import clause is not one. `` `import { $a } from $src` `` matches a single-specifier import and misses `import { a, b }`; `` `import { $a, $... } from $src` `` matches nothing at all; `` `import { $... } from $src` `` fails to load. There is no snippet form that works. Match `JsModuleSource()`, the node every static import and re-export shares. Nothing in a pattern reveals whether its position is a list, so this is not something to settle by reading — a parameter list *is* one, and `` `function $name($a) { $_ }` `` accordingly matches every arity.
 
 ### Layer 2: Structural Scripts (Cross-File Analysis)
 

@@ -277,7 +277,10 @@ Every entry below has broken a real rule that had passed its own smoke test. Wri
 | Axis | The shape that gets past |
 |---|---|
 | Import clause arity | `import { a, b } from "m"` where the fixture used `{ a }` — see *Matching Imports in GritQL* |
-| Function arity | zero-parameter and `export default function` where the pattern is `($_)` |
+| Declaration form | `export default function`, an arrow assigned to a `const`, and a declaration exported on a later line |
+| Quote style | `import x from 'pkg'` where the regex anchored on `\"` only |
+| Re-export | `export { x } from "pkg"` and `export * from "pkg"`, which carry a runtime dependency exactly like an import |
+| Type-only spelling | `import { type X }` reported by a rule that exempts only statement-level `import type` |
 | Path depth | `../../service/x` from a nested directory where the pattern assumed one `../` |
 | Alias spelling | `@/features/self/controllers/x` for a rule matching only relative paths, and vice versa |
 | Package subpath | `pkg/lib/thing` where the rule matched bare `pkg` |
