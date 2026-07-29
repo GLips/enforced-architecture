@@ -39,7 +39,12 @@ file(name=$filename, body=$program) where {
     ! $filename <: r".*\.test\.[tj]sx?$|.*\.integration\.test\.[tj]sx?$|.*__tests__.*|.*src/test/.*",
     ! $filename <: r".*/scripts/.*",
 
-    $program <: contains `$condition ? $consequent : $alternate` as $ternary where {
+    // `bubble` is what makes this report EVERY nested ternary in the file.
+    // Without it the metavariables are scoped to the whole file, so the first
+    // match binds $condition and every later ternary has to be the same
+    // expression to match — one diagnostic per file, and the second and third
+    // violations surface one at a time across three commits.
+    $program <: contains bubble `$condition ? $consequent : $alternate` as $ternary where {
         or {
             $consequent <: contains `$innerCondition ? $innerConsequent : $innerAlternate`,
             $alternate <: contains `$innerCondition ? $innerConsequent : $innerAlternate`
