@@ -1,0 +1,74 @@
+// ─── structure/middleware-colocation ─────────────────────────────────
+//
+// Tag:      structure
+// Mechanism: GritQL (per-file, real-time)
+// Blocking: Yes
+//
+// Prevents: createServerFn and createMiddleware co-located in the same
+//           file, where a shared server-only import can survive into the
+//           client bundle and crash the browser (observed: betterAuth ->
+//           Node's Buffer, "Buffer is not defined").
+//
+//           The two are compiled differently, and the asymmetry is the
+//           reason. On the client, handleCreateServerFn REPLACES the whole
+//           server function with an RPC stub, so its entire body — and
+//           every identifier the body referenced — is gone.
+//           handleCreateMiddleware only STRIPS the .server() and
+//           .validator() calls; the middleware object itself stays live,
+//           because client middleware chains still run. Both then share one
+//           deadCodeElimination pass, so a server-only import survives
+//           whenever anything still references it.
+//
+//           NEGATIVE SPACE: this is a defensive policy, not a proven
+//           mechanism. The exact path from colocation to the observed crash
+//           was not reproduced, and the compiler does process
+//           createMiddleware — an earlier version of this rule claimed it
+//           did not. Keep the rule for the hazard; do not repeat that claim.
+//
+//           The structural fix is a separate file. Use .server.ts only when
+//           the middleware has no client half — request middleware is
+//           server-only, but server-function middleware may define .client()
+//           as well, and .server.ts cannot be imported from the client.
+//
+// Source:   @tanstack/start-plugin-core/src/start-compiler/
+//           handleCreateMiddleware.ts, handleCreateServerFn.ts, compiler.js
+//
+// Applies:  All src/** files that contain createServerFn calls.
+//           Excludes test files and scripts.
+//
+// Error:    "createServerFn and createMiddleware must not share a file.
+//            A server-only import shared between them can survive into the
+//            client bundle. Move the middleware to its own file."
+//
+// ── Adapt ─────────────────────────────────────────────────────────────
+//
+// 1. Factory names:
+//    If your framework uses different names, replace createServerFn
+//    and createMiddleware with the correct identifiers.
+//
+// 2. This rule is TanStack Start-specific. Other SSR frameworks
+//    (Next.js, SolidStart) have different compilation models and
+//    may not have this problem. Remove or adapt if not using
+//    TanStack Start.
+//
+// ──────────────────────────────────────────────────────────────────────
+
+file(name=$filename, body=$program) where {
+    // --- Global exclusions (shared across all rules) ---
+    ! $filename <: r".*\.test\.[tj]sx?$|.*\.integration\.test\.[tj]sx?$|.*__tests__.*|.*src/test/.*",
+    ! $filename <: r".*/scripts/.*",
+
+    // Match the CALL, not the bare identifier. `createServerFn` on its own
+    // also matches the import specifier, so a file that merely imports the
+    // symbol without calling it passes the gate, and the real violation gets a
+    // duplicate diagnostic on the import line. The same applies below.
+    $program <: contains `createServerFn($_)`,
+
+    // Flag any createMiddleware in the same file
+    $program <: contains bubble `createMiddleware($_)` as $middleware where {
+        register_diagnostic(
+            span = $middleware,
+            message = "createServerFn and createMiddleware must not share a file. A server-only import shared between them can survive into the client bundle and crash the browser. Move the middleware to its own file — .server.ts if it has no .client() half."
+        )
+    }
+}

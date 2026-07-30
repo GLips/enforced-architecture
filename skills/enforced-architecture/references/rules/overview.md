@@ -55,6 +55,7 @@ What the harness does not cover for either kind: whether a template survives **a
 |---|---|---|---|
 | [structure/server-fn-placement](structure/server-fn-placement.grit) | GritQL | Yes | `createServerFn` outside `controllers/` directories |
 | [structure/no-deprecated-input-validator](structure/no-deprecated-input-validator.grit) | GritQL | Yes | Deprecated `.inputValidator()` calls on TanStack Start server functions and middleware |
+| [structure/middleware-colocation](structure/middleware-colocation.grit) | GritQL | Yes | `createServerFn` and `createMiddleware` in the same file, where a shared server-only import can survive into the client bundle |
 | [structure/no-plain-export-in-server-fn-module](structure/no-plain-export-in-server-fn-module.grit) | GritQL | Yes | Plain `export function` in a `createServerFn` file (only handler bodies are stripped — the sibling export leaks its imports into the client bundle) |
 | [structure/layer-direction](graph/import-graph.md) | Script | Yes | Within-feature layer direction violations (e.g., repo importing controllers), at any nesting depth and in either spelling. Consumes the import graph |
 | [structure/topology](structure/topology.md) | Script | Yes | Files living where no rule looks — unlisted `src/` roots, modules at a feature root, routes reaching into infrastructure |
@@ -131,7 +132,7 @@ Not every project needs every rule. Use audit findings to guide selection:
 | `domains/` directory | `boundary/domain-purity`, `api/domain-public-api`, `graph/domain-cycles` |
 | Multiple features | `api/feature-public-api`, `graph/feature-deps` |
 | SSR / bundle splitting | `api/barrel-direction`, `api/barrel-purity`, `api/server-import-context`, `boundary/client-server-infra` |
-| `createServerFn` usage | `structure/server-fn-placement`, `structure/server-fn-validation`, `structure/no-deprecated-input-validator`, `structure/no-plain-export-in-server-fn-module` |
+| `createServerFn` usage | `structure/server-fn-placement`, `structure/server-fn-validation`, `structure/no-deprecated-input-validator`, `structure/middleware-colocation`, `structure/no-plain-export-in-server-fn-module` |
 | Intra-feature layers | `graph/import-graph`, `structure/layer-direction`, `boundary/layer-occupancy`, `boundary/server-no-upward` |
 | React UI | All `react/` rules (including `no-async-effect` if using TanStack Query or similar) |
 | A design system / component library | `style/no-raw-primitives`, `style/no-inline-color`, `style/no-inline-font-size`, `style/token-equality`, `style/shadow-source` |
