@@ -17,7 +17,7 @@ A function earns its place in a layer when it adds at least one of:
 - Error normalization or telemetry
 - Control flow (conditionals, loops, early returns)
 
-If none of these apply and the layer below is absent, the wrapper should be deleted and the caller should reach through directly. However, when the layer exists, `boundary/layer-occupancy` requires traffic to flow through it. In that case, replace the forwarding function with a re-export (`export { repoFn as serviceFn } from "../repo/x"`). A re-export maintains the layer contract without a function body that forwards.
+If none of these apply and the layer below is absent, delete the wrapper and call the lower dependency directly. When repo/service occupancy applies at the controller edge, replace a forwarding function with a re-export (`export { repoFn as serviceFn } from "../repo/x"`).
 
 ## Where it applies
 

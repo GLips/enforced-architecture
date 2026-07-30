@@ -23,6 +23,7 @@ export const Live = ({ items, id }: { items: number[]; id: string }) => {
   // case, and one that calls no setter at all.
   useEffect(() => {
     settle(id);
+    setTitle(id);
     console.log(total);
   }, [id, total]);
 
@@ -31,3 +32,4 @@ export const Live = ({ items, id }: { items: number[]; id: string }) => {
 
 declare function fetchRows(id: string): Promise<number[]>;
 declare function settle(id: string): void;
+declare function setTitle(id: string): void;

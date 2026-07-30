@@ -10,10 +10,6 @@ Written for AI agent readers. Agents are the primary code writers and the primar
 
 Convention-based architecture fails when agents write most of the code.
 
-Agents are prolific and literal. They copy visible patterns, place code wherever seems locally convenient, and each reasonable-in-isolation decision compounds into structural decay. An agent that sees a database import in a route file will reproduce that pattern in every route it touches. An agent that sees a utility function in a feature directory will create more utilities there. No agent wakes up and decides to violate architecture. Every violation is a locally reasonable decision made without global context.
-
-Humans manage this through culture, code review, and institutional memory. Agents have none of these. An agent's "institutional memory" is whatever it can observe in the codebase and whatever rules are mechanically enforced. Nothing else exists for it.
-
 This creates a cost asymmetry that drives every enforcement decision:
 
 | Outcome | Cost |
@@ -24,27 +20,17 @@ This creates a cost asymmetry that drives every enforcement decision:
 
 Every enforcement decision should be evaluated against this asymmetry. When in doubt, enforce. The cost of a rule that occasionally blocks a valid change is trivial compared to the cost of a violation that becomes a pattern.
 
-This is not a pessimistic view of agents. Agents are extraordinarily capable at implementing features, refactoring code, and solving complex problems. They are terrible at maintaining structural invariants across a codebase they didn't design. These are different skills, and the architecture must account for both.
-
 ---
 
 ## Foundational Principles
 
 ### 1. Mechanical enforcement is knowledge transfer
 
-The enforcement pipeline IS the onboarding process. Rules are the knowledge transfer mechanism, not documentation, not code review culture, not team norms.
-
-When an agent encounters a codebase for the first time, it has two sources of truth: the code it can read and the rules that block its mistakes. Documentation is advisory. Rules are authoritative. An agent that reads a document saying "don't import the database from routes" may or may not follow it. An agent that tries to import the database from a route and gets a blocking error WILL find another way.
-
-This means:
+The enforcement pipeline is the onboarding process:
 
 - **If a constraint isn't enforced by tooling, it doesn't exist for agents.** It will be violated. Not maliciously, not carelessly, just inevitably. The agent that violates it will have no signal that anything went wrong.
 - **Rules must be self-documenting.** The error message is the documentation. An agent should be able to fix any violation from the error message alone, without reading any reference document.
-- **The first edit is validated by the same rules as the hundredth.** There is no ramp-up period, no grace for new agents, no "learn the codebase first" phase. The rules teach by blocking.
-
-A well-enforced codebase is one where an agent with zero context can make structural changes and get immediate, actionable feedback when it goes wrong. The enforcement pipeline replaces the senior engineer who would have caught the mistake in review.
-
-This has a corollary for error messages: **the error message is the fix instruction.** A message that says "import not allowed" teaches nothing. A message that says "Route files cannot import @/db. Use a server function from @/features/<name>/server instead" teaches the architecture one violation at a time. Every enforcement error should be written so an agent can fix the violation without reading any other document.
+- **The first edit is validated by the same rules as the hundredth.** There is no ramp-up period.
 
 ### 2. Predictable structure enables autonomous navigation
 
@@ -72,12 +58,12 @@ The goal is not maximum structure. The goal is minimum structure that maintains 
 
 Layers exist in a fixed logical order, but physical presence is optional. A feature with two files and no complex data access does not need four directories. A domain with pure computation and no external dependencies does not need an infrastructure adapter.
 
-The rule: **skip absent layers; never bypass present ones.**
+The enforced occupancy rule is directory-wide at the controller edge:
 
-If a layer directory does not exist, the layers on either side connect directly. The moment you create a layer directory, all traffic must flow through it. This gives two properties simultaneously:
+- When `repo/` exists, every controller query uses it.
+- When both `service/` and `repo/` exist, every controller-to-repo call uses `service/`.
 
-- No forced ceremony for simple features.
-- Structural guarantees that strengthen automatically as features grow.
+Without those directories, controllers may connect directly to the lower dependency.
 
 Never scaffold empty directories. Never create `.gitkeep` files. Never create a layer "because we might need it later." Create layer directories when they have active code, not before.
 
@@ -92,11 +78,7 @@ A layer function must justify its existence. It must add at least one of:
 - Error normalization or retry logic
 - Telemetry boundary behavior
 
-If a function does none of these — if it accepts the same arguments as the layer below and returns the same result without modification — it is a trampoline. Delete it. Let the caller reach through to the layer that does the actual work.
-
-Trampolines are the most common form of architectural ceremony. They exist because someone created a layer and felt obligated to populate it. They add indirection without value, make the call stack harder to read, and create maintenance surface area for code that does nothing.
-
-The optional layer occupancy policy makes trampolines unnecessary. If a feature doesn't need a service layer, don't create one. If a service layer exists but one of its functions is just forwarding a call, delete that function and let the controller call the repo directly for that operation.
+If a function does none of these, it is a trampoline. Do not add `repo/` or `service/` until it earns directory-wide use from controllers; restructure or remove the layer instead of bypassing it.
 
 ### 4. All rules blocking from day one
 
@@ -129,9 +111,9 @@ Complex features may need internal layering rules beyond the base set. These are
 
 Static import analysis is the enforcement mechanism. It does not matter whether code actually executes at runtime — what matters is what it imports. A file that imports the database client is a violation even if the import is used only in a dead code path. A file that dynamically imports a restricted module is a violation even if the dynamic import is never triggered.
 
-This is deliberate. Static analysis is fast, reliable, and free of false negatives from runtime conditions. It also means the enforcement script does not need to understand control flow, conditional logic, or framework compilation. It reads imports and checks them against rules. That's it.
+Static analysis does not need to model runtime control flow. Its guarantees cover the import forms represented by the shared extractor; known extraction gaps must be documented.
 
-The enforcement pipeline runs on every save (via dev server import protection), every commit (via pre-commit hooks), and every push (via CI). Three layers of defense. A violation that escapes all three is a bug in the enforcement system, not an acceptable outcome.
+Run GritQL in the editor, framework import protection during dev and build, and the complete architecture check in pre-commit and CI.
 
 ---
 
@@ -167,7 +149,7 @@ Features communicate through public API barrels. Feature A never reaches into Fe
 
 #### Public API barrels
 
-Every feature has at least one barrel file — the client-safe barrel. This exports types, pure functions, constants, and anything safe to import from client bundles. For projects with server/client bundle splitting, a second server-only barrel exports server functions, database queries, and infrastructure-dependent code.
+Every feature has at least one client-safe barrel exporting types, pure functions, constants, and `createServerFn` references. A second server-only barrel may export raw server helpers, database queries, and infrastructure-dependent code.
 
 The barrel is the feature's contract. Internal restructuring is invisible to consumers as long as the barrel's exports don't change. This is the property that makes features independently evolvable — you can split a file, rename an internal function, add a layer, and nothing outside the feature changes.
 

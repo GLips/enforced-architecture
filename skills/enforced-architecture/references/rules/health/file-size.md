@@ -55,13 +55,13 @@ const EXCLUSIONS: string[] = [
 
 ## Implementation
 
-Bun TypeScript script, delegated from the structural check orchestrator. Can also be implemented as a shell function inside a shell orchestrator — the logic is simple enough for either.
+Bun TypeScript check function behind the structural orchestrator.
 
 Key implementation details:
-- **File discovery** uses glob patterns to collect `.ts`/`.tsx` files, applying exclusions for tests, generated files, and scripts at the discovery stage.
+- **File discovery** uses the shared library walker and its global exclusions.
 - **Line counting** counts total lines per file. No parsing needed — this is a raw size check.
 - **Exclusion list matching** uses path suffix matching so entries work regardless of the working directory prefix.
-- **Exit code semantics** — any FAIL means non-zero exit (blocks commit). WARN-only means zero exit (printed to stderr for visibility).
+- **Return findings** — counts above the fail threshold are errors; counts above only the warning threshold are warnings. The orchestrator owns reporting and exit status.
 
 ## Example output
 

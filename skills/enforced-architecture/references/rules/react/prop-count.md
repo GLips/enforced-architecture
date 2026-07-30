@@ -39,12 +39,12 @@ Line-based heuristic scan on function signatures and TypeScript type annotations
 1. **Find target files** — Walk configured directories, collect `.tsx` files (excluding tests).
 2. **Extract component signatures** — Identify exported function declarations and exported arrow function assignments with PascalCase names. Two things make this harder than it looks, and an implementation that gets either wrong goes silent rather than wrong:
    - **A generic component** puts its type-parameter list between the name and the paren (`export function OptionList<T extends string>({ items })`), so a pattern expecting them adjacent never matches.
-   - **The signature usually spans several lines.** A destructured parameter list of eight props is not written on one line by anyone, so a pattern anchored as `\(([^)]*)\)` matches only the small components — exactly the ones that were never going to breach the threshold. Accumulate the signature across lines by tracking paren depth. One deployment measured this at 32 of 121 components found.
+   - **The signature usually spans several lines.** Accumulate it across lines by tracking paren depth.
 3. **Count props** — Two strategies, tried in order:
    a. **Type annotation approach:** Find the Props type/interface for the component (e.g., `type ChatPanelProps = { ... }` or `interface ChatPanelProps { ... }`). Count the number of property signatures in the type body.
    b. **Destructuring approach:** If no explicit Props type is found, examine the function parameter destructuring pattern (e.g., `function Component({ a, b, c, d }: Props)`). Count the destructured identifiers.
 
-   **Count the destructure only, not everything up to the last brace.** Most components annotate with an inline type literal — `({ a, b }: { a: string; b: string })` — which repeats every name immediately after the pattern. A region read to the final brace in the signature counts every prop twice. One deployment scored a nine-prop component at eleven, and the arithmetic was invisible because both numbers were over the threshold; only a legal fixture sitting one prop *under* it exposes this.
+   **Count the destructure only, not everything up to the last brace.** An inline type literal repeats each name after the pattern and otherwise doubles the count.
 4. **Report** — For each component exceeding the threshold, emit file path, component name, line number, and prop count.
 
 ### Why two strategies

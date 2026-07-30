@@ -67,69 +67,32 @@ file(name=$filename, body=$program) where {
     ! $filename <: r".*\.test\.[tj]sx?$|.*\.integration\.test\.[tj]sx?$|.*__tests__.*|.*src/test/.*",
     ! $filename <: r".*/scripts/.*",
 
-    // A method-call snippet MUST name its receiver. A leading-dot pattern such
-    // as `.returning()` compiles without complaint and then matches nothing,
-    // ever — which broke this rule in both directions at once: the
-    // onConflictDoNothing arm never fired, so the whole insert path went
-    // ungoverned, and the .returning() guard never held, so the CORRECT
-    // spelling was reported as the violation. `$_` binds the receiver and
-    // matches any chain in front of the call.
-    $program <: contains bubble `return $expr` as $return where {
-        // Match Drizzle write operations that produce raw driver Results
-        or {
-            $expr <: contains `db.delete($_)`,
-            $expr <: contains `$_.onConflictDoNothing()`
+    $program <: any {
+        contains bubble `return $expr` as $return where {
+            or {
+                $expr <: contains `db.delete($_)`,
+                $expr <: contains `$_.onConflictDoNothing()`
+            },
+            ! $expr <: contains `$_.returning()`,
+            register_diagnostic(
+                span = $return,
+                message = "Returning a Drizzle write without .returning() produces an unserializable postgres Result object. Either add .returning() or await without returning."
+            )
         },
-        // .returning() converts the result to plain row objects — safe to return
-        ! $expr <: contains `$_.returning()`,
-        register_diagnostic(
-            span = $return,
-            message = "Returning a Drizzle write without .returning() produces an unserializable postgres Result object. Either add .returning() to get row data, or await without returning."
-        )
+        contains bubble or {
+            `($_args) => $expr`,
+            `async ($_args) => $expr`
+        } as $arrow where {
+            ! $expr <: `{ $... }`,
+            or {
+                $expr <: contains `db.delete($_)`,
+                $expr <: contains `$_.onConflictDoNothing()`
+            },
+            ! $expr <: contains `$_.returning()`,
+            register_diagnostic(
+                span = $arrow,
+                message = "An expression-bodied function returns an unserializable Drizzle write result. Add .returning() or use a block body and await without returning."
+            )
+        }
     }
 }
-
-// ── How this works ───────────────────────────────────────────────────
-//
-// Drizzle's query builder returns different types depending on the
-// chain:
-//
-//   db.delete(table).where(cond)                → Promise<postgres.Result>
-//   db.delete(table).where(cond).returning()    → Promise<Row[]>
-//   db.insert(table).values(v).onConflictDoNothing() → Promise<postgres.Result>
-//   db.insert(table).values(v).returning()      → Promise<Row[]>
-//
-// postgres.Result contains functions (addRow, parseRow), class
-// instances (_types), and other non-serializable internals. This is
-// fine in pure server code, but server functions (TanStack Start,
-// tRPC, etc.) serialize their return value to send across the wire.
-//
-// The rule catches `return <expr>` where <expr> contains a dangerous
-// pattern (db.delete or .onConflictDoNothing) but NOT the safe
-// escape (.returning()). The fix is to `await` without returning:
-//
-//   // Before (returns raw Result → serialization crash)
-//   export function deleteItem(id: string) {
-//     return db.delete(items).where(eq(items.id, id));
-//   }
-//
-//   // After (returns void → safe)
-//   export async function deleteItem(id: string) {
-//     await db.delete(items).where(eq(items.id, id));
-//   }
-//
-// Arrow-expression handlers in server functions are the most common
-// way this bug surfaces, because the implicit return is invisible:
-//
-//   .handler(({ data }) => repo.deleteItem(data.id))
-//   //                  ^^ implicit return of Promise<Result>
-//
-// The controller-level fix is to use a block body:
-//
-//   .handler(async ({ data }) => {
-//     await repo.deleteItem(data.id);
-//   })
-//
-// But fixing the repo function is the better defense — it makes the
-// function's return type `Promise<void>`, so even an implicit return
-// in the handler is safe.

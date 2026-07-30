@@ -42,8 +42,8 @@ Always include, regardless of architectural choices:
 | **Commands** | Build, test, lint, format, typecheck, migrations. Copy-pasteable. |
 | **Dependency direction** | The fundamental invariant and the layer ordering. |
 | **Feature barrel convention** | `index.ts` vs `index.server.ts`, what goes in each, barrel direction rule. |
-| **Server/client file naming** | When `createServerFn` files should use `.server.ts` (server-only imports) vs plain `.ts`. |
-| **Controller file naming** | Use `.server.ts` when importing server-only code, re-exported through `index.ts`. |
+| **Server/client file naming** | `createServerFn` definitions use plain `.ts`; raw server-only helpers use `.server.ts`. |
+| **Controller file naming** | Keep RPC definitions client-importable and re-export them through `index.ts`. |
 | **Route imports** | Import from `@/features/<name>`, not deep paths. |
 | **Server function naming** | The `Fn` suffix convention (or project-specific convention). |
 | **Test placement** | Co-located `thing.test.ts` next to `thing.ts`. |
@@ -54,7 +54,7 @@ Include based on which architectural choices were made:
 
 | Choice | Content to add |
 |---|---|
-| **Layered features** | Layer ordering (`ui/ → controllers/ → service/ → repo/`), occupancy rules (skip absent, never bypass present), graduation triggers (when to add each layer), re-export pattern for maintaining layer contracts without trampolines. |
+| **Layered features** | Layer ordering (`ui/ → controllers/ → service/ → repo/`), directory-wide repo/service occupancy at the controller edge, graduation triggers, and re-export patterns. |
 | **Domains layer** | Purity constraint (no side effects, no infrastructure imports), how controllers wire domain functions to infrastructure. |
 | **Error convention** | Single class with typed codes per feature, or per-layer errors. Include a code example. |
 | **SDK containment** | Procedure for adding new SDKs: wrap in `infrastructure/`, add to containment rule, add to barrel-purity patterns if needed. |
@@ -76,7 +76,7 @@ These are semantic rules that enforcement can't fully catch. Include any that ap
 - Imperative voice: "Features use X" not "Features should use X."
 - No rationale in CLAUDE.md — save that for docs/architecture/. Agents need rules, not persuasion.
 - Include code examples only for conventions that aren't obvious from the rule statement (e.g., error class pattern, re-export syntax).
-- **Acknowledge enforcement exists.** Frame CLAUDE.md so agents know they don't need to memorize every rule — the linter will catch violations. Something like "Violations are caught by lint rules and CI checks — the linter will stop you, so focus on knowing where things live." This reduces agent anxiety about getting things wrong and focuses them on the decision that matters (placement), not rote memorization of every boundary rule.
+- **Acknowledge enforcement exists.** Tell agents that lint and CI catch violations.
 
 ---
 
@@ -92,7 +92,7 @@ Organize as individual files, not one monolith. Each file covers one concern and
 |---|---|---|
 | `feature-patterns.md` | Feature scaling tiers (small/standard/complex) with concrete examples from the project. Graduation triggers. Layer responsibilities. | Adding a new feature or graduating an existing one. |
 | `import-boundaries.md` | Full import boundary matrix. Which layers can import what, with rationale for each cell. Cross-feature import rules. | Unclear whether an import is allowed. |
-| `server-client-boundaries.md` | Bundle splitting conventions. What `.server.ts` means. The two-file split escape hatch. How `createServerFn` compilation works. | Working with server/client code splitting. |
+| `server-client-boundaries.md` | Bundle splitting conventions. What `.server.ts` means. The two-file split. How `createServerFn` compilation works. | Working with server/client code splitting. |
 | `error-conventions.md` | Error architecture rationale. How controllers map error codes to HTTP status. Examples. | Adding error handling to a feature. |
 | `decisions.md` | Which configurable choices were made and why. Links back to the original plan document. | Understanding why the architecture is shaped the way it is. |
 

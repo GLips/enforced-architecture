@@ -21,7 +21,7 @@ It sits inside a feature but outside every layer directory, so `layer-direction`
 
 Nothing stops `src/lib/`, `src/utils/`, or `src/features/scanner/helpers/` from being created either, and each is a new address where none of this applies. Enforcement built entirely on path patterns has to close the set of paths, or it is enforcement on the paths that happened to be there when it was written.
 
-**This rule closes the path grammar and nothing else.** The import policies that govern each location are already owned: `route-thinness` and `db-isolation` between them catch a route importing `@/infrastructure/db/client`, which was measured, not assumed. Absorbing their checks here would give two rules one subject and let them disagree.
+**This rule closes the path grammar and nothing else.** Import policies remain in their dedicated rules.
 
 ## Where it applies
 

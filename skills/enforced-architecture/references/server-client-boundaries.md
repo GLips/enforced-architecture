@@ -18,27 +18,19 @@ The `.server.ts` convention is not just a naming hint — TanStack Start activel
 
 ### `createServerFn` Files Must NOT Use `.server.ts`
 
-Files that export `createServerFn()` must use plain `.ts`. The compiler replaces handler bodies with client RPC stubs and prunes server-only imports that were only used inside the handler. This works regardless of what the file imports — DB clients, auth internals, secrets — the compiler strips them all from the client bundle.
+Files that export `createServerFn()` must use plain `.ts`. The compiler replaces handler bodies with client RPC stubs and prunes imports used only inside the handler. Top-level code and sibling exports remain client code.
 
 Controller files are named without `.server.ts` — e.g., `controllers/jobs.ts` not `controllers/jobs.server.ts`. They contain `createServerFn` exports and are re-exported through the feature's `index.ts` barrel.
 
-### `createMiddleware` Files MUST Use `.server.ts`
+Source: `@tanstack/start-plugin-core/src/start-compiler/handleCreateServerFn.ts`.
 
-The TanStack Start compiler does NOT process `createMiddleware` the same way it processes `createServerFn`. Server-only imports in a `createMiddleware` file survive compilation and leak into the client bundle.
+### `createMiddleware` Files
 
-**Never co-locate `createServerFn` and `createMiddleware` in the same file.** If both share a file with a server-only import, the middleware keeps that import alive in the client bundle even though the server function doesn't need it. Place `createMiddleware` in a separate `.server.ts` file.
+TanStack Start compiles middleware for the client, removing `.server()` and `.validator()` calls. Request middleware uses `.server()` only. Server-function middleware may use both `.client()` and `.server()`, so its definition must remain client-importable.
 
-```
-# WRONG — shared auth import leaks via createMiddleware
-session.server.ts
-  import { auth } from "./auth-instance.server"   ← stays in client bundle
-  export const getSessionFn = createServerFn(...)  ← compiler would prune auth
-  export const authMiddleware = createMiddleware(...)  ← compiler does NOT prune auth
+Use plain `.ts` for middleware that is imported by server functions or has a `.client()` phase. Put raw server-only helpers in `.server.ts` modules and call them only from `.server()` callbacks.
 
-# RIGHT — split by compilation behavior
-session.ts                    ← createServerFn, compiler prunes auth import
-middleware.server.ts          ← createMiddleware, .server.ts blocks client access
-```
+Source: `@tanstack/start-plugin-core/src/start-compiler/handleCreateMiddleware.ts`.
 
 ---
 
@@ -50,22 +42,17 @@ These file categories must use `.server.ts` naming:
 |---|---|---|
 | Server-only env vars | `env.server.ts` | API keys, DB URLs, secrets |
 | Raw auth infrastructure | `infrastructure/auth/auth-instance.server.ts` | Auth config, DB adapter, secrets |
-| `createMiddleware` files | `infrastructure/auth/middleware.server.ts` | Compiler does not prune middleware imports |
 | Feature server-only barrels | `features/<name>/index.server.ts` | Cross-feature server-only API (DB access, secrets, internals) |
-| Server function handler implementations (two-file split escape hatch) | `controllers/items.server.ts` | Companion file for split pattern |
+| Server function handler implementations | `controllers/items.server.ts` | Server-only companion for a client-importable server-function definition |
 | SDK wrappers with secrets | `infrastructure/integrations/<service>.ts` | Denied via import protection config, not naming |
 
 Server-only infrastructure modules that do not use the `.server.ts` naming convention are instead denied from client bundles via the import protection configuration in `vite.config.ts`. Both mechanisms achieve the same result — the choice depends on whether the module needs per-file naming or directory-level denial.
-
-**Common mistake:** Co-locating `createServerFn` and `createMiddleware` in the same file. The compiler prunes server-only imports from `createServerFn` handlers but does NOT handle `createMiddleware`. If both share a top-level server-only import, the middleware keeps it alive in the client bundle — causing "X is not defined" runtime crashes (e.g., Node.js `Buffer` from `better-auth`).
-
----
 
 ## Where `.server.ts` Is NOT Used
 
 | Category | Why regular `.ts` | How splitting works |
 |---|---|---|
-| Controller files (`createServerFn`) | Compiler prunes all server-only imports from handler bodies | Even with DB, auth, SDK imports — compiler strips them |
+| Controller files (`createServerFn`) | Compiler prunes imports used only inside handler bodies | Top-level code and sibling exports remain client code |
 | DB schema definitions | Types only, no runtime connection | Denied from client via import protection on `infrastructure/db/**` |
 | Shared types/interfaces | Erased at compile time | No runtime code to protect |
 | Feature `index.ts` barrels | Export server fn references (client-safe stubs) | Barrel must not import from `index.server.ts` |
@@ -96,11 +83,11 @@ The `index.server.ts` naming is automatically caught by vite's `**/*.server.*` i
 
 ## Server Function Pattern
 
-TanStack Start's compiler extracts `createServerFn` handler bodies and their dependency graph from client bundles. Server-only imports at the top of the controller file are handled automatically — they only exist in the server bundle.
+TanStack Start's compiler removes `createServerFn` handler bodies from client bundles. Imports used only by those bodies are pruned.
 
-### Single-File Pattern (Default)
+### Single-File Pattern
 
-Controller files import infrastructure, repos, and auth directly. The compiler prunes all server-only imports from the client bundle:
+Controller files may import infrastructure, repos, and auth for use inside handlers:
 
 ```typescript
 // features/chat/controllers/conversations.ts
@@ -115,7 +102,7 @@ const loadConversationSchema = z.object({
 });
 
 export const loadConversationFn = createServerFn({ method: "GET" })
-  .inputValidator(loadConversationSchema)
+  .validator(loadConversationSchema)
   .handler(async ({ data }) => {
     const session = await requireSession();
 
@@ -140,18 +127,14 @@ export const loadConversationFn = createServerFn({ method: "GET" })
   });
 ```
 
-### Two-File Split (Escape Hatch)
+### Two-File Split
 
-For standard controllers — files with direct top-level imports and straightforward `createServerFn` usage — the compiler handles everything. Trampolines and dynamic imports are unnecessary and add complexity for no benefit.
-
-The only known failure mode is abstracting around `createServerFn` itself: wrapping it in helper functions, passing it through intermediaries, or building factory patterns on top of it. The TanStack maintainer explicitly says this is unsupported — the compiler expects direct, top-level `createServerFn` calls.
-
-If you encounter a case where the compiler fails to extract server-only imports from the client bundle (build errors pointing at server-only code in client output), the two-file split is a fallback. Do not reach for it proactively.
+Use a client-importable controller for the direct, top-level `createServerFn` definition and a `.server.ts` companion for raw server-only helpers.
 
 ```typescript
 // controllers/conversations.ts — createServerFn definition (client-safe)
 export const loadConversationFn = createServerFn({ method: "GET" })
-  .inputValidator(loadConversationSchema)
+  .validator(loadConversationSchema)
   .handler(async ({ data }) => {
     const { loadConversation } = await import("./conversations.server");
     return loadConversation(data);
@@ -175,7 +158,7 @@ The dynamic `await import()` inside the handler body gets extracted along with t
 ### Conventions
 
 - `method: "GET"` for reads, `method: "POST"` for mutations
-- `.inputValidator(zodSchema)` on every function that accepts input
+- `.validator(zodSchema)` on every function that accepts input
 - Auth via `requireSession()` from `@/infrastructure/auth/require-session.server`
 - Return plain serializable objects (no Drizzle query builders, no class instances)
 - Throw typed errors for business failures
@@ -212,17 +195,7 @@ const startImportProtection = {
 };
 
 tanstackStart({
-  importProtection: {
-    ...startImportProtection,
-    // Suppress false positives on infrastructure imports from API routes.
-    // TanStack Start traces import chains from route files and warns when
-    // server-only files are reached. API routes (e.g., routes/api/auth/$.tsx)
-    // legitimately import infrastructure through their server function chains.
-    // Infrastructure is server-only by design, and the framework's
-    // `server: { handlers }` pattern correctly tree-shakes these imports
-    // from client bundles.
-    ignoreImporters: [/\/infrastructure\//],
-  },
+  importProtection: startImportProtection,
 });
 ```
 
@@ -290,4 +263,4 @@ export const Route = createFileRoute("/_authed/items/$groupId")({
 });
 ```
 
-Routes import from feature barrels (`@/features/<name>` for client-safe imports, or `@/features/<name>/index.server` for server-only imports), never from feature internals. Routes may also import feature UI directly (`@/features/<name>/ui/Component`). These are the only three valid import patterns from routes into features.
+Routes import from client-safe feature barrels (`@/features/<name>`) or feature UI (`@/features/<name>/ui/Component`), never from server-only barrels or other feature internals.

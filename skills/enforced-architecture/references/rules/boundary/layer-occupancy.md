@@ -8,7 +8,7 @@
 
 ## What it prevents
 
-Controllers bypassing present layers. The invariant is "skip absent layers, never bypass present ones." This check enforces the "never bypass" half for two layer boundaries:
+Controllers bypassing present layers. Directory presence activates two checks:
 
 1. **Repo bypass** — When a feature has a `repo/` directory, controllers cannot import DB schema modules to build queries themselves. All DB query construction must flow through the repo layer. Controllers may still import the DB client (`infrastructure/db/client`) to pass it to repo functions for transaction handling, but schema imports (query construction) must go through repo/.
 
@@ -34,7 +34,7 @@ Consumes the resolved import graph — see [graph/import-graph.md](../graph/impo
 
 **Do not grep for `../repo/`.** The bypass survives being written one directory deeper (`../../repo/x` from a nested controller) or as an alias (`@/features/<self>/repo/x`), and both spellings are ordinary code that a pattern-matching version reports as clean. The same defect hits `structure/layer-direction`, which is why both consume one graph.
 
-This rule covers the controller edge only. UI calling service or repo directly bypasses present layers the same way — that is `structure/layer-direction`'s subject (documented with the graph, in [graph/import-graph.md](../graph/import-graph.md)), and the two together cover the order. Neither one alone does, so do not read a green `layer-occupancy` as the order being enforced.
+This rule covers only these controller edges. `structure/layer-direction` separately rejects upward imports; it does not detect downward layer skips.
 
 ### Why schema but not client?
 

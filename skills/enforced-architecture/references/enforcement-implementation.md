@@ -40,7 +40,7 @@ Structural checks share more than a file walker, and duplicating it across scrip
 
 - **File collection**, with the global test/generated exclusions applied once.
 - **The `Finding` / `CheckResult` shape** — `{ message, file? }` and `{ name, errors, warnings }` — which is what lets warnings be staged-scoped at all.
-- **The resolved import graph.** Extract imports with **`Bun.Transpiler.scanImports`, not a pattern over the source.** Every check that asks where an import *lands* consumes this rather than matching how the specifier is *spelled*. See [rules/graph/import-graph.md](rules/graph/import-graph.md) — it is the single most load-bearing piece of the structural tier, five catalog rules are consumers of it, and its [Extraction](rules/graph/import-graph.md#extraction) section is required reading before you write the extractor.
+- **The resolved import graph.** Extract imports by unioning **`Bun.Transpiler.scanImports()` with `Bun.Transpiler.scan().imports`**, then filter injected JSX runtime entries as documented in [rules/graph/import-graph.md](rules/graph/import-graph.md). Every check that asks where an import *lands* consumes this graph rather than matching how the specifier is spelled.
 
 Centralising the *same* patterns into a shared file reduces duplication and fixes no correctness. Reach for the reader at the same time, or the shared library is only tidier, not better.
 
@@ -107,7 +107,7 @@ pre-commit:
 
 **Monorepo: give it a root Biome config.** A monorepo should ~always have a root `biome.json` plus Biome as a root dependency. Without them there's no single Biome to run from the repo root and nothing telling it the per-workspace plugins, so `bunx biome` at the root pulls a *stray* version that fails to parse the config. Biome 2.x has native monorepo support: the root config is authoritative and each nested workspace `biome.json` adds `"root": false`, so one format command at the root covers every workspace. Stuck with per-workspace-only installs? Fall back to running the format step once per workspace via lefthook's `root:`, which scopes `{staged_files}` to that subtree, relativizes the paths, and runs from that dir so `bunx biome` resolves the workspace-local version and nearest `biome.json`.
 
-**Lint and structure are separate jobs here.** `check:arch` chains them for CI and manual runs, but at pre-commit they scope differently — lint to the staged files, structural repo-wide (see Tier 2 in [enforcement-strategy.md](enforcement-strategy.md)) — so the hook calls each half directly.
+**Lint and structure are separate jobs here.** `check:arch` runs and aggregates both for CI and manual use, but at pre-commit they scope differently — lint to staged files, structural checks repo-wide — so the hook calls each half directly.
 
 **Passing the staged set.** The `STAGED_FILES` assignment on `structure` above is what lets the orchestrator scope its warnings (see Structural Script Orchestration). Compute that set from git in the command itself rather than the pre-commit tool's file template. The orchestrator only reads `STAGED_FILES`, so it stays agnostic to the pre-commit tool. `--diff-filter=ACMR` lists added/copied/modified/renamed paths (skipping deletions). The whole newline-separated list lands in one env value via `$(…)`.
 
@@ -211,7 +211,7 @@ Biome's GritQL compiler does not support `#` comments. The only diagnostic is "F
 
 ### `$args` Matches Empty Parentheses
 
-GritQL's metavariable `$args` matches even when there are zero arguments. The pattern `createServerFn($args)` matches both `createServerFn({ method: "POST" })` and `createServerFn()`. To exclude the empty case, use `! $args <: .` — the `.` (dot) matches an empty/absent node. See `structure/server-fn-validation.grit` for an example.
+GritQL's metavariable `$args` matches even when there are zero arguments. The pattern `createServerFn($args)` matches both `createServerFn({ method: "POST" })` and `createServerFn()`. To exclude the empty case, use `! $args <: .` — the `.` matches an empty or absent node.
 
 ### Regexes Are Anchored
 
@@ -289,11 +289,7 @@ GritQL per-file rules cannot aggregate or count matches within a file. Rules tha
 
 **Fixtures are permanent and they run in CI.** A rule is code with exactly one job, and its failure mode is silent by construction: a rule that stops matching does not error, it goes green. Enforcement code needs regression tests more than application code does, because application code has users who notice.
 
-The GritQL templates this skill ships are themselves proved this way, against the three cases below, on every change. **Eleven of the thirty-one had a behavioural defect the first time the harness ran** — over-matching a neighbouring path, reporting one finding per run instead of all of them, catching the correct spelling but not the incorrect one. None was a dead no-op, and all eleven still caught the violations they were aimed at, so "broken" overstates it. They also were not independent: they trace to about four misconceptions copied from template to template, which is the real risk in a catalog meant to be pasted from.
-
-Every one had been reviewed by reading. None had a fixture.
-
-**Do not smoke test once and delete the fixture.** The deleted fixture takes the evidence with it and leaves a rule nobody can distinguish from a working one — measured at fifteen ungoverned invariants across four repositories, every one behind a green check.
+The GritQL templates run these cases on every change. Keep the fixtures permanent.
 
 ### The fixture set per rule
 

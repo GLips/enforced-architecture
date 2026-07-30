@@ -13,7 +13,7 @@
 //
 //           Three caller contexts have different allowed deep-import
 //           patterns:
-//           - Routes: may import /index.server and /ui/* (page composition)
+//           - Routes: may import /ui/* for page composition
 //           - Other features: may import /index.server only
 //           - Domains/shared/infrastructure: barrel only, no deep imports
 //
@@ -65,15 +65,14 @@ file(name=$filename, body=$program) where {
 
         or {
             // --- Branch 1: Routes ---
-            // Routes may deep-import /index.server and /ui/*. All other
+            // Routes may deep-import /ui/*. All other
             // deep imports are violations.
             and {
                 $filename <: r".*/src/routes/.*",
-                ! $source <: r"[\"']@/features/[^/]+/index\.server[\"']",
                 ! $source <: r"[\"']@/features/[^/]+/ui(?:/.*)?[\"']",
                 register_diagnostic(
                     span = $source,
-                    message = "Routes may only deep-import from features via @/features/<feature>/index.server or @/features/<feature>/ui/*. Use the feature barrel (@/features/<feature>) for other exports, or add the needed export to the feature's barrel."
+                    message = "Routes are isomorphic and may deep-import only @/features/<feature>/ui/*. Use the client-safe feature barrel for data and server-function references."
                 )
             },
 

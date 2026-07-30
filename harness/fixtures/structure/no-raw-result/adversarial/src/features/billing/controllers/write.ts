@@ -18,3 +18,6 @@ export async function purgeAll() {
   // EXPECT+1: a SECOND violation in the same file, which needs per-match scoping
   return db.delete(invoices);
 }
+
+// EXPECT+1: expression-bodied functions return their expression implicitly
+export const purgeLater = (id: string) => db.delete(invoices).where(eq(invoices.id, id));

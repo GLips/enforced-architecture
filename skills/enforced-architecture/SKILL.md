@@ -72,7 +72,7 @@ Present these choices to the user with a recommendation based on audit findings.
 Read the full choice descriptions in [directory-model.md](references/directory-model.md). Summary:
 
 1. **Domains layer** — Separate `domains/` for pure business logic, or keep logic in features?
-2. **Intra-feature layering** — Enforced `controllers/ → service/ → repo/ → ui/` internal structure, or flat features with just `controllers/`?
+2. **Intra-feature layering** — Enforced `ui/ → controllers/ → service/ → repo/` internal structure, or flat features with just `controllers/`?
 3. **Env split strategy** — Separate `env.server.ts` + `env.client.ts`, or single `env.ts`?
 4. **Error architecture** — Single error class at the server boundary, or per-layer typed errors?
 5. **Documentation depth** — CLAUDE.md only, or CLAUDE.md + `docs/architecture/` reference files? See [documentation-model.md](references/documentation-model.md).

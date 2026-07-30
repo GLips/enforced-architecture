@@ -30,7 +30,7 @@ Determines the internal structure of feature directories.
 
 | Option | Structure |
 |---|---|
-| **Layered features** | Features use `controllers/ -> service/ -> repo/ -> ui/` internal structure. Layer occupancy is optional but order is fixed. Skip absent layers; cannot bypass present ones. Mechanically enforced. |
+| **Layered features** | Features use `ui/ -> controllers/ -> service/ -> repo/`. Repo and service occupancy is directory-wide at the controller edge; upward imports are forbidden. |
 | **Flat features** | Features have a `controllers/` directory (the server function boundary) and everything else is unstructured. |
 
 **When to choose each:**
@@ -193,7 +193,7 @@ For any type of work, this table tells you where code lives and what it must not
 | Auth client (browser-side) | `infrastructure/auth/client.ts` | Only client-safe infra module (explicitly allowlisted) |
 | Telemetry / observability | `infrastructure/telemetry/` | -- |
 | React providers | `infrastructure/providers/` | `query-client.ts` is client-safe (explicitly allowlisted) |
-| Environment variables (secrets) | `env.server.ts` | Importable only from `infrastructure/*` |
+| Environment variables (secrets) | `env.server.ts` | Importable from server contexts such as controllers and infrastructure |
 | Environment variables (public) | `env.client.ts` | Importable from anywhere |
 | Route handlers / pages | `routes/` | DB, infrastructure internals, `env.server` |
 | Pure utilities / helpers | `shared/` | `features/`, `domains/`, `infrastructure/`, `routes/` |
@@ -238,6 +238,6 @@ Lower layers never import upper layers. All layers may import from `shared/*`.
 
 For the complete import boundary matrix (which cells are YES/NO and why), see [import-boundaries.md](import-boundaries.md).
 
-For layer occupancy rules (skip absent layers, never bypass present ones), see [feature-patterns.md](feature-patterns.md).
+For directory-wide repo and service occupancy at the controller edge, see [feature-patterns.md](feature-patterns.md).
 
 For server/client file naming and bundle splitting conventions, see [server-client-boundaries.md](server-client-boundaries.md).

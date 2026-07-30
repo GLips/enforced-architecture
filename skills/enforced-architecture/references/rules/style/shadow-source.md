@@ -10,14 +10,6 @@
 
 Elevation being invented at the call site. Every `box-shadow` / `boxShadow` / `shadowColor` / `elevation` in the codebase must live in one curated file; a component that needs a shadow applies the named one, and never hand-rolls the property.
 
-## Why elevation specifically
-
-Shadow is the design axis with the worst ratio of *how easy it is to add* to *how visible the damage is*. A model writes `boxShadow: "0 2px 8px rgba(0,0,0,0.1)"` without hesitation — it is the single most-generated line of CSS in existence — and the result looks completely reasonable in isolation. Twenty of them, each with slightly different blur and opacity, is what an interface looks like when it has quietly stopped having a design.
-
-Unlike color or type, shadow usually has **no closed scale to point at**, because most design systems that take it seriously have decided the answer is "almost never". So the rule is not "use the shadow token" — it is "every shadow in this codebase is in one file, and adding one is a deliberate act someone reviews."
-
-That inventory is the real output. The file is short enough to read in one screen, which means the question "how many kinds of elevation does this product have?" has an answer.
-
 ## Why this is a script and not a GritQL rule
 
 The property appears on surfaces GritQL cannot reach. `box-shadow` in a `.css` or `.module.css` file is invisible to a JS/TS-AST plugin, and that is where shadows most often live. A single script covering stylesheets and TypeScript together is the only way to make the claim "every shadow is in one file" actually true.

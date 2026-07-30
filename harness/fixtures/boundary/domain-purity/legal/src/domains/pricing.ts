@@ -8,9 +8,10 @@ export type { Stats } from "node:fs";
 // Relative imports stay inside the domain layer.
 import { normalise } from "./normalise";
 import { scoreRisk } from "../risk/score";
+import { clamp } from "@/shared/math";
 
 // A sibling domain by alias is the one cross-layer import a domain may make.
 import { tierFor } from "@/domains/billing";
 
 export const decide = (model: LanguageModel, input: string) =>
-  tierFor(scoreRisk(normalise(input))) + String(model);
+  tierFor(clamp(scoreRisk(normalise(input)))) + String(model);

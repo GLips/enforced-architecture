@@ -28,7 +28,7 @@ The failure is worse than a miss. Every other boundary rule matches the *aliased
 ## Algorithm
 
 1. **Collect source files** via the shared library's walker.
-2. **Extract every module specifier with a real reader** — `Bun.Transpiler.scanImports`, never a pattern over the source. See [Extraction](#extraction) below; this is the step where silent failure lives.
+2. **Extract module specifiers with Bun's readers** — union `Bun.Transpiler.scanImports()` with `Bun.Transpiler.scan().imports`; never use source patterns as the extractor. Neither reader is complete alone: `scan()` drops literal `require()`, while `scanImports()` drops `require.resolve()`. See [Extraction](#extraction).
 3. **Resolve each specifier** against the importing file: relative paths through `resolve(dirname(file), specifier)`, aliased paths by stripping the alias prefix. Discard anything landing outside the source root — that is a package or a config question, not a boundary one.
 4. **Classify both ends** into `{ boundary, feature, layer }`, and **keep the resolved target path alongside them.** Classification alone collapses distinctions a consumer still needs — `layer-occupancy` has to tell `infrastructure/db/schema` from `infrastructure/db/client`, and both classify as `infrastructure`. A consumer that matches the raw specifier instead is back to matching spellings, which is the bypass this tier exists to close.
 5. **Hand consumers the edge list.** Every question below is then a comparison of two classifications plus, where a rule names specific modules, a comparison of resolved paths. Depth and spelling stop mattering either way.
@@ -50,9 +50,7 @@ Consumers that ask only "do these ends differ" need `from`/`to`. `target` is for
 
 ### Extraction
 
-**Use `Bun.Transpiler.scanImports`. Do not write a pattern that matches import statements.** It lexes the source the way a compiler does, so it decides where code ends and text begins instead of guessing. Bun documents `scanImports` as possibly marginally less accurate than `scan()`; that is a tradeoff against a pattern-matcher's failure mode, not a tie.
-
-That is the whole question here, and it is a lexer's: comments, both quote styles, template literals, `${…}` holes, templates nested in those holes, escapes, regex literals, JSX text. Get one wrong and a pattern pairs the wrong delimiters and swallows every statement between them. **Silently** — a matcher that stops matching reports nothing, so a clean run is indistinguishable from a working one, and the loss surfaces only through a fixture written to catch it.
+**Union `scanImports()` with `scan().imports`.** Both use Bun's parser, but they expose different edges: `scanImports()` includes literal `require()` and `scan().imports` includes `require.resolve()`. Deduplicate by `{ kind, path }` while preserving the maximum occurrence count from either scan.
 
 ```typescript
 // One reader PER SYNTAX FAMILY, not per file. Under the `tsx` loader a generic
@@ -70,18 +68,40 @@ const READERS = {
 // so every later offset still maps to the right line.
 const source = raw.replace(/^#![^\n]*/, (match) => " ".repeat(match.length));
 
-const specifiers = (path.endsWith(".tsx") ? READERS.tsx : READERS.ts)
-  .scanImports(source)
-  .map((entry) => entry.path);
+type ScannedImport = ReturnType<Bun.Transpiler["scanImports"]>[number];
+
+function unionByKindAndPath(...groups: ScannedImport[][]): ScannedImport[] {
+  const merged = new Map<string, ScannedImport[]>();
+  for (const group of groups) {
+    const current = new Map<string, ScannedImport[]>();
+    for (const entry of group) {
+      const key = `${entry.kind}\0${entry.path}`;
+      current.set(key, [...(current.get(key) ?? []), entry]);
+    }
+    for (const [key, entries] of current) {
+      if (entries.length > (merged.get(key)?.length ?? 0)) merged.set(key, entries);
+    }
+  }
+  return [...merged.values()].flat();
+}
+
+function scanModuleSpecifiers(reader: Bun.Transpiler, source: string) {
+  const fast = reader.scanImports(source);
+  const full = reader.scan(source).imports;
+  return unionByKindAndPath(fast, full);
+}
+
+const reader = path.endsWith(".tsx") ? READERS.tsx : READERS.ts;
+const specifiers = scanModuleSpecifiers(reader, source);
 ```
 
-It returns static imports, `export … from`, side-effect imports, dynamic `import()` and `require()` — each tagged with its `kind` — and it is unmoved by every shape a pattern gets wrong. Statically analysable literal specifiers only: `require("./" + name)` has no path to return.
+The union returns static imports, `export … from`, side-effect imports, dynamic `import()`, `require()`, and `require.resolve()` — each tagged with its `kind`. Statically analysable literal specifiers only: `require("./" + name)` has no path to return.
 
 **Catch a scan failure and rethrow it with the file path.** A bare `error: Syntax Error at input.tsx:11` names a file nobody has, which is poor output from a check whose whole job is telling someone where to look.
 
 #### It reports imports that are not in the file
 
-Under a JSX loader, `scanImports` returns the JSX runtime imports **Bun injects**, which appear nowhere in the source. One `import { useState } from "react"` in a `.tsx` file comes back as three entries:
+Under a JSX loader, `scanImports()` returns JSX runtime imports that Bun injects and `scan()` omits. One `import { useState } from "react"` in a `.tsx` file comes back from `scanImports()` as three entries:
 
 ```
 { kind: "import-statement", path: "react" }              // the real one
@@ -89,10 +109,9 @@ Under a JSX loader, `scanImports` returns the JSX runtime imports **Bun injects*
 { kind: "require-call",     path: "react" }                   // injected, a duplicate
 ```
 
-They are **not** tagged `internal` — they arrive as `require-call`, indistinguishable from a real `require()`. `scan()` filters them; `scanImports()` does not. Two consequences:
+They arrive as `require-call`, the same kind as a real `require()`. Read `compilerOptions.jsxImportSource` from the project's tsconfig, defaulting to `react`, and filter only surplus `require-call` entries for that package and its `/jsx-runtime` or `/jsx-dev-runtime` subpaths. Preserve the number backed by literal `require()` calls for that specifier in the source; a static import string does not justify a `require-call` entry. Do this after unioning the scans so filtering JSX noise never removes `require.resolve()` or another edge found only by `scan()`.
 
-- **Counts per specifier are inflated,** so a lookup expecting two occurrences of `"react"` finds one and the extra edge comes back lineless. Harmless in the graph, because bare specifiers are discarded before classification anyway — measured across two real repos, `scanImports` was a strict superset of `scan` and never lost an edge.
-- **A check whose subject IS bare package names must filter or use `scan()`.** That is `api/barrel-purity`: a blocklist pattern matching an injected path reports a file that imports no such thing.
+The Framelink and TK deployments do not implement the `target` field or this scan union. Do not copy either as the current edge contract.
 
 #### The two things the reader will not do
 
@@ -112,7 +131,7 @@ Three things to get right, because this lookup is **best-effort by construction*
 - **Source order is observed behaviour, not documented API.** Don't make correctness depend on it: group by specifier, then sort by line at the end.
 - **Blank comments before the lookup,** or a commented-out import claims the line of the real one below it. Blank, don't strip, so offsets stay aligned. Only for the lookup — feed the reader raw source; it lexes comments correctly, backticks inside them included.
 
-**It erases type-only imports.** They emit no runtime code, so `scanImports` drops `import type`, `export type … from`, `import type X = require(…)`, and an all-inline `import { type A }`. A type-only import across a boundary is still coupling, so scan a second time with the type keywords removed and union the two results per specifier:
+**It erases type-only imports.** They emit no runtime code, so both scans drop `import type`, `export type … from`, `import type X = require(…)`, and an all-inline `import { type A }`. A type-only import across a boundary is still coupling, so scan a second time with the type keywords removed and union the two results per specifier:
 
 ```typescript
 const IMPORT_CLAUSE = /\b(?:import|export)\s*\{[^{}]*\}\s*from\s*["'][^"']+["']/g;
@@ -144,7 +163,7 @@ type D = typeof import("./d");
 
 So pick a policy deliberately rather than inheriting this one:
 
-1. **Simplest, and the right default.** Build the runtime graph from `scanImports` alone and state plainly that erased type coupling is not represented. A rule that under-reports on a documented axis beats one that claims completeness it does not have.
+1. **Simplest, and the right default.** Build the runtime graph from the union alone and state plainly that erased type coupling is not represented.
 2. **Best-effort augmentation.** Keep the reveal scan, label it incomplete, list the forms above as known-missing, wrap the second scan so its failure cannot abort or replace the runtime graph, and fixture all four replacements — statement `import type`, `export type` re-exports, `import type X = require(…)`, and an all-inline `import { type A }`.
 3. **When complete type coupling actually matters,** use the TypeScript compiler AST. A source rewrite is the wrong foundation for an invariant you intend to claim.
 
@@ -181,7 +200,7 @@ A **layer** is the first segment inside a feature, when it is one of the configu
 |---|---|---|
 | `boundary/cross-boundary-alias` | Do both ends share a boundary? | They differ **and** the specifier was relative. Relative imports *within* one boundary cross nothing and stay unreported. |
 | `structure/layer-direction` | Do both ends sit in the same feature, and does the edge run upward? | The target's layer is above the source's in the configured order. Covers relative and aliased spellings identically. |
-| `boundary/layer-occupancy` | Does the edge skip a layer that exists on disk? | A present layer is bypassed. "Skip absent layers, never bypass present ones." |
+| `boundary/layer-occupancy` | Does a controller edge bypass an on-disk repo or service? | Controller→schema while `repo/` exists, or controller→repo while `service/` and `repo/` exist. |
 | `graph/feature-deps` | What is the feature-to-feature edge set? | Cycles (Tarjan's SCC) block; coupling counts warn. |
 | `graph/domain-cycles` | Same question between domains. | Any cycle, at any transitive depth. Domains are the floor, so a cycle there means two domains are one. |
 
@@ -215,7 +234,7 @@ FAIL [layer-direction] src/features/alpha/repo/nested/deep.ts:2
 
 ## Fixtures
 
-The three that decide whether resolution works, all of which pass a spelling-matched implementation: a sibling-feature import (`../../beta/…`), an upward import from a nested directory (`../../service/x`), and a same-feature *aliased* upward import. Add a `require()` edge and a side-effect import edge for the extractor.
+The three that decide whether resolution works, all of which pass a spelling-matched implementation: a sibling-feature import (`../../beta/…`), an upward import from a nested directory (`../../service/x`), and a same-feature *aliased* upward import. Add literal `require()`, `require.resolve()`, and side-effect import edges. In a TSX fixture, prove that injected JSX entries are removed while a real `require()` of the JSX package remains.
 
 Then fixture the extractor against the shapes that make a pattern lose a file. Each of these needs a **real violation** inside the affected span — written with a legal import instead, the edge is lost just the same and the suite stays green:
 

@@ -5,21 +5,17 @@
 // Blocking: Yes
 //
 // Prevents: A plain top-level `export function` co-located in a file that
-//           also defines a createServerFn. Same class as
-//           structure/middleware-colocation: the TanStack Start compiler
-//           strips only the createServerFn `.handler()` BODIES from the
+//           also defines a createServerFn. The TanStack Start compiler
+//           strips the createServerFn `.handler()` body from the
 //           client bundle — a sibling plain export ships to the browser
 //           verbatim, dragging its imports with it. The day such a helper
 //           touches a server-only module (DB client, node: builtin) the
 //           whole chain lands in the client bundle and the app crashes at
 //           runtime ("X is not defined" / an externalized-module error).
 //
-//           This is the per-file GUARD for a bundle-graph problem GritQL
-//           can't see across files. Its cross-file complement is
-//           api/barrel-purity — whose server-fn-boundary short-circuit is
-//           only SOUND when server-fn modules hold server functions +
-//           types and nothing else. This rule enforces exactly that, so
-//           the two are designed to be adopted together.
+//           This per-file guard catches common plain-export shapes.
+//           Adopt it with api/barrel-purity; it does not prove that a module
+//           contains only server functions and types.
 //
 //           The fix is structural: move server-only helpers to a
 //           `.server.ts` sibling, whose suffix is a hard client-import
@@ -61,9 +57,8 @@
 //    NEGATIVE SPACE — one leak shape this rule does NOT catch:
 //    `function helper() {}` declared plainly and exported on a later line
 //    as `export { helper }`. Deciding whether the exported name is a
-//    function needs the declaration and the export list correlated by
-//    name, which a per-file GritQL pattern will not do (measured against
-//    Biome 2.5.6). Treat it as a known bypass rather than a guarantee:
+//    function needs the declaration and export list correlated by name.
+//    Treat it as a known bypass rather than a guarantee:
 //    if it shows up in practice it belongs in the structural tier, which
 //    can resolve the binding.
 //

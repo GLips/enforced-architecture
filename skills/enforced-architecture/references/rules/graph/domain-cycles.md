@@ -43,12 +43,11 @@ const DOMAINS_DIR = "src/domains";
 
 ## Implementation
 
-Bun TypeScript script, delegated from the structural check orchestrator. Can also be implemented as a shell function — but TypeScript is more maintainable for graph algorithms.
+Bun TypeScript check function behind the structural orchestrator.
 
 Key implementation details:
-- **File exclusion** must match the global test exclusion patterns: `*.test.*`, `*.integration.test.*`, `__tests__/`, `scripts/`.
 - **Both aliased and relative imports** must be checked. The cross-boundary-alias rule prevents relative cross-boundary imports, but the cycle check should be self-contained and not depend on other rules having caught all relative imports first.
-- **Exit code 1** on any cycle. The orchestrator increments its error counter and propagates the failure.
+- **Return findings.** The orchestrator owns reporting and the process exit code.
 - **Early exit** if `domains/` does not exist or contains fewer than 2 domain directories.
 
 ## Example output

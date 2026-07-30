@@ -9,27 +9,6 @@
 //
 // Applies:  All src/** files EXCEPT the env module itself and tests.
 //
-// ── Why this is a boundary rule and not a style preference ────────────
-//
-// The env module does not just read variables — it decides what their
-// ABSENCE MEANS, and those decisions differ by bundle. A missing
-// analytics key might be "off" in development and a thrown error in a
-// release build; a malformed one throws in both. A second reader gets
-// the raw string and none of that reasoning, so it lands on its own
-// answer, and the two answers disagree in exactly the case nobody tests.
-//
-// The cost of that is rarely a crash. It is a system that reports to the
-// wrong place, or runs against the wrong backend, and looks fine doing
-// it — a number that is quietly wrong from then on. One reader is what
-// keeps the decision in one `if`.
-//
-// The second reason is bundling, and it applies wherever a bundler
-// inlines variables by literal text match (Vite's import.meta.env, Expo's
-// EXPO_PUBLIC_*, Next's NEXT_PUBLIC_*). A computed lookup such as
-// process.env[name] is left alone and reads as undefined in a production
-// bundle. Keeping every read in one module keeps every read in the shape
-// the bundler recognises.
-//
 // ── Adapt ─────────────────────────────────────────────────────────────
 //
 // 1. The owning module (the exclusion line). One file, named exactly.
@@ -46,19 +25,6 @@
 //    believes, and conflating them forces an exemption that then gets
 //    reused for runtime code.
 //
-// ── Why six arms ──────────────────────────────────────────────────────
-//
-// Reading env has six spellings and they are six different CST shapes.
-// Five of them are not things anyone writes by accident: `process["env"]`,
-// `globalThis.process`, destructuring `env` off `process`, and importing
-// `env` from `node:process` are what someone reaches for once this rule
-// stops them the obvious way. A containment rule that leaves the ways
-// around it open is a speed bump, and it is worse than no rule, because
-// the header claims a guarantee the pattern does not deliver.
-//
-// Verified against Biome 2.5.5: all six fire, and a legal `myObject.env`
-// stays silent.
-//
 // ──────────────────────────────────────────────────────────────────────
 
 file(name=$filename, body=$program) where {
@@ -73,15 +39,17 @@ file(name=$filename, body=$program) where {
 
     $program <: contains bubble or {
         `process.env`,
-        `process[$_]`,
-        `globalThis.process`,
+        `process[$key]` where { $key <: r"[\"']env[\"']" },
+        `globalThis.process.env`,
         `import.meta.env`,
         `const { env } = process`,
-        JsModuleSource() as $m where { $m <: r"[\"']node:process[\"']" }
+        JsImport() as $import where {
+            $import <: r"(?s)import\s*\{[^}]*\benv\b[^}]*\}\s*from\s*[\"']node:process[\"'];?"
+        }
     } as $access where {
         register_diagnostic(
             span = $access,
-            message = "Only the env module reads process.env. Import the validated config it exports instead, and add an entry there when something needs a new variable. That module does not merely read the variable — it decides what its absence MEANS, and the answer differs between a development and a production bundle. A second reader gets the raw string and none of that decision, so it invents its own answer and the two disagree in the case nobody tests, which usually surfaces as a system reporting somewhere wrong rather than as a crash. Reads here can also be invisible to the bundler: public env vars are inlined by literal text match, so anything the bundler does not recognise is undefined in production."
+            message = "Only the env module reads environment variables. Import its validated config and add the variable there."
         )
     }
 }

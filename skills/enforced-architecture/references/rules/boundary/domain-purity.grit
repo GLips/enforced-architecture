@@ -4,52 +4,11 @@
 // Mechanism: GritQL (per-file, real-time)
 // Blocking: Yes
 //
-// Prevents: Domains importing anything that makes them impure. A domain
-//           is the business reasoning itself, with nothing attached: no
-//           network, no storage, no env, no React, no SDK. Given the
-//           same inputs it returns the same answer, forever, and that is
-//           the entire contract. Dependencies arrive as parameters — if
-//           a domain needs data, the caller fetches it and passes it,
-//           and the domain decides what it MEANS.
+// Prevents: Aliased and package runtime imports outside domains and shared.
+//           boundary/cross-boundary-alias governs relative boundary crossings.
+//           Global side effects require separate enforcement.
 //
 // Applies:  All src/domains/** files EXCEPT test files and scripts.
-//
-// ── The allowlist is the point ────────────────────────────────────────
-//
-// This rule is an ALLOWLIST over the whole specifier, not a blocklist of
-// internal paths. A blocklist version — banning only @/infrastructure,
-// @/features, @/routes — is the shape this template used to have, and it
-// is worse than no rule at all: `import { openDatabaseSync } from
-// "expo-sqlite"` and `import { useMemo } from "react"` both sail past it
-// while the header promises they cannot. Nobody audits src/domains by
-// hand PRECISELY BECAUSE the rule is there, so a rule that under-matches
-// buys silence rather than safety.
-//
-// So: a domain may import other domains, and nothing else unless it is
-// named here.
-//
-// RE-EXPORTS ARE IMPORTS. `export { Stripe } from "stripe"` and
-// `export * from "expo-sqlite"` create exactly the runtime dependency an
-// import does, and neither is a `JsImport` node. That is what the
-// `JsExport` arm below is for. Without it the allowlist has a one-line
-// bypass that reads as ordinary code.
-//
-// TYPE-ONLY IMPORTS ARE EXEMPT. `import type { LanguageModel } from "ai"`
-// pulls in no runtime value, so it cannot make a domain impure — the shape
-// of a thing is not the thing. Without this exemption the rule fires on
-// perfectly pure code that merely names an external type, and a rule that
-// is wrong about legal code gets an exclusion list bolted on instead of
-// being fixed.
-//
-// The inline spelling `import { type X } from "pkg"` is equally erased,
-// and this rule DOES report it. That is deliberate, and it rests on one
-// dependency: Biome's `lint/style/useImportType` must stay enabled. That
-// rule rewrites an all-type inline import into the statement form, so the
-// only inline imports still standing when this rule runs are the mixed
-// ones — `import { type C, d }` — where `d` is a runtime binding and
-// firing is correct. Disable useImportType and this rule starts reporting
-// pure code. Counting how many specifiers carry `type` is not something
-// GritQL can do, so the normalisation has to happen upstream of it.
 //
 // ── Adapt ─────────────────────────────────────────────────────────────
 //
@@ -59,31 +18,20 @@
 //    .*/src/core/.*      — if you call your domain layer "core"
 //
 // 2. The allowlist (`permitted_domain_import`):
-//    Start it EMPTY apart from sibling domains, and add deliberately.
+//    Start with domains and shared, then add pure packages deliberately.
 //    A pure utility with no IO is a candidate; a validator is a harder
 //    call, because parsing usually belongs at the boundary and a domain
 //    should receive values already validated. Each addition is a
 //    decision, not a convenience — if the list grows past a handful,
 //    the layer has stopped being a domain layer.
 //
-//    Examples of what stays refused whatever else is decided: react and
-//    react-dom, every react-native*/expo-* package, every provider SDK,
-//    anything doing storage or HTTP, and the state libraries.
-//
 // 3. Alias prefix:
-//    Change `@/domains` if the project uses a different alias.
+//    Change `@/domains` and `@/shared` if the project uses another alias.
 //
 // ──────────────────────────────────────────────────────────────────────
 
-// Relative imports (within the domain layer) and sibling domains by
-// alias. Add deliberate exceptions as further alternatives.
-// The quote class matches either spelling, so the rule does not depend on
-// the formatter's config. Every group must be NON-capturing: GritQL binds
-// a capture group as a variable and the rule then fails to LOAD, which
-// Biome reports as `info` rather than `error` — a rule that never loaded
-// looks exactly like a rule that found nothing.
 pattern permitted_domain_import() {
-    r"[\"'](?:\.[^\"']*|@/domains(?:/.*)?)[\"']"
+    r"[\"'](?:\.[^\"']*|@/(?:domains|shared)(?:/.*)?)[\"']"
 }
 
 file(name=$filename, body=$program) where {
@@ -93,11 +41,6 @@ file(name=$filename, body=$program) where {
     ! $filename <: r".*\.test\.[tj]sx?$|.*\.integration\.test\.[tj]sx?$|.*__tests__.*|.*src/test/.*",
     ! $filename <: r".*/scripts/.*",
 
-    // Three arms, because a runtime dependency has three spellings. The
-    // regexes are safe here only because they test the STATEMENT node's own
-    // text; the same regex used with `within` would match the whole-file
-    // node (a full match whose trailing `.*` swallows the rest of the file)
-    // and silently exempt everything.
     $program <: contains bubble or {
         JsImport() as $statement where {
             // A type import creates no runtime dependency.
@@ -108,14 +51,12 @@ file(name=$filename, body=$program) where {
             ! $statement <: r"(?s)export\s+type\s.*",
             $statement <: contains JsModuleSource() as $source
         },
-        // A dynamic import is a call expression, not a module source, so
-        // neither arm above sees it.
         `import($source)`
     } where {
         ! $source <: permitted_domain_import(),
         register_diagnostic(
             span = $source,
-            message = "A domain imported something outside the domain layer (highlighted). src/domains holds the business reasoning itself: same inputs, same answer, always. That is not housekeeping — a module that reads env behaves differently between a local run and a shipped build, and one that fetches behaves differently on a train, so both make the answer depend on something other than the inputs. Neither looks like a failure, because an answer still arrives. Pass what you need as a parameter and let the caller fetch it. Pure logic can also be READ against the source of truth and argued with; once it reaches for a client, the only way to know what it does is to run it with the world in the right state, which nobody will do for the fortieth case. A domain may import other domains. Anything else is a deliberate addition to this rule's allowlist, not a convenience."
+            message = "Domains may runtime-import only domains, shared modules, and explicit pure-package exceptions. Pass side-effectful dependencies from the caller."
         )
     }
 }

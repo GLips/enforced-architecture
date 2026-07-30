@@ -13,11 +13,14 @@
 //           hydration failures in SSR frameworks.
 //
 // Applies:  All src/** files that are NOT server contexts:
-//           - Excludes: infrastructure/**, routes/**, scripts
+//           - Excludes: infrastructure/**, scripts
 //           - Excludes: features/*/controllers/**, features/*/repo/**,
 //                       features/*/service/** (server layers)
 //           - Excludes: any file named server.{ts,tsx}
 //           - Excludes: test files
+//
+// Source: @tanstack/router-core/src/load-matches.ts
+//         (the shared load path invokes route.options.loader).
 //
 // Error:    "Client contexts may only import client-safe infrastructure
 //            modules. Move this import to a server context or use the
@@ -27,7 +30,7 @@
 //
 // 1. Server context exclusions (the filename exclusion lines):
 //    Adjust to match your project's server-side directories.
-//    The default excludes infrastructure, routes, and the three
+//    The default excludes infrastructure and the three
 //    server-side feature layers (controllers, repo, service).
 //    If your project has additional server layers, add them.
 //
@@ -54,7 +57,7 @@ file(name=$filename, body=$program) where {
     ! $filename <: r".*/scripts/.*",
 
     // --- Server context exclusions (these CAN import infra) ---
-    ! $filename <: r".*/src/(?:infrastructure|routes)/.*",
+    ! $filename <: r".*/src/infrastructure/.*",
     ! $filename <: r".*/src/features/[^/]+/(?:controllers|repo|service)/.*",
     ! $filename <: r".*\.server\.[tj]sx?$",
 

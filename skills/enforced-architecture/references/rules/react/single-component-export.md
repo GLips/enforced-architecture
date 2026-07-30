@@ -24,7 +24,7 @@ All `.tsx` files in the component tree, excluding tests and barrels (`index.tsx`
 
 ## Algorithm
 
-Shares its file walk and comment-blanking with [hook-count](hook-count.md) and [prop-count](prop-count.md). Folding all three into one script is the obvious economy, and neither deployment did it — both wrote three scripts that walk the same tree three times. Treat that as a suggestion. What is not optional is that the three **agree on which declarations count as a component**: a form one of them cannot see is a form it silently under-reports, and the three have drifted apart on exactly that twice.
+Share the file walk, comment blanking, and component-declaration classifier with [hook-count](hook-count.md) and [prop-count](prop-count.md).
 
 1. **Blank comments** rather than stripping them, so line numbers stay true and a component name mentioned in prose cannot be counted.
 2. **Collect exported component declarations** — `export [default] function Name(`, the generic `Name<T>(` spelling of it, and `export const Name = (` / `= function`, PascalCase only.
@@ -43,7 +43,7 @@ const EXPORTED_ARROW_COMPONENT =
 
 Both forms are required. A script handling only the `function` declaration reproduces the GritQL rule's blind spot in a new language.
 
-**The `<[^(;]*>` clause is not optional polish.** It is the type-parameter list of a generic component — `export function OptionList<T extends string>({ items })`. Without it the name and the paren are no longer adjacent, so every generic component is skipped silently. This was found by deploying the rule to a third repo, where the one generic component in 121 was the one the check could not see.
+**The `<[^(;]*>` clause is required.** It is the type-parameter list of a generic component — `export function OptionList<T extends string>({ items })`.
 
 **Test the value, not just the name.** A PascalCase or upper-case `const` is very often not a component — `export const AllComponentsCtx = createContext(…)` and `export const DRAG_SLOP = 4` both pass a name-only test. Reporting those trains people to ignore the rule, which costs more than the smell it was watching for. This over-matching is invisible to every positive fixture; only the legal neighbour catches it.
 

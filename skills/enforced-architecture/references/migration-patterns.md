@@ -149,13 +149,13 @@ Each migration phase specifies:
 **Rules activated:** `structure/layer-direction`, `boundary/domain-purity`, `boundary/route-thinness`, `boundary/shared-ui-purity`, `structure/server-fn-placement`, `boundary/server-no-upward`, `boundary/shared-purity`, `structure/schema-placement`.
 
 **Changes:**
-- Write all remaining GritQL rules for this phase
+- Write the GritQL rules and the structural `structure/layer-direction` consumer
 - Run `bun run check:arch` — violations show every misplaced file and wrong-direction import
 - Move misplaced files to correct layer directories (mechanical)
 - Move `createServerFn` calls from non-controller locations to `controllers/` (judgment -- may require refactoring)
 - Move domain logic with side effects into features or infrastructure (judgment)
 
-**Verification:** `bun run check:arch` passes with all per-file rules active.
+**Verification:** `bun run check:arch` passes with all phase rules active.
 
 ---
 

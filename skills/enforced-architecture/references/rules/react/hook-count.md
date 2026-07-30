@@ -56,8 +56,7 @@ const TARGET_DIRS = [
 
 // Pattern to identify hook calls. The `<…>` clause is the generic type
 // argument — useState<string | null>(…), useRef<HTMLDivElement>(null). Without
-// it every generic-annotated hook is skipped and the component is undercounted;
-// one deployment was counting 2 hooks in a component that had 9.
+// it every generic-annotated hook is skipped and the component is undercounted.
 const HOOK_CALL_PATTERN = /\buse[A-Z]\w*\s*(?:<[^(;]*>)?\s*\(/;
 
 // Pattern to identify the component the hooks belong to. The same `<…>` clause

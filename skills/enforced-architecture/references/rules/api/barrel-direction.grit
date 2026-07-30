@@ -37,7 +37,7 @@
 //    adjust the import match patterns ("./index.server").
 //    Examples:
 //      "./index.server"  — standard (this template)
-//      "./server"        — legacy naming (requires explicit vite config)
+//      "./server"        — alternative naming (requires explicit vite config)
 //      "./server-only"   — alternative naming
 //
 // 3. Additional top-level directories:

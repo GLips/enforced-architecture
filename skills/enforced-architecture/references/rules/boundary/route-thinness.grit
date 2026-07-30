@@ -17,7 +17,7 @@
 //           - Test files
 //
 // Error:    "Routes must be thin adapters. Import data via feature
-//            barrels (@/features/<feature> or @/features/<feature>/index.server),
+//            barrels (@/features/<feature>),
 //            not directly from DB or env.server."
 //
 // ── Adapt ─────────────────────────────────────────────────────────────
@@ -61,7 +61,7 @@ file(name=$filename, body=$program) where {
         },
         register_diagnostic(
             span = $source,
-            message = "Routes must be thin adapters. Import data via feature barrels (@/features/<feature> or @/features/<feature>/index.server), not directly from DB or env.server."
+            message = "Routes are isomorphic thin adapters. Import data through the client-safe feature barrel (@/features/<feature>), not DB, env.server, or index.server."
         )
     }
 }

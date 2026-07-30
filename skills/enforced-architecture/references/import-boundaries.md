@@ -21,7 +21,7 @@ Read as: "Can `{row}` import from `{column}`?"
 | **`domains/*`** | NO | NO | NO | self (no cycles) | YES | NO | NO | NO | NO |
 | **`shared/*`** | NO | NO | NO | NO | self | --- | NO | NO | YES |
 | **`shared/ui/*`** | NO | NO | NO | NO | YES | self | NO | NO | YES |
-| **`routes/*`** | NO | YES (limited) | YES (public API + ui) | NO | YES | YES | self | NO | YES |
+| **`routes/*`** | NO | client-safe allowlist only | YES (client-safe public API + ui) | NO | YES | YES | self | NO | YES |
 
 ### Cell-by-Cell Explanation
 
@@ -127,8 +127,8 @@ Read as: "Can `{row}` import from `{column}`?"
 #### `routes/*`
 
 - **`infrastructure/db/`**: NO. Routes are thin transport adapters. They never query the DB directly. Enforced by the `boundary/route-thinness` rule.
-- **`infrastructure/*`**: YES, limited. Routes may import from infrastructure for specific wiring needs (e.g., providers). Routes must not import SDK clients directly.
-- **`features/`**: YES, public API + UI. Routes use three import patterns: `@/features/<name>` (barrel), `@/features/<name>/index.server` (server barrel), and `@/features/<name>/ui/*` (UI components for page composition). No deep imports into controllers, service, or repo.
+- **`infrastructure/*`**: Client-safe allowlist only, such as browser providers. Routes are isomorphic and must not import server-only infrastructure.
+- **`features/`**: Client-safe public API + UI. Routes use `@/features/<name>` and `@/features/<name>/ui/*`. They do not import `index.server` or deep-import controllers, service, or repo.
 - **`domains/`**: NO. Routes do not call domain logic directly. Domain operations flow through feature controllers.
 - **`shared/`**: YES. Routes may use shared utilities.
 - **`shared/ui/`**: YES. Routes compose shared UI primitives into pages.
@@ -172,7 +172,7 @@ Features import other features ONLY through public API barrels. All other intern
 | Pattern | Allowed | From |
 |---|---|---|
 | `@/features/<name>` (resolves to `index.ts`) | YES | Any module |
-| `@/features/<name>/index.server` (resolves to `index.server.ts`) | YES | Server contexts only |
+| `@/features/<name>/index.server` (resolves to `index.server.ts`) | YES | Controllers, service, repo, infrastructure, and explicit `.server.ts` modules |
 | `@/features/<name>/ui/*` | YES | Routes only |
 | `@/features/<name>/controllers/*` | NO | --- |
 | `@/features/<name>/service/*` | NO | --- |
@@ -180,7 +180,7 @@ Features import other features ONLY through public API barrels. All other intern
 
 Enforcement (the `api/feature-public-api` rule):
 
-- Denies deep imports from routes unless the path matches `/index.server` or `/ui/*`.
+- Denies deep imports from routes unless the path matches `/ui/*`.
 - Denies deep imports from other features unless the path matches `/index.server`.
 - Denies all deep feature imports from domains, shared, and infrastructure.
 - The `api/server-import-context` rule denies `*/index.server` imports from client contexts (UI files, barrels, shared modules).
@@ -242,7 +242,7 @@ Within a feature or within a subdirectory, relative imports are expected and pre
 
 | Module | Client-Safe Barrel (`index.ts`) | Server-Only Barrel (`index.server.ts`) | External Import Pattern |
 |---|---|---|---|
-| `features/<name>/` | Types, constants, pure helpers, `createServerFn` references, client UI re-exports | Server functions for cross-feature use, raw DB queries, infrastructure adapters | `@/features/<name>` or `@/features/<name>/index.server` |
+| `features/<name>/` | Types, constants, pure helpers, `createServerFn` references, client UI re-exports | Raw server helpers, DB queries, infrastructure adapters | `@/features/<name>` or `@/features/<name>/index.server` |
 | `domains/<name>/` | Types, pure functions, domain errors, constants, schemas | Server-only domain operations (optional) | `@/domains/<name>` or `@/domains/<name>/index.server` |
 | `shared/` | No barrel, each file standalone | --- | `@/shared/<module>` |
 | `shared/ui/` | Per-subdirectory barrels or individual imports | --- | `@/shared/ui/<component>` |

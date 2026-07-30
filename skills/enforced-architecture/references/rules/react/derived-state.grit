@@ -40,12 +40,7 @@
 //    exclusion patterns accordingly. No directory restriction is needed
 //    since useState/useEffect only appear in component code.
 //
-// 2. Setter naming convention:
-//    The pattern matches any identifier starting with "set" inside
-//    useEffect. If your project uses a different naming convention for
-//    state setters, adjust the regex on the setter match.
-//
-// 3. False positive tolerance:
+// 2. False positive tolerance:
 //    Some legitimate uses exist (e.g., debounced state updates, event
 //    listener state syncs). If false positives are common, consider
 //    making this rule non-blocking. The default is blocking because
@@ -62,22 +57,15 @@ file(name=$filename, body=$program) where {
     ! $filename <: r".*\.test\.[tj]sx?$|.*\.integration\.test\.[tj]sx?$|.*__tests__.*|.*src/test/.*",
     ! $filename <: r".*/scripts/.*",
 
-    // Match useEffect calls with two arguments (callback + deps array).
-    // The first argument ($callback) is the effect callback; we check
-    // whether it contains a useState setter call (set* pattern).
-    // This scopes the setter detection to the effect body, avoiding
-    // false positives from setters used elsewhere in the component.
     $program <: contains bubble `useEffect($callback, $_)` as $effect where {
         $callback <: contains `$setter($_)` where {
-            $setter <: r"set[A-Z].*"
+            $program <: contains `const [$_state, $setter] = useState($_)`
         },
-        // Exclude async effects — setState in an effect that awaits
-        // external data is event accumulation, not derived state.
         ! $callback <: contains `await $_`,
         ! $callback <: contains `for await ($_) { $_ }`,
         register_diagnostic(
             span = $effect,
-            message = "useState setter called inside useEffect is a derived state anti-pattern. Compute the value directly with useMemo() or inline computation instead of syncing via state + effect."
+            message = "A useState setter is called inside useEffect to synchronize derived state. Compute the value inline or with useMemo()."
         )
     }
 }

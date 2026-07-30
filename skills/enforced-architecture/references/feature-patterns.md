@@ -64,7 +64,7 @@ Example: an admin feature with fixtures, runs, a processing pipeline, and dedica
 
 Layers are logically fixed in order: `ui -> controllers -> service -> repo`. Physical presence is optional.
 
-**Skip absent layers, never bypass present ones.**
+Repo and service occupancy is directory-wide at the controller edge.
 
 | Layers present | Valid call paths | Invalid |
 |---|---|---|
@@ -74,7 +74,7 @@ Layers are logically fixed in order: `ui -> controllers -> service -> repo`. Phy
 | `controllers`, `service` (no repo) | `controllers -> service -> infrastructure` | -- |
 | `ui`, `controllers` | `ui -> controllers` | `ui -> infrastructure` |
 
-When a layer is added, enforcement tightens automatically. Adding `repo/` to a feature that previously had `controllers/` accessing the DB directly means all DB access must now route through `repo/`. This is enforced by the `boundary/layer-occupancy` check.
+When `repo/` exists, controller DB access must route through it. The `boundary/layer-occupancy` check enforces this directory-wide.
 
 **Never scaffold empty directories.** If a layer has no code, it does not exist. Create directories only when they will contain active code.
 
@@ -108,7 +108,7 @@ When a layer is added, enforcement tightens automatically. Adding `repo/` to a f
 Controllers are the delivery boundary. They sit between transport (routes) and the rest of the system. Every `createServerFn` lives in `controllers/`.
 
 Controllers do:
-- Validate input (via Zod schemas on `.validator()` or `.inputValidator()`)
+- Validate input with `.validator()`
 - Check authorization (via session helpers from infrastructure)
 - Orchestrate calls to service/repo/domain layers
 - Return plain serializable objects
@@ -122,21 +122,23 @@ Controllers do NOT:
 
 ### Controller File Naming
 
-Controller files use `.server.ts` when they import server-only code — e.g., `controllers/items.server.ts` if it imports from `repo/`, `infrastructure/db`, or auth internals. Use plain `.ts` when the controller has no server-only imports. The TanStack Start compiler runs before import protection — it replaces `createServerFn` handlers with client RPC stubs and prunes server-only imports that become unused. The `.server.ts` suffix acts as a safety net: if a server-only import leaks past the compiler (referenced outside a handler body), import protection catches it at build time instead of letting it cause a runtime crash.
+Files exporting `createServerFn()` use plain `.ts`, because their RPC references must remain client-importable. Raw server-only helpers use a `.server.ts` sibling. The compiler rewrites server-function handlers before import protection; imports used only by the handler are removed from the client output.
+
+Source: `@tanstack/start-plugin-core/src/start-compiler/handleCreateServerFn.ts`.
 
 Controllers are re-exported through the feature's `index.ts` barrel:
 
 ```typescript
 // features/<name>/index.ts
-export { loadItemFn, createItemFn } from "./controllers/items.server";
+export { loadItemFn, createItemFn } from "./controllers/items";
 ```
 
 ### Server Function Pattern
 
-TanStack Start's compiler extracts `createServerFn` handler bodies and their dependency graph from client bundles. Server-only imports at the top of the file are handled by the compiler — they only exist in the server bundle. The `.server.ts` suffix adds a safety net for any imports that leak past the compiler:
+TanStack Start's compiler replaces `createServerFn` handlers with client RPC stubs and removes imports used only by those handlers:
 
 ```typescript
-// controllers/items.server.ts
+// controllers/items.ts
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSession } from "@/infrastructure/auth/require-session.server";
@@ -144,20 +146,16 @@ import { db } from "@/infrastructure/db/client";
 import { itemRepo } from "../repo/items";
 
 export const loadItemFn = createServerFn({ method: "GET" })
-  .inputValidator(z.object({ id: z.string() }))
+  .validator(z.object({ id: z.string() }))
   .handler(async ({ data }) => {
     const session = await requireSession();
     return itemRepo.getById(db, { id: data.id, userId: session.user.id });
   });
 ```
 
-### Two-File Split (Escape Hatch)
+### Two-File Split
 
-For standard controllers — files with direct top-level imports and straightforward `createServerFn` usage — the compiler handles everything. Trampolines and dynamic imports are unnecessary and add complexity for no benefit.
-
-The only known failure mode is abstracting around `createServerFn` itself: wrapping it in helper functions, passing it through intermediaries, or building factory patterns on top of it. The TanStack maintainer explicitly says this is unsupported — the compiler expects direct, top-level `createServerFn` calls.
-
-If you encounter a case where the compiler fails to extract server-only imports from the client bundle (build errors pointing at server-only code in client output), the two-file split is a fallback. Do not reach for it proactively.
+Use a client-importable controller for the `createServerFn` definition and a `.server.ts` companion for raw server-only helpers. Keep `createServerFn` calls direct and top-level so the compiler can transform them.
 
 ```
 controllers/
@@ -168,7 +166,7 @@ controllers/
 ```typescript
 // controllers/items.ts
 export const loadItemFn = createServerFn({ method: "GET" })
-  .inputValidator(z.object({ id: z.string() }))
+  .validator(z.object({ id: z.string() }))
   .handler(async ({ data }) => {
     const { loadItem } = await import("./items.server");
     return loadItem(data);
@@ -273,7 +271,7 @@ Forbidden cross-feature imports:
 @/features/<other-feature>/repo/*         # Internal implementation detail
 ```
 
-Enforcement: the `api/feature-public-api` rule blocks all deep cross-feature imports except `index.server` and `ui/*`. Routes get the `ui/*` exception because they compose feature UI. Other features do not.
+Enforcement: routes may deep-import only `ui/*`; other features may deep-import only `index.server`. Other callers use the client-safe feature barrel.
 
 ---
 

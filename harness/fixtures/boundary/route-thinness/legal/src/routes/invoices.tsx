@@ -1,5 +1,4 @@
-// Routes get their data through feature barrels, which is the whole rule.
-import { listInvoices } from "@/features/billing/index.server";
+// Routes get their data through the client-safe feature barrel.
 import { billingLabel } from "@/features/billing";
 
 // The client env module, and an infrastructure module whose name merely
@@ -7,4 +6,4 @@ import { billingLabel } from "@/features/billing";
 import { env } from "@/env.client";
 import { dbtLogger } from "@/infrastructure/dbt-logger";
 
-export const Route = () => [listInvoices, billingLabel, env, dbtLogger];
+export const Route = () => [billingLabel, env, dbtLogger];
