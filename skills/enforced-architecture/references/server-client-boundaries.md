@@ -46,14 +46,19 @@ These file categories must use `.server.ts` naming:
 | Server function handler implementations | `controllers/items.server.ts` | Server-only companion for a client-importable server-function definition |
 | SDK wrappers with secrets | `infrastructure/integrations/<service>.ts` | Denied via import protection config, not naming |
 
-Server-only infrastructure modules that do not use the `.server.ts` naming convention are instead denied from client bundles via the import protection configuration in `vite.config.ts`. Both mechanisms achieve the same result — the choice depends on whether the module needs per-file naming or directory-level denial.
+Server-only infrastructure modules that do not use the `.server.ts` naming convention are instead denied from client bundles via the import protection configuration in `vite.config.ts`. Both mechanisms achieve the same result — the choice depends on whether the module needs per-file naming or directory-level denial. Prefer naming: every `.server.ts` file is one less entry the hand-maintained denial list has to remember, and the list only blocks what someone thought to add.
+
+Two traps when configuring or renaming:
+
+- A user-supplied `client.files` array **replaces** the framework default rather than extending it (`pick = (user, fallback) => user ? [...user] : [...fallback]` in the import-protection plugin). Any custom list must repeat `**/*.server.*` explicitly, or the entire naming-based fence silently turns off. `client.specifiers` merges additively; `files` does not.
+- Renaming a module to `.server.ts` breaks references typecheck cannot see: config files that point at it by filesystem path (e.g. a Drizzle config's `schema:` entry). Grep for the old path as a string, not just as an import specifier.
 
 ## Where `.server.ts` Is NOT Used
 
 | Category | Why regular `.ts` | How splitting works |
 |---|---|---|
 | Controller files (`createServerFn`) | Compiler prunes imports used only inside handler bodies | Top-level code and sibling exports remain client code |
-| DB schema definitions | Types only, no runtime connection | Denied from client via import protection on `infrastructure/db/**` |
+| DB schema leaf modules | Types only, no runtime connection | Denied from client via import protection on `infrastructure/db/**`; the `schema/index.server.ts` barrel itself uses the naming fence |
 | Shared types/interfaces | Erased at compile time | No runtime code to protect |
 | Feature `index.ts` barrels | Export server fn references (client-safe stubs) | Barrel must not import from `index.server.ts` |
 

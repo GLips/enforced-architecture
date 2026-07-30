@@ -247,7 +247,7 @@ Within a feature or within a subdirectory, relative imports are expected and pre
 | `shared/` | No barrel, each file standalone | --- | `@/shared/<module>` |
 | `shared/ui/` | Per-subdirectory barrels or individual imports | --- | `@/shared/ui/<component>` |
 | `infrastructure/` | No barrel, each adapter standalone | `*.server.ts` files auto-denied from client | `@/infrastructure/<module>` |
-| `infrastructure/db/` | --- | `schema/index.ts` barrel | `@/infrastructure/db`, `@/infrastructure/db/schema` |
+| `infrastructure/db/` | --- | `schema/index.server.ts` barrel | `@/infrastructure/db`, `@/infrastructure/db/schema/index.server` |
 
 ### Barrel Invariants
 

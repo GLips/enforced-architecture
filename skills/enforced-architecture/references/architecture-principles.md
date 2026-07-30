@@ -323,7 +323,7 @@ Use layer restriction for SDKs with:
 
 // features/*/repo/items.ts — allowed
 import { eq } from "drizzle-orm"
-import { items } from "@/infrastructure/db/schema"
+import { items } from "@/infrastructure/db/schema/items"
 
 // features/*/ui/item-list.tsx — blocked by enforcement
 import { eq } from "drizzle-orm"  // VIOLATION
