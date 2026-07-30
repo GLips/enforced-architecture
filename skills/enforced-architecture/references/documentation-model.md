@@ -142,10 +142,10 @@ CLAUDE.md should include a table or list pointing to docs/architecture/ files:
 ```markdown
 | Doc | Read when |
 |-----|-----------|
-| [feature-patterns.md](docs/architecture/feature-patterns.md) | Adding or graduating a feature |
-| [import-boundaries.md](docs/architecture/import-boundaries.md) | Unclear whether an import is allowed |
-| [how-to/new-feature.md](docs/architecture/how-to/new-feature.md) | Creating a new feature from scratch |
-| [how-to/new-infra-adapter.md](docs/architecture/how-to/new-infra-adapter.md) | Integrating a new third-party service |
+| `docs/architecture/feature-patterns.md` | Adding or graduating a feature |
+| `docs/architecture/import-boundaries.md` | Unclear whether an import is allowed |
+| `docs/architecture/how-to/new-feature.md` | Creating a new feature from scratch |
+| `docs/architecture/how-to/new-infra-adapter.md` | Integrating a new third-party service |
 ```
 
 This keeps CLAUDE.md terse while giving agents a path to deeper information. How-to guides are especially valuable — agents follow procedures more reliably than they synthesize behavior from reference material.

@@ -37,7 +37,7 @@ Only relevant when the project has two or more feature modules. Projects with a 
 ### Cycle detection (blocking)
 
 5. **Find strongly connected components** — Tarjan's, so every independent cycle surfaces in one pass rather than one per run. Each SCC of size > 1 is a cycle.
-6. **Report cycles** — For each SCC, emit the participating features, the specific edges forming the cycle, and exit with code 1.
+6. **Report cycles** — Return one error finding per SCC, naming the participating features and the specific edges forming the cycle. The orchestrator owns the exit code.
 
 ### Coupling thresholds (non-blocking warnings)
 

@@ -40,10 +40,13 @@ type ImportEdge = {
   specifier: string;               // as written, for the error message only
   relative: boolean;
   target: string;                  // RESOLVED path from the source root
+  typeOnly: boolean;               // see Extraction — per specifier, not per file
   from: Classification;
   to: Classification;
 };
 ```
+
+Consumers that ask only "do these ends differ" need `from`/`to`. `target` is for rules that name specific modules, and `typeOnly` for rules that skip erased coupling. Carry all three: a consumer missing one reaches for the raw specifier, which is the bypass this tier exists to close.
 
 ### Extraction
 

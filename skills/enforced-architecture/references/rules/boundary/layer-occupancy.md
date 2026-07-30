@@ -34,7 +34,7 @@ Consumes the resolved import graph — see [graph/import-graph.md](../graph/impo
 
 **Do not grep for `../repo/`.** The bypass survives being written one directory deeper (`../../repo/x` from a nested controller) or as an alias (`@/features/<self>/repo/x`), and both spellings are ordinary code that a pattern-matching version reports as clean. The same defect hits `structure/layer-direction`, which is why both consume one graph.
 
-This rule covers the controller edge only. UI calling service or repo directly bypasses present layers the same way — that is [structure/layer-direction](../structure/layer-direction.md)'s subject, and the two together cover the order. Neither one alone does, so do not read a green `layer-occupancy` as the order being enforced.
+This rule covers the controller edge only. UI calling service or repo directly bypasses present layers the same way — that is `structure/layer-direction`'s subject (documented with the graph, in [graph/import-graph.md](../graph/import-graph.md)), and the two together cover the order. Neither one alone does, so do not read a green `layer-occupancy` as the order being enforced.
 
 ### Why schema but not client?
 
