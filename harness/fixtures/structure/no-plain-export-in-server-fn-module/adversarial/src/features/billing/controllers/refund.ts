@@ -1,28 +1,51 @@
-import { createServerFn } from "@tanstack/react-start";
-import { db } from "@/infrastructure/db";
+import { createMiddleware } from "@tanstack/react-start";
+import { auth } from "@/infrastructure/auth/auth-instance.server";
 
-export const refund = createServerFn().handler(async () => db);
+export const authed = createMiddleware().server(({ next }) =>
+  next({ context: { auth } }),
+);
 
-// EXPECT+1: an explicit return type, which the untyped arm alone would miss
+// EXPECT+1: an explicit return type
 export function label(n: number): string {
   return String(n);
 }
 
-// EXPECT+1: async, the second half of the same axis
+// EXPECT+1: async function
 export async function reload(): Promise<void> {}
 
-// EXPECT+1: a SECOND plain export, which needs per-match scoping
-export function other(n: number) {
-  return n;
+// EXPECT+1: exported object
+export const policy = {
+  getSession: auth.api.getSession,
+};
+
+// EXPECT+1: exported class retains the server-only binding
+export class AuthAccess {
+  getSession() {
+    return auth.api.getSession;
+  }
 }
 
-// EXPECT+1: a default export, which carries the module's imports just the same
+// EXPECT+1: default export
 export default function fallback(n: number) {
   return n;
 }
 
-// EXPECT+1: an arrow assigned to a const, the form the checklist names
+// EXPECT+1: arrow export
 export const arrowHelper = (n: number) => n * 2;
 
-// EXPECT+1: the async arrow, covered by the same arm
-export const asyncHelper = async (n: number) => n * 2;
+function laterHelper() {
+  return auth.api.getSession;
+}
+type SessionReader = typeof laterHelper;
+
+// EXPECT: later export list retains the server-only binding
+export { laterHelper };
+
+// EXPECT: mixed list still carries a runtime export
+export { type SessionReader, laterHelper as readSession };
+
+// EXPECT: named runtime re-export
+export { audit } from "./audit.server";
+
+// EXPECT: star runtime re-export
+export * from "./roles.server";

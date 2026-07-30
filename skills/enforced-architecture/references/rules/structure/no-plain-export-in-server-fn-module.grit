@@ -4,90 +4,92 @@
 // Mechanism: GritQL (per-file, real-time)
 // Blocking: Yes
 //
-// Prevents: A plain top-level `export function` co-located in a file that
-//           also defines a createServerFn. The TanStack Start compiler
-//           strips the createServerFn `.handler()` body from the
-//           client bundle — a sibling plain export ships to the browser
-//           verbatim, dragging its imports with it. The day such a helper
-//           touches a server-only module (DB client, node: builtin) the
-//           whole chain lands in the client bundle and the app crashes at
-//           runtime ("X is not defined" / an externalized-module error).
+// Prevents: Runtime exports other than compiler bridges in a non-server
+//           module that defines createServerFn or createMiddleware.
+//           Client compilation replaces server-function handlers and strips
+//           middleware .server() and .validator() calls; it does not
+//           erase sibling runtime exports.
 //
-//           This per-file guard catches common plain-export shapes.
-//           Adopt it with api/barrel-purity; it does not prove that a module
-//           contains only server functions and types.
+// Allows:   Type-only exports, exported createServerFn/createMiddleware
+//           bridges, and module-private helpers.
 //
-//           The fix is structural: move server-only helpers to a
-//           `.server.ts` sibling, whose suffix is a hard client-import
-//           fence (via import protection).
+// Fix:      Move server-only runtime exports to a .server.ts sibling. Move
+//           client-safe exports to their own module.
 //
-// Applies:  All src/** files that contain createServerFn calls.
-//           Excludes test files, scripts, and *.server.ts (already fenced
-//           off the client, so a plain export there is safe).
+// Source:   @tanstack/start-plugin-core/src/start-compiler/
+//           handleCreateServerFn.ts, handleCreateMiddleware.ts
 //
-// Error:    "Plain `export function` in a module that also defines a
-//            createServerFn ships to the client bundle (only handler
-//            bodies are stripped). Move server-only helpers to a
-//            .server.ts sibling — its suffix blocks client imports."
+// Applies:  Non-.server source files containing createServerFn or
+//           createMiddleware calls. Excludes tests and scripts.
+//
+// Negative space: This rule does not detect top-level side effects or prove
+//                 client reachability. Cross-file safety belongs to the
+//                 client-boundary graph checks.
+//
+//                 The bridge exemption matches the initializer textually, so
+//                 it rejects `export const fn: T = createServerFn()` and other
+//                 forms the compiler unwraps (parens, `satisfies`, non-null).
+//                 Deliberate: a structural `contains` would wrongly exempt
+//                 `export const helper = () => createServerFn()`, which leaks.
 //
 // ── Adapt ─────────────────────────────────────────────────────────────
 //
-// 1. Factory name:
-//    If your framework uses a different server-function factory,
-//    replace `createServerFn` with the correct identifier.
+// 1. Replace the factory names for frameworks with equivalent compiler
+//    bridges.
 //
-// 2. Server-only fence suffix:
-//    This template assumes `.server.ts` is the import-protected suffix
-//    (TanStack Start convention). If your project fences server-only
-//    modules differently, update the exclusion regex and the error.
-//
-// 3. What the arms cover, and why each one is there:
-//    - Four `export function` arms: function/async × with/without a
-//      return-type annotation. A `): T {` return type is a distinct node
-//      sitting BETWEEN the params and the body — a snippet with no slot
-//      for it (`($_args) { $... }`) silently fails to match any annotated
-//      function, the most common reason this rule appears to "do nothing."
-//    - `export default function`, which carries exactly the same imports.
-//    - `export const $name = ($_args) => $body`, which covers the plain
-//      AND async arrow in one arm. It does NOT match
-//      `export const fooFn = createServerFn()…`, because that
-//      initialiser is a call expression rather than an arrow, so the
-//      server-fn chain stays legal without an exception.
-//
-//    NEGATIVE SPACE — one leak shape this rule does NOT catch:
-//    `function helper() {}` declared plainly and exported on a later line
-//    as `export { helper }`. Deciding whether the exported name is a
-//    function needs the declaration and export list correlated by name.
-//    Treat it as a known bypass rather than a guarantee:
-//    if it shows up in practice it belongs in the structural tier, which
-//    can resolve the binding.
+// 2. Update the .server exclusion when the project uses a different hard
+//    server-only fence.
 //
 // ──────────────────────────────────────────────────────────────────────
 
 file(name=$filename, body=$program) where {
-    // --- Global exclusions (shared across all rules) ---
     ! $filename <: r".*\.test\.[tj]sx?$|.*\.integration\.test\.[tj]sx?$|.*__tests__.*|.*src/test/.*",
     ! $filename <: r".*/scripts/.*",
     ! $filename <: r".*\.server\.[tj]sx?$",
 
-    // The CALL, not the bare identifier — `createServerFn` alone also matches
-    // the import specifier, so a file that only imports the symbol would trip
-    // the gate and have its ordinary exports reported.
-    $program <: contains `createServerFn($_)`,
+    or {
+        $program <: contains `createServerFn($_)`,
+        $program <: contains `createMiddleware($_)`
+    },
 
-    // Flag any plain exported function in that same file, in every
-    // declaration form that carries the module's imports to the client.
     $program <: contains bubble or {
-        `export function $name($_args): $_ret { $... }`,
-        `export async function $name($_args): $_ret { $... }`,
-        `export function $name($_args) { $... }`,
-        `export async function $name($_args) { $... }`,
-        `export default function $name($_args) { $... }`,
-        `export const $name = ($_args) => $body`
-    } as $leak where {
-        register_diagnostic(
-            span = $leak,
-            message = "A plain exported function in a module that also defines a createServerFn ships to the client bundle (only handler bodies are stripped). Move server-only helpers to a .server.ts sibling — its suffix blocks client imports."
-        )
-    }
+            // Biome's GritQL does not parse `export default $expression` as a
+            // snippet; the node name is the only spelling that matches. The
+            // named `export default function` and `class` snippets below do work.
+            JsExportDefaultExpressionClause(),
+            `export const $name = $value`,
+            `export let $name = $value`,
+            `export var $name = $value`,
+            `export let $name`,
+            `export var $name`,
+            `export function $name($_args): $_ret { $... }`,
+            `export async function $name($_args): $_ret { $... }`,
+            `export function $name($_args) { $... }`,
+            `export async function $name($_args) { $... }`,
+            `export class $name { $... }`,
+            `export class $name extends $_base { $... }`,
+            `export enum $name { $... }`,
+            `export default function $name($_args): $_ret { $... }`,
+            `export default async function $name($_args): $_ret { $... }`,
+            `export default function $name($_args) { $... }`,
+            `export default async function $name($_args) { $... }`,
+            `export default class $name { $... }`,
+            `export default class $name extends $_base { $... }`,
+            `export { $name as $alias }`,
+            `export { $name } from $_source`,
+            `export { $name as $alias } from $_source`,
+            `export * from $_source`,
+            `export * as $name from $_source`,
+            JsExportNamedClause()
+        } as $leak where {
+            ! $leak <: r"(?s)export\s+const\s+[A-Za-z_$][A-Za-z0-9_$]*\s*=\s*createServerFn\s*\(.*",
+            ! $leak <: r"(?s)export\s+const\s+[A-Za-z_$][A-Za-z0-9_$]*\s*=\s*createMiddleware\s*\(.*",
+            ! $leak <: r"(?s)type\s.*",
+            ! $leak <: r"(?s)\{\s*type\s+[^,}]+(?:,\s*type\s+[^,}]+)*,?\s*\}\s*;?",
+            ! $leak <: r"(?s)export\s*\{\s*type\s+[^,}]+(?:,\s*type\s+[^,}]+)*,?\s*\}\s*from\s+.*",
+            register_diagnostic(
+                span = $leak,
+                message = "Only createServerFn/createMiddleware bridges and types may be exported from a compiler-processed module. Move this runtime export to a client-safe or .server.ts sibling."
+            )
+        }
 }

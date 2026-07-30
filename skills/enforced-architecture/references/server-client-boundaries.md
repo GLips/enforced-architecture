@@ -30,9 +30,7 @@ TanStack Start compiles middleware for the client, removing `.server()` and `.va
 
 Use plain `.ts` for middleware that is imported by server functions or has a `.client()` phase. Put raw server-only helpers in `.server.ts` modules and call them only from `.server()` callbacks.
 
-**Do not co-locate `createMiddleware` with `createServerFn`.** On the client a server function is replaced wholesale by an RPC stub, so everything its body referenced goes with it; middleware only loses its `.server()` and `.validator()` calls and otherwise stays live. Both then share one dead-code pass, so a server-only import the two had in common can survive — observed as `better-auth` pulling Node's `Buffer` into the browser. Enforced by `structure/middleware-colocation`.
-
-Source: `@tanstack/start-plugin-core/src/start-compiler/handleCreateMiddleware.ts`, `handleCreateServerFn.ts`, `compiler.js`.
+Source: `@tanstack/start-plugin-core/src/start-compiler/handleCreateMiddleware.ts`.
 
 ---
 
