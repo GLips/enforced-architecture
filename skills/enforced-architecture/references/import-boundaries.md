@@ -187,6 +187,8 @@ Enforcement (the `api/feature-public-api` rule):
 
 Cross-feature UI imports are banned even between features. If two features need the same UI component, it gets promoted to `shared/ui/` once three features need it (promotion threshold).
 
+The cells above say *which paths* a cross-feature import may name. Whether the edge is allowed at all is a separate decision, and the default is open: any feature may import any other feature's public API. A project can flip that default to deny with [api/feature-visibility](rules/api/feature-visibility.md), which requires the importee to name each permitted consumer in its own `visibility.json`. Decide this in Phase 2 alongside the matrix — it changes the answer in every `features/` cell — and take it when agents write most of the code.
+
 ---
 
 ## Cross-Domain Boundaries

@@ -116,4 +116,6 @@ WARN [feature-deps] src/features/admin
 
 **Cycles are blocking** because they represent a hard structural violation. Two features that depend on each other cannot be independently developed, tested, or refactored. The fix is always the same: extract the shared concern to `domains/` or `shared/`. There are no valid false positives for feature cycles.
 
+This holds even when every edge in the cycle was individually authorised. If the project also runs [api/feature-visibility](../api/feature-visibility.md), that check answers *is this edge intended?* and this one answers *what shape does the intended set form?* — the second is blind to the first, so a cycle of fully-granted edges still fails here, and declaring both directions only writes the cycle down. Reach for extraction, never for a grant.
+
 **Coupling thresholds are non-blocking** because the right threshold depends on the project's size and domain complexity. A project with 20 features will legitimately have more cross-feature edges than one with 3. The thresholds are signals, not invariants — they tell the agent "this is worth examining" without blocking progress on work that may be intentionally adding a dependency. If the project has calibrated thresholds tightly and trusts them, they can be promoted to blocking.
