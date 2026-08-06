@@ -6,7 +6,7 @@ What to document beyond mechanical enforcement, where to put it, and why it matt
 
 ## Why Document Beyond Enforcement
 
-Mechanical enforcement (GritQL rules + structural scripts) catches violations after code is written. Documentation guides agents to make correct decisions before writing code. The gap matters:
+Mechanical enforcement (oxlint rules + structural scripts) catches violations after code is written. Documentation guides agents to make correct decisions before writing code. The gap matters:
 
 - An agent that doesn't know when to add a service layer will either scaffold one prematurely or skip one when orchestration arrives.
 - An agent that doesn't know the re-export pattern will create trampolines when layers are required.

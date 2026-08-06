@@ -22,16 +22,16 @@ Write the rule only for the leaks. A rule that duplicates a constraint the types
 
 ## Two-Layer Enforcement
 
-### Layer 1: GritQL Per-File Rules (via Biome)
+### Layer 1: Per-File Rules (oxlint JS plugins)
 
-GritQL rules examine a single file's imports against AST patterns. They detect violations visible in one file: "this file in `shared/ui/` imports from `@/features/`" or "this file in `routes/` imports from `@/infrastructure/db/`."
+A rule is `create(context)` returning a visitor keyed by AST node type, plus `context.filename`. It examines one file and detects violations visible in that file: "this file in `shared/ui/` imports from `@/features/`" or "this file in `routes/` imports from `@/infrastructure/db/`."
 
 **Runtime characteristics:**
-- Real-time in the editor via Biome language server (immediate feedback)
-- Pre-commit via `biome lint`
-- CI via `biome lint`
+- Real-time in the editor via oxlint's language server, which publishes plugin diagnostics on open and on change (immediate feedback)
+- Pre-commit via `oxlint` over the staged files
+- CI via `oxlint src`
 
-**What GritQL catches:**
+**What the per-file rules catch:**
 - Layer direction violations (UI importing DB, routes importing infrastructure)
 - SDK containment breaches (raw package imports outside infrastructure)
 - Cross-boundary alias violations (relative imports crossing top-level boundaries)
@@ -40,13 +40,12 @@ GritQL rules examine a single file's imports against AST patterns. They detect v
 - File placement violations (schema outside infrastructure/db/schema/)
 - Barrel direction violations (index.ts importing from index.server.ts)
 
-**What GritQL cannot catch:**
-- Anything requiring cross-file analysis (cycles, file sizes, coupling metrics)
+**What a per-file rule cannot catch:**
+- Anything requiring cross-file analysis (cycles, coupling metrics, any claim about a *set* of files)
 - Anything requiring filesystem awareness (does this feature have a repo/ directory?)
 - Transitive import analysis (does this barrel transitively pull in server-only code?)
-- **Anything whose answer depends on where the importing file sits.** Whether `../../beta` leaves the current feature is a function of the importing file's depth, not of the import string, so it has to be *resolved and compared*, never matched. This is the least obvious of the four and the most damaging: the rule looks right, passes its fixture, and silently permits the shortest spelling of the violation. See [rules/graph/import-graph.md](rules/graph/import-graph.md).
-- **Anything that counts.** No per-file aggregation exists. Hook counts, prop counts, and "how many components does this file export" are all scripts.
-- **Any named-import clause, matched as a snippet.** A metavariable spans a whole list only where Grit treats the position as a list pattern, and the named-import clause is not one. `` `import { $a } from $src` `` matches a single-specifier import and misses `import { a, b }`; `` `import { $a, $... } from $src` `` matches nothing at all; `` `import { $... } from $src` `` fails to load. There is no snippet form that works. Match `JsModuleSource()`, the node every static import and re-export shares. Nothing in a pattern reveals whether its position is a list, so this is not something to settle by reading — a parameter list *is* one, and `` `function $name($a) { $_ }` `` accordingly matches every arity.
+- **Anything whose answer depends on where the importing file sits.** Whether `../../beta` leaves the current feature is a function of the importing file's depth, not of the import string, so it has to be *resolved and compared*, never matched. This is the least obvious of these and the most damaging: the rule looks right, passes its spec, and silently permits the shortest spelling of the violation. See [rules/graph/import-graph.md](rules/graph/import-graph.md).
+- **Anything that counts across files.** A rule instance sees one file and nothing else. Within a file it *can* aggregate — record what the visitor passes and decide at `"Program:exit"` — but hook counts, prop counts and file sizes are scripts in this catalog; see [rules/overview.md](rules/overview.md) for which mechanism each rule runs on.
 
 ### Layer 2: Structural Scripts (Cross-File Analysis)
 
@@ -73,7 +72,7 @@ See [rules/overview.md](rules/overview.md) for the complete rule catalog with me
 
 ### Tier 1: Immediate (IDE)
 
-GritQL rules surface in the editor via the Biome language server. An agent sees violations as squiggly underlines the moment it writes an import. This is the fastest feedback loop.
+Per-file rules surface in the editor via oxlint's language server, which publishes JS-plugin diagnostics like any built-in rule. An agent sees violations as squiggly underlines the moment it writes an import. This is the fastest feedback loop.
 
 **Scope:** Only per-file violations. Structural checks do not run in the editor.
 
@@ -81,10 +80,10 @@ GritQL rules surface in the editor via the Biome language server. An agent sees 
 
 ### Tier 2: Pre-commit
 
-The formatter runs first and alone, then the read-only gates run in parallel: Biome lint (GritQL rules), structural scripts, type checking, and tests.
+The formatter runs first and alone, then the read-only gates run in parallel: `oxlint` (the JS-plugin rules), structural scripts, type checking, and tests.
 
-- Formatting is applied and re-staged silently. Agents never see formatting issues.
-- GritQL rules (inside `biome lint`) catch per-file violations.
+- Formatting is applied and re-staged silently. Agents never see formatting issues. oxlint does not format — the formatter is a separate tool, and it is the hook's only writer.
+- Per-file rules (inside `oxlint`) catch per-file violations.
 - Structural scripts catch cross-file violations.
 - Type checking catches type errors introduced by import changes.
 - Tests catch behavioral regressions.
@@ -125,7 +124,7 @@ Non-blocking requires explicit justification. Agents do not distinguish warnings
 
 Rule error messages are the primary documentation for violations. Each message must enable the agent to fix the violation without reading any other documentation.
 
-**GritQL messages** are displayed by Biome's diagnostic formatter (with file path, line number, and rule reference). Write the `register_diagnostic` message to explain what's wrong, why, and how to fix.
+**Per-file rule messages** live in the rule's `meta.messages`, keyed by the `messageId` it reports. oxlint renders one as `error <plugin>(<rule>): <message>` with the file path and line. The rule key is its file name, so the diagnostic id is also the path to the rule that raised it — an agent that wants the reasoning can open the rule. Write the message to explain what's wrong, why, and how to fix it.
 
 **Structural script messages** use this format:
 
@@ -145,10 +144,11 @@ A rule that catches too much trains agents to work around it. Each rule targets 
 
 ### Global test exclusion
 
-All rules (except `boundary/no-test-imports`) exclude test files from their scope:
+All rules (except `boundary/no-test-imports`) exclude test files and one-off scripts from their scope:
 - `**/*.test.*`
 - `**/*.integration.test.*`
 - `**/__tests__/**`
 - `**/src/test/**`
+- `**/scripts/**`
 
-Tests need cross-boundary imports for setup and assertions. This exclusion is applied globally in every GritQL rule's file pattern and in the structural scripts, not repeated per-rule.
+Tests need cross-boundary imports for setup and assertions, and a script is not part of the shipped module graph. The exclusion lives in exactly two places — `isArchitectureExemptPath` in the rules' shared `lib/`, and the structural scripts' file collection — and is never repeated per rule. Per-rule copies drift: five rules in the GritQL catalog over-matched identically because each template carried its own near-copy of the same pattern.

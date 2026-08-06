@@ -82,7 +82,7 @@ The `index.server.ts` naming is automatically caught by vite's `**/*.server.*` i
 
 **Barrel direction rule:** `index.ts` must NEVER import from `index.server.ts`. `index.server.ts` may re-export from `index.ts`. Violating this pulls server-only code into client bundles.
 
-**Route imports use the feature barrel:** Routes import from `@/features/<name>` (resolves to `index.ts`), not from deep paths like `@/features/<name>/controllers/jobs`. This avoids triggering both the biome deep-import rule and vite import-protection.
+**Route imports use the feature barrel:** Routes import from `@/features/<name>` (resolves to `index.ts`), not from deep paths like `@/features/<name>/controllers/jobs`. This avoids triggering both the deep-import lint rule and vite import-protection.
 
 ---
 
@@ -212,10 +212,10 @@ tanstackStart({
 
 ### What Import Protection Does NOT Catch
 
-- Feature A importing Feature B's internals (architecture GritQL rules handle this)
-- Layer direction violations within features (GritQL rules handle this)
-- SDK containment violations (GritQL rules handle this)
-- Cross-boundary alias violations (GritQL rules handle this)
+- Feature A importing Feature B's internals (the architecture lint rules handle this)
+- Layer direction violations within features (the lint rules handle this)
+- SDK containment violations (the lint rules handle this)
+- Cross-boundary alias violations (a structural script handles this — the check needs the resolved import graph)
 
 ---
 
@@ -229,9 +229,9 @@ Server-only code must not leak into client bundles. Enforced by TanStack Start's
 
 **Primary for:** DB connection isolation, API key protection, SDK secret containment.
 
-### Boundary 2: Architecture-level (GritQL + structural scripts)
+### Boundary 2: Architecture-level (oxlint rules + structural scripts)
 
-Layers must respect the dependency direction graph. Enforced by Biome GritQL rules (per-file) and structural scripts (cross-file). Runs in editor (GritQL only), pre-commit, and CI.
+Layers must respect the dependency direction graph. Enforced by oxlint JS-plugin rules (per-file) and structural scripts (cross-file). Runs in editor (lint rules only), pre-commit, and CI.
 
 **Primary for:** Feature encapsulation, public API enforcement, layer direction, cross-boundary alias requirement, cycle detection.
 

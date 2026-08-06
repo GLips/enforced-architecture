@@ -1,7 +1,7 @@
 ---
 name: enforced-architecture
 description: >
-  Generate a mechanically enforced architecture plan for a TypeScript codebase. Use when establishing or redesigning the architecture of any TypeScript project with machine-checkable import boundary enforcement. Produces a plan document: audit, target architecture, GritQL + structural script enforcement rules, and a phased implementation plan. Designed for codebases where AI agents are the primary code writers.
+  Generate a mechanically enforced architecture plan for a TypeScript codebase. Use when establishing or redesigning the architecture of any TypeScript project with machine-checkable import boundary enforcement. Produces a plan document: audit, target architecture, oxlint rule + structural script enforcement rules, and a phased implementation plan. Designed for codebases where AI agents are the primary code writers.
 disable-model-invocation: true
 ---
 
@@ -11,7 +11,7 @@ Generate a mechanically enforced architecture plan for a TypeScript codebase. Th
 
 ## Stack Assumptions
 
-This skill assumes Bun, TanStack Start, Biome/GritQL, Drizzle, Postgres, React, Zod, and lefthook. Examples and rule templates use these packages directly. If your project uses a different stack, the architectural principles still apply — translate the patterns to your framework and tooling.
+This skill assumes Bun, TanStack Start, oxlint, Drizzle, Postgres, React, Zod, and lefthook. Examples and rule templates use these packages directly. If your project uses a different stack, the architectural principles still apply — translate the patterns to your framework and tooling.
 
 ## Reference Material
 
@@ -24,8 +24,8 @@ Read these references before and during the process:
 | [import-boundaries.md](references/import-boundaries.md) | Phase 2 (boundaries) | Import boundary matrix, cross-boundary rules, public API conventions, SDK containment |
 | [feature-patterns.md](references/feature-patterns.md) | Phase 2 (feature design) | Feature scaling templates, layer occupancy, controllers/service/repo/ui |
 | [server-client-boundaries.md](references/server-client-boundaries.md) | Phase 2 (bundle splitting) | TanStack Start server/client conventions, createServerFn patterns, importProtection config |
-| [enforcement-strategy.md](references/enforcement-strategy.md) | Phase 3 (rule design) | Two-layer enforcement (GritQL + scripts), three-tier pipeline, rule field template |
-| [enforcement-implementation.md](references/enforcement-implementation.md) | Phase 4 (implementation) | Biome config, lefthook, package.json scripts, structural script orchestration |
+| [enforcement-strategy.md](references/enforcement-strategy.md) | Phase 3 (rule design) | Two-layer enforcement (oxlint rules + scripts), three-tier pipeline, rule field template |
+| [enforcement-implementation.md](references/enforcement-implementation.md) | Phase 4 (implementation) | oxlint config, lefthook, package.json scripts, structural script orchestration |
 | [documentation-model.md](references/documentation-model.md) | Phase 4 (documentation) | What to document in CLAUDE.md and docs/architecture/, content checklists |
 | [migration-patterns.md](references/migration-patterns.md) | Phase 4 (migration) | Atomic phase decomposition, sequencing, verification |
 | [rules/overview.md](references/rules/overview.md) | Phase 3–4 (rule catalog) | Complete rule index with tags, mechanisms, and links to templates |
@@ -34,14 +34,14 @@ Rule templates live in `references/rules/` organized by tag:
 
 | Directory | Tag | Contents |
 |---|---|---|
-| `rules/boundary/` | boundary | Layer direction, import restrictions — GritQL + scripts |
-| `rules/api/` | api | Public API surface, barrel conventions — GritQL + scripts |
-| `rules/structure/` | structure | File placement, naming, server function validation — GritQL |
+| `rules/boundary/` | boundary | Layer direction, import restrictions — oxlint rules + scripts |
+| `rules/api/` | api | Public API surface, barrel conventions — oxlint rules + scripts |
+| `rules/structure/` | structure | File placement, naming, server function validation — oxlint rules |
 | `rules/naming/` | naming | Searchability — greppable public barrels, mirrored test names — scripts |
 | `rules/graph/` | graph | Cross-file dependency analysis — scripts |
 | `rules/health/` | health | Code quality metrics — scripts |
-| `rules/react/` | react | React-specific code smell detection — GritQL + scripts |
-| `rules/style/` | style | Design-system adherence — tokens over values, primitives over raw elements — GritQL + scripts |
+| `rules/react/` | react | React-specific code smell detection — oxlint rules + scripts |
+| `rules/style/` | style | Design-system adherence — tokens over values, primitives over raw elements — oxlint rules + scripts |
 
 ## Process
 
@@ -107,7 +107,7 @@ Read [enforcement-strategy.md](references/enforcement-strategy.md) for the two-l
 1. Review the rule catalog. Select rules that apply to this project's architecture.
 2. For each selected rule, read its template in the appropriate `rules/<tag>/` directory.
 3. Adapt each rule to the project's specific directory names, import patterns, and conventions.
-4. Tag each rule with its enforcement mechanism: **GritQL** (per-file, real-time) or **structural script** (cross-file, pre-commit).
+4. Tag each rule with its enforcement mechanism: **oxlint rule** (per-file, real-time) or **structural script** (cross-file, pre-commit).
 5. Add project-specific rules not covered by the catalog.
 
 The plan's rule set section should be lean — a selection and adaptation table, not a duplication of template content. The templates already contain mechanism, blocking status, error messages, and full implementation details. The plan only needs to capture what's project-specific:
@@ -130,7 +130,7 @@ Implementing agents read the full template from the skill's `references/rules/<t
 Read [enforcement-implementation.md](references/enforcement-implementation.md) for tooling setup. Read [migration-patterns.md](references/migration-patterns.md) for migration sequencing.
 
 **Greenfield sequence:**
-1. Biome config + GritQL rule files in `biome/` directory
+1. `.oxlintrc.json` + the rule modules and their specs in the `oxlint/` directory, all registered in `oxlint/plugin.ts`
 2. The shared `scripts/lib.ts` and the resolved import graph ([rules/graph/import-graph.md](references/rules/graph/import-graph.md)), then the structural checks behind one orchestrator
 3. Package.json scripts (`check:arch`)
 4. Lefthook pre-commit config
@@ -142,19 +142,19 @@ Read [enforcement-implementation.md](references/enforcement-implementation.md) f
 **Migration:** Decompose into atomic phases per [migration-patterns.md](references/migration-patterns.md). Each phase produces a clean repo.
 
 **Implementation guidance for rule writing:** Rules require project-specific adaptation — they are not copy-pastable from templates. When implementing, launch subagents per rule tag directory to parallelize:
-- One subagent for `boundary/` rules (reads templates, adapts to project paths, writes `.grit` files)
+- One subagent for `boundary/` rules (reads templates, adapts to project paths, writes `<name>.ts` rule modules)
 - One subagent for `api/` rules
 - One subagent for `structure/` rules
 - One subagent for `naming/` scripts (`barrel-discoverability`, `test-file-mirror`)
-- One subagent for structural scripts (`graph/`, `health/`) — **this one goes first, not in parallel.** It builds the import graph that `cross-boundary-alias`, `layer-direction`, `layer-occupancy`, `feature-deps` and `domain-cycles` all consume, so the others have nothing to write against until it lands.
+- One subagent for structural scripts (`graph/`, `health/`) — **this one goes first, not in parallel.** It builds the import graph that `cross-boundary-alias`, `layer-direction`, `layer-occupancy`, `feature-deps`, `domain-cycles` and `feature-visibility` all consume, so the others have nothing to write against until it lands.
 - One subagent for `react/` rules (if applicable)
-- One subagent for `style/` rules (if the project has a design system — GritQL rules plus the token-source-reading scripts)
+- One subagent for `style/` rules (if the project has a design system — oxlint rules plus the token-source-reading scripts)
 
-Each subagent reads the relevant templates from the skill's `references/rules/<tag>/` directory, reads the project's directory structure, and writes the adapted rule into the project's `biome/` directory (for GritQL rules) or `scripts/` directory (for structural scripts). The parent agent verifies with `bun run check:arch` after all rules land.
+Each subagent reads the relevant templates from the skill's `references/rules/<tag>/` directory, reads the project's directory structure, and writes the adapted rule into the project's `oxlint/` directory as `<tag>/<name>.ts` plus its `<name>.test.ts` spec (for lint rules) or into `scripts/` (for structural scripts). Every lint rule must also be registered in `oxlint/plugin.ts` and switched on in `.oxlintrc.json` — a rule module nobody registers is a file that ships and never runs, which is the silent failure this whole tier exists to prevent. Registration is a single shared file, so have the subagents write their rules first and add the entries in one pass afterwards rather than editing it concurrently. The parent agent verifies with `bun run check:arch` after all rules land.
 
-**Every rule ships with permanent fixtures, and one of them is adversarial.** A rule's failure mode is silent: when it stops matching it goes green, not red. Verifying it once against the shape you had in mind and deleting the fixture is how a tier ends up governing its canonical examples and nothing else — the third case, the violation written the way your pattern *misses*, is the one that decides whether the rule works. Fixtures live in the repo and run inside `check:arch`. See *Rule Fixtures* in [enforcement-implementation.md](references/enforcement-implementation.md) for the three cases and the adversarial checklist.
+**Every rule ships with a permanent spec beside it, and one of its cases is adversarial.** A rule's failure mode is silent: when it stops matching it goes green, not red. Verifying it once against the shape you had in mind and throwing the check-file away is how a tier ends up governing its canonical examples and nothing else — the third case, the violation written the way your rule *misses*, is the one that decides whether the rule works. Specs live beside the rules and run inside `check:arch`. See [enforcement-implementation.md](references/enforcement-implementation.md) for the three cases and the adversarial checklist.
 
-**Done when:** Numbered phases with specific file-level changes, the rules that activate in each phase, and a verification step. Every rule has its fixture set, and the suite runs in the gate.
+**Done when:** Numbered phases with specific file-level changes, the rules that activate in each phase, and a verification step. Every rule has its spec, and the suite runs in the gate.
 
 ### Phase 5: Assemble the plan document
 
@@ -172,7 +172,7 @@ Combine all phases into a single document:
 
 **Important:** The plan document lives in the project repo and will be read by agents in future sessions. Include this reference for rule implementation:
 
-> Rule templates are in the `enforced-architecture` skill (`~/.claude/skills/enforced-architecture/references/rules/`). Each rule in this plan references its template. Read the template, adapt paths and patterns to this project's structure, and write the result to `biome/` (GritQL rules) or `scripts/` (structural scripts).
+> Rule templates are in the `enforced-architecture` skill (`~/.claude/skills/enforced-architecture/references/rules/`). Each rule in this plan references its template. Read the template, adapt paths and patterns to this project's structure, and write the result to `oxlint/` (lint rules, with their specs, registered in `oxlint/plugin.ts`) or `scripts/` (structural scripts).
 
 ## Tone
 

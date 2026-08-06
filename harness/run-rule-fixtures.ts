@@ -65,25 +65,37 @@ if (rulePaths.length === 0) {
   process.exit(1);
 }
 
-const pluginSource = await readFile(PLUGIN_PATH, "utf8");
-
 /**
- * A spec is only evidence if it runs THIS rule and actually carries cases. `describeRule` rejects
- * an empty case list at load time, so the checks here are the two it cannot make about itself:
- * that the spec exists, and that it is pointed at the rule it sits beside.
+ * Load the manifest rather than grep it. A commented-out registration, a rule bound to the wrong
+ * export, or a plugin that does not load at all are each invisible to a text search — and a plugin
+ * that fails to load takes every rule in the catalog silent with it, which is the single largest
+ * version of the failure this harness exists to catch.
  */
+const plugin = await import(PLUGIN_PATH)
+  .then((module) => module.default)
+  .catch((error: Error) => error);
+if (plugin instanceof Error) {
+  console.log(`  FAIL  <plugin> rules/plugin.ts does not load, so every rule is silent:`);
+  console.log(`        ${plugin.message.replace(/\n/g, "\n        ")}`);
+  process.exit(1);
+}
+const registered: Record<string, unknown> = plugin.rules ?? {};
+
 async function checkRule(rulePath: string): Promise<RuleFailure[]> {
   const ruleId = ruleIdOf(rulePath);
   const name = basename(rulePath, ".ts");
   const failures: RuleFailure[] = [];
   const fail = (detail: string) => failures.push({ rule: ruleId, detail });
 
+  // `describeRule` rejects an empty case list at load time, so the spec checks here are the two it
+  // cannot make about itself: that the spec exists, and that it is aimed at the rule beside it.
   const specPath = rulePath.replace(/\.ts$/, ".test.ts");
   if (!specPaths.has(specPath)) {
     fail(`no spec at ${relative(REPO_ROOT, specPath)}, so nothing exercises this rule`);
   } else {
     const spec = await readFile(specPath, "utf8");
-    if (!spec.includes(`describeRule("${ruleId}"`)) {
+    // Whitespace-tolerant: a long rule id pushes the call onto its own line under any formatter.
+    if (!new RegExp(String.raw`describeRule\(\s*"${ruleId}"`).test(spec)) {
       fail(`its spec does not call describeRule("${ruleId}", …), so the three-kind contract is unproven`);
     }
     if (!spec.includes(`from "./${name}.ts"`)) {
@@ -91,13 +103,14 @@ async function checkRule(rulePath: string): Promise<RuleFailure[]> {
     }
   }
 
-  // The plugin file is the manifest a consuming project copies. A rule missing from it ships as a
+  // The plugin module is the manifest a consuming project copies. A rule missing from it ships as a
   // file nobody loads — tested, and never run.
-  if (!pluginSource.includes(`"${name}":`)) {
+  const bound = registered[name];
+  const exported = await import(rulePath).then((module) => Object.values(module));
+  if (bound === undefined) {
     fail(`not registered in rules/plugin.ts under the key "${name}"`);
-  }
-  if (!pluginSource.includes(`from "./${relative(RULES_ROOT, rulePath)}"`)) {
-    fail(`rules/plugin.ts does not import ./${relative(RULES_ROOT, rulePath)}`);
+  } else if (!exported.includes(bound)) {
+    fail(`rules/plugin.ts binds the key "${name}" to a rule this file does not export`);
   }
 
   return failures;

@@ -4,15 +4,37 @@ How to wire up the enforcement infrastructure. This covers the setup patterns �
 
 ---
 
-## Biome Configuration
+## oxlint Configuration
 
-Biome loads GritQL rules as plugins. Each `.grit` file in the project's `biome/` directory becomes a lint rule.
+Per-file rules are oxlint JS plugins: one `.ts` file per rule, every rule registered in **one** plugin module, that module named in `.oxlintrc.json`.
+
+```jsonc
+{
+  // .oxlintrc.json is JSONC, so the config carries its own rationale.
+  "jsPlugins": ["./oxlint/plugin.ts"],
+  "ignorePatterns": ["src/gen/**"],
+  "rules": {
+    "arch/db-isolation": "error",
+    "arch/shared-ui-purity": "error"
+  },
+  "overrides": [
+    // Config files are not application source; they import server-only packages by design.
+    { "files": ["*.config.ts"], "rules": { "arch/db-isolation": "off" } }
+  ]
+}
+```
 
 Key configuration points:
-- Each plugin is an explicit path to a `.grit` file. Biome does not auto-discover plugins — every rule must be listed.
-- `files.includes` scopes linting to `src/` and excludes generated files.
-- `overrides` can disable plugins for config files (e.g., `vite.config.ts`) that legitimately import server-only packages.
-- Organize rules in subdirectories by tag: `biome/boundary/db-isolation.grit`, `biome/api/feature-public-api.grit`, `biome/structure/schema-placement.grit`, etc.
+
+- **One plugin module, not one path per rule.** `jsPlugins` lists modules; each module's `definePlugin({ meta: { name }, rules })` maps a key to a rule. Keep the rule files organized by tag on disk (`oxlint/boundary/db-isolation.ts`, `oxlint/api/feature-public-api.ts`) and keep each key equal to its file name, so the diagnostic id is also the path to the rule that raised it: `error arch(db-isolation): …`. `meta.name` is the prefix every key inherits.
+- **Registration and activation are separate, and only one of them fails loudly.** A rule the plugin exports but `rules` never names is loaded and never run — no warning, no output, exit 0. A `rules` key naming a rule the plugin does *not* export is fatal (`Rule 'x' not found in plugin 'arch'`). The typo is caught; the omission is not, which is why the spec harness fails a rule missing from the plugin module.
+- **Scope by path argument.** `oxlint src` lints the source root. Generated trees come out via `ignorePatterns` in the config, `--ignore-pattern`, or an `.eslintignore`.
+- **`overrides` disables a rule for files that are legitimately outside the architecture** — `vite.config.ts`, `drizzle.config.ts`, anything at the repo root that imports server-only packages. Reach for an override when the exception is *this project's*; put it in the rule's own path exemptions when it is an architectural fact every project inherits (`db-isolation` exempts the ORM config file itself for that reason).
+- **Suppression is per rule and position-sensitive.** `// oxlint-disable-next-line arch/db-isolation` suppresses a JS-plugin diagnostic. Some built-in rules only honour the comment above a specific line — `react-hooks/exhaustive-deps` wants it above the *dependency array*, not above the hook call. Probe placement rather than assuming it.
+
+Rules share a `lib/`, and the sharing is load-bearing rather than tidy: [lib/architecture-exempt-paths.ts](rules/lib/architecture-exempt-paths.ts) owns the one global test/script exemption, [lib/module-source-visitor.ts](rules/lib/module-source-visitor.ts) owns every place a module specifier can appear, [lib/range-index.ts](rules/lib/range-index.ts) answers subtree questions at `Program:exit`, and [lib/rule-spec.ts](rules/lib/rule-spec.ts) owns the three-kind spec contract. Five rules in the GritQL catalog over-matched the same way because each template carried its own near-copy of the exemption regex; one module now owns it, and a new rule inherits the fix instead of the copy.
+
+**oxlint's JS plugins are alpha** as of 1.77 and say so. The API is ESLint's `create(context)` returning a visitor, so the exposure is churn in a young API, not a design bet.
 
 ---
 
@@ -29,7 +51,7 @@ An orchestrator script runs all structural checks. Each check is a function that
 
 The same trap catches the tiers *above* the orchestrator, and it is easy to fix the scripts and leave it in place one level up. Watch two:
 
-- `check:arch` written as `biome check && check:structure` lets a lint failure hide every structural finding.
+- `check:arch` written as `oxlint src && check:structure` lets a lint failure hide every structural finding.
 - `typecheck` written as `tsc --noEmit && tsc --noEmit -p scripts` lets an app type error hide every error in the check scripts themselves.
 
 Run each independently and aggregate. Reserve `&&` for steps where the second genuinely cannot run after the first fails.
@@ -44,7 +66,7 @@ Structural checks share more than a file walker, and duplicating it across scrip
 
 Centralising the *same* patterns into a shared file reduces duplication and fixes no correctness. Reach for the reader at the same time, or the shared library is only tidier, not better.
 
-**`Bun.Transpiler` answers questions about imports and exports, and nothing else.** It exposes import paths and kinds, export names, and transformed JavaScript — not component boundaries, call expressions, parameter structure, or TypeScript property signatures, and `transform()` erases the very annotations `prop-count` needs. So it retires the extraction patterns and no others. The counting checks legitimately stay on patterns, guarded by adversarial fixtures: what they need is a *count per component or file*, which neither the reader nor GritQL aggregates. If their heuristics ever get too expensive to maintain, the precise alternative is the TypeScript compiler AST — not another `Bun.Transpiler` method.
+**`Bun.Transpiler` answers questions about imports and exports, and nothing else.** It exposes import paths and kinds, export names, and transformed JavaScript — not component boundaries, call expressions, parameter structure, or TypeScript property signatures, and `transform()` erases the very annotations `prop-count` needs. So it retires the extraction patterns and no others. The counting checks legitimately stay on patterns, guarded by adversarial cases: what they need is a *count per component or per file*, which the reader does not aggregate. If their heuristics ever get too expensive to maintain, the precise alternative is the TypeScript compiler AST — not another `Bun.Transpiler` method.
 
 ### Staged-scoped warnings
 
@@ -74,8 +96,10 @@ for (const { errors, warnings } of results) {
 
 Use lefthook (or husky, lint-staged, etc.) for two kinds of commit-time work — keep them distinct, because they have opposite shapes:
 
-- **Format & re-stage** (`biome check --write --linter-enabled=false`) — *mutates* the staged files to apply formatting and import sorting, then re-stages the result. The only writer, so it runs alone and first.
-- **Verify** — read-only gates that block the commit and parallelize freely among themselves: Biome lint (the GritQL rules), the structural checks, type checking, and tests. Target latency: under 15 seconds.
+- **Format & re-stage** — *mutates* the staged files, then re-stages the result. The only writer, so it runs alone and first.
+- **Verify** — read-only gates that block the commit and parallelize freely among themselves: `oxlint` (the JS-plugin rules), the structural checks, type checking, and tests. Target latency: under 15 seconds.
+
+**oxlint is a linter only, and nothing in this stack sorts imports.** Biome supplied formatting and import sorting alongside the rules; oxlint supplies neither. `oxfmt` formats and does not sort, and oxlint has no organize-imports rule, so a project moving off Biome either accepts unsorted imports or picks a formatter that sorts. The format step below is whichever tool the project chose; what matters architecturally is that there is exactly one writer and it runs first.
 
 **Order the writer ahead of the readers.** A writer sharing a parallel group with readers races them: typecheck and tests read files mid-rewrite, so the run describes content that never reaches the commit — green or red at random, and not reproducible. lefthook's `parallel` is a single hook-level switch, so a `commands:` block is all-sequential or all-concurrent. The `jobs:` array expresses both at once: it preserves order, and a `group:` runs its members in parallel.
 
@@ -84,15 +108,15 @@ pre-commit:
   jobs:
     - name: format
       glob: "*.{ts,tsx,js,jsx,json,css}"
-      run: bunx biome check --write --linter-enabled=false --no-errors-on-unmatched {staged_files}
+      run: bunx prettier --write --ignore-unknown {staged_files}
       stage_fixed: true
     - name: gate
       group:
         parallel: true
         jobs:
           - name: lint
-            glob: "*.{ts,tsx,js,jsx,json,css}"
-            run: bunx biome lint --no-errors-on-unmatched {staged_files}
+            glob: "*.{ts,tsx,js,jsx}"
+            run: bunx oxlint --no-error-on-unmatched-pattern {staged_files}
           - name: structure
             run: STAGED_FILES="$(git diff --cached --name-only --diff-filter=ACMR)" bun run check:structure
           - name: typecheck
@@ -101,11 +125,11 @@ pre-commit:
             run: bun run test
 ```
 
-**Format must `--write` and re-stage — a lint-only hook is the trap.** If the hook only verifies and never writes, formatting is never enforced at commit: unformatted code lands, then the drift surfaces later when someone runs `biome check --write` by hand and it reformats files from *earlier* commits, sweeping unrelated changes into the diff. Make the formatter part of the commit — and disable the linter on this step (`--linter-enabled=false`) so the lint/GritQL pass runs once, in the `lint` job, not here too (`--write` still applies formatting and import sorting).
+**Format must write and re-stage — a check-only hook is the trap.** If the hook only verifies and never writes, formatting is never enforced at commit: unformatted code lands, then the drift surfaces later when someone runs the formatter by hand and it reformats files from *earlier* commits, sweeping unrelated changes into the diff. Make the formatter part of the commit. The formatter and the linter are separate binaries now, so there is no way for the format step to run the rules a second time — one fewer thing to disable, and the only remaining requirement is that this step writes.
 
 **Re-stage with `stage_fixed`, never `git add`.** `stage_fixed: true` re-stages only what the command rewrote. `git add {staged_files}` re-stages whole files, silently completing a deliberately partial `git add -p` — the diff the author reviewed is not the diff they committed.
 
-**Monorepo: give it a root Biome config.** A monorepo should ~always have a root `biome.json` plus Biome as a root dependency. Without them there's no single Biome to run from the repo root and nothing telling it the per-workspace plugins, so `bunx biome` at the root pulls a *stray* version that fails to parse the config. Biome 2.x has native monorepo support: the root config is authoritative and each nested workspace `biome.json` adds `"root": false`, so one format command at the root covers every workspace. Stuck with per-workspace-only installs? Fall back to running the format step once per workspace via lefthook's `root:`, which scopes `{staged_files}` to that subtree, relativizes the paths, and runs from that dir so `bunx biome` resolves the workspace-local version and nearest `biome.json`.
+**Monorepo: give it a root config and a root install.** A monorepo should ~always have a root `.oxlintrc.json` plus oxlint as a root dependency. Without them there is no single oxlint to run from the repo root and nothing telling it where the plugin module lives, so `bunx oxlint` pulls a stray version that lints with none of the architecture rules loaded — a green run that checked nothing. oxlint loads nested config files automatically (`--disable-nested-config` turns that off), so a workspace that needs its own rule set gets its own `.oxlintrc.json`. For the format step, a formatter installed per workspace only is run once per workspace via lefthook's `root:`, which scopes `{staged_files}` to that subtree, relativizes the paths, and runs from that dir so `bunx` resolves the workspace-local version.
 
 **Lint and structure are separate jobs here.** `check:arch` runs and aggregates both for CI and manual use, but at pre-commit they scope differently — lint to staged files, structural checks repo-wide — so the hook calls each half directly.
 
@@ -117,9 +141,10 @@ pre-commit:
 
 ## Package.json Scripts
 
-Two architecture-specific scripts:
-- `check:arch` — runs Biome lint and the structural checks **independently** and aggregates, so a lint failure cannot hide every structural finding (see *One process, one exit code* above). This is the single command that verifies all architectural constraints.
+Three architecture-specific scripts:
+- `check:arch` — runs `oxlint` and the structural checks **independently** and aggregates, so a lint failure cannot hide every structural finding (see *One process, one exit code* above). This is the single command that verifies all architectural constraints.
 - `check:structure` — runs only structural checks. Useful when iterating on script changes without re-running lint.
+- `check:rules` — runs the rule specs, through the real-Node launcher. **`RuleTester` does not run under Bun.** It parses in Rust and shares the AST by zero-copy raw transfer, which needs an `ArrayBuffer` JavaScriptCore cannot allocate, so oxlint refuses Bun by name and offers no slower fallback. Worse, Bun puts a `node`-named symlink to *itself* on PATH ahead of the real binary for every process it spawns, so in a Bun-spawned shell — which is where agents run — a bare `node --test` is Bun wearing node's name and every spec dies with `Cannot use describe outside of the test runner`. That names the test framework and points nowhere near the cause, so a working gate reads as a broken suite and invites `--no-verify`. One launcher per repo strips the `/bun-node-` entries from PATH and `exec node "$@"`. A project on Bun also needs `bun test --path-ignore-patterns='**/oxlint/**'`, or `bun test` picks the specs up and throws on every case. The `oxlint` CLI itself is fine under Bun; this binds only the rule-authoring path.
 
 ---
 
@@ -131,199 +156,160 @@ Configure two lists:
 - **`client.specifiers`** — import paths denied from client bundles (e.g., `@/infrastructure/db/**`, `@/env.server`)
 - **`client.files`** — file patterns denied from client bundles (e.g., `**/*.server.*`, `src/infrastructure/db/**`)
 
-When adding a new server-only infrastructure module, add it to both lists. When adding a client-safe infrastructure module, skip the deny lists and update the infrastructure client boundary GritQL rule's allowlist.
+When adding a new server-only infrastructure module, add it to both lists. When adding a client-safe infrastructure module, skip the deny lists and update the infrastructure client boundary rule's allowlist.
 
 ---
 
-## Matching Imports in GritQL
+## Matching Imports in a Visitor
 
 Most rules in the catalog are import rules, and they all match imports the same way. Follow this shape.
 
 ### When the rule only cares about the module
 
-Match the module-source node and test its text. This is what nearly every `boundary/`, `api/`, and `structure/` rule does:
+Go through [lib/module-source-visitor.ts](rules/lib/module-source-visitor.ts). It hands back a visitor covering every place a module specifier appears, and the rule supplies one callback:
 
-```
-file(name=$filename, body=$program) where {
-    $filename <: r".*/src/shared/ui/.*",
-    ! $filename <: r".*\.test\.[tj]sx?$|.*\.integration\.test\.[tj]sx?$|.*__tests__.*|.*src/test/.*",
+```ts
+const DB_SPECIFIER = /^@\/infrastructure\/db(?:\/|$)/;
 
-    $program <: contains bubble or {
-        JsModuleSource() as $source,
-        `import($source)`
-    } where {
-        $source <: r"\"@/features.*\"",
-        register_diagnostic(span = $source, message = "…")
-    }
-}
+return visitModuleSources((source, specifier) => {
+  if (DB_SPECIFIER.test(specifier)) {
+    context.report({ node: source, messageId: "dbOutsideDataLayer" });
+  }
+});
 ```
 
-`JsModuleSource` is the node every *static* import and re-export shares, so one pattern covers all of them: any number of named specifiers, default, namespace (`import * as x`), combined (`import def, { x }`), side-effect (`import "x"`), multi-line, and `export { x } from "…"`. A plain string that happens to contain the same path is *not* a module source, so it does not match.
+A hand-rolled `ImportDeclaration` visitor is the natural thing to write, and it covers one of the four places a specifier appears. What it misses:
 
-A dynamic `import("…")` is a call expression, not a module source, so `JsModuleSource` does **not** see it. That is the second arm's whole job. Keep it on every containment rule — a rule that says "this module is unreachable from here" is false the moment `await import()` gets past it, and the bypass is one keystroke away from anyone who hits the error.
+- `export { db } from "@/infrastructure/db"` — an `ExportNamedDeclaration` with a non-null `source`. It carries the same runtime dependency an import does.
+- `export * from "…"` — an `ExportAllDeclaration`, which names no binding for a reviewer to notice either.
+- `await import("…")` — an `ImportExpression`. A rule that says "this module is unreachable from here" is false the moment a dynamic import gets past it, and that bypass is one keystroke away from anyone who hits the error.
 
-The node's text includes its quotes, and Grit regexes are anchored, so write `r"\"@/features.*\""` — or `r".*['\"]@/features.*['\"].*"` if you prefer to be explicit about both quote styles. The same regex serves both arms: `$source` is the quoted string either way.
+The specifier arrives as a plain string (`node.source.value`), without quotes, so the test is an ordinary anchored regex and quote style is not an axis. A string literal that merely contains the same path is not a module source and never reaches the callback. Report on the `source` node so the span lands on the specifier rather than the whole statement.
+
+A *computed* specifier — ``import(path)``, ``import(`${base}/db`)`` — has nothing to fence on, so the visitor skips it. That is deliberate negative space, not a gap to patch.
 
 ### When the rule cares which names were imported
 
-Match the import, then the specifier. **Put the name test inside the `contains` predicate**, not after it:
+The names are on the `ImportDeclaration` node itself. Loop its `specifiers`:
 
-```
-pattern banned_component() { r"^(?:Textarea)$" }
+```ts
+const BANNED_COMPONENTS = new Set(["Textarea"]);
 
-$program <: contains bubble JsImport() as $import where {
-    $import <: contains JsModuleSource() as $source,
-    $source <: r".*['\"]@mantine/core['\"].*",
-    ! $import <: r"(?s)import\s+type\s.*",
-    $import <: contains or {
-        JsShorthandNamedImportSpecifier() as $specifier where {
-            $specifier <: banned_component()
-        },
-        JsNamedImportSpecifier(name = $specifier) where {
-            $specifier <: banned_component()
-        }
-    },
-    register_diagnostic(span = $specifier, message = "…")
-}
+return {
+  ImportDeclaration(node) {
+    if (node.source.value !== "@mantine/core") return;
+    if (node.importKind === "type") return;
+    for (const specifier of node.specifiers) {
+      if (specifier.type !== "ImportSpecifier") continue;
+      if (specifier.importKind === "type") continue;
+      if (BANNED_COMPONENTS.has(specifier.imported.name)) {
+        context.report({ node: specifier, messageId: "bannedComponent" });
+      }
+    }
+  },
+};
 ```
 
 Three details carry the weight:
 
-- **The test goes inside the predicate.** Written as `contains or { … } as $specifier` with a separate `$specifier <: …` afterwards, only the *first* specifier is ever tested — `import { Button, Textarea }` passes silently. Inside the predicate, `contains` keeps searching until a specifier actually matches.
-- **Two specifier nodes.** `JsShorthandNamedImportSpecifier` is `{ Textarea }`; `JsNamedImportSpecifier` is `{ Textarea as TA }`. Cover both.
-- **Drop type-only imports** with `! $import <: r"(?s)import\s+type\s.*"`. A type import pulls in no runtime value.
+- **Every specifier is tested, because it is a loop.** `import { Button, Textarea }` reports `Textarea`. A rule that reads `node.specifiers[0]` instead passes that import silently — the second name in a clause is the cheapest thing in this catalog to miss.
+- **`imported` is the exported name, `local` is the binding.** `{ Textarea as TA }` is one `ImportSpecifier` with `imported.name === "Textarea"` and `local.name === "TA"` — match on `imported` for a rule about the package's API, on `local` for a rule about what this file calls. Default and namespace clauses are `ImportDefaultSpecifier` and `ImportNamespaceSpecifier`, and carry only `local`.
+- **Type-only is two flags, not one.** `import type { X }` sets `importKind: "type"` on the *declaration*; `import { type X }` sets it on the *specifier* — and the specifiers of a type-only declaration each report `"value"`, so a rule that checks one level and not the other lets the other spelling through. A type import pulls in no runtime value, which is why most rules exempt it; a rule about coupling rather than about the bundle does not — `boundary/db-isolation` reports `import type { Invoice } from "@/infrastructure/db/schema/…"`, because knowing the schema's shape is the dependency it exists to prevent.
 
-Anchor the identifier alternation end to end (`r"^(?:Textarea)$"`) so `TextareaProps` does not match.
-
-### CST node names are PascalCase
-
-`JsImport`, `JsModuleSource`, `JsShorthandNamedImportSpecifier`, `JsNamedImportSpecifier`, `JsImportNamedClause`, `JsNamedImportSpecifiers`. A snake_case name fails with a bare "Failed to compile the Grit plugin" and no further detail, so check the casing first when a rule will not load. Field access works on these: `JsImportNamedClause(source = $s, named_specifiers = $ns)`.
-
-Note that not every field name is valid — `JsModuleSource(value_token = $v)` fails to compile. Match the node and regex its text instead.
+Comparing against a `Set` of exact names is exact by construction, so `TextareaProps` cannot match. Reach for a regex only when the name has real shape to it, and anchor it end to end.
 
 ---
 
-## Biome GritQL Limitations
+## Where a Visitor Fails Silently
 
-### No `#` Comments
+There are three, and they are all the same shape: the rule does nothing, and nothing says so.
 
-Biome's GritQL compiler does not support `#` comments. The only diagnostic is "Failed to compile the Grit plugin" with no detail about the cause. All `.grit` rule files must use `//` comments exclusively. Keep documentation in the companion `.md` files or in `//` comment blocks within the `.grit` file.
+### A Typo'd Visitor Key Never Fires
 
-### `$args` Matches Empty Parentheses
+`create` returning `{ ImportDeclaraton(node) { … } }` loads clean, runs, reports nothing, and exits 0. Visitor keys are not validated against the node types — an unknown key is simply a key nothing visits. There is no load error, no warning, and no output to be suspicious of, and the result is indistinguishable from a codebase with no violations.
 
-GritQL's metavariable `$args` matches even when there are zero arguments. The pattern `createServerFn($args)` matches both `createServerFn({ method: "POST" })` and `createServerFn()`. To exclude the empty case, use `! $args <: .` — the `.` matches an empty or absent node.
+This is why per-rule specs are not optional. It is the whole failure mode of the tier in one line: enforcement code that stops enforcing goes green, not red. Note the asymmetry with the config — the *same* typo in `.oxlintrc.json` is fatal, because a rule key must resolve to a rule the plugin exports. The half that is checked is the half that does not matter.
 
-### Regexes Are Anchored
+### A Parent Is Visited Before Its Children
 
-A Grit regex must match the **entire** node's text, not a substring. `$program <: r"react-native"` never matches; `$program <: r"(?s).*react-native.*"` does.
+The walk is depth-first and pre-order: for `const f = () => { g(h()); }` the arrow function arrives first, then `g(…)`, then `h()`. So no visitor can answer "does this subtree contain X" at the moment it sees the enclosing node — the children have not happened yet.
 
-The corollary matters more than the rule: a `(?s).*X.*` pattern used inside `contains` matches **every enclosing node** whose text contains `X` — the string literal, the JSX attribute, the element, the return statement, the function. That produces a pile of duplicate diagnostics on nonsense spans. When matching a string literal, anchor to the literal itself (`r"\"[^\"]*X[^\"]*\""`) and reserve the `.*`-wrapped form for whole-file matches against `$program`.
+Any rule shaped as a claim about a subtree — a `useEffect` callback that contains a `setState` but no `await`, a conditional chain nested three deep — records what it sees as it goes and decides at `"Program:exit"`. [lib/range-index.ts](rules/lib/range-index.ts) is that pattern factored out: tag a range on the way past, ask `containedIn` afterwards. Writing the subtree walk by hand per rule works and costs a bespoke walker per rule; asking a range index costs one array per tag.
 
-### `or` Reports Only the First Matching Arm
+### A Rule Sees One File
 
-Within one rule, `or { … }` stops at the first arm that matches a given node, so a node violating three arms produces one diagnostic. `any { … }` continues past a failed arm to try the rest, which is what you want when arms are alternatives that should each get a chance — but it still yields one diagnostic per node per pass.
+A rule instance is created per file and knows nothing about any other. It cannot resolve a specifier to the file it lands in, ask whether a directory exists, or aggregate across a file set. Everything of that shape is a structural script: cycles, coupling, transitive barrel purity, and the depth-dependent question of whether `../../beta` leaves the current feature.
 
-If a single node genuinely needs several simultaneous diagnostics (a `className` carrying three different off-token classes), split the arms into separate `.grit` plugin files. Biome evaluates each plugin independently.
-
-### Backslash Escapes Corrupt Diagnostic Messages
-
-Do **not** write `\"` inside a `register_diagnostic` message. The escape handling desyncs after the first one: the rest of the message is emitted with `t` rendered as a tab, `n` as a newline, and the closing `\"` printed literally. The message becomes unreadable, and nothing warns you — the rule still fires, so a smoke test that only checks "did the diagnostic appear" passes.
-
-Use single quotes or backticks for quoting inside messages: ``"Use `<Box as='nav'>` instead."`` Read at least one rendered message end to end when smoke testing.
-
-### A Method-Call Snippet Must Name Its Receiver
-
-`` `.returning()` `` compiles without complaint and then matches nothing, ever. There is no load error and no diagnostic — the arm is simply dead, which is indistinguishable from a codebase that is clean.
-
-Write `` `$_.returning()` ``. The `$_` binds the receiver and matches any chain in front of the call.
-
-This is the worst trap in the list because it fails in both directions from one mistake. A positive arm written this way never fires, so the shape it names goes ungoverned; a *guard* written this way never holds, so the rule fires on the correct spelling it was supposed to exempt. `structure/no-raw-result` shipped with both at once.
-
-### A Bare Identifier Also Matches the Import Specifier
-
-`` `createServerFn` `` matches the identifier wherever it appears, and that includes `import { createServerFn } from "…"`. Two consequences, both wrong:
-
-- A file that merely *imports* the symbol without calling it trips the rule.
-- A file that does call it gets a second diagnostic on its import line.
-
-Match the call — `` `createServerFn($_)` `` — which does not match a specifier. Per *`$args` Matches Empty Parentheses* below, that still covers `createServerFn()`.
-
-### A Sole Object Member With a Trailing Comma Is Reported Twice
-
-`` `$key: $value` `` matches an object property at two levels of the CST when the property is the *only* member and carries a trailing comma:
-
-```ts
-const styles = {
-  fontSize: 13,   // two diagnostics, not one
-};
-```
-
-Add a second member or drop the comma and it reports once. This is a Biome quirk rather than a pattern error — it affects every `` `$key: $value` `` rule in the catalog, and Biome's formatter produces exactly this shape — so there is nothing to fix in the rule. Know it before you conclude a rule is double-firing for a reason.
-
-### No Per-File Counting
-
-GritQL per-file rules cannot aggregate or count matches within a file. Rules that need counting (hook-count, prop-count, file-size) must be structural scripts.
+Within a file, `Program:exit` does aggregate — that is the one limit GritQL had that a visitor lifts, and `health/no-nested-ternary` uses it to compute the depth of every conditional. Which mechanism each rule in the catalog actually runs on is in [rules/overview.md](rules/overview.md).
 
 ---
 
-## Adding a New GritQL Rule
+## Adding a New Rule
 
-1. Read the relevant rule template from `rules/<tag>/<name>.grit`
-2. Adapt paths and patterns to the project's directory structure (the template's "Adapt" section explains what to customize)
-3. Write the adapted rule to `biome/<tag>/<name>.grit`
-4. Add the plugin path to `biome.json`'s `plugins` array
-5. Write its three fixtures (see below) — the adversarial one decides whether the rule works
-6. Run `bun run check:arch` to verify no false positives on existing code
+1. Read the relevant rule template from `rules/<tag>/<name>.ts` and the spec beside it, `rules/<tag>/<name>.test.ts`
+2. Copy both into the project (`oxlint/<tag>/`) and adapt the named constants at the top of the rule — the template's "Adapt" section explains which ones and what the alternatives are. The constants are hoisted and named precisely so adaptation is an edit to a regex or a list, not a rewrite of the visitor
+3. Register it in the project's plugin module: import the rule and add it to `rules` under its file name
+4. Switch it on in `.oxlintrc.json` (`"<plugin>/<name>": "error"`). Registered but unlisted is loaded and never run
+5. Write the three-kind spec (see below) — the adversarial cases decide whether the rule works
+6. Run the spec under **real Node**, through the launcher. Under Bun the specs die with an error that names the test framework and not the runtime (see *Package.json Scripts*)
+7. Revert-probe it: misspell the visitor key or invert a guard and watch the adversarial kind fail; break the exemption and watch the legal kind fail; restore both. A spec that stays green through that is asserting nothing
+8. Run `bun run check:arch` against the real tree. A hit is either a false positive (narrow the rule) or a true violation — and true violations are the rollout: sweep them in the same change the rule lands in. A rule that ships alongside its own open violations either blocks everyone or teaches everyone to ignore it
 
 ## Adding a New Structural Check
 
 1. Read the relevant rule template from `rules/<tag>/<name>.md`
-2. Implement as a function returning findings, using the shared library (below) for file collection and import resolution
+2. Implement as a function returning findings, using the shared library (above) for file collection and import resolution
 3. Wire it into the orchestrator: return errors for blocking findings and warnings for non-blocking ones, each tied to its file (so warnings can be staged-scoped)
-4. Write its three fixtures (see below)
+4. Write its three cases (see below)
 5. Run `bun run check:arch` to verify
 
 ---
 
-## Rule Fixtures
+## Rule Specs
 
-**Fixtures are permanent and they run in CI.** A rule is code with exactly one job, and its failure mode is silent by construction: a rule that stops matching does not error, it goes green. Enforcement code needs regression tests more than application code does, because application code has users who notice.
+**Specs are permanent and they run in CI.** A rule is code with exactly one job, and its failure mode is silent by construction: a rule that stops matching does not error, it goes green. Enforcement code needs regression tests more than application code does, because application code has users who notice.
 
-The GritQL templates run these cases on every change. Keep the fixtures permanent.
+Every rule in the catalog ships its spec beside it, and the spec imports the rule file directly — one artifact, no second copy to drift. Keep them permanent.
 
-### The fixture set per rule
+### The case set per rule
 
-Three cases, not one:
+Three kinds, not one. `describeRule` takes them as named arguments and throws on an empty list, so a missing kind is a failure rather than a convention nobody checks:
 
 1. **The obvious violation** — the shape named in the rule's own description.
-2. **The adversarial violation** — the same violation written the way the rule's natural pattern *misses*. This is the case that matters, and it is the one an author writing their own fixture will not think of, because a fixture written by the rule's author encodes the rule's assumptions.
-3. **The legal neighbour** — code that looks like the violation and is allowed. This is what catches over-matching, which no positive fixture reveals. A rule that fires on `{ message: "#fff is white" }` passes every colour fixture ever written.
+2. **The adversarial violation** — the same violation written the way the rule's natural pattern *misses*. This is the case that matters, and it is the one an author writing their own spec will not think of, because a spec written by the rule's author encodes the rule's assumptions.
+3. **The legal neighbour** — code that looks like the violation and is allowed. This is what catches over-matching, which no positive case reveals. A rule that fires on `{ message: "#fff is white" }` passes every colour case ever written.
 
-The suite asserts each rule produced *exactly* the expected diagnostics. `biome lint --reporter=json` gives rule name and span; structural scripts are matched on their `FAIL [name] path:line` lines.
+Each invalid case asserts the diagnostics **exactly** — the count as well as the message id — so a missing diagnostic (a dead branch) and a duplicate on an expected line (an over-match) both fail. The expectation lives on the case, so extending a case extends its expectation with it.
 
-Keep the fixture tree outside the source root so the architecture rules do not govern it — a fixture is deliberately illegal code. One narrow excluded path, not a list that grows.
+**Every case carries its own `filename`, at a full realistic path** in the standard layout (`/repo/src/features/billing/service/charge.ts`), because the rules read the path: a path-guarded rule checked against a bare basename passes vacuously. A rule's by-path exemption gets its own legal case — the exempted file carrying the leak spelling verbatim, expected to draw nothing — and its own adversarial case for the near-miss the exemption must *not* cover (`legacy-repo/` is not `repo/`).
 
 ### Adversarial checklist
 
-Write the fixture even when you are confident:
+Write the case even when you are confident:
 
 | Axis | The shape that gets past |
 |---|---|
-| Import clause arity | `import { a, b } from "m"` where the fixture used `{ a }` — see *Matching Imports in GritQL* |
+| Import clause arity | `import { a, b } from "m"` where the rule tested only the first specifier — see *Matching Imports in a Visitor* |
 | Declaration form | `export default function`, an arrow assigned to a `const`, and a declaration exported on a later line |
-| Quote style | `import x from 'pkg'` where the regex anchored on `\"` only |
 | Re-export | `export { x } from "pkg"` and `export * from "pkg"`, which carry a runtime dependency exactly like an import |
-| Type-only spelling | `import { type X }` reported by a rule that exempts only statement-level `import type` |
+| Type-only spelling | `import { type X }` reported by a rule that only checks `importKind` on the declaration |
 | Path depth | `../../service/x` from a nested directory where the pattern assumed one `../` |
 | Alias spelling | `@/features/self/controllers/x` for a rule matching only relative paths, and vice versa |
+| Segment boundary | `legacy-repo/` matching a `repo/` exemption, `@/features-legacy` matching `@/features` — anchor on `/src/` and on the separator |
 | Package subpath | `pkg/lib/thing` where the rule matched bare `pkg` |
-| Dynamic import | `await import("…")`, which `JsModuleSource` does not see |
+| Dynamic import | `await import("…")`, which an `ImportDeclaration` visitor does not see |
 | Indirect member access | `process["env"].X`, `globalThis.process.env.X`, `React.useEffect` |
 | Non-static edge | `require("…")` and side-effect `import "…"` where the extractor only handled `from` |
-| Literal form | a template literal where the pattern matched quoted strings |
-| Multi-line | a re-export or type body spanning lines where the check reads one line at a time |
+| Literal form | a template literal where the check matched quoted strings — and ``import(`${base}/db`)``, which nothing can fence |
+| Multi-line | a re-export or type body spanning lines where a script reads one line at a time |
 | Spread and shorthand | `style={[base, {…}]}`, `{ fontSize }`, a computed key |
 
-### Where fixtures fit the pipeline
+### Mutate once to prove the harness
 
-The fixture suite runs inside `check:arch`, so a broken rule fails the same gate a broken boundary does. When a rule is known-broken and not yet repaired, land its fixture failing rather than omitting it — that is what makes the backlog visible instead of theoretical.
+The harness is enforcement code with the same silent failure mode as the rules it guards. After writing a rule's spec — and after any harness change — break the rule (misspell the visitor key, invert a guard) and expect the adversarial kind to fail; break its exemption and expect the legal kind to fail; restore both. A harness that stays green through both mutations is not testing anything.
+
+### Where the specs fit the pipeline
+
+The spec suite runs inside `check:arch`, so a broken rule fails the same gate a broken boundary does. When a rule is known-broken and not yet repaired, land its spec failing rather than omitting it — that is what makes the backlog visible instead of theoretical.
+
+Beyond the specs themselves, the runner checks the three things a spec cannot say about itself, each of which leaves a green run behind a rule nothing exercises: a rule with no spec beside it, a spec pointed at a different rule than the one it sits next to, and a rule missing from the plugin module — tested, and never loaded.

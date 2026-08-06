@@ -15,9 +15,11 @@ Public barrels (`index.ts` / `index.server.ts`) that hide or rename the symbols 
 
 Agents treat the barrel as the map of a module. When the map uses `*` or aliases, the territory no longer matches it. This rule keeps every publicly exported name identical to its definition and explicit at the boundary.
 
-## Why a script, not GritQL
+## Why a script, not a lint rule
 
-Biome's GritQL does not reliably match ES re-export syntax with backtick patterns (see the note in `api/barrel-direction`). Re-exports are exactly what this rule targets, so it runs as a structural script instead. The cost is trivial: barrels are few and short, so the script only reads a handful of small files.
+Nothing structural — this one is a script by convenience, not by necessity. The whole check is decidable from one file: a visitor sees `ExportAllDeclaration` (both `export *` and `export * as ns`) and each `ExportNamedDeclaration` specifier's local/exported pair directly, and `context.filename` is enough to restrict it to barrels. It stays a script because barrels are few and short, so the glob costs nothing and the check rides along with `naming/test-file-mirror`, which does need the filesystem.
+
+Port it to the lint tier if you want the diagnostic in the editor at author time rather than at commit — the algorithm below transfers unchanged, and the AST removes the need for step 2's regex compromise.
 
 ## Where it applies
 

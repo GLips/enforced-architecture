@@ -23,11 +23,11 @@ That restraint is the whole design, and it is the hard-won part. A lint rule can
 
 So: token-equal values are errors, because the fix is unambiguous and mechanical. Off-scale values (`gap={6}`, `h={37}`) pass silently, because a rule that guesses there is worse than no rule. If an off-scale value recurs, the answer is a component that owns that dimension — not a hoisted constant, and not a broader lint.
 
-## Why this is a script and not a GritQL rule
+## Why this is a script and not a lint rule
 
-Because it must **import the token source**. The script reads `spacing` and `radius` from the project's theme module and builds its px→token maps from them at run time, so the enforcer cannot fall out of sync with the scale it guards. A per-file linter cannot import the theme; that is precisely why this axis lives at the structural tier.
+Because it must **import the token source**. The script reads `spacing` and `radius` from the project's theme module and builds its px→token maps from them at run time, so the enforcer cannot fall out of sync with the scale it guards. A per-file lint rule cannot import the theme; that is precisely why this axis lives at the structural tier.
 
-This is the general test for tier placement in this tag: if the check needs the token source, cross-file knowledge, or the CSS surface, it is a script. If it can be decided from one file's AST, it is GritQL.
+This is the general test for tier placement in this tag: if the check needs the token source, cross-file knowledge, or the CSS surface, it is a script. If it can be decided from one file's AST, it is a lint rule.
 
 ## Where it applies
 

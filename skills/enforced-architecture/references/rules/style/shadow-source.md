@@ -10,9 +10,9 @@
 
 Elevation being invented at the call site. Every `box-shadow` / `boxShadow` / `shadowColor` / `elevation` in the codebase must live in one curated file; a component that needs a shadow applies the named one, and never hand-rolls the property.
 
-## Why this is a script and not a GritQL rule
+## Why this is a script and not a lint rule
 
-The property appears on surfaces GritQL cannot reach. `box-shadow` in a `.css` or `.module.css` file is invisible to a JS/TS-AST plugin, and that is where shadows most often live. A single script covering stylesheets and TypeScript together is the only way to make the claim "every shadow is in one file" actually true.
+The property appears on surfaces the lint tier cannot reach. `box-shadow` in a `.css` or `.module.css` file is invisible to a JS/TS-AST plugin, and that is where shadows most often live. A single script covering stylesheets and TypeScript together is the only way to make the claim "every shadow is in one file" actually true.
 
 ## Where it applies
 

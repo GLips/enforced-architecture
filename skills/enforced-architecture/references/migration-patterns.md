@@ -42,7 +42,7 @@ Why inside-out: each phase builds on the previous. DB isolation must exist befor
 
 Activate enforcement rules **at the start** of each phase, not at the end. Run `check:arch` immediately — the violations are your migration TODO list. The rules tell the implementing agent exactly what needs to change and how (error messages are designed for agents). This is test-driven migration: the rules define the target state, the failures guide the work, and a clean run confirms completion.
 
-This also validates the rules themselves. If a rule doesn't fire when it should, you catch the bug immediately — before relying on it to guard future code.
+Activation-time violations also exercise the rules — but only the rules that fire. Zero matches at activation is a prompt to suspect the rule, not to celebrate: a dead rule and a clean codebase produce the same green run, and the adversarial fixture is the only thing that tells them apart.
 
 ## Phase Template
 
@@ -67,7 +67,7 @@ Each migration phase specifies:
 **Rules activated:** None. Infrastructure only.
 
 **Changes (all mechanical):**
-- Create `biome/` directory (empty or with non-architectural rules only)
+- Create the `oxlint/` directory with an empty `plugin.ts`, and point `.oxlintrc.json` at it via `jsPlugins`
 - Create the orchestrator script skeleton (no check functions yet)
 - Add `"check:arch"` and `"check:structure"` to `package.json` scripts
 - Configure pre-commit hooks
@@ -85,7 +85,7 @@ Each migration phase specifies:
 
 **Changes:**
 - Move DB client and schema to `infrastructure/db/` if not already there (mechanical)
-- Write the `boundary/db-isolation` GritQL rule in `biome/` and add `infrastructure/db/**` to framework import protection
+- Write the `boundary/db-isolation` lint rule and its spec in `oxlint/`, register it in `oxlint/plugin.ts`, and add `infrastructure/db/**` to framework import protection
 - Run `bun run check:arch` — the violations are your TODO list
 - For each violation: move the DB query into a repo module, move it into a controller, or create a server function (judgment per violation)
 
@@ -102,7 +102,7 @@ Each migration phase specifies:
 **Changes:**
 - Identify all third-party SDKs with security sensitivity or configuration complexity (judgment)
 - Create `infrastructure/integrations/` wrappers for each identified SDK (judgment -- API design)
-- Write the GritQL rules for SDK containment and client-server infrastructure boundaries, add infrastructure paths to framework import protection
+- Write the lint rules for SDK containment and client-server infrastructure boundaries, add infrastructure paths to framework import protection
 - Run `bun run check:arch` — violations show every remaining raw SDK import
 - Fix each violation: update feature code to import wrappers via `@/infrastructure/integrations/` (mechanical)
 
@@ -118,7 +118,7 @@ Each migration phase specifies:
 
 **Changes:**
 - Create `index.ts` barrel for every feature and `index.server.ts` for features with server-only exports (mechanical)
-- Write the GritQL rules for public API enforcement
+- Write the lint rules for public API enforcement
 - Run `bun run check:arch` — violations show every deep cross-feature import
 - Decide what each feature's public API should expose (judgment -- API design)
 - Populate barrels and rewrite cross-feature imports to use them (mechanical)
@@ -134,7 +134,7 @@ Each migration phase specifies:
 **Rules activated:** `boundary/cross-boundary-alias`.
 
 **Changes (all mechanical):**
-- Build [graph/import-graph](rules/graph/import-graph.md) in the shared library, then write `boundary/cross-boundary-alias` as its first consumer — it is a structural script, not a GritQL rule, and it has nothing to run against until the graph exists
+- Build [graph/import-graph](rules/graph/import-graph.md) in the shared library, then write `boundary/cross-boundary-alias` as its first consumer — it is a structural script, not a lint rule, and it has nothing to run against until the graph exists
 - Run `bun run check:arch` — violations list every relative import crossing a boundary
 - Rewrite each to use the `@/` alias
 
@@ -149,7 +149,7 @@ Each migration phase specifies:
 **Rules activated:** `structure/layer-direction`, `boundary/domain-purity`, `boundary/route-thinness`, `boundary/shared-ui-purity`, `structure/server-fn-placement`, `boundary/server-no-upward`, `boundary/shared-purity`, `structure/schema-placement`.
 
 **Changes:**
-- Write the GritQL rules and the structural `structure/layer-direction` consumer
+- Write the lint rules and the structural `structure/layer-direction` consumer
 - Run `bun run check:arch` — violations show every misplaced file and wrong-direction import
 - Move misplaced files to correct layer directories (mechanical)
 - Move `createServerFn` calls from non-controller locations to `controllers/` (judgment -- may require refactoring)

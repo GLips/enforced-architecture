@@ -12,11 +12,11 @@ Two exported components in one file. Both are then found by the name of the *fil
 
 Compound components namespaced under one export (`Object.assign(Card, { Header })`) are fine and should not fire.
 
-## Why this is a script and not GritQL
+## Why this is a script and not a lint rule
 
-Counting is the whole job, and GritQL cannot count within a file. A pattern can match an exported component; it cannot tell you there were two.
+Not because of the counting: a per-file lint rule can accumulate exported components as it walks and decide at `Program:exit`. It is a script because the hard part is the component-declaration classifier, and that classifier is shared with [hook-count](hook-count.md) and [prop-count](prop-count.md). Write it once. Those three move tiers together or not at all.
 
-The second reason is that a component has too many declaration forms for one pattern to cover. `export function Name()`, `export default function`, a generic `export function Name<T>()`, an arrow assigned to a `const`, `memo(…)`, `forwardRef(…)`, and a declaration exported on a later line are one thing to a reader and different nodes to a matcher. A pattern written for the first form silently ignores the rest — and the forms it ignores carry the smell, because the component tucked in beside another one is usually the small arrow, not the exported function declaration.
+The declaration forms are the real hazard, and they survive any choice of mechanism. `export function Name()`, `export default function`, a generic `export function Name<T>()`, an arrow assigned to a `const`, `memo(…)`, `forwardRef(…)`, and a declaration exported on a later line are one thing to a reader and separate cases to every implementation. Cover the first and the rest are ignored in silence — and the ignored forms carry the smell, because the component tucked in beside another one is usually the small arrow, not the exported function declaration.
 
 ## Where it applies
 
@@ -41,7 +41,7 @@ const EXPORTED_ARROW_COMPONENT =
   /^\s*export\s+const\s+([A-Z][a-zA-Z0-9]*)\s*(?::[^=]+)?=\s*(?:<[^(;]*>\s*)?(?:\(|function\b|forwardRef|memo\b|React\.memo\b)/;
 ```
 
-Both forms are required. A script handling only the `function` declaration reproduces the GritQL rule's blind spot in a new language.
+Both forms are required. A script handling only the `function` declaration has exactly the blind spot described above.
 
 **The `<[^(;]*>` clause is required.** It is the type-parameter list of a generic component — `export function OptionList<T extends string>({ items })`.
 

@@ -36,13 +36,15 @@ and features/*/controllers/*. Move this DB access to a repo or controller module
 
 That single boundary kills an entire class of bugs because the import simply can't exist outside the layer that's allowed to have it.
 
-The catalog covers boundaries like that, plus public-API barrels, SDK containment, server/client splitting, file placement, dependency-cycle detection, file-size limits, and a set of React code-smell checks (derived state, direct `fetch` in components, async effects without cleanup, and more). Most are [GritQL](https://biomejs.dev) rules that run per-file in real time; a few are cross-file scripts that run pre-commit.
+The catalog covers boundaries like that, plus public-API barrels, SDK containment, server/client splitting, file placement, dependency-cycle detection, file-size limits, and a set of React code-smell checks (derived state, direct `fetch` in components, async effects without cleanup, and more). Most are [oxlint](https://oxc.rs/docs/guide/usage/linter) JS-plugin rules that run per-file in real time; a few are cross-file scripts that run pre-commit.
 
 ## The rules are tested
 
 A lint rule fails silently. When it stops matching it doesn't error — it goes green, and a passing check looks exactly like a working one. That's how you end up with a boundary everyone believes is enforced and nothing behind it.
 
-So every GritQL rule in this repo runs in CI against three fixtures: the obvious violation, the *adversarial* one written the way the rule's pattern is likely to miss, and a legal neighbour that must stay silent (over-matching is what trains people to ignore a rule). Edit a rule and break it, the build fails.
+So every lint rule in this repo ships with a spec file beside it, and that spec has to cover three kinds of case: the obvious violation, the *adversarial* one written the way the rule is likely to miss, and a legal neighbour that must stay silent (over-matching is what trains people to ignore a rule). The specs run in CI, and the harness fails the build on a rule with no spec, a spec with an empty kind, or a rule that never got registered. Edit a rule and break it, the build fails.
+
+Putting the spec beside the rule rather than in a separate fixture tree is the part worth copying: rule and evidence are one unit, so a project taking `boundary/db-isolation.ts` gets `boundary/db-isolation.test.ts` in the same grab, and can prove the rule still fires after adapting the paths to its own tree.
 
 This found real bugs. Eleven of the thirty-one rules had a behavioural defect the first time it ran, and one more carried a false explanation of itself. Worth being precise about severity, because "broken" oversells it: **none was a dead no-op.** Every one of the eleven still caught the violations it was aimed at. Five were *over*-matching (`@/features.*` also hit `@/features-legacy`), two reported a duplicate on the import line, two surfaced one finding per run instead of all of them, one missed two export forms — and exactly one was inverted, reporting the *correct* spelling while missing the incorrect one.
 
@@ -54,7 +56,7 @@ Details in [`harness/README.md`](harness/README.md). Steal the approach along wi
 
 **1. Steal the rules/run the skill.** If you run a Tanstack Start + Drizzle setup, the rules may be directly applicable. Tell your agent to crib what it can from the repo.
 
-**2. Point your agent at it for ideas.** This is what most people should do. The rules here target a specific stack, but the *thinking* is universal. Hand this repo to your coding agent and ask it to figure out which boundaries matter for *your* codebase — then write the enforcement rules in whatever your project uses (Biome/GritQL, ESLint, ArchUnit-style fitness functions, custom scripts). The catalog is a menu of ideas as much as a set of files.
+**2. Point your agent at it for ideas.** This is what most people should do. The rules here target a specific stack, but the *thinking* is universal. Hand this repo to your coding agent and ask it to figure out which boundaries matter for *your* codebase — then write the enforcement rules in whatever your project uses (oxlint, ESLint, ArchUnit-style fitness functions, custom scripts). The catalog is a menu of ideas as much as a set of files.
 
 ## Installation
 
@@ -68,7 +70,7 @@ But seriously you should probably just copy the repo link and point your agent h
 
 ## Stack note
 
-The rule templates target Bun, TanStack Start, Biome/GritQL, Drizzle, Postgres, React, Zod, and lefthook. If you're on a different stack, the architectural principles still apply — translate the patterns to your framework and tooling (your agent is good at this).
+The rule templates target Bun, TanStack Start, oxlint, Drizzle, Postgres, React, Zod, and lefthook. If you're on a different stack, the architectural principles still apply — translate the patterns to your framework and tooling (your agent is good at this).
 
 ## License
 

@@ -12,9 +12,9 @@ Raw color and font-size values in stylesheets — `color: #0a0c10`, `font-size: 
 
 ## Why this exists as a separate rule
 
-It is the stylesheet mirror of `style/no-inline-color` and `style/no-inline-font-size`, and it exists for one blunt reason: **Biome's GritQL plugins run on the JavaScript/TypeScript AST only.** They cannot see a `.css` file at all. Without this check, a project can have both GritQL rules passing, a green pipeline, and a `font-size: 13px` sitting in a CSS module — the exact drift the tag was built to stop, in the one surface the tag could not look at.
+It is the stylesheet mirror of `style/no-inline-color` and `style/no-inline-font-size`, and it exists for one blunt reason: **oxlint's JS plugins run on the JavaScript/TypeScript AST only.** They cannot see a `.css` file at all. Without this check, a project can have both lint rules passing, a green pipeline, and a `font-size: 13px` sitting in a CSS module — the exact drift the tag was built to stop, in the one surface the tag could not look at.
 
-Take this rule if the project has any stylesheet files. Skip it if all styling is expressed in TypeScript (React Native, StyleX, vanilla-extract, styled-components with typed themes) — there, the GritQL rules already cover the whole surface, and the object-literal patterns in `style/no-inline-color` catch `StyleSheet.create` bodies unchanged.
+Take this rule if the project has any stylesheet files. Skip it if all styling is expressed in TypeScript (React Native, StyleX, vanilla-extract, styled-components with typed themes) — there, the lint rules already cover the whole surface, and the object-literal patterns in `style/no-inline-color` catch `StyleSheet.create` bodies unchanged.
 
 ## Where it applies
 
@@ -61,4 +61,4 @@ FAIL [css-tokens] src/features/scan/ui/result-card.module.css:19
 
 ## Why blocking
 
-Same reasoning as its two GritQL siblings: the fix is naming a token that already exists. A non-blocking version would train agents to treat every rule in the tag as advisory, and the tag only works as an absolute.
+Same reasoning as its two lint-tier siblings: the fix is naming a token that already exists. A non-blocking version would train agents to treat every rule in the tag as advisory, and the tag only works as an absolute.

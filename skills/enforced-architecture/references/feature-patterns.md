@@ -297,8 +297,8 @@ Features own their repo modules (query behavior) and controllers (API surface). 
 Complex features may need internal layering rules beyond the base set. When adding feature-specific rules:
 
 1. Document the rule with the same field template used for base rules
-2. Namespace the rule ID to the feature: `GQ-EDITOR-01` for GritQL, `ST-EDITOR-01` for structural
-3. Add GritQL rules to `biome/` with the feature namespace prefix
+2. Namespace the rule ID to the feature: `LINT-EDITOR-01` for lint rules, `ST-EDITOR-01` for structural
+3. Add lint rules to `oxlint/` with the feature namespace prefix, and register them in the plugin under the same prefixed name — the diagnostic id is the registration key, so the prefix is what tells a reader the rule is feature-scoped
 4. Scope structural checks to the feature's directory tree in the orchestrator script
 5. The rule only applies within that feature's directory
 

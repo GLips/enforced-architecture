@@ -10,7 +10,7 @@
 
 Circular dependencies between domain modules. Domain A imports domain B, and domain B imports domain A (directly or transitively). This is a hard structural violation because domains are pure business logic at the bottom of the application dependency graph. If two domains form a cycle, they are not independent — they are one domain pretending to be two.
 
-Cycles between domains are especially dangerous because they tend to be invisible at the file level. GritQL per-file rules can verify that a domain import uses the correct barrel path, but they cannot detect that the target domain imports back. Only cross-file graph analysis catches this.
+Cycles between domains are especially dangerous because they tend to be invisible at the file level. A per-file lint rule can verify that a domain import uses the correct barrel path, but it cannot detect that the target domain imports back. Only cross-file graph analysis catches this.
 
 Once a domain cycle exists, it becomes load-bearing quickly. Feature code builds on both domains, tests exercise the circular path, and untangling requires restructuring both domains simultaneously. The cost of catching this late is high enough to justify blocking enforcement.
 

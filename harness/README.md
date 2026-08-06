@@ -1,8 +1,8 @@
 # Rule fixture harness
 
-Runs every GritQL rule template in `skills/enforced-architecture/references/rules/` against fixtures, and fails CI when one stops behaving.
+Runs every oxlint rule template in `skills/enforced-architecture/references/rules/` against the specs that ship beside it, and fails CI when one stops behaving.
 
-It proves the **chosen examples**, not the header claim in general. The fixtures and the rule come from the same author, so an unimagined violation spelling is unimagined in both. Treat a green run as "the contract I wrote down still holds", not as "this rule is correct."
+It proves the **chosen examples**, not the header claim in general. The specs and the rule come from the same author, so an unimagined violation spelling is unimagined in both. Treat a green run as "the contract I wrote down still holds", not as "this rule is correct."
 
 ```
 bun run check:rules
@@ -14,67 +14,76 @@ A rule's failure mode is silent by construction. When a rule stops matching it d
 
 Consuming projects can already test their rules, because they instantiate them. The skill could not, because it ships templates. Every defect it ships is multiplied by the number of projects that adopt it.
 
+Moving from GritQL to oxlint changed which silences are possible but not that they exist. GritQL's was a snippet with no slot for a node real code carried, which compiled clean and matched nothing. A visitor's is a typo'd visitor key: it never fires, and nothing complains.
+
 ## The shape, and why this one
 
-The harness runs each `.grit` template **unmodified** as the Biome plugin under test. There is no second copy of any rule, so there is nothing to drift.
-
-That is possible because the templates are not placeholder-bearing, which is the thing worth knowing before touching this. They are concrete rules written against one standard layout — `src/domains`, `src/features/<name>/{controllers,repo,service,ui}`, `src/infrastructure`, `src/routes`, `src/shared/ui`, and the `@/` alias. Their **Adapt** sections document *alternatives* in prose ("`.*/src/core/.*` if you call your domain layer core"); they do not mark holes that something has to fill. So a fixture tree that reproduces the standard layout runs the template as written.
-
-The alternative shape — a reference project that instantiates every template, with fixtures beside it — tests the rules as adapted, which is closer to how they are used. It was rejected for the cost the ticket named: a second copy of every rule that can drift from the template, and nothing checking the drift. Here the artifact under test *is* the artifact that ships.
-
-**What this shape does not test:** whether a template survives adaptation. A project that repoints `.*/src/domains/.*` at `.*/src/core/.*` is on its own, and its own fixture suite is what covers it — see *Rule Fixtures* in `references/enforcement-implementation.md`.
-
-## Layout
+Each rule ships two files:
 
 ```
-harness/fixtures/<tag>/<rule-name>/<kind>/<a real source tree>
+skills/enforced-architecture/references/rules/<tag>/<rule>.ts        the rule
+skills/enforced-architecture/references/rules/<tag>/<rule>.test.ts   its specs
 ```
 
-`<kind>` is `obvious`, `adversarial`, or `legal`, and all three are mandatory — the harness refuses a set that is missing one.
+The spec imports the shipped rule directly, so there is no second copy of any rule and nothing to drift. That is possible because the templates are not placeholder-bearing, which is the thing worth knowing before touching this. They are concrete rules written against one standard layout — `src/domains`, `src/features/<name>/{controllers,repo,service,ui}`, `src/infrastructure`, `src/routes`, `src/shared/ui`, and the `@/` alias. Their **Adapt** sections document *alternatives* in prose; they do not mark holes that something has to fill.
 
-1. **obvious** — the violation the rule's own header names.
-2. **adversarial** — the same violation written the way the rule's natural pattern misses. This is the case that decides whether the rule works, and the one an author writing their own fixture will not think of.
-3. **legal** — code that looks like the violation and is allowed. Over-matching is invisible to positive fixtures, and it is the defect that trains people to ignore the rule.
+**What this shape does not test:** whether a template survives adaptation. A project that repoints `/src/domains/` at `/src/core/` is on its own, and its own spec suite is what covers it — see *Rule Specs* in `references/enforcement-implementation.md`.
 
-Below `<kind>` the path is a real source tree, because the rules read the path. The kind is a directory rather than a filename prefix because several rules match an exact filename (`index.ts`, `theme.ts`).
+### Why the fixture trees are gone
 
-## Expectations
+This harness used to materialize `harness/fixtures/<tag>/<rule>/<kind>/` as a real source tree and lint it, because the rules read the path and Biome could only be pointed at files on disk. `RuleTester` takes `filename` as a field on each test case, so the path a rule reads is now one line in the spec rather than a directory to build. A 130-file tree earning nothing over a field is a tree that costs maintenance for no coverage, so it went.
 
-Markers live in the fixture beside the code they describe:
+The specs shipping *beside* the rules is the other half of the trade: a project stealing a rule from this catalog now steals its tests in the same copy.
+
+## The three-kind contract
+
+`describeRule` takes the three kinds as named arguments, so a missing one is a type error rather than a convention nobody checks:
 
 ```ts
-// EXPECT: a named re-export carries the same runtime dependency an import does
-export { Stripe } from "stripe";
+import { describeRule } from "../lib/rule-spec.ts";
+import { dbIsolationRule } from "./db-isolation.ts";
 
-// EXPECT+2: a dynamic import is a call expression, invisible to JsModuleSource
-export const load = async () =>
-  await import("@sentry/node");
-
-// EXPECT x2: Biome reports a sole object member with a trailing comma twice
-fontSize: 13,
+describeRule("boundary/db-isolation", dbIsolationRule, {
+  obvious: [ /* RuleTester invalid cases */ ],
+  adversarial: [ /* RuleTester invalid cases */ ],
+  legal: [ /* RuleTester valid cases */ ],
+});
 ```
 
-- `EXPECT:` — one diagnostic on the next line.
-- `EXPECT+N:` — one diagnostic N lines below, for statements whose reported span (the module source, the JSX attribute) is not on the line the statement starts on.
-- `EXPECT xN:` — N diagnostics on that line. Only for shapes Biome genuinely double-reports; writing it to silence a surprise hides the surprise.
+1. **obvious** — the violation the rule's own header names.
+2. **adversarial** — the same violation written the way the rule's natural pattern misses. This is the case that decides whether the rule works, and the one an author writing their own spec will not think of. For an import fence: a dynamic `import()`, a re-export, a star re-export, a type-only import, and a path that merely *looks* exempt (`legacy-repo/` is not `repo/`). Segment-boundary over-matching was the single most common defect in the GritQL catalog — five rules had it.
+3. **legal** — code that looks like the violation and is allowed. Over-matching is invisible to positive cases, and it is the defect that trains people to ignore the rule.
 
-Keep the note on one line. A marker aimed at a blank or comment-only line is rejected, because that is always an authoring slip.
+Every case carries its own `filename`, in the standard layout, because the rules read the path. Invalid cases assert the diagnostic **count** as well as the message, so an over-match on an expected line fails too.
 
-A `legal/` file carrying any marker is rejected, and so is an `obvious/` or `adversarial/` case carrying none — a violation fixture with no marker would pass whether or not the rule ever fired.
+## What the runner checks that a spec run does not
 
-The suite asserts the diagnostic set **exactly**. A missing one is reported as UNDER-MATCHED, an extra one as OVER-MATCHED.
+`harness/run-rule-fixtures.ts` exists for the five things a spec cannot say about itself. Each one leaves a green run behind a rule nothing exercises:
 
-## What the runner checks that a lint run does not
+- **`rules/plugin.ts` does not load.** The runner imports the manifest rather than grepping it, because a plugin that fails to load takes *every* rule silent with it — the largest version of the failure everything here guards against.
+- **A rule missing from `rules/plugin.ts`, or bound to the wrong export.** The plugin module is the manifest a consuming project copies; a rule absent from it ships as a file nobody loads. Tested, and never run. A text search would pass a commented-out registration; an import does not.
+- **A rule with no spec beside it.**
+- **A spec pointed at the wrong rule** — it must call `describeRule("<its own id>", …)` and import the rule file beside it.
+- **A kind that never ran.** The runner reads TAP result *names* rather than file results, because `describeRule` makes every kind announce itself as `<rule id> (<kind>)`. A spec that throws while loading reports no name at all, so its three kinds are simply absent — which is how a stubbed or deleted check gets caught instead of passing on zero cases.
 
-Both of Biome's plugin-load failures are silent in ordinary use, and each gets its own detection so it does not surface as "every expected diagnostic is missing":
+`describeRule` itself rejects an empty kind at load time, which is the other half of that last one.
 
-- **Compile failure** (a `#` comment, a misspelled node name, a bare top-level `$program <:`) writes no JSON at all. Note that a *snake_case* node name like `call_expression()` is **not** one of these — it compiles and matches.
-- **Runtime failure** (the regex-capture-group trap) is reported at severity `info`. The build stays green and the rule reports nothing, forever. This is the failure the harness was built for.
+Every one of these was revert-probed when the runner was built. Do it again after any change here: break a rule and expect its adversarial kind to fail, stub a spec and expect all three kinds to report as never run. A harness that stays green through both is not testing anything.
 
-One plugin per Biome run. Biome files every plugin diagnostic under the bare category `plugin` with no rule name attached, so loading two at once makes attribution impossible — and a rule firing for the wrong reason is exactly what this exists to catch.
+What it still does not check is whether **oxlint** accepts the plugin, as opposed to Node loading it. That path was verified by hand — all 31 rules enabled against a probe tree through the real CLI — and JS plugins being alpha is the reason to re-verify it after an oxlint upgrade rather than trusting a green `check:rules`.
 
-Any diagnostic Biome reports that is *not* from the plugin means the fixture itself is broken, and fails the rule. A fixture under no rule's directory fails too: renaming a template without moving its fixtures would otherwise read as full coverage.
+## The runtime: real Node, not Bun
+
+`check:rules` goes through `harness/with-real-node.sh`, and that is not incidental.
+
+`RuleTester` does not parse in JS. It parses in Rust and shares the AST through a zero-copy buffer ("raw transfer"): a 2 GiB view aligned to a 4 GiB boundary means allocating 6 GiB and carving the aligned slice out of the middle. JavaScriptCore cannot allocate an `ArrayBuffer` that large, so oxlint refuses Bun **by name**, with no slower path to opt into. The `oxlint` CLI itself is fine under Bun; this binds only the rule-authoring path.
+
+The trap is the error message. Bun puts a `node`-named symlink to *itself* on PATH (`/tmp/bun-node-*/node`) ahead of the real binary for every process it spawns, so `node --test` in a Bun-spawned shell — which is where coding agents run — is Bun wearing node's name. The specs then die with `Cannot use describe outside of the test runner`, which names the test framework and points nowhere near the cause. The launcher drops those PATH entries so `node` means node.
+
+Verified on oxlint 1.77.0 / bun 1.3.13 / Node 24.17.0. Re-check whether JavaScriptCore has gained large `ArrayBuffer` support before carrying the workaround forward.
 
 ## Scope
 
-The 31 `.grit` templates are covered. The 16 `.md` templates describe structural-script algorithms rather than shipping runnable code, so there is nothing here to load — they are marked **Not fixture-tested** in `rules/overview.md`, with the reason. Implementing them here would make this repo the implementation under test rather than the templates.
+The 31 rule templates are covered. The 16 `.md` templates describe structural-script algorithms rather than shipping runnable code, so there is nothing here to load — they are marked **Not spec-tested** in `rules/overview.md`, with the reason. Implementing them here would make this repo the implementation under test rather than the templates.
+
+`harness/parked/script-tier-fixtures/` holds 38 adversarial fixtures for that script tier, lifted out of a consuming project. They are parked, not wired: this harness runs templates unmodified and those scripts are adapted instantiations. Read the README there before touching them.

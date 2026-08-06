@@ -6,11 +6,11 @@
 | **Mechanism** | Structural script — the shared substrate, not a rule itself |
 | **Blocking** | Its consumers are |
 
-Not a rule. This is the resolved import graph that five rules consume instead of each matching import strings on its own: `boundary/cross-boundary-alias`, `structure/layer-direction`, `boundary/layer-occupancy`, `graph/feature-deps`, and `graph/domain-cycles`. Build it once in the shared `lib.ts`.
+Not a rule. This is the resolved import graph that six rules consume instead of each matching import strings on its own: `boundary/cross-boundary-alias`, `structure/layer-direction`, `boundary/layer-occupancy`, `graph/feature-deps`, `graph/domain-cycles`, and `api/feature-visibility`. Build it once in the shared `lib.ts`.
 
-## Why these rules cannot be GritQL
+## Why these rules cannot be per-file lint rules
 
-Each of them asks **where an import lands**. GritQL can only see **how it is spelled**, and the two come apart the moment a directory nests:
+Each of them asks **where an import lands**. A lint rule matching the specifier only sees **how it is spelled**, and the two come apart the moment a directory nests:
 
 ```ts
 // from src/features/alpha/ui/panel.tsx
@@ -21,7 +21,7 @@ import { x } from "../../service/x";      // climbs a layer — the pattern expe
 import { x } from "@/features/alpha/controllers/x";  // climbs a layer, written as an alias
 ```
 
-A regex over the specifier cannot answer any of these, because the answer depends on how deep the *importing* file sits. This is a fourth trigger for reaching past GritQL, alongside cross-file analysis, filesystem awareness, and counting: **the answer is a function of the importing file's location, not of the import string.**
+A pattern over the specifier cannot answer any of these, because the answer depends on how deep the *importing* file sits. A per-file rule gets partway — `context.filename` is enough to resolve a relative specifier by path arithmetic — but it cannot see what that path lands on in the tree, and it cannot see the reverse edge that `graph/domain-cycles`, `graph/feature-deps` and `api/feature-visibility` each ask about. Resolve once, hand every consumer the same edge list. This is a fourth trigger for reaching past the per-file lint tier, alongside cross-file analysis, filesystem awareness, and counting across a file set: **the answer is a function of the importing file's location, not of the import string.**
 
 The failure is worse than a miss. Every other boundary rule matches the *aliased* form of a path, so a cross-boundary import written relatively names the same module with a string none of those rules see. It is not a style preference — it is a working bypass for the whole `boundary/` tag, and it reads as ordinary code.
 
@@ -203,6 +203,7 @@ A **layer** is the first segment inside a feature, when it is one of the configu
 | `boundary/layer-occupancy` | Does a controller edge bypass an on-disk repo or service? | Controller→schema while `repo/` exists, or controller→repo while `service/` and `repo/` exist. |
 | `graph/feature-deps` | What is the feature-to-feature edge set? | Cycles (Tarjan's SCC) block; coupling counts warn. |
 | `graph/domain-cycles` | Same question between domains. | Any cycle, at any transitive depth. Domains are the floor, so a cycle there means two domains are one. |
+| `api/feature-visibility` | Same edge set again — did the importee grant this one? | The importee's `visibility.json` omits the importer. Reads the classification, so a relative spelling needs the same grant. |
 
 ## Configuration
 
@@ -250,4 +251,4 @@ Then fixture the extractor against the shapes that make a pattern lose a file. E
 | A file starting with a shebang | Same abort, different cause |
 | A crossing whose specifier is written with a `\u` escape | The lineless path, which aborts the graph if it throws |
 
-See *Rule Fixtures* in [enforcement-implementation.md](../../enforcement-implementation.md).
+See *Rule Specs* in [enforcement-implementation.md](../../enforcement-implementation.md).

@@ -113,7 +113,7 @@ Static import analysis is the enforcement mechanism. It does not matter whether 
 
 Static analysis does not need to model runtime control flow. Its guarantees cover the import forms represented by the shared extractor; known extraction gaps must be documented.
 
-Run GritQL in the editor, framework import protection during dev and build, and the complete architecture check in pre-commit and CI.
+Run the per-file lint rules in the editor, framework import protection during dev and build, and the complete architecture check in pre-commit and CI.
 
 ---
 
@@ -457,6 +457,8 @@ import { getItems } from "@/features/inventory/server"
 This rule exists because internal restructuring must not break consumers. If Feature B reorganizes its repo layer, splits a file, renames a function — none of that should require changes in Feature A. The public API barrel absorbs internal changes. Consumers import a stable interface.
 
 The same principle applies to database schema. Schema tables are owned by infrastructure, and technically any repo can import any table. But the architectural expectation is: if a feature needs data that another feature owns, it calls that feature's server API rather than writing its own query against the other feature's tables. The owning feature controls how its data is exposed, including auth, validation, and query optimization.
+
+A public API decides *how* a feature may be consumed. Who may consume it is a further question, and a project can put that answer under the owning feature's control too — see [rules/api/feature-visibility.md](rules/api/feature-visibility.md).
 
 ---
 
