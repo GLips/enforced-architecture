@@ -1,0 +1,8 @@
+/* FIRES css-tokens: a raw color value in a stylesheet.
+   Split from the font-size case on purpose. When both lived in one file, either
+   matcher alone kept the file reporting, so breaking the color regex left the
+   suite green — the fixture could not fail for the reason it existed. One
+   matcher per fixture is what makes the expectation mean something. */
+.card {
+  color: #0a0c10;
+}

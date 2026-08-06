@@ -1,0 +1,5 @@
+/* LEGAL: the curated allowlist itself. It is the one file permitted to hold a
+   box-shadow, and it must stay silent or the rule has nowhere to point people. */
+.tk-inset-accent {
+  box-shadow: inset 2px 0 0 0 var(--tk-accent);
+}

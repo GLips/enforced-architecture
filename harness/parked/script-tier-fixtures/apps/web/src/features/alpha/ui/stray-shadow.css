@@ -1,0 +1,6 @@
+/* FIRES shadow-source: a box-shadow outside src/shadows.css.
+   Uses a token channel so it fires on exactly one check — a raw rgba() here
+   would also trip css-tokens and the two findings would mask each other. */
+.raised {
+  box-shadow: inset 0 0 0 1px var(--tk-accent);
+}

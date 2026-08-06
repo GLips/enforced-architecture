@@ -1,0 +1,15 @@
+/* LEGAL: the same two properties written against the scales. Silent.
+   Three separate exemptions have to hold for this file, and each one is a way
+   the check could start reporting correct code:
+     - a var() reference carries no hex and no bare unit
+     - a --custom-prop DEFINITION assigns a raw value by design
+     - `em` is relative, so no absolute token can express it and the check
+       deliberately says nothing rather than suggest a wrong one */
+.panel {
+  --panel-tint: #0a0c10;
+  color: var(--tk-text-secondary);
+  font-size: var(--text-body);
+}
+.panel h2 {
+  font-size: 1.3em;
+}
