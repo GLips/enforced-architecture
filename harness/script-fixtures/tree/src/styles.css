@@ -1,1 +1,13 @@
-:root { color: red; }
+/* LEGAL: the token source, exempt to css-tokens by path.
+   The `body` rule is deliberately not a custom property. A token file's own
+   `--tk-*: #…` definitions are already skipped by shape wherever they live, so
+   with only those here the path exemption could be deleted and the suite would
+   stay green — a knob nothing exercises. A base rule assigning a raw value is
+   what makes the exemption load-bearing, and it is what a global stylesheet
+   really carries. */
+:root {
+  --tk-text-secondary: #4b5563;
+}
+body {
+  color: #0a0c10;
+}

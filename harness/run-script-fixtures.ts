@@ -181,18 +181,23 @@ for (const { id, findings, crashed } of runs) {
   const reported = findings.map(
     (finding) => `${finding.severity === "error" ? "FAIL" : "WARN"} ${finding.file}`,
   );
-  const expected = [...fixtures.obvious, ...fixtures.adversarial];
-
+  // Both kinds draw from ONE pool, consumed as they match. Comparing each kind
+  // against the full report independently lets them claim the same findings, so
+  // a check reporting 3× on a path listed twice in each kind passes on both —
+  // which is precisely the under-count the multiset exists to catch. Whatever
+  // survives the pool is spurious.
+  //
   // Which kind a missed case belongs to is worth saying: an adversarial miss
   // means the check works on the shape its author imagined and not on the one
   // that beats it, which is a different bug report than an obvious miss.
+  let unclaimed = reported;
   for (const kind of ["obvious", "adversarial"] as const) {
-    const missed = multisetDifference(fixtures[kind], reported);
-    for (const entry of missed) {
+    for (const entry of multisetDifference(fixtures[kind], unclaimed)) {
       fail(id, `MISSED (${kind}) ${entry} — the check no longer catches this`);
     }
+    unclaimed = multisetDifference(unclaimed, fixtures[kind]);
   }
-  for (const entry of multisetDifference(reported, expected)) {
+  for (const entry of unclaimed) {
     fail(id, `SPURIOUS ${entry} — reported something no expectation claims`);
   }
   for (const path of fixtures.legal) {

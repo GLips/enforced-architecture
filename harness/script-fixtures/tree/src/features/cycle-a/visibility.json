@@ -1,0 +1,4 @@
+{
+  "cycle-b": "Settlement reads the charge record to reverse it. Deliberately granted: this pair exists to prove a fully-granted cycle still fails graph/feature-deps.",
+  "hub": "Read-only summary of account charges for the aggregate view."
+}

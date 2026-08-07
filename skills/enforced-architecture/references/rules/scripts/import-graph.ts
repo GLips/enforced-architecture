@@ -81,7 +81,7 @@ export type ImportEdge = {
  */
 let readers: { ts: Bun.Transpiler; tsx: Bun.Transpiler } | undefined;
 
-type ScannedImport = ReturnType<Bun.Transpiler["scanImports"]>[number];
+export type ScannedImport = ReturnType<Bun.Transpiler["scanImports"]>[number];
 
 function readerFor(path: string): Bun.Transpiler {
   readers ??= {
@@ -161,6 +161,45 @@ function countLiteralRequires(source: string, specifier: string): number {
     }
   }
   return count;
+}
+
+/**
+ * Every import entry a file declares: both of Bun's scans, unioned by
+ * `{ kind, path }`, with Bun's injected JSX-runtime entries removed. The tier's
+ * one extraction, and the only supported way to read a file's imports.
+ *
+ * Exported because `api/barrel-purity` cannot use the resolved graph below —
+ * resolution discards bare package specifiers as "not a boundary question", and
+ * bare package names are that rule's entire subject — but it must not re-derive
+ * the scan either. The union and the JSX filter are precisely where the silent
+ * losses live: take one scan and `require()` or `require.resolve()` edges vanish
+ * with no error, skip the filter and every `.tsx` file gains imports it never
+ * wrote. Two copies of this drift, and neither copy reports that it has.
+ *
+ * What a caller does with the result is its own business. The graph counts
+ * occurrences and reveals erased type-only edges; barrel-purity collapses the
+ * result to a set of specifiers, because it asks whether a package is reachable
+ * and never how many times.
+ */
+export function scanDeclaredImports(options: {
+  /** Selects the reader: `.tsx`/`.jsx` need the JSX loader, and the two cannot be collapsed. */
+  absolute: string;
+  source: string;
+  jsxImportSource: string;
+  /** How the file is named if the read throws. A bare `input.tsx:11` names a file nobody has. */
+  reportAs: string;
+}): ScannedImport[] {
+  const { absolute, source, jsxImportSource, reportAs } = options;
+  const reader = readerFor(absolute);
+  try {
+    return withoutInjectedJsxRuntime(
+      unionByKindAndPath(reader.scanImports(source), reader.scan(source).imports),
+      source,
+      jsxImportSource,
+    );
+  } catch (error) {
+    throw new Error(`could not read ${reportAs}: ${(error as Error).message}`);
+  }
 }
 
 /**
@@ -321,24 +360,14 @@ export function buildImportGraph(config: ArchitectureConfig): ImportEdge[] {
     fromSourceRoot: true,
   })) {
     const raw = blankShebang(readFileSync(absolute, "utf8"));
-    const reader = readerFor(absolute);
-    const jsx = config.source.jsxImportSource;
 
-    // A bare `Syntax Error at input.tsx:11` names a file nobody has, which is
-    // poor output from a check whose whole job is telling someone where to look.
-    const scan = (source: string): ScannedImport[] => {
-      try {
-        return withoutInjectedJsxRuntime(
-          unionByKindAndPath(reader.scanImports(source), reader.scan(source).imports),
-          source,
-          jsx,
-        );
-      } catch (error) {
-        throw new Error(
-          `import-graph could not read ${toProjectPath(config, absolute)}: ${(error as Error).message}`,
-        );
-      }
-    };
+    const scan = (source: string): ScannedImport[] =>
+      scanDeclaredImports({
+        absolute,
+        source,
+        jsxImportSource: config.source.jsxImportSource,
+        reportAs: toProjectPath(config, absolute),
+      });
 
     const runtime = tally(scan(raw));
     // Wrapped separately: the reveal pass rewrites source, so its failure must

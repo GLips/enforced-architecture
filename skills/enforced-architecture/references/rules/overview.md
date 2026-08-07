@@ -7,18 +7,20 @@ Complete index of enforcement rules. Each rule has a template in its tag directo
 1. **During Phase 3 (rule design):** Scan this table to select rules that apply to the project.
 2. **During Phase 4 (implementation):** Read each selected rule's template file, adapt it to the project's directory structure and import patterns, and write the adapted rule into the project.
 3. **oxlint rules** (`.ts` files) go into the project's `oxlint/rules/` directory, are registered in its `oxlint/plugin.ts`, and are switched on in `.oxlintrc.json`. Each rule's spec (`<name>.test.ts`) is copied beside it — it is part of the rule, not an optional extra.
-4. **Structural scripts** (`.md` descriptions) are implemented as Bun TypeScript functions behind one orchestrator in the project's `scripts/` directory, sharing a `lib.ts`.
-5. **Build [graph/import-graph](graph/import-graph.md) before its consumers.** Six rules answer *where an import lands* rather than *how it is spelled*, and they are the ones that break silently when they don't.
+4. **Structural scripts** (`.ts` modules beside a `.md`) are copied into the project's `scripts/` directory along with `scripts/lib.ts`, `scripts/import-graph.ts`, `scripts/config.ts` and the orchestrator. Each one exports a check that **returns findings**; the orchestrator owns reporting and the exit code. Adopting a script rule means writing config, not reimplementing an algorithm — see `scripts/config.ts` for the shape and every rule's *Adapt* section for its keys.
+5. **Build [graph/import-graph](graph/import-graph.md) before its consumers.** Most script rules answer *where an import lands* rather than *how it is spelled*, and they are the ones that break silently when they don't. `scripts/import-graph.ts` is that substrate; no rule scans files for imports itself.
 6. **Every rule ships with its specs**, including one adversarial case — see *Rule Specs* in [enforcement-implementation.md](../enforcement-implementation.md).
 
 ## What Is Verified Before It Reaches You
 
-The **Mechanism** column below is also the coverage line, and it is worth reading that way before you trust a template.
+Every rule in this catalog, both tiers, is runnable code proved in this repo's CI against three kinds of case: the **obvious** violation, the **adversarial** spelling that beats a naive implementation, and the **legal** neighbour that must stay silent. A template edit that breaks a rule fails the pull request. The two tiers are proved differently because they read differently:
 
-- **oxlint** templates are runnable code, and every one of them is proved in this repo's CI against three kinds of case — the obvious violation, the adversarial spelling, and the legal neighbour that must stay silent. A template edit that breaks a rule fails the pull request. The specs ship *beside* the rules, so a project stealing a rule steals its tests in the same copy; the runner that enforces the three-kind contract lives in `harness/` beside `skills/` in the skill's source repository and does not ship with the skill directory.
-- **Script** templates are **not spec-tested here**. Nearly all of them describe an algorithm rather than shipping code, so there is nothing to load and nothing to run. Their correctness is established in the consuming project, by the fixtures that project writes alongside its implementation — which is not a lesser bar, but it *is* a later one, and until then a script template is an untested design. `api/feature-visibility` is the one that ships as running code, and the exception buys less than it looks: it still has no fixtures here, and it still has to be pointed at the project's shared library before it does anything.
+- **oxlint** rules are per-file, so each is exercised through oxlint's `RuleTester` against inline sources. The specs ship *beside* the rules, so a project stealing a rule steals its tests in the same copy. `bun run check:rules`.
+- **Script** rules scan declared roots rather than being handed a file, so the cases are real files in one shared tree under `harness/script-fixtures/tree/`, and the checks are pointed at it wholesale by one config object — which doubles as the worked example of adopting the tier. Findings are compared as a **multiset with severity** against declared expectations, and every registered check must have expectations, so a check that is deleted or stubbed fails rather than passing on zero findings. `bun run check:scripts`.
 
-What the harness does not cover for either kind: whether a template survives **adaptation**. Repointing a path pattern, extending a package list, or adding an exclusion is unverified work. Write the project's own specs at the same time as the adaptation, not after.
+The script harness does not ship with the skill directory; it lives in `harness/` beside `skills/` in the skill's source repository. The rules and their config do ship, which is the point — a project adopts a script rule by writing config, not by reimplementing prose.
+
+What the harness does not cover for either kind: whether a rule survives **adaptation**. Repointing a path pattern, extending a package list, or adding an exclusion is unverified work. Write the project's own specs at the same time as the adaptation, not after.
 
 ## Rule Index
 
@@ -33,7 +35,7 @@ What the harness does not cover for either kind: whether a template survives **a
 | [boundary/shared-purity](boundary/shared-purity.ts) | oxlint | Yes | Shared utilities importing app modules (features, domains, etc.) |
 | [boundary/sdk-containment](boundary/sdk-containment.ts) | oxlint | Yes | Direct SDK imports outside designated infrastructure wrappers |
 | [boundary/client-server-infra](boundary/client-server-infra.ts) | oxlint | Yes | Client contexts importing server-only infrastructure modules |
-| [boundary/cross-boundary-alias](graph/import-graph.md) | Script | Yes | Relative imports that cross a boundary — a bypass for every rule that matches the aliased path. Consumes the import graph |
+| [boundary/cross-boundary-alias](boundary/cross-boundary-alias.md) | Script | Yes | Relative imports that cross a boundary — a bypass for every rule that matches the aliased path. Consumes the import graph |
 | [boundary/server-no-upward](boundary/server-no-upward.ts) | oxlint | Yes | Controllers/server code importing from UI or route layers |
 | [boundary/no-test-imports](boundary/no-test-imports.ts) | oxlint | Yes | Production code importing from test files |
 | [boundary/layer-occupancy](boundary/layer-occupancy.md) | Script | Yes | Bypassing present layers (e.g., controllers importing schema when repo/ exists, or importing repo when service/ exists) |
@@ -57,7 +59,7 @@ What the harness does not cover for either kind: whether a template survives **a
 | [structure/server-fn-placement](structure/server-fn-placement.ts) | oxlint | Yes | `createServerFn` outside `controllers/` directories |
 | [structure/no-deprecated-input-validator](structure/no-deprecated-input-validator.ts) | oxlint | Yes | Deprecated `.inputValidator()` calls on TanStack Start server functions and middleware |
 | [structure/no-plain-export-in-server-fn-module](structure/no-plain-export-in-server-fn-module.ts) | oxlint | Yes | Runtime exports other than `createServerFn` and `createMiddleware` bridges in compiler-processed modules |
-| [structure/layer-direction](graph/import-graph.md) | Script | Yes | Within-feature layer direction violations (e.g., repo importing controllers), at any nesting depth and in either spelling. Consumes the import graph |
+| [structure/layer-direction](structure/layer-direction.md) | Script | Yes | Within-feature layer direction violations (e.g., repo importing controllers), at any nesting depth and in either spelling. Consumes the import graph |
 | [structure/topology](structure/topology.md) | Script | Yes | Files living where no rule looks — unlisted `src/` roots, modules at a feature root, routes reaching into infrastructure |
 | [structure/deprecated-paths](structure/deprecated-paths.ts) | oxlint | Yes | Imports from removed/renamed paths (e.g., `@/components/*`) |
 | [structure/schema-placement](structure/schema-placement.ts) | oxlint | Yes | Drizzle schema declarations (`pgTable`, `relations`) outside `infrastructure/db/schema/` |
@@ -68,7 +70,7 @@ What the harness does not cover for either kind: whether a template survives **a
 
 | Rule | Mechanism | Blocking | What it prevents |
 |---|---|---|---|
-| [graph/import-graph](graph/import-graph.md) | Script | — | Not a rule: the resolved import graph five rules consume instead of matching import strings. Build it first |
+| [graph/import-graph](graph/import-graph.md) | Substrate | — | Not a rule: the resolved import graph every graph-reading rule consumes instead of matching import strings. Build it first |
 | [graph/domain-cycles](graph/domain-cycles.md) | Script | Yes | Circular dependencies between domains |
 | [graph/feature-deps](graph/feature-deps.md) | Script | Mixed | Cycles: hard fail. Coupling thresholds (edge count, pair saturation, fan-out): warnings |
 

@@ -3,8 +3,8 @@
 | Field | Value |
 |---|---|
 | **Tag** | health |
-| **Mechanism** | Structural script (cross-file, pre-commit + CI) |
-| **Blocking** | Mixed (warn and fail thresholds — see Configuration) |
+| **Mechanism** | Structural script — [file-size.ts](file-size.ts) |
+| **Blocking** | Mixed (over `failThreshold` fails, over `warnThreshold` warns) |
 
 ## What it prevents
 
@@ -14,69 +14,43 @@ This is the simplest structural check but one of the most impactful.
 
 ## Where it applies
 
-All `src/**/*.ts` and `src/**/*.tsx` files, excluding:
-- Test files (`*.test.*`, `*.integration.test.*`, `__tests__/**`)
-- Generated files (`*.gen.*`)
-- Script files (`scripts/`)
-- Test utilities (`src/test/**`)
-
-## Algorithm
-
-Simple line counting with two thresholds.
-
-1. **Find target files** — Walk `src/` recursively, collect `.ts` and `.tsx` files. Apply exclusion patterns to skip tests, generated files, and scripts.
-2. **Check exclusion list** — Skip files that appear in the known-oversized exclusion list (see Configuration).
-3. **Count lines** — Count total lines per file (including blanks and comments — the goal is overall file size, not logical complexity).
-4. **Compare against thresholds** — If the count exceeds the fail threshold, emit a FAIL. If it exceeds the warn threshold, emit a WARN.
+Every `.ts` and `.tsx` file under the configured `roots`, minus the tier's global exclusions — tests, generated output, declaration files, and the check tooling itself. Those live in `config.source.exclude` and are stated once so no rule can govern a slightly different set than its neighbour.
 
 ### Why total lines, not logical lines
 
-Counting all lines (blanks, comments, code) is intentional. A file with 300 lines of code and 300 lines of comments is still a 600-line file that is hard to navigate. Logical-line counting adds complexity without meaningfully changing which files get flagged — a file that is large by total lines is almost always large by logical lines too.
+Counting all lines — blanks, comments, code — is intentional. A file with 300 lines of code and 300 lines of comments is still a 600-line file that is hard to navigate. Logical-line counting adds complexity without meaningfully changing which files get flagged: a file that is large by total lines is almost always large by logical lines too.
 
-## Configuration
+## Adapt
 
-```typescript
-// Thresholds — calibrate to your project. Start strict, relax only with justification.
-const WARN_THRESHOLD = 500;
-const FAIL_THRESHOLD = 600;
+Knobs live in `config.checks["health/file-size"]`: `roots`, `warnThreshold`, `failThreshold`, `exclusions`.
 
-// Known-oversized files — centralized exclusion list.
-// Each entry MUST have a TODO comment explaining the remediation plan.
-const EXCLUSIONS: string[] = [
-  // "src/features/editor/ui/canvas/renderer.tsx",   // TODO: split into layer renderers
-  // "src/features/admin/ui/dashboard/screen.tsx",    // TODO: extract panel components
-];
-```
+**`roots` is often wider than `source.roots`.** This is the one check whose subject is not architectural — a 900-line file in a sibling package is exactly as hard to review as one in `src/`, and the boundary rules have no opinion about it. Name every root worth measuring.
 
-**Adjustments:**
-- **Thresholds are project-specific.** The defaults above are a reasonable starting point — adjust based on your codebase's natural file sizes. The warn threshold signals "refactor soon"; the fail threshold is a hard stop. The gap between them should give enough room to finish a change and split in the same commit.
-- The exclusion list is an escape hatch, not a permanent pass. Every entry must have a `TODO` comment describing the plan to bring the file under the limit. Review the list periodically and remove entries as files are split.
-- Never exclude entire directories. If a directory consistently produces large files, the architecture needs rethinking, not broader exclusions.
+**Thresholds are project-specific.** The defaults are a starting point; calibrate to the codebase's natural file sizes. The warn threshold signals "refactor soon", the fail threshold is a hard stop, and the gap between them should give enough room to finish a change and split it in the same commit.
 
-## Implementation
+**`exclusions` is an escape hatch, not a permanent pass.** Entries match by path suffix, so they work regardless of the working-directory prefix. Every entry carries a `TODO` naming how the file gets back under the limit, and the list gets reviewed rather than accumulated.
 
-Bun TypeScript check function behind the structural orchestrator.
+## Negative space
 
-Key implementation details:
-- **File discovery** uses the shared library walker and its global exclusions.
-- **Line counting** counts total lines per file. No parsing needed — this is a raw size check.
-- **Exclusion list matching** uses path suffix matching so entries work regardless of the working directory prefix.
-- **Return findings** — counts above the fail threshold are errors; counts above only the warning threshold are warnings. The orchestrator owns reporting and exit status.
+- **Never exclude a whole directory.** If a directory consistently produces large files, the architecture needs rethinking and a broader exclusion hides exactly that signal.
+- **It does not parse.** A raw size check has no opinion about what is in the file, which is why it costs nothing to run and why it never disagrees with a rule that does parse.
+- **No per-file override comment.** A pragma in the file puts the decision where the pressure is, and the file that most wants an exemption is the one that least deserves one. The exclusion list is central so the set stays readable in one place.
 
 ## Example output
 
 ```
-FAIL: file-size — src/features/editor/ui/canvas/renderer.tsx is 647 lines (limit: 600).
-  Split this file before committing. Identify cohesive groups of functions or
-  components that can move to sibling modules in the same directory.
-  If the file cannot be split yet, add it to the exclusion list in
-  scripts/check-file-size.ts with a TODO explaining the remediation plan.
+FAIL [health/file-size] src/features/editor/ui/canvas/renderer.tsx
+  647 lines (limit: 600).
+  Split this file before committing — move a cohesive group of functions or
+  components to a sibling module in the same directory. If it genuinely cannot
+  be split yet, add it to the exclusion list in the project's architecture
+  config with a TODO naming how it gets back under the limit.
 
-WARN: file-size — src/features/billing/service/subscriptions.ts is 523 lines (warn: 500, limit: 600).
-  This file is approaching the hard limit. Consider splitting proactively.
-  Common strategies: extract helper functions to a sibling module, split a
-  large component into subcomponents, or move substantial type definitions to
-  a dedicated types file.
+WARN [health/file-size] src/features/billing/service/subscriptions.ts
+  523 lines (warn: 500, limit: 600).
+  Approaching the hard limit — consider splitting proactively. Extract helper
+  functions to a sibling module, split a large component into subcomponents,
+  or move substantial type definitions to a dedicated types file.
 ```
 
 ## Why mixed blocking

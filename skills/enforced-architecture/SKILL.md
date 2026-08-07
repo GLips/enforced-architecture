@@ -131,7 +131,7 @@ Read [enforcement-implementation.md](references/enforcement-implementation.md) f
 
 **Greenfield sequence:**
 1. `.oxlintrc.json` + the rule modules and their specs in the `oxlint/` directory, all registered in `oxlint/plugin.ts`
-2. The shared `scripts/lib.ts` and the resolved import graph ([rules/graph/import-graph.md](references/rules/graph/import-graph.md)), then the structural checks behind one orchestrator
+2. `scripts/` — copy `config.ts`, `lib.ts`, `import-graph.ts`, `run-structural-checks.ts` and `registry.ts` from the catalog, then each selected check module. Write the project's `arch.config.ts` on top of the defaults; the checks themselves are taken unmodified
 3. Package.json scripts (`check:arch`)
 4. Lefthook pre-commit config
 5. Framework import protection (vite.config.ts)
@@ -141,16 +141,18 @@ Read [enforcement-implementation.md](references/enforcement-implementation.md) f
 
 **Migration:** Decompose into atomic phases per [migration-patterns.md](references/migration-patterns.md). Each phase produces a clean repo.
 
-**Implementation guidance for rule writing:** Rules require project-specific adaptation — they are not copy-pastable from templates. When implementing, launch subagents per rule tag directory to parallelize:
+**Implementation guidance for rule writing:** The two tiers adopt differently, and treating them alike is the mistake to avoid.
+
+**Structural scripts are copied, not adapted.** Take `scripts/` wholesale — the substrate plus every selected check — and write the project's config on top of `defaultCheckConfigs`. Every knob a check reads is a key in that object, documented at its declaration and named in the rule's *Adapt* section. Reimplementing a check from its doc is how three separate deployments each ended up with a check that had silently stopped matching part of what the doc promised; the config object exists so that step no longer happens.
+
+**oxlint rules do require project-specific adaptation.** They are written against one standard layout and their path patterns have to be repointed. Launch subagents per rule tag directory to parallelize:
 - One subagent for `boundary/` rules (reads templates, adapts to project paths, writes `<name>.ts` rule modules)
 - One subagent for `api/` rules
 - One subagent for `structure/` rules
-- One subagent for `naming/` scripts (`barrel-discoverability`, `test-file-mirror`)
-- One subagent for structural scripts (`graph/`, `health/`) — **this one goes first, not in parallel.** It builds the import graph that `cross-boundary-alias`, `layer-direction`, `layer-occupancy`, `feature-deps`, `domain-cycles` and `feature-visibility` all consume, so the others have nothing to write against until it lands.
 - One subagent for `react/` rules (if applicable)
-- One subagent for `style/` rules (if the project has a design system — oxlint rules plus the token-source-reading scripts)
+- One subagent for `style/` rules (if the project has a design system)
 
-Each subagent reads the relevant templates from the skill's `references/rules/<tag>/` directory, reads the project's directory structure, and writes the adapted rule into the project's `oxlint/` directory as `<tag>/<name>.ts` plus its `<name>.test.ts` spec (for lint rules) or into `scripts/` (for structural scripts). Every lint rule must also be registered in `oxlint/plugin.ts` and switched on in `.oxlintrc.json` — a rule module nobody registers is a file that ships and never runs, which is the silent failure this whole tier exists to prevent. Registration is a single shared file, so have the subagents write their rules first and add the entries in one pass afterwards rather than editing it concurrently. The parent agent verifies with `bun run check:arch` after all rules land.
+Each subagent reads the relevant templates from the skill's `references/rules/<tag>/` directory, reads the project's directory structure, and writes the adapted rule into the project's `oxlint/` directory as `<tag>/<name>.ts` plus its `<name>.test.ts` spec. Every lint rule must also be registered in `oxlint/plugin.ts` and switched on in `.oxlintrc.json` — a rule module nobody registers is a file that ships and never runs, which is the silent failure this whole tier exists to prevent. Registration is a single shared file, so have the subagents write their rules first and add the entries in one pass afterwards rather than editing it concurrently. The parent agent verifies with `bun run check:arch` after all rules land.
 
 **Every rule ships with a permanent spec beside it, and one of its cases is adversarial.** A rule's failure mode is silent: when it stops matching it goes green, not red. Verifying it once against the shape you had in mind and throwing the check-file away is how a tier ends up governing its canonical examples and nothing else — the third case, the violation written the way your rule *misses*, is the one that decides whether the rule works. Specs live beside the rules and run inside `check:arch`. See [enforcement-implementation.md](references/enforcement-implementation.md) for the three cases and the adversarial checklist.
 
@@ -172,7 +174,7 @@ Combine all phases into a single document:
 
 **Important:** The plan document lives in the project repo and will be read by agents in future sessions. Include this reference for rule implementation:
 
-> Rule templates are in the `enforced-architecture` skill (`~/.claude/skills/enforced-architecture/references/rules/`). Each rule in this plan references its template. Read the template, adapt paths and patterns to this project's structure, and write the result to `oxlint/` (lint rules, with their specs, registered in `oxlint/plugin.ts`) or `scripts/` (structural scripts).
+> Rule templates are in the `enforced-architecture` skill (`~/.claude/skills/enforced-architecture/references/rules/`). Each rule in this plan references its template. **oxlint rules:** read the template, adapt paths and patterns to this project's structure, and write the result to `oxlint/` with its spec, registered in `oxlint/plugin.ts`. **Structural scripts:** copy the module and the `scripts/` substrate unmodified, register it, and put every project-specific value in `arch.config.ts` — the rule's *Adapt* section names the keys. Do not reimplement one from its doc.
 
 ## Tone
 

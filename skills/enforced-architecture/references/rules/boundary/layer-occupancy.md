@@ -3,85 +3,87 @@
 | Field | Value |
 |---|---|
 | **Tag** | boundary |
-| **Mechanism** | Structural script (cross-file, pre-commit + CI) |
+| **Mechanism** | Structural script (resolved import graph + directory presence, pre-commit + CI) |
 | **Blocking** | Yes |
 
 ## What it prevents
 
-Controllers bypassing present layers. Directory presence activates two checks:
+A controller reaching past a layer the feature **already has**.
 
-1. **Repo bypass** — When a feature has a `repo/` directory, controllers cannot import DB schema modules to build queries themselves. All DB query construction must flow through the repo layer. Controllers may still import the DB client (`infrastructure/db/client`) to pass it to repo functions for transaction handling, but schema imports (query construction) must go through repo/.
+A feature can carry a well-organised `service/` and `repo/` while its controllers quietly build their own queries and call repo functions directly. The layers exist on disk and hold nothing; the logic they were supposed to concentrate is spread across three directories, and no single file looks wrong. Two bypasses, and which of them is asked depends on what the feature has grown:
 
-2. **Service bypass** — When a feature has both `service/` and `repo/` directories, controllers cannot import from repo/ directly. All repo access must flow through the service layer. This prevents controllers from fragmenting orchestration logic by calling some repo functions through service and others directly.
+1. **Repo bypass** — once a feature has a `repo/` directory, its controllers may not import DB schema modules and assemble queries themselves. Query construction belongs in `repo/`.
+2. **Service bypass** — once a feature has **both** `service/` and `repo/`, its controllers may not import from `repo/` directly. Reaching past a present `service/` splits orchestration in two: some calls through it, some around it.
 
-This is the filesystem-aware complement to the per-file DB isolation rule. The per-file rule (db-isolation) restricts which layers can import DB at all. This structural check adds conditional tightening as features graduate: adding repo/ revokes the controller-to-schema shortcut, and adding service/ revokes the controller-to-repo shortcut.
-
-Without this check, a feature could have well-organized service/ and repo/ directories while individual controllers silently bypass them, fragmenting logic across layers.
-
-## Where it applies
-
-`src/features/*/controllers/**/*.ts` — but only for features that have a `src/features/*/repo/` or `src/features/*/service/` directory. Features without either are not checked (their controllers access infrastructure directly).
-
-## Algorithm
-
-Consumes the resolved import graph — see [graph/import-graph.md](../graph/import-graph.md). Filesystem presence decides *whether* to check; the graph decides *what* the edge is.
-
-1. **Enumerate features** and test which layer directories exist. If neither `repo/` nor `service/` is present, skip the feature.
-2. **Take the feature's edges from the graph**, already classified by source and target layer.
-3. **Flag bypassed present layers** — a controller→schema edge when `repo/` exists; a controller→repo edge when `service/` also exists.
-4. **Exclude type-only imports.** They create no runtime dependency.
-5. **Report** the feature name, file path, and a fix instruction.
-
-**Do not grep for `../repo/`.** The bypass survives being written one directory deeper (`../../repo/x` from a nested controller) or as an alias (`@/features/<self>/repo/x`), and both spellings are ordinary code that a pattern-matching version reports as clean. The same defect hits `structure/layer-direction`, which is why both consume one graph.
-
-This rule covers only these controller edges. `structure/layer-direction` separately rejects upward imports; it does not detect downward layer skips.
+The activation is the design, not an optimisation. This is the **filesystem-aware complement to the per-file `db-isolation` rule**: that rule says which layers may touch the DB *at all*, statically and for every feature alike. This one tightens conditionally as a feature graduates. A feature with a single controller and no layers beneath it reaches infrastructure directly and is correct to; adding `repo/` revokes the controller→schema shortcut; adding `service/` on top revokes the controller→repo shortcut. Nothing has been bypassed while there is nothing to bypass, so the rule never demands three directories before a young feature can read a table.
 
 ### Why schema but not client?
 
-The DB client import (`@/infrastructure/db/client`) is allowed from controllers even when repo/ exists. Controllers pass the `db` instance to repo functions to enable transaction handling (wrapping multiple repo calls in a single transaction). The client import conveys execution capability; the schema import conveys query construction capability. Only query construction must be concentrated in repo/.
+The DB **client** import (`@/infrastructure/db/client`) stays legal from a controller even when `repo/` exists, and this is the distinction the whole rule turns on.
 
-## Configuration
+Controllers pass the `db` instance to repo functions so several repo calls can be wrapped in one transaction. The transaction boundary is genuinely the controller's — it is the unit of work the request defines — so the controller has to hold the connection to open it.
 
-Both questions are asked of the resolved graph, not of the source text. What is configured here is *which targets count*, expressed as resolved paths from the source root:
+The client conveys **execution** capability; the schema conveys **query construction** capability. Only construction must be concentrated in `repo/`. A check that collapses the two into "controllers must not import `infrastructure/db`" takes the transaction boundary with it, and the first thing a team does about a rule that blocks correct code is switch it off.
 
-```typescript
-// Direct DB query construction (controllers → schema when repo/ exists)
-const SCHEMA_TARGET = "infrastructure/db/schema";
+## Where it applies
 
-// Direct repo access (controllers → repo when service/ exists). Compared as a
-// resolved path, so `../repo/x` and `@/features/alpha/repo/x` are one edge —
-// which is the whole reason this consumes the graph. A pattern on `../repo/`
-// sees the first and not the second.
-const REPO_LAYER = "repo";
+Controller files inside a feature — `features/*/controllers/**` — but only for features whose `repo/` or `service/` directory is occupied. Nesting is included: a controller in a subdirectory is still a controller, and that is exactly where the interesting spelling of the bypass lives.
 
-// Type-only edges carry no runtime coupling, so both checks skip them. The graph
-// marks them; see the type-only discussion in graph/import-graph.md, including
-// which spellings it does not catch.
-```
+Filesystem presence decides **whether** to ask; the resolved import graph — see [graph/import-graph.md](../graph/import-graph.md) — decides **what the edge is**. Presence is an *occupancy* test rather than a bare `existsSync`, because an empty leftover `repo/` would otherwise revoke the controller's schema access while offering nowhere to put the query.
 
-**Adjustments:**
-- If your DB schema lives elsewhere (e.g., `@/db/schema`), update `SCHEMA_TARGET` to its resolved path.
-- If your project uses different layer names (e.g., `data/` instead of `repo/`, `usecases/` instead of `service/`), update the directory checks and `LAYER_ORDER` in the graph. The alias prefix is the graph's business, not this rule's.
+**Do not grep for `../repo/`.** The bypass survives being written one directory deeper (`../../repo/x` from a nested controller) or as a same-feature alias (`@/features/<self>/repo/x`), and both spellings are ordinary code that a pattern-matching version reports as clean. The nested form is not even adversarial by intent — it is what the same import looks like after somebody tidies `controllers/` into subfolders, so a grep-based rule silently uncovers itself during a refactor. The same defect hits `structure/layer-direction`, which is why both consume one graph.
+
+## Negative space
+
+**It does not detect downward layer skips anywhere but here, and `structure/layer-direction` detects none at all.** These two get conflated constantly. `layer-direction` rejects *upward* imports — a repo module importing a controller, a service importing UI. A controller importing repo runs the right way through the layers; it is a skip, not a reversal, and `layer-direction` is silent on it by construction. This rule covers exactly the two controller edges above and no other skip.
+
+**Cross-feature repo access is not this rule's finding.** A controller importing *another* feature's `repo/` is a feature-boundary question that `graph/feature-deps` and `api/feature-visibility` already own. Two rules reporting one edge teaches people that one of them is noise.
+
+**Type-only edges are excluded.** `import type { … } from "@/features/<self>/repo/x"` compiles away and creates no runtime dependency, so routing it through a layer buys nothing. The graph marks these; the marking is dropped deliberately here, not lost. `boundary/cross-boundary-alias` ignores the same marking on purpose, and the difference is the subject: that rule is about a string no other rule can see, this one is about a runtime dependency.
+
+**The DB client is legal, permanently.** See above. It is not an exception pending a better rule.
+
+**An edge the graph could not place in the text is reported against the file with no line.** A wrong line on a blocking check sends someone to the wrong place; the file alone sends them to the right one.
+
+**Coverage is exactly the graph's coverage.** The spellings `graph/import-graph.md` lists as unrevealed are edges this rule never receives.
+
+## Adapt
+
+Every knob is `checks["boundary/layer-occupancy"]` in the architecture config — nothing is a constant in the check body.
+
+- **`schemaTarget`** — the resolved path of the DB schema modules from the source root, default `infrastructure/db/schema`. A project whose schema lives at `@/db/schema` sets `"db/schema"`. Matched on whole path segments, so anything under it counts and `infrastructure/db/schema-utils.ts` does not.
+- **`repoLayer`, `serviceLayer`, `controllerLayer`** — the layer directory names, so a project using `data/` and `usecases/` renames here. Keep them in step with `source.layerOrder`, which is what the graph classifies against; a name here that is not in `layerOrder` matches nothing and the check goes quiet without erroring.
+- **`source.featuresDirName`** decides where features are enumerated from. A project that calls them `modules/` renames in one place and this follows.
+- The **alias prefix** is deliberately not a knob here. Resolution is the graph's business, which is what makes the aliased and relative spellings one edge in the first place.
+
+At adoption the check is loudest on the features furthest along, since only a feature that grew layers can bypass them. Fix those edges rather than filtering them — there is no exclusion list, because a feature excluded from this rule is one whose layers exist and enforce nothing, which is the exact state the rule was written to make visible.
 
 ## Implementation
 
-A function behind the structural check orchestrator, returning findings tied to their files. Feature enumeration uses directory listing rather than glob, so it does not expand into subdirectories; layer presence is a directory test. Everything about the imports themselves comes from the shared graph.
+[`layer-occupancy.ts`](./layer-occupancy.ts). Feature enumeration and layer presence come from `CheckContext.occupiedDirs`; everything about the imports comes from the shared graph, via `edge.target` and `edge.to.layer` rather than `edge.specifier`.
 
 ## Fixtures
 
-The two that a grep-based version passes: an upward import written `../../repo/x` from a nested controller, and one written as a same-feature alias. Plus the legal neighbour — a controller importing the DB *client* while `repo/` exists, which is allowed.
+[`expectations/boundary/layer-occupancy.ts`](../../../../../harness/script-fixtures/expectations/boundary/layer-occupancy.ts).
+
+The two a grep-based version passes: `../../repo/x` from a nested controller, and the same import written as a same-feature alias. The legal neighbours carry as much weight — a controller importing the DB *client* while `repo/` exists, a type-only import of the very repo module the adversarial cases fire on, and a feature with neither layer whose controller imports the schema directly. That last one is the presence test's only witness: drop the test and it starts reporting.
 
 ## Example output
 
 ```
-FAIL [layer-occupancy] src/features/billing/controllers/invoices.ts
-  Controller imports DB schema directly, but feature "billing" has a repo/ layer.
-  Move the query to a function in src/features/billing/repo/ and import that
-  instead. Controllers may import the DB client for transaction handling, but
-  schema imports (query construction) must flow through repo/.
+FAIL [boundary/layer-occupancy] src/features/billing/controllers/invoices.ts:8
+  Controller imports DB schema ("@/infrastructure/db/schema/invoices.ts"),
+  but feature "billing" has a repo/ layer. Move the query into a
+  function under features/billing/repo/ and call that instead.
+  The DB client stays legal here — controllers pass it to repo functions for
+  transaction handling. It is query CONSTRUCTION that has to be concentrated in repo/.
 
-FAIL [layer-occupancy] src/features/agent/controllers/jobs.ts
-  Controller imports repo directly, but feature "agent" has a service/ layer.
-  Route the call through src/features/agent/service/ instead.
-  When service/ exists, controllers must not bypass it to reach repo/.
+FAIL [boundary/layer-occupancy] src/features/billing/controllers/nested/jobs.ts:12
+  Controller imports repo/ directly ("../../repo/invoice-rows.ts"),
+  but feature "billing" has a service/ layer. Route the call through
+  features/billing/service/ instead.
+  Reaching past a present service/ splits orchestration in two — some calls
+  through it, some around it — and neither half looks wrong in the file it is written in.
 ```
+
+The second names the relative spelling back to you because that is what the file says, while the finding was made against the resolved path — which is the only reason it was made at all.

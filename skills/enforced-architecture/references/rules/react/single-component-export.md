@@ -6,54 +6,44 @@
 | **Mechanism** | Structural script (per-file counting, pre-commit + CI) |
 | **Blocking** | No (warning only) |
 
+Implementation: [single-component-export.ts](single-component-export.ts). The declaration forms it counts come from the shared classifier in [scripts/component-declarations.ts](../scripts/component-declarations.ts).
+
 ## What it prevents
 
 Two exported components in one file. Both are then found by the name of the *file* rather than their own, so the second is invisible to a grep for where it is defined — the same searchability argument the `naming/` tag makes about barrels. It also means the file has two reasons to change.
 
-Compound components namespaced under one export (`Object.assign(Card, { Header })`) are fine and should not fire.
+Compound components namespaced under one export (`Object.assign(Card, { Header })`) are the sanctioned shape and stay silent. That exemption is what the check's own message recommends, so it has to hold: a rule whose remedy trips the rule teaches that the rule is noise.
 
 ## Why this is a script and not a lint rule
 
-Not because of the counting: a per-file lint rule can accumulate exported components as it walks and decide at `Program:exit`. It is a script because the hard part is the component-declaration classifier, and that classifier is shared with [hook-count](hook-count.md) and [prop-count](prop-count.md). Write it once. Those three move tiers together or not at all.
-
-The declaration forms are the real hazard, and they survive any choice of mechanism. `export function Name()`, `export default function`, a generic `export function Name<T>()`, an arrow assigned to a `const`, `memo(…)`, `forwardRef(…)`, and a declaration exported on a later line are one thing to a reader and separate cases to every implementation. Cover the first and the rest are ignored in silence — and the ignored forms carry the smell, because the component tucked in beside another one is usually the small arrow, not the exported function declaration.
+Not because of the counting: a per-file lint rule can accumulate exported components as it walks and decide at `Program:exit`. It is a script because the hard part is the component-declaration classifier, and that classifier is shared with [hook-count](hook-count.md) and [prop-count](prop-count.md) — written once, in `scripts/component-declarations.ts`. Those three move tiers together or not at all; splitting one off means two implementations of the same hard part, drifting.
 
 ## Where it applies
 
-All `.tsx` files in the component tree, excluding tests and barrels (`index.tsx`).
+All `.tsx` files under `checks["react/single-component-export"].targetDirs`, excluding tests and barrels (`index.tsx`, which re-export by design).
 
-## Algorithm
+## The two directions it fails in
 
-Share the file walk, comment blanking, and component-declaration classifier with [hook-count](hook-count.md) and [prop-count](prop-count.md).
+Both are silent, which is why the fixtures name files for each.
 
-1. **Blank comments** rather than stripping them, so line numbers stay true and a component name mentioned in prose cannot be counted.
-2. **Collect exported component declarations** — `export [default] function Name(`, the generic `Name<T>(` spelling of it, and `export const Name = (` / `= function`, PascalCase only.
-3. **Report when a file yields more than one name**, listing them.
+**Under-matching.** `export function Name()`, `export default function`, a generic `export function Name<T>()`, an arrow assigned to a `const`, `memo(…)`, and `forwardRef(…)` are one thing to a reader and separate cases to every implementation. Cover the first and the rest are ignored without a word — and the ignored forms carry the smell, because the component tucked in beside another one is usually the small arrow, not the exported function declaration. A file the classifier can only half-read scores one component and reports nothing, which is indistinguishable from a file that was fine.
 
-## Configuration
+**Over-matching.** A PascalCase const is very often not a component. `export const AllComponentsCtx = createContext(…)` and `export const DRAG_SLOP = 4` both pass a name-only test, and reporting those trains people to ignore the rule, which costs more than the smell it was watching for. The shared classifier tests the bound **value** — an arrow, a function expression, `memo`, `forwardRef` — rather than the capital letter. This defect is invisible to every positive fixture; only the legal neighbour catches it.
 
-```typescript
-const EXPORTED_COMPONENT =
-  /^\s*export\s+(?:default\s+)?(?:async\s+)?function\s+([A-Z]\w*)\s*(?:<[^(;]*>)?\s*\(/;
+## Adapt
 
-// The const form must test the VALUE, not just the name.
-const EXPORTED_ARROW_COMPONENT =
-  /^\s*export\s+const\s+([A-Z][a-zA-Z0-9]*)\s*(?::[^=]+)?=\s*(?:<[^(;]*>\s*)?(?:\(|function\b|forwardRef|memo\b|React\.memo\b)/;
-```
+`checks["react/single-component-export"].targetDirs` — globs relative to the source root naming where components live, defaulting to `features/*/ui`, `shared/ui`, `routes`. Globbed rather than listed because that set grows, and a hand-maintained list goes stale in silence. Share the value with `react/hook-count` and `react/prop-count`: three checks claiming to govern "the components" while walking different sets is worse than any one of them being wrong.
 
-Both forms are required. A script handling only the `function` declaration has exactly the blind spot described above.
-
-**The `<[^(;]*>` clause is required.** It is the type-parameter list of a generic component — `export function OptionList<T extends string>({ items })`.
-
-**Test the value, not just the name.** A PascalCase or upper-case `const` is very often not a component — `export const AllComponentsCtx = createContext(…)` and `export const DRAG_SLOP = 4` both pass a name-only test. Reporting those trains people to ignore the rule, which costs more than the smell it was watching for. This over-matching is invisible to every positive fixture; only the legal neighbour catches it.
+Nothing else is configurable. The declaration forms are not a per-project decision, and a project that spells them differently is changing the classifier for all three checks at once.
 
 ## Example output
 
 ```
 WARN [single-component-export] src/features/chat/ui/panel.tsx — exports ChatPanel, EmptyState.
-  Both are found by the name of this file rather than their own, so the second is
-  invisible to a grep for where it is defined. Give it its own file, or namespace the
-  pair under one export if they are genuinely a compound component.
+  Each is found by the name of this file rather than its own, so all but the
+  first are invisible to a grep for where they are defined. Give each its own
+  file, or namespace them under one export with Object.assign if they are
+  genuinely a compound component.
 ```
 
 ## Why non-blocking

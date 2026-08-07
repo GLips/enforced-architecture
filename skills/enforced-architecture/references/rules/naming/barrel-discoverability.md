@@ -3,70 +3,72 @@
 | Field | Value |
 |---|---|
 | **Tag** | naming |
-| **Mechanism** | Structural script (cross-file, pre-commit + CI) |
+| **Mechanism** | Structural script (pre-commit + CI) |
 | **Blocking** | Yes |
+
+Implemented in `naming/barrel-discoverability.ts`. Configured under
+`checks["naming/barrel-discoverability"]` in `scripts/config.ts`.
 
 ## What it prevents
 
-Public barrels (`index.ts` / `index.server.ts`) that hide or rename the symbols they expose, defeating text search. Two shapes:
+Public barrels (`index.ts` / `index.server.ts`) that hide or rename the symbols they expose, defeating text search. Two shapes, and they cost a reverse lookup different things:
 
-1. **Wildcard re-exports** — `export * from "./stripe"`. The barrel advertises no names, so an agent grepping for what a module offers finds nothing at the barrel and must open every re-exported file to discover the surface. It also lets new exports leak through the public API silently, with no review at the boundary.
-2. **Renamed re-exports** — `export { createClient as createStripeClient } from "./stripe"`. The public name (`createStripeClient`) and the real definition (`createClient`) now share no text. A reverse lookup on either one finds only half the story: grep the public name and the definition is invisible; grep the definition and the callers are invisible.
+1. **Wildcard re-exports** — `export * from "./stripe"`, and `export * as stripe from "./stripe"`. The barrel advertises no names at all. An agent grepping for what a module offers finds nothing at the barrel and has to open every re-exported file to learn the surface. The namespace form is not the milder version of this: it hides the same names behind one more. A wildcard also means every future export of `./stripe` joins the public API silently, with no review at the boundary — the barrel stops being a decision and becomes a pipe.
+2. **Renamed re-exports** — `export { createClient as createStripeClient } from "./stripe"`. The public name and the definition now share no text. Grep `createStripeClient` and the definition is invisible; grep `createClient` and the callers are. Neither half of the lookup announces that the other half exists, which is what makes this worse than a bad name: a bad name is findable. A plain `export { createStripeClient } from "./stripe"` is fine — the name is preserved, and the barrel is doing exactly its job.
 
-Agents treat the barrel as the map of a module. When the map uses `*` or aliases, the territory no longer matches it. This rule keeps every publicly exported name identical to its definition and explicit at the boundary.
+Agents treat the barrel as the map of a module. When the map uses `*` or aliases, the territory no longer matches it.
 
 ## Why a script, not a lint rule
 
-Nothing structural — this one is a script by convenience, not by necessity. The whole check is decidable from one file: a visitor sees `ExportAllDeclaration` (both `export *` and `export * as ns`) and each `ExportNamedDeclaration` specifier's local/exported pair directly, and `context.filename` is enough to restrict it to barrels. It stays a script because barrels are few and short, so the glob costs nothing and the check rides along with `naming/test-file-mirror`, which does need the filesystem.
+Nothing here is structural, and this is the one rule in the tier honest about that. The whole check is decidable from the file in hand: a visitor sees `ExportAllDeclaration` (both `export *` and `export * as ns`) and each `ExportNamedDeclaration` specifier's local/exported pair directly, and `context.filename` is enough to restrict it to barrels. No cross-file resolution, no counting across a set, no surface the linter cannot parse.
 
-Port it to the lint tier if you want the diagnostic in the editor at author time rather than at commit — the algorithm below transfers unchanged, and the AST removes the need for step 2's regex compromise.
+It stays a script for two reasons, neither of them principled: barrels are few and short, so globbing them costs nothing, and it rides along with `naming/test-file-mirror`, which does need the filesystem.
+
+Port it to the lint tier if you want the diagnostic in the editor at author time rather than at commit. The intent transfers unchanged and the AST removes the one compromise the script makes — matching export statements as text, which is why it blanks comments before matching so a commented-out `export *` cannot fire.
 
 ## Where it applies
 
-Public barrel files only — the two-barrel pattern this architecture uses:
-- `src/(domains|features)/*/index.ts`
-- `src/(domains|features)/*/index.server.ts`
+Public barrels only, resolved from `barrelGlobs` — source-root-relative, defaulting to the two-barrel pattern this architecture uses:
 
-Adjust the glob to your project's barrel locations (e.g., drop `domains` if there is no domains layer, or add `shared/*/index.ts` if shared modules expose barrels).
+- `(domains|features)/*/index.ts`
+- `(domains|features)/*/index.server.ts`
 
-Does NOT apply to internal (non-barrel) files — renaming and wildcard imports inside a module are the module's own business; only the *public* surface must stay greppable.
+Does **not** apply to internal files. A wildcard or an alias inside a module is the module's own business — how it forwards names among its own files changes nothing about what the outside world can find. Only the public surface has to stay greppable, and a version of this rule that walked the whole tree would fire on ordinary code within a week of being adopted.
 
-## Algorithm
+Does **not** care whether the re-export has a `from` clause. `import { createClient } from "./stripe"` followed by `export { createClient as createStripeClient }` splits a reverse lookup exactly as much as the one-line form, and is the obvious way around a rule that only matched the one-liner.
 
-1. **Find barrel files** — glob the public barrel paths above.
-2. **Read each barrel** — parse export statements. A regex pass is sufficient and avoids a TS-AST dependency; upgrade to the compiler API only if comment-embedded export text causes false positives in practice.
-3. **Flag wildcard re-exports** — any `export * from "..."` or `export * as ns from "..."`. FAIL.
-4. **Flag renamed re-exports** — any `export { X as Y } from "..."` where `X !== Y`. FAIL, naming both sides. (A plain `export { X } from "..."` is fine — the name is preserved.)
-5. **Ignore type-only nuance** — `export type { X as Y }` is lower risk (types aren't reverse-looked-up the same way) but still worth flagging by default; make it configurable if a project relies on type aliasing at the barrel.
+`export { default as Button }` **is** flagged, and deliberately: a default export carries no name to grep for at all, so the barrel is the only place the name exists. Give the definition the name and export it.
 
-## Configuration
+## The type-alias nuance
 
-```typescript
-// Barrel locations — adapt to your project's public API surface.
-const BARREL_GLOBS = [
-  "src/{domains,features}/*/index.ts",
-  "src/{domains,features}/*/index.server.ts",
-];
+`export type { X as Y }` and the inline `export { type X as Y }` are governed by `flagTypeAliases`, on by default.
 
-// Whether to also flag renamed *type* re-exports (export type { X as Y }).
-// Types are reverse-looked-up less often, but aliasing still splits search.
-const FLAG_TYPE_ALIASES = true;
-```
+Types are reverse-looked-up less often than values — you follow a type through the compiler more than through a grep — so the cost is genuinely lower. It is not zero: the aliased type still has a public name that appears nowhere near its definition. Turn the knob off only if the project has a deliberate convention of aliasing types at the barrel, and know that you are trading away half of those lookups.
+
+## Adapt notes
+
+- `barrelGlobs` names the barrels. Relative to the **source root**, not the project root. Drop `domains/*` if there is no domains layer; add `shared/*/index.ts` if shared modules expose barrels. A glob matching nothing is not an error — it reports cleanly, so a typo here reads exactly like a conforming repo.
+- `flagTypeAliases` decides the paragraph above.
+- Nothing else. There is no exclusion list: a barrel that needs an exemption is a barrel whose public API is not a decision anyone made.
 
 ## Example output
 
 ```
 FAIL: barrel-discoverability — src/features/billing/index.ts:3
   `export * from "./stripe"` hides the names this module exposes.
-  List each public symbol explicitly: `export { createStripeClient, StripeWebhook } from "./stripe"`.
+  List each public symbol explicitly instead. The barrel is the map an agent
+  greps to learn what this module offers, and a wildcard leaves it blank — it
+  also lets every future export of "./stripe" join the public API with no
+  review at the boundary.
 
 FAIL: barrel-discoverability — src/features/billing/index.ts:5
-  `export { createClient as createStripeClient }` renames on the way out —
-  the public name and the definition `createClient` now share no text, so a
-  reverse lookup on either misses the other. Rename the definition to
-  `createStripeClient` and re-export it unaliased.
+  `export { createClient as createStripeClient } from "./stripe"` renames on the way out.
+  The public name and the definition `createClient` now share no text, so a reverse
+  lookup on either misses the other: grep createStripeClient and the definition is
+  invisible, grep createClient and the callers are. Rename the definition to
+  createStripeClient and re-export it unaliased.
 ```
 
 ## Why blocking
 
-The whole point of the two-barrel public API is that the barrel is the authoritative, greppable index of a module. A wildcard or alias silently breaks that contract, and once one barrel does it the pattern spreads. Blocking at author time is cheap; unwinding aliased public names after callers depend on them is not.
+The whole point of the two-barrel public API is that the barrel is the authoritative, greppable index of a module. A wildcard or an alias breaks that contract without breaking anything a test would notice, and once one barrel does it the pattern spreads — the next author reads the neighbour, not the rule. Blocking at author time is cheap: the fix is typing the names out. Unwinding an aliased public name after callers depend on it is not.

@@ -1,0 +1,3 @@
+{
+  "consumer": "Reads the seat count to size its own list. Owned here; consumer never writes back."
+}

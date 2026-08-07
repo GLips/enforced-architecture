@@ -1,0 +1,14 @@
+/* FIRES css-tokens ONCE: a raw font-size whose value sits on the line after the
+   property. A line-oriented matcher — the shape this check naturally takes —
+   sees `font-size:` carrying no unit, then `13px` carrying no property, and
+   reports nothing. That is prop-count's `\(([^)]*)\)` again: green for as long
+   as every case it could catch happened to fit on one line.
+   The `rgb(var(--x))` below has to stay silent in the same file. Drop the
+   literal-digit requirement from the color matcher and it reports too — which
+   is the over-match that trains people to switch a check off, and the reason
+   the silent case lives beside a firing one rather than in its own file. */
+.wrapped-label {
+  color: rgb(var(--tk-brand-channels));
+  font-size:
+    13px;
+}

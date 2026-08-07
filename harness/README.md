@@ -1,12 +1,16 @@
 # Rule fixture harness
 
-Runs every oxlint rule template in `skills/enforced-architecture/references/rules/` against the specs that ship beside it, and fails CI when one stops behaving.
+Runs every rule in `skills/enforced-architecture/references/rules/` against the cases that prove it, and fails CI when one stops behaving.
 
-It proves the **chosen examples**, not the header claim in general. The specs and the rule come from the same author, so an unimagined violation spelling is unimagined in both. Treat a green run as "the contract I wrote down still holds", not as "this rule is correct."
+It proves the **chosen examples**, not the header claim in general. The cases and the rule come from the same author, so an unimagined violation spelling is unimagined in both. Treat a green run as "the contract I wrote down still holds", not as "this rule is correct."
 
 ```
-bun run check:rules
+bun run check          # both tiers
+bun run check:rules    # 31 oxlint rules, under real Node
+bun run check:scripts  # 18 structural-script checks, under Bun
 ```
+
+Two runners because the two tiers read differently, not because the standard differs. An oxlint rule is handed one file, so it is exercised through `RuleTester` against inline sources. A structural check scans declared roots and several scan more than one, so its cases are real files in one shared tree. Both are held to the same three-kind contract below. The script side has its own README at [script-fixtures/README.md](script-fixtures/README.md); the rest of this file is the oxlint side plus what the two share.
 
 ## Why this exists
 
@@ -37,7 +41,7 @@ The specs shipping *beside* the rules is the other half of the trade: a project 
 
 ## The three-kind contract
 
-`describeRule` takes the three kinds as named arguments, so a missing one is a type error rather than a convention nobody checks:
+Both tiers hold to it. On the oxlint side `describeRule` takes the three kinds as named arguments, so a missing one is a type error rather than a convention nobody checks; on the script side the same three names are fields of a `CheckFixtures` object and the runner rejects an empty one:
 
 ```ts
 import { describeRule } from "../lib/rule-spec.ts";
@@ -84,6 +88,8 @@ Verified on oxlint 1.77.0 / bun 1.3.13 / Node 24.17.0. Re-check whether JavaScri
 
 ## Scope
 
-The 31 rule templates are covered. The 17 `.md` templates describe structural-script algorithms rather than shipping runnable code, so there is nothing here to load — they are marked **Not spec-tested** in `rules/overview.md`, with the reason. Implementing them here would make this repo the implementation under test rather than the templates.
+All 49 rules are covered: 31 oxlint rules through `check:rules`, 18 structural-script checks through `check:scripts`. Nothing in the catalog ships as an untested description any more.
 
-`harness/parked/script-tier-fixtures/` holds 38 adversarial fixtures for that script tier, lifted out of a consuming project. They are parked, not wired: this harness runs templates unmodified and those scripts are adapted instantiations. Read the README there before touching them.
+The script tier used to be prose. Each consuming project hand-rolled an implementation from the algorithm in the `.md`, and three independent audits found the same result: the implementations drifted, and each one had silently stopped matching part of what its doc promised. One deployment's layer-occupancy check had three bypasses and hardcoded a path its own doc documented as configurable; another's barrel-purity discovered a third of the barrels it claimed to. Every one of those was green. That is the argument for shipping code and config rather than an algorithm — the adaptation step is where the silence was getting in, so the adaptation step is now writing config.
+
+What is still not covered, for either tier: whether a rule survives **adaptation**. Repointing a root, extending a package list, or adding an exclusion is unverified work in the consuming project — see *Rule Specs* in `references/enforcement-implementation.md`.

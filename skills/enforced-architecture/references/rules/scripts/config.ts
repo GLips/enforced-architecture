@@ -245,19 +245,40 @@ export type ComponentScanConfig = {
 export type HookCountConfig = ComponentScanConfig & { threshold: number };
 export type PropCountConfig = ComponentScanConfig & { threshold: number };
 
+/**
+ * The path grammar inside ONE subdivided directory. It is per-directory because
+ * `features/` and `domains/` are genuinely different shapes, and the difference
+ * is not stylistic — it follows from what the other rules key on.
+ *
+ * Feature-scoped rules key on `features/<name>/<layer>/`, so a directory inside
+ * a feature that is not a layer is reached by nothing and has to be rejected.
+ * Domain-scoped rules key on `domains/<name>/` and reach the entire subtree, so
+ * a module at a domain root is fully governed and there is nothing for a path to
+ * escape into. Applying the feature grammar to domains rejects the layout
+ * `directory-model.md` recommends — internal modules at the domain root — which
+ * is this rule's own named failure mode.
+ */
+export type BoundaryGrammar =
+  | {
+      kind: "layered";
+      /** Files at a boundary root: its public surface, plus its error types. */
+      rootFiles: string[];
+      /** The closed set of directory names one level inside a boundary. */
+      layers: string[];
+    }
+  | { kind: "unlayered" };
+
 export type TopologyConfig = {
   /** The closed set of first path segments under the source root. */
   allowedRoots: string[];
-  /** The closed set of first segments inside a feature. */
-  allowedFeatureDirs: string[];
   /**
    * Files sitting directly in the source root. Entrypoints and env modules are
    * not layers, and a directory-only whitelist rejects them — which is the first
    * thing this rule gets wrong.
    */
   allowedRootFiles: string[];
-  /** Files at a feature root: its public surface, plus its error types. */
-  featureRootFiles: string[];
+  /** Keyed by directory name, and every entry of `source.subdividedDirs` needs one. */
+  boundaries: Record<string, BoundaryGrammar>;
 };
 
 export type CssTokensConfig = {
@@ -407,7 +428,6 @@ export const defaultCheckConfigs: CheckConfigs = {
 
   "structure/topology": {
     allowedRoots: ["routes", "features", "domains", "infrastructure", "shared"],
-    allowedFeatureDirs: ["ui", "controllers", "service", "repo"],
     allowedRootFiles: [
       "env.ts",
       "env.server.ts",
@@ -417,7 +437,14 @@ export const defaultCheckConfigs: CheckConfigs = {
       "server.ts",
       "styles.css",
     ],
-    featureRootFiles: ["index.ts", "index.server.ts", "errors.ts"],
+    boundaries: {
+      features: {
+        kind: "layered",
+        rootFiles: ["index.ts", "index.server.ts", "errors.ts"],
+        layers: ["ui", "controllers", "service", "repo"],
+      },
+      domains: { kind: "unlayered" },
+    },
   },
 
   "style/css-tokens": {

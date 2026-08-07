@@ -64,7 +64,7 @@ One boundary like that kills an entire class of bugs, because the import can't e
 | **health** | 3 | Quality metrics—file size, nested ternaries, pass-through wrappers |
 | **naming** | 2 | Searchability—no `export *`, no renamed re-exports, test files that mirror their source |
 
-31 run as [oxlint](https://oxc.rs/docs/guide/usage/linter) plugin rules, per-file and in real time. The rest are cross-file scripts that run pre-commit, because questions like "does this import cross a feature boundary?" can't be answered from one file. (One `graph` entry is the shared import graph those scripts consume, not a rule itself.)
+31 run as [oxlint](https://oxc.rs/docs/guide/usage/linter) plugin rules, per-file and in real time. The other 18 are cross-file scripts that run pre-commit, because questions like "does this import cross a feature boundary?" can't be answered from one file. They share one resolved import graph and one config object, so adopting one means setting a few values rather than reimplementing an algorithm. (One `graph` entry is that shared import graph, not a rule itself.)
 
 Almost every rule **blocks** rather than warns. Agents treat warnings as "it's fine."
 
@@ -89,7 +89,7 @@ The templates target Bun, TanStack Start, oxlint, Drizzle, Postgres, React, Zod,
 
 **On something else?** The rules won't paste in, but the boundaries they encode don't depend on your framework, and every rule spells out its own reasoning. Point your agent at the repo and let it translate them to ESLint, ArchUnit-style fitness functions, or plain scripts. That's the intended use for most readers.
 
-Either way, confirm your adapted rule still fires before you trust it. A lint rule that stops matching doesn't error—it goes green, and a passing check looks exactly like a working one. Every rule here ships with a spec file beside it for that reason: copy it along with the rule and repoint it at your paths. ([How that's set up.](harness/README.md))
+Either way, confirm your adapted rule still fires before you trust it. A lint rule that stops matching doesn't error—it goes green, and a passing check looks exactly like a working one. Every rule here is proved against three kinds of case in CI before it reaches you: the obvious violation, the adversarial spelling that beats a naive implementation, and the legal neighbour that must stay silent. oxlint rules carry their spec in the file beside them, so copy it along with the rule and repoint it at your paths; the cross-file checks are proved against a shared fixture tree that stays in this repo, so their equivalent is fixtures you write once against your own code. ([How that's set up.](harness/README.md))
 
 ## License
 

@@ -146,13 +146,16 @@ export function collectFiles(
   config: ArchitectureConfig,
   root: string,
   pattern: string,
-  options: { fromSourceRoot?: boolean } = {},
+  options: { fromSourceRoot?: boolean; includeExcluded?: boolean } = {},
 ): string[] {
   const base = options.fromSourceRoot === true ? sourceRoot(config) : config.projectRoot;
   const glob = root === "" ? pattern : `${root}/${pattern}`;
   const found: string[] = [];
   for (const absolute of new Bun.Glob(glob).scanSync({ cwd: base, absolute: true })) {
-    if (!isExcluded(config, absolute)) found.push(absolute);
+    // `includeExcluded` is for the one check whose SUBJECT is an excluded file:
+    // `naming/test-file-mirror` audits the names of tests, which every other
+    // check skips. Nothing else should reach for it.
+    if (options.includeExcluded === true || !isExcluded(config, absolute)) found.push(absolute);
   }
   return found.sort();
 }

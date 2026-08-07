@@ -15,4 +15,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
-      - run: bun run check:rules
+      # Both tiers. `check:rules` needs real Node — oxlint's RuleTester refuses
+      # Bun by name — and `harness/with-real-node.sh` arranges that; `check:scripts`
+      # runs under Bun. Running only one leaves the other tier free to go green
+      # while matching nothing, which is the failure this job exists to catch.
+      - run: bun run check

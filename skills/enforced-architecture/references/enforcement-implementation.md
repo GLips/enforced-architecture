@@ -255,13 +255,25 @@ Within a file, `Program:exit` does aggregate — that is the one limit GritQL ha
 7. Revert-probe it: misspell the visitor key or invert a guard and watch the adversarial kind fail; break the exemption and watch the legal kind fail; restore both. A spec that stays green through that is asserting nothing
 8. Run `bun run check:arch` against the real tree. A hit is either a false positive (narrow the rule) or a true violation — and true violations are the rollout: sweep them in the same change the rule lands in. A rule that ships alongside its own open violations either blocks everyone or teaches everyone to ignore it
 
-## Adding a New Structural Check
+## Adopting a Structural Check
 
-1. Read the relevant rule template from `rules/<tag>/<name>.md`
-2. Implement as a function returning findings, using the shared library (above) for file collection and import resolution
-3. Wire it into the orchestrator: return errors for blocking findings and warnings for non-blocking ones, each tied to its file (so warnings can be staged-scoped)
-4. Write its three cases (see below)
-5. Run `bun run check:arch` to verify
+Not "implementing" — the checks in the catalog are runnable modules, proved against fixtures in the skill's own CI. Reimplementing one from its doc is how a check ends up silently matching less than the doc promises, which is what happened at three separate deployments before this tier shipped as code.
+
+1. Copy `rules/scripts/{config,lib,import-graph,run-structural-checks}.ts` into the project's `scripts/`, plus each selected `rules/<tag>/<name>.ts`
+2. Register the checks in the project's `scripts/registry.ts`. A check that is not registered is a file that ships and never runs
+3. Write `arch.config.ts`: spread `defaultCheckConfigs` and override what differs. Read each rule's **Adapt** section for its keys — that section names them because the config object is the entire adoption surface
+4. Run once against the real tree and calibrate any thresholds *just above* current values, so they signal growth rather than firing on day one. A check that fires on the state of the world the day it was installed is a check that gets switched off in the same week
+5. Write the project's three cases (see below) against its own code. The catalog's fixtures prove the check; yours prove the config
+6. Run `bun run check:arch` to verify
+
+## Adding a Genuinely New Structural Check
+
+When no catalog rule covers the invariant:
+
+1. Export a `StructuralCheck` — an `id` and a `run(context)` that **returns findings**. The orchestrator owns reporting and the exit code, which is what lets warnings be staged-scoped and lets one check throw without silencing the rest
+2. Take imports from `context.importGraph()` and file sets from the shared collection helpers. Do not scan files for imports directly: the union of Bun's two scans and the JSX-runtime filter are where the silent losses live
+3. Put every per-repo value in the config object, never as a constant in the check body. The test is whether a second project could adopt it by writing config alone
+4. Write its three cases (see below), then revert-probe: disable the matcher and watch the adversarial case report as missed
 
 ---
 
