@@ -30,18 +30,7 @@ Read these references before and during the process:
 | [migration-patterns.md](references/migration-patterns.md) | Phase 4 (migration) | Atomic phase decomposition, sequencing, verification |
 | [rules/overview.md](references/rules/overview.md) | Phase 3–4 (rule catalog) | Complete rule index with tags, mechanisms, and links to templates |
 
-Rule templates live in `references/rules/` organized by tag:
-
-| Directory | Tag | Contents |
-|---|---|---|
-| `rules/boundary/` | boundary | Layer direction, import restrictions — oxlint rules + scripts |
-| `rules/api/` | api | Public API surface, barrel conventions — oxlint rules + scripts |
-| `rules/structure/` | structure | File placement, naming, server function validation — oxlint rules |
-| `rules/naming/` | naming | Searchability — greppable public barrels, mirrored test names — scripts |
-| `rules/graph/` | graph | Cross-file dependency analysis — scripts |
-| `rules/health/` | health | Code quality metrics — scripts |
-| `rules/react/` | react | React-specific code smell detection — oxlint rules + scripts |
-| `rules/style/` | style | Design-system adherence — tokens over values, primitives over raw elements — oxlint rules + scripts |
+Rules live in `references/rules/<tag>/`, indexed with mechanism and blocking status in [rules/overview.md](references/rules/overview.md).
 
 ## Process
 
@@ -91,11 +80,11 @@ Using the chosen configuration, propose:
 8. **Error architecture** — Based on chosen configuration.
 9. **SDK containment** — Classify every third-party SDK as wrapped or layer-restricted.
 10. **Test placement** — Co-located. Tests excluded from boundary enforcement.
-11. **Design-system boundary** — Where the primitives layer lives, what closed scales exist (color, type, spacing, radius, elevation), and which module owns each. The `style/` rules all key off these two answers: the primitives path is what every rule exempts, and the token source is what `style/token-equality` imports. If the project has no design system yet, say so — the tag is then a later phase, not a rule set to adapt now.
+11. **Design-system boundary** — Where the primitives layer lives, and which module owns each closed scale (color, type, spacing, radius, elevation). Every `style/` rule keys off these two: the primitives path is what they exempt, the token source is what `style/token-equality` imports. If there is no design system yet, say so — the tag becomes a later phase rather than a rule set to adapt now.
 
 **Calibration:** For every proposed layer, directory, or abstraction, ask: does this earn its place? If a service layer would just forward calls, don't propose it.
 
-**Navigability:** Structure is how agents find code, but names are how they *search* it — agents grep symbol names far more than they trace imports or types. Directories and public exports should be named after the domain concepts they contain, specifically enough that a name works as an address (`createStripeClient`, not `create`). Name *quality* is a judgment call, not a mechanical rule — carry it through the whole proposal, since every directory and barrel name is a search term an agent will type. The `naming/` rule tag enforces only the mechanical piece: keeping the public barrel surface greppable (no `export *` / renamed re-exports) and test names mirrored to their source.
+**Navigability:** Structure is how agents find code; names are how they *search* it. Name directories and public exports after the domain concepts they contain, specifically enough to work as an address (`createStripeClient`, not `create`). This is a judgment call carried through the whole proposal — the `naming/` tag enforces only the mechanical piece.
 
 **Done when:** An agent reading only the target structure section could answer "where does this code live?" for any type of work.
 
@@ -110,18 +99,10 @@ Read [enforcement-strategy.md](references/enforcement-strategy.md) for the two-l
 4. Tag each rule with its enforcement mechanism: **oxlint rule** (per-file, real-time) or **structural script** (cross-file, pre-commit).
 5. Add project-specific rules not covered by the catalog.
 
-The plan's rule set section should be lean — a selection and adaptation table, not a duplication of template content. The templates already contain mechanism, blocking status, error messages, and full implementation details. The plan only needs to capture what's project-specific:
+Keep the plan's rule section lean — two tables, not a copy of template content. The templates already carry mechanism, blocking status, messages, and implementation.
 
-**Included rules table** — For each selected rule:
-
-| Field | Required content |
-|---|---|
-| **Rule** | `tag/descriptive-name` format (e.g., `boundary/db-isolation`) |
-| **Adaptation** | Project-specific path patterns, package lists, thresholds, or "Standard" if no adaptation needed |
-
-**Excluded rules table** — For each rule from the catalog that was NOT selected, with the reason (e.g., "No domains layer").
-
-Implementing agents read the full template from the skill's `references/rules/<tag>/` directory for everything else (mechanism, blocking status, error messages, implementation patterns).
+- **Included** — rule id (`tag/name`) and its adaptation: project-specific paths, package lists, thresholds, or "Standard".
+- **Excluded** — every catalog rule not selected, with the reason (e.g. "No domains layer"). Say why, or the next agent re-litigates the same choice.
 
 **Done when:** Every architectural constraint has a corresponding rule selected from the catalog (or added as project-specific). Every selected rule notes its project-specific adaptations.
 
@@ -141,20 +122,14 @@ Read [enforcement-implementation.md](references/enforcement-implementation.md) f
 
 **Migration:** Decompose into atomic phases per [migration-patterns.md](references/migration-patterns.md). Each phase produces a clean repo.
 
-**Implementation guidance for rule writing:** The two tiers adopt differently, and treating them alike is the mistake to avoid.
+**The two tiers adopt differently, and treating them alike is the mistake to avoid.**
 
-**Structural scripts are copied, not adapted.** Take `scripts/` wholesale — the substrate plus every selected check — and write the project's config on top of `defaultCheckConfigs`. Every knob a check reads is a key in that object, documented at its declaration and named in the rule's *Adapt* section. Reimplementing a check from its doc is how three separate deployments each ended up with a check that had silently stopped matching part of what the doc promised; the config object exists so that step no longer happens.
+- **Structural scripts are copied, not adapted.** Take `scripts/` wholesale and write config on top of `defaultCheckConfigs`. Reimplementing a check from its doc is how three separate deployments each ended up with one that had silently stopped matching part of what the doc promised.
+- **oxlint rules do need adapting** — they are written against one standard layout and their path patterns have to be repointed. Parallelize with one subagent per tag directory. Have them write rules first and register in `oxlint/plugin.ts` in one pass afterwards rather than editing that file concurrently.
 
-**oxlint rules do require project-specific adaptation.** They are written against one standard layout and their path patterns have to be repointed. Launch subagents per rule tag directory to parallelize:
-- One subagent for `boundary/` rules (reads templates, adapts to project paths, writes `<name>.ts` rule modules)
-- One subagent for `api/` rules
-- One subagent for `structure/` rules
-- One subagent for `react/` rules (if applicable)
-- One subagent for `style/` rules (if the project has a design system)
+Procedures for both are in [enforcement-implementation.md](references/enforcement-implementation.md).
 
-Each subagent reads the relevant templates from the skill's `references/rules/<tag>/` directory, reads the project's directory structure, and writes the adapted rule into the project's `oxlint/` directory as `<tag>/<name>.ts` plus its `<name>.test.ts` spec. Every lint rule must also be registered in `oxlint/plugin.ts` and switched on in `.oxlintrc.json` — a rule module nobody registers is a file that ships and never runs, which is the silent failure this whole tier exists to prevent. Registration is a single shared file, so have the subagents write their rules first and add the entries in one pass afterwards rather than editing it concurrently. The parent agent verifies with `bun run check:arch` after all rules land.
-
-**Every rule ships with a permanent spec beside it, and one of its cases is adversarial.** A rule's failure mode is silent: when it stops matching it goes green, not red. Verifying it once against the shape you had in mind and throwing the check-file away is how a tier ends up governing its canonical examples and nothing else — the third case, the violation written the way your rule *misses*, is the one that decides whether the rule works. Specs live beside the rules and run inside `check:arch`. See [enforcement-implementation.md](references/enforcement-implementation.md) for the three cases and the adversarial checklist.
+**Every rule ships with a permanent spec, and one of its cases is adversarial.** A rule's failure mode is silent: when it stops matching it goes green, not red. Verifying it once against the shape you had in mind and throwing the check away is how a tier ends up governing its canonical examples and nothing else. The adversarial case — the violation written the way your rule *misses* — is the one that decides whether the rule works.
 
 **Done when:** Numbered phases with specific file-level changes, the rules that activate in each phase, and a verification step. Every rule has its spec, and the suite runs in the gate.
 

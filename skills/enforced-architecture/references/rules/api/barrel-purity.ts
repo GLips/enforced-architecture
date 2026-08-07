@@ -15,7 +15,7 @@
 // question", and bare package names are precisely this rule's subject. It shares
 // the EXTRACTION instead, importing `scanDeclaredImports` from the substrate:
 // the union of the two Bun scans, minus the JSX runtime entries Bun injects.
-// See graph/import-graph.md#extraction.
+// See graph/import-graph.md.
 //
 // See api/barrel-purity.md for the server-function short-circuit — a documented
 // assumption rather than a proof — and for the resolution gaps.

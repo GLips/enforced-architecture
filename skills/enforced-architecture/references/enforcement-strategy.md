@@ -56,15 +56,7 @@ Structural scripts analyze relationships between files or properties that span t
 - CI via the same script
 - NOT real-time in editor (too slow, requires full codebase scan)
 
-**What structural scripts catch:**
-- Circular dependencies between domains
-- File size limits (warn and fail thresholds)
-- Trampoline detection — pass-through functions that add no value
-- Layer occupancy enforcement — controllers bypassing present repo/ layers
-- Cross-feature dependency graph cycles and coupling thresholds
-- Barrel purity — client-safe barrels transitively importing server-only code
-
-See [rules/overview.md](rules/overview.md) for the complete rule catalog with mechanisms, blocking status, and links to each rule's template.
+They ship as code with one config object rather than as algorithms to reimplement — cycles, coupling thresholds, layer occupancy, barrel purity, file size, trampolines. See [rules/overview.md](rules/overview.md) for the catalog, mechanism and blocking status per rule.
 
 ---
 
@@ -109,16 +101,7 @@ CI is the last line of defense, not the primary feedback mechanism. If a violati
 
 ### Every rule is blocking by default
 
-Non-blocking requires explicit justification. Agents do not distinguish warnings from errors in their behavior. A non-blocking rule trains agents to ignore violations.
-
-**Valid reasons for non-blocking:**
-- Heuristic checks requiring semantic judgment (trampoline detection)
-- Warning tiers before hard limits (file size)
-- Coupling metrics where the threshold is a signal, not a hard invariant
-
-**Invalid reasons for non-blocking:**
-- "We will enforce it later" — violations accumulate. Agents copy patterns.
-- "It might have false positives" — a false positive costs minutes. A missed violation costs days.
+Non-blocking needs explicit justification, and only three reasons qualify: a heuristic needing semantic judgment (trampoline detection), a warning tier in front of a hard limit (file size), and a coupling threshold that is a signal rather than an invariant. The argument for why, and the reasons that do *not* qualify: [architecture-principles.md](architecture-principles.md#4-all-rules-blocking-from-day-one).
 
 ### Error messages target AI agents
 
@@ -151,4 +134,4 @@ All rules (except `boundary/no-test-imports`) exclude test files and one-off scr
 - `**/src/test/**`
 - `**/scripts/**`
 
-Tests need cross-boundary imports for setup and assertions, and a script is not part of the shipped module graph. The exclusion lives in exactly two places — `isArchitectureExemptPath` in the rules' shared `lib/`, and the structural scripts' file collection — and is never repeated per rule. Per-rule copies drift: five rules in the GritQL catalog over-matched identically because each template carried its own near-copy of the same pattern.
+Tests need cross-boundary imports for setup and assertions, and a script is not part of the shipped module graph. The exclusion lives in exactly two places — `isArchitectureExemptPath` in the rules' shared `lib/`, and the structural scripts' file collection — and is never repeated per rule. Per-rule copies drift, and they drift identically: every rule carrying its own near-copy of the exemption over-matches the same way, and each one has to be found separately.

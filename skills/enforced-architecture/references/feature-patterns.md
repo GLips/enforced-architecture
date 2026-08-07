@@ -120,73 +120,18 @@ Controllers do NOT:
 - Contain pure business logic (that belongs in `domains/`)
 - Contain raw DB queries when a `repo/` directory exists (the `boundary/layer-occupancy` check enforces this)
 
-### Controller File Naming
+### Controller file naming and the two-file split
 
-Files exporting `createServerFn()` use plain `.ts`, because their RPC references must remain client-importable. Raw server-only helpers use a `.server.ts` sibling. The compiler rewrites server-function handlers before import protection; imports used only by the handler are removed from the client output.
+Files exporting `createServerFn()` use plain `.ts`, because their RPC references must stay client-importable. Raw server-only helpers go in a `.server.ts` sibling. The compiler rewrites server-function handlers before import protection runs, so imports used only inside a handler are pruned from the client output.
 
-Source: `@tanstack/start-plugin-core/src/start-compiler/handleCreateServerFn.ts`.
-
-Controllers are re-exported through the feature's `index.ts` barrel:
+Controllers are re-exported through the feature barrel:
 
 ```typescript
 // features/<name>/index.ts
 export { loadItemFn, createItemFn } from "./controllers/items";
 ```
 
-### Server Function Pattern
-
-TanStack Start's compiler replaces `createServerFn` handlers with client RPC stubs and removes imports used only by those handlers:
-
-```typescript
-// controllers/items.ts
-import { createServerFn } from "@tanstack/react-start";
-import { z } from "zod";
-import { requireSession } from "@/infrastructure/auth/require-session.server";
-import { db } from "@/infrastructure/db/client";
-import { itemRepo } from "../repo/items";
-
-export const loadItemFn = createServerFn({ method: "GET" })
-  .validator(z.object({ id: z.string() }))
-  .handler(async ({ data }) => {
-    const session = await requireSession();
-    return itemRepo.getById(db, { id: data.id, userId: session.user.id });
-  });
-```
-
-### Two-File Split
-
-Use a client-importable controller for the `createServerFn` definition and a `.server.ts` companion for raw server-only helpers. Keep `createServerFn` calls direct and top-level so the compiler can transform them.
-
-```
-controllers/
-  items.ts               # createServerFn definitions (client-safe)
-  items.server.ts        # Handler implementations (server-only)
-```
-
-```typescript
-// controllers/items.ts
-export const loadItemFn = createServerFn({ method: "GET" })
-  .validator(z.object({ id: z.string() }))
-  .handler(async ({ data }) => {
-    const { loadItem } = await import("./items.server");
-    return loadItem(data);
-  });
-```
-
-```typescript
-// controllers/items.server.ts
-import "@tanstack/react-start/server-only";
-import { requireSession } from "@/infrastructure/auth/require-session.server";
-import { db } from "@/infrastructure/db/client";
-import { itemRepo } from "../repo/items";
-
-export async function loadItem(input: { id: string }) {
-  const session = await requireSession();
-  return itemRepo.getById(db, { id: input.id, userId: session.user.id });
-}
-```
-
-The `.server.ts` companion holds the implementation with all server-only imports. The dynamic `await import()` inside the handler body gets extracted along with the handler, so the `.server.ts` file never enters the client bundle. Use `import "@tanstack/react-start/server-only"` as a safety guard in the companion file.
+Both the single-file and two-file patterns, with the conventions that go with them: [server-client-boundaries.md](server-client-boundaries.md#server-function-pattern).
 
 ---
 
@@ -245,33 +190,7 @@ export { messageRepo } from "./repo/messages";
 | Repo modules, raw queries | `index.server.ts` | Server-only, cross-feature data access |
 | Internal helpers | Neither | Not part of public API |
 
-### Barrel Direction Rule
-
-`index.server.ts` may re-export from `index.ts`. `index.ts` must NEVER import from `index.server.ts`. This is enforced by the `api/barrel-direction` and `api/server-import-context` rules.
-
-Violating this rule pulls server-only code into client bundles through the `index.ts` barrel.
-
----
-
-## Cross-Feature Communication
-
-Features import other features ONLY through public API barrels:
-
-```
-@/features/<other-feature>                  # Client-safe barrel (types, server fn references)
-@/features/<other-feature>/index.server     # Server-only barrel (repos, raw queries)
-@/features/<other-feature>/ui/*             # UI components (routes only, not other features)
-```
-
-Forbidden cross-feature imports:
-
-```
-@/features/<other-feature>/controllers/*  # Internal implementation detail
-@/features/<other-feature>/service/*      # Internal implementation detail
-@/features/<other-feature>/repo/*         # Internal implementation detail
-```
-
-Enforcement: routes may deep-import only `ui/*`; other features may deep-import only `index.server`. Other callers use the client-safe feature barrel.
+Barrel invariants — which direction re-exports may run, and what each barrel may hold — are in [import-boundaries.md](import-boundaries.md#barrel-invariants), alongside the cross-feature import table naming which paths another feature may reach.
 
 ---
 
@@ -288,7 +207,7 @@ infrastructure/db/schema/
   ...                  # One file per logical concern
 ```
 
-Features own their repo modules (query behavior) and controllers (API surface). The schema is shared infrastructure. Migration tooling scans one directory. Cross-domain foreign keys require centralization. Drizzle relations reference tables from multiple files.
+Features own their queries, not their tables — see [architecture-principles.md](architecture-principles.md#schema-ownership-vs-query-ownership) for why that split is forced rather than chosen.
 
 ---
 

@@ -39,7 +39,7 @@ Detection is a **string match** on the file's text, which makes the assumption w
 
 ## Reuse the extraction, not the graph
 
-This is the one check that does not consume the resolved import graph, and the reason is structural: graph resolution discards bare package specifiers as "not a boundary question", and **bare package names are precisely this rule's subject**. What it reuses is the extraction — the union of `Bun.Transpiler.scanImports()` with `scan().imports`, minus Bun's injected JSX-runtime entries. See [Extraction](../graph/import-graph.md#extraction) for why neither scan replaces the other.
+This is the one check that does not consume the resolved import graph, and the reason is structural: graph resolution discards bare package specifiers as "not a boundary question", and **bare package names are precisely this rule's subject**. So it shares the extraction instead, importing `scanDeclaredImports` from the substrate — the union of `Bun.Transpiler.scanImports()` with `scan().imports`, minus Bun's injected JSX-runtime entries. See [graph/import-graph.md](../graph/import-graph.md) for why neither scan replaces the other, and why this is shared rather than copied.
 
 The specifiers are unioned as a **set** rather than a multiset. This asks whether a package is reachable, never how many times, so the graph's occurrence-counting machinery buys nothing here.
 

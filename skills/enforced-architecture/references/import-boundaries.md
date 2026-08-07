@@ -23,118 +23,28 @@ Read as: "Can `{row}` import from `{column}`?"
 | **`shared/ui/*`** | NO | NO | NO | NO | YES | self | NO | NO | YES |
 | **`routes/*`** | NO | client-safe allowlist only | YES (client-safe public API + ui) | NO | YES | YES | self | NO | YES |
 
-### Cell-by-Cell Explanation
+### Reading the matrix
 
-#### `infrastructure/db/`
+Most cells follow from dependency direction alone: nothing imports upward, nothing imports `routes/`, and `shared/` sits at the bottom importing nothing from the application. Those cells need no explanation beyond the arrow.
 
-- **self**: Internal imports within `infrastructure/db/` are unrestricted. Schema files import from each other, `client.ts` imports config, etc.
-- **`infrastructure/*`**: NO. The DB module is a standalone concern. It does not import auth, integrations, telemetry, or other infrastructure adapters. Other infrastructure modules import from DB, not the reverse.
-- **`features/`**: NO. Infrastructure never imports from features. The dependency arrow points the other direction.
-- **`domains/`**: NO. Infrastructure never imports from domains.
-- **`shared/`**: YES. DB modules may use shared utilities (e.g., type helpers, constants).
-- **`shared/ui/`**: NO. DB code has no reason to import UI components.
-- **`routes/`**: NO. Infrastructure never imports from routes.
-- **`env.server`**: `client.ts` only. The DB client file reads database connection config from `env.server.ts`. No other DB files import env directly.
-- **`env.client`**: NO. DB code runs server-side only; client env has no relevant config.
+The cells that carry real information are the qualified ones — where the answer is neither YES nor NO — and each has a rule behind it:
 
-#### `infrastructure/*` (non-DB)
+| Cell | What the qualifier means | Enforced by |
+|---|---|---|
+| `infrastructure/db/` → `env.server` — *`client.ts` only* | The client file reads connection config. No other DB file touches env. | `boundary/env-access` |
+| `infrastructure/*` → `infrastructure/db/` — *designated files* | Auth reaches `db/client` and `db/schema` for its own tables; integrations generally reach neither. Each module imports only the DB files it needs. | `boundary/db-isolation` |
+| `features/*/controllers/` → `infrastructure/db/` — *via repo, if it exists* | A present layer may not be bypassed. With no `repo/`, controllers reach DB directly and that is correct. | `boundary/layer-occupancy` |
+| any → `features/` — *public API only* | `@/features/<name>` or `@/features/<name>/index.server`. Never a path into another feature's internals. | `api/feature-public-api` |
+| `features/*/ui/` → `infrastructure/*` — *client-safe allowlist* | A short allowlist (a browser auth client, a query client). Everything else is server-only. | `boundary/client-server-infra` |
+| `features/*/ui/` → `features/` — *own controllers, others' public API* | Relative imports within the feature; the client-safe barrel across features. Cross-feature `ui/*` is banned outright. | `api/feature-public-api` |
+| `routes/*` → `features/` — *client-safe public API + `ui/*`* | Routes may deep-import `ui/`, and only `ui/`. Never `index.server`, controllers, service, or repo. | `api/feature-public-api`, `api/server-import-context` |
+| `domains/*` → `domains/` — *self, no cycles* | Domains import each other through barrels; a cycle between two is a hard failure, because domains are the floor. | `graph/domain-cycles` |
 
-- **`infrastructure/db/`**: Designated files only. Auth infrastructure imports from `infrastructure/db/client` and `infrastructure/db/schema` to interact with auth tables. Integration adapters generally do not import DB. Each infrastructure module accesses only the DB files it specifically needs.
-- **self**: Internal imports within a single infrastructure concern are unrestricted. Cross-concern imports within infrastructure (e.g., auth importing from integrations) should be avoided but are not mechanically banned.
-- **`features/`**: NO. Infrastructure never imports from features.
-- **`domains/`**: NO. Infrastructure never imports from domains.
-- **`shared/`**: YES. Infrastructure modules may use shared utilities.
-- **`shared/ui/`**: NO. Infrastructure code has no reason to import UI components.
-- **`routes/`**: NO. Infrastructure never imports from routes.
-- **`env.server`**: YES. Infrastructure adapters read API keys, connection strings, and service config from validated server environment.
-- **`env.client`**: YES. Some infrastructure modules (e.g., telemetry) may read client-safe env vars for configuration that applies in both contexts.
+Three cells look like ordinary NOs and are worth stating explicitly, because each is a purity claim rather than a direction claim:
 
-#### `features/*/controllers/`
-
-- **`infrastructure/db/`**: Via repo if repo exists. When a feature has a `repo/` directory, controllers must not import DB schema directly (enforced by the `boundary/layer-occupancy` check). They pass the DB client to repo functions for transaction handling. When no `repo/` exists, controllers may import DB directly (layer occupancy policy).
-- **`infrastructure/*`**: YES. Controllers are the feature's entry point for orchestrating infrastructure: auth middleware, SDK adapters, telemetry.
-- **`features/`**: Public API only. Controllers import other features through `@/features/<name>` (client-safe barrel) or `@/features/<name>/index.server` (server-only barrel). No deep imports into another feature's internals.
-- **`domains/`**: YES. Controllers invoke domain logic for business operations.
-- **`shared/`**: YES. Controllers may use shared utilities.
-- **`shared/ui/`**: NO. Controllers are server-side; they do not render UI.
-- **`routes/`**: NO. Controllers serve routes, not the reverse.
-- **`env.server`**: YES. Controllers run server-side and may read env config directly.
-- **`env.client`**: YES. Controllers may reference client-safe config.
-
-#### `features/*/service/`
-
-- **`infrastructure/db/`**: NO. Service modules do not access DB directly. They go through `repo/` or, if no repo exists, the service layer itself wouldn't exist (the controller would call DB directly).
-- **`infrastructure/*`**: NO. Service modules contain pure use-case orchestration. Infrastructure interaction is handled by the controller above or the repo below. If a service needs an infrastructure capability, it receives it as a parameter from the controller.
-- **`features/`**: Public API only. Service modules may call other features' public APIs when orchestrating cross-feature workflows.
-- **`domains/`**: YES. Service modules invoke domain logic for validation, transformation, and business rules.
-- **`shared/`**: YES. Service modules may use shared utilities.
-- **`shared/ui/`**: NO. Service modules do not render UI.
-- **`routes/`**: NO. Service modules do not import from routes.
-- **`env.server`**: NO. Service modules are kept pure of direct environment access. Config flows in from the controller layer.
-- **`env.client`**: NO. Same reasoning as `env.server`.
-
-#### `features/*/repo/`
-
-- **`infrastructure/db/`**: YES. Repo modules are the feature's data access layer. They import schema tables from `infrastructure/db/schema` and the DB client from `infrastructure/db/client`.
-- **`infrastructure/*`**: YES. Repo modules may import other infrastructure adapters (e.g., encryption utilities for data at rest).
-- **`features/`**: NO. Repo is a leaf layer within its feature. It does not call other features.
-- **`domains/`**: NO. Repo modules deal with persistence, not business logic.
-- **`shared/`**: YES. Repo modules may use shared utilities.
-- **`shared/ui/`**: NO. Repo modules do not render UI.
-- **`routes/`**: NO. Repo modules do not import from routes.
-- **`env.server`**: NO. Repo modules receive config (connection, encryption keys) from the layers above.
-- **`env.client`**: NO. Repo modules are server-side only.
-
-#### `features/*/ui/`
-
-- **`infrastructure/db/`**: NO. UI components never access DB.
-- **`infrastructure/*`**: NO, with two exceptions enforced via allowlist (the `boundary/client-server-infra` rule). The only client-safe infrastructure imports are `@/infrastructure/auth/client` and `@/infrastructure/providers/query-client`. All other infrastructure imports from UI are violations.
-- **`features/`**: Own controllers (YES, via relative imports) and other features' client-safe public API (`@/features/<name>`) only. UI cannot deep-import another feature's controllers, service, repo, or UI. Cross-feature `ui/*` imports are banned.
-- **`domains/`**: NO. UI components do not import domain logic directly. Domain types flow through controllers.
-- **`shared/`**: YES. UI components use shared utilities, formatters, constants.
-- **`shared/ui/`**: YES. UI components compose shared presentational components and use the theme.
-- **`routes/`**: NO. UI components do not import from routes.
-- **`env.server`**: NO. UI runs client-side; `env.server` is server-only.
-- **`env.client`**: YES. UI components may read client-safe env vars (e.g., public API URLs, feature flags).
-
-#### `domains/*`
-
-- **`infrastructure/db/`**: NO. Domains are pure business logic with zero side effects.
-- **`infrastructure/*`**: NO. Same principle. Domain functions accept adapters as parameters when they need external capabilities.
-- **`features/`**: NO. Domains are lower-level than features. The dependency arrow points the other direction.
-- **self (no cycles)**: Domains may import from other domains through their public API barrels, but cross-domain dependency cycles are a hard failure (the `graph/domain-cycles` check). Domain A importing domain B and domain B importing domain A is a structural violation.
-- **`shared/`**: YES. Domains may use shared pure utilities.
-- **`shared/ui/`**: NO. Domains contain no UI.
-- **`routes/`**: NO. Domains never import from routes.
-- **`env.server`**: NO. Domains must remain environment-agnostic. Config flows in as function parameters. Enforced by the `boundary/domain-purity` rule.
-- **`env.client`**: NO. Same reasoning.
-
-#### `shared/*`
-
-- **`infrastructure/db/`, `infrastructure/*`, `features/`, `domains/`, `routes/`**: All NO. Shared utilities are the bottom of the dependency graph. They import nothing from the application. Enforced by the `boundary/shared-purity` rule (no `@/` imports at all from `shared/*.ts`).
-- **self**: Shared files may import from each other within the `shared/` directory.
-- **`env.server`**: NO. Shared utilities are pure.
-- **`env.client`**: YES. Shared utilities may read client-safe config when needed for formatting or display logic.
-
-#### `shared/ui/*`
-
-- **`infrastructure/db/`, `infrastructure/*`, `features/`, `domains/`, `routes/`**: All NO. Shared UI is domain-agnostic. If a component needs business logic, it belongs in `features/*/ui/`. Enforced by the `boundary/shared-ui-purity` rule.
-- **`shared/`**: YES. Shared UI components may use shared utilities (formatters, constants, type helpers).
-- **self**: Shared UI components may import from each other.
-- **`env.server`**: NO. Shared UI is client-rendered.
-- **`env.client`**: YES. Shared UI may read client-safe env vars for theming, CDN URLs, etc.
-
-#### `routes/*`
-
-- **`infrastructure/db/`**: NO. Routes are thin transport adapters. They never query the DB directly. Enforced by the `boundary/route-thinness` rule.
-- **`infrastructure/*`**: Client-safe allowlist only, such as browser providers. Routes are isomorphic and must not import server-only infrastructure.
-- **`features/`**: Client-safe public API + UI. Routes use `@/features/<name>` and `@/features/<name>/ui/*`. They do not import `index.server` or deep-import controllers, service, or repo.
-- **`domains/`**: NO. Routes do not call domain logic directly. Domain operations flow through feature controllers.
-- **`shared/`**: YES. Routes may use shared utilities.
-- **`shared/ui/`**: YES. Routes compose shared UI primitives into pages.
-- **self**: Route files may import from each other (layouts, shared route utilities).
-- **`env.server`**: NO. Routes must not import `env.server` directly. Enforced by the `boundary/route-thinness` rule.
-- **`env.client`**: YES. Routes may read client-safe config.
+- **`features/*/service/` imports no infrastructure and no env.** Service holds use-case orchestration; anything external arrives as a parameter from the controller above.
+- **`features/*/repo/` imports no env.** Connection and key material arrive from the layers above, which keeps repo functions testable against any client.
+- **`domains/*` imports no env, ever.** Config is a function parameter. Enforced by `boundary/domain-purity`, and it is what makes domain code portable.
 
 ---
 
@@ -278,7 +188,7 @@ Client contexts (UI files, barrel `index.ts` files, `shared/*` files) must not i
 
 ### Client-Safe Infrastructure
 
-Most infrastructure modules are server-only. Only designated modules are explicitly client-safe — for example, a browser-side auth client and a query client setup. All other infrastructure imports from client contexts (UI files, shared modules) are violations enforced by the `boundary/client-server-infra` rule. When adding a new client-safe infrastructure module, it must be added to that rule's allowlist.
+Infrastructure is server-only by default; a short allowlist of modules is explicitly client-safe. See [server-client-boundaries.md](server-client-boundaries.md#client-safe-infrastructure).
 
 ---
 

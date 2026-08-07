@@ -32,7 +32,7 @@ Key configuration points:
 - **`overrides` disables a rule for files that are legitimately outside the architecture** — `vite.config.ts`, `drizzle.config.ts`, anything at the repo root that imports server-only packages. Reach for an override when the exception is *this project's*; put it in the rule's own path exemptions when it is an architectural fact every project inherits (`db-isolation` exempts the ORM config file itself for that reason).
 - **Suppression is per rule and position-sensitive.** `// oxlint-disable-next-line arch/db-isolation` suppresses a JS-plugin diagnostic. Some built-in rules only honour the comment above a specific line — `react-hooks/exhaustive-deps` wants it above the *dependency array*, not above the hook call. Probe placement rather than assuming it.
 
-Rules share a `lib/`, and the sharing is load-bearing rather than tidy: [lib/architecture-exempt-paths.ts](rules/lib/architecture-exempt-paths.ts) owns the one global test/script exemption, [lib/module-source-visitor.ts](rules/lib/module-source-visitor.ts) owns every place a module specifier can appear, [lib/range-index.ts](rules/lib/range-index.ts) answers subtree questions at `Program:exit`, and [lib/rule-spec.ts](rules/lib/rule-spec.ts) owns the three-kind spec contract. Five rules in the GritQL catalog over-matched the same way because each template carried its own near-copy of the exemption regex; one module now owns it, and a new rule inherits the fix instead of the copy.
+Rules share a `lib/`, and the sharing is load-bearing rather than tidy: [lib/architecture-exempt-paths.ts](rules/lib/architecture-exempt-paths.ts) owns the one global test/script exemption, [lib/module-source-visitor.ts](rules/lib/module-source-visitor.ts) owns every place a module specifier can appear, [lib/range-index.ts](rules/lib/range-index.ts) answers subtree questions at `Program:exit`, and [lib/rule-spec.ts](rules/lib/rule-spec.ts) owns the three-kind spec contract. One module owns each, so a new rule inherits the fix rather than a copy of the bug.
 
 **oxlint's JS plugins are alpha** as of 1.77 and say so. The API is ESLint's `create(context)` returning a visitor, so the exposure is churn in a young API, not a design bet.
 
@@ -56,13 +56,14 @@ The same trap catches the tiers *above* the orchestrator, and it is easy to fix 
 
 Run each independently and aggregate. Reserve `&&` for steps where the second genuinely cannot run after the first fails.
 
-### The shared library
+### The substrate
 
-Structural checks share more than a file walker, and duplicating it across scripts guarantees they drift apart on exclusions and on what counts as an import. One `lib.ts` owns:
+Structural checks ship with the modules they share, and the sharing is the point: duplicated across scripts, they drift apart on exclusions and on what counts as an import, without either copy reporting that it has.
 
-- **File collection**, with the global test/generated exclusions applied once.
-- **The `Finding` / `CheckResult` shape** — `{ message, file? }` and `{ name, errors, warnings }` — which is what lets warnings be staged-scoped at all.
-- **The resolved import graph.** Extract imports by unioning **`Bun.Transpiler.scanImports()` with `Bun.Transpiler.scan().imports`**, then filter injected JSX runtime entries as documented in [rules/graph/import-graph.md](rules/graph/import-graph.md). Every check that asks where an import *lands* consumes this graph rather than matching how the specifier is spelled.
+- **`config.ts`** — every per-repo value for every check, one object. The adoption surface.
+- **`lib.ts`** — file collection with the global exclusions applied once, plus the `Finding` and `StructuralCheck` shapes. A finding carries its own `severity` and `file`, which is what makes staged scoping possible at all.
+- **`import-graph.ts`** — the resolved graph, and `scanDeclaredImports` for the one check that needs raw specifiers instead. Any check asking where an import *lands* consumes this rather than matching how the specifier is spelled.
+- **`run-structural-checks.ts`** — the orchestrator.
 
 Centralising the *same* patterns into a shared file reduces duplication and fixes no correctness. Reach for the reader at the same time, or the shared library is only tidier, not better.
 
@@ -70,25 +71,10 @@ Centralising the *same* patterns into a shared file reduces duplication and fixe
 
 ### Staged-scoped warnings
 
-At pre-commit, advisory warnings are scoped to the files the commit touches; blocking errors always surface repo-wide (the rationale lives in [enforcement-strategy.md](enforcement-strategy.md) under Tier 2). Two requirements make this work:
+At pre-commit, advisory warnings scope to the files the commit touches; blocking errors always surface repo-wide (rationale in [enforcement-strategy.md](enforcement-strategy.md) under Tier 2). Two things make it work:
 
-- **Each warning carries its file path as structured data** — a `{ file, message }` finding, not a path buried in the message string. Errors don't need it; they're never filtered. This is why warning-emitting checks *return findings* rather than incrementing a counter inline: a counter can't be filtered after the fact.
-- **The orchestrator is handed the staged set and filters before reporting.** The set is *injected*, not discovered — the orchestrator reads an env var and stays agnostic to which pre-commit tool produced it. Unset means no filter, so CI and manual `check:arch` runs warn across the whole repo.
-
-```typescript
-// Unset (CI, manual run) => undefined => no filtering: warn across the repo.
-// Split on newlines only: `git diff --name-only` is newline-separated, and a
-// path containing a space would otherwise become two entries that match nothing.
-const staged = process.env.STAGED_FILES?.split("\n").filter(Boolean);
-// A finding with no file can't be matched, so keep it rather than hide it.
-const inDiff = (w: { file?: string }) =>
-  !staged || w.file === undefined || staged.includes(w.file);
-
-for (const { errors, warnings } of results) {
-  errors.forEach(report);                    // always, repo-wide
-  warnings.filter(inDiff).forEach(report);   // scoped to the staged diff
-}
-```
+- **Every finding carries its file as structured data**, not a path buried in a message string. This is why checks *return* findings rather than printing as they go — a line already written to stdout cannot be filtered.
+- **The staged set is injected, not discovered.** The orchestrator reads `STAGED_FILES` and stays agnostic to which pre-commit tool produced it. Unset means no filter, so CI and manual runs warn repo-wide. A finding with no file is kept rather than hidden — it cannot be matched, and dropping it would make scoping silently lossy.
 
 ---
 
@@ -99,7 +85,7 @@ Use lefthook (or husky, lint-staged, etc.) for two kinds of commit-time work —
 - **Format & re-stage** — *mutates* the staged files, then re-stages the result. The only writer, so it runs alone and first.
 - **Verify** — read-only gates that block the commit and parallelize freely among themselves: `oxlint` (the JS-plugin rules), the structural checks, type checking, and tests. Target latency: under 15 seconds.
 
-**oxlint is a linter only, and nothing in this stack sorts imports.** Biome supplied formatting and import sorting alongside the rules; oxlint supplies neither. `oxfmt` formats and does not sort, and oxlint has no organize-imports rule, so a project moving off Biome either accepts unsorted imports or picks a formatter that sorts. The format step below is whichever tool the project chose; what matters architecturally is that there is exactly one writer and it runs first.
+**oxlint is a linter only, and nothing in this stack sorts imports.** `oxfmt` formats and does not sort, and oxlint has no organize-imports rule, so a project either accepts unsorted imports or picks a formatter that sorts. The format step below is whichever tool it chose; what matters architecturally is that there is exactly one writer and it runs first.
 
 **Order the writer ahead of the readers.** A writer sharing a parallel group with readers races them: typecheck and tests read files mid-rewrite, so the run describes content that never reaches the commit — green or red at random, and not reproducible. lefthook's `parallel` is a single hook-level switch, so a `commands:` block is all-sequential or all-concurrent. The `jobs:` array expresses both at once: it preserves order, and a `group:` runs its members in parallel.
 
@@ -240,7 +226,7 @@ Any rule shaped as a claim about a subtree — a `useEffect` callback that conta
 
 A rule instance is created per file and knows nothing about any other. It cannot resolve a specifier to the file it lands in, ask whether a directory exists, or aggregate across a file set. Everything of that shape is a structural script: cycles, coupling, transitive barrel purity, and the depth-dependent question of whether `../../beta` leaves the current feature.
 
-Within a file, `Program:exit` does aggregate — that is the one limit GritQL had that a visitor lifts, and `health/no-nested-ternary` uses it to compute the depth of every conditional. Which mechanism each rule in the catalog actually runs on is in [rules/overview.md](rules/overview.md).
+Within a file, `Program:exit` does aggregate: `health/no-nested-ternary` uses it to compute the depth of every conditional. Which mechanism each rule runs on is in [rules/overview.md](rules/overview.md).
 
 ---
 
