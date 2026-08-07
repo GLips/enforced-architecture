@@ -1,3 +1,5 @@
+![Enforced Architecture — lint rules that stop AI agents from turning your codebase into slop soup.](assets/header-image.png)
+
 # Ship fast without turning your codebase into slop. Encode your data flow and structural boundaries as automatically enforced lint rules.
 
 A catalog of ~50 ready-to-steal enforcement rules for TypeScript codebases. Point your agent here to steal them directly, or to get inspiration for your own codebase.
