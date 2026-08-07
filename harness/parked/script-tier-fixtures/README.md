@@ -40,12 +40,14 @@ matcher missed it. Each carries a **legal neighbour** too, because over-matching
 invisible to positive fixtures and is the defect that actually costs — a check that
 warns about a four-prop component is one people learn to scroll past.
 
-## Layout, and how it differs from `harness/fixtures/`
+## Layout, and why it is a tree at all
 
-The rule harness uses `fixtures/<tag>/<rule>/<kind>/<tree>` — one tree per rule per
-kind. This is **one shared tree** that every check runs over at once, with the
-checks rebased onto it via an `ARCH_SOURCE_ROOT` env var and the expectations
-declared centrally in `check-fixtures.ts`.
+The per-file rule tier has no tree any more: its specs pass each case's path as a
+`filename` field, so `harness/fixtures/<tag>/<rule>/<kind>/` was deleted when the
+catalog moved to oxlint. That option is not open here. This is **one shared tree**
+that every check runs over at once, with the checks rebased onto it via an
+`ARCH_SOURCE_ROOT` env var and the expectations declared centrally in
+`check-fixtures.ts`.
 
 That shape follows from the tier: these checks scan declared roots rather than
 being handed a file, and several of them scan *more than one* root. Splitting the
