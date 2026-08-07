@@ -84,6 +84,6 @@ Verified on oxlint 1.77.0 / bun 1.3.13 / Node 24.17.0. Re-check whether JavaScri
 
 ## Scope
 
-The 31 rule templates are covered. The 16 `.md` templates describe structural-script algorithms rather than shipping runnable code, so there is nothing here to load — they are marked **Not spec-tested** in `rules/overview.md`, with the reason. Implementing them here would make this repo the implementation under test rather than the templates.
+The 31 rule templates are covered. The 17 `.md` templates describe structural-script algorithms rather than shipping runnable code, so there is nothing here to load — they are marked **Not spec-tested** in `rules/overview.md`, with the reason. Implementing them here would make this repo the implementation under test rather than the templates.
 
 `harness/parked/script-tier-fixtures/` holds 38 adversarial fixtures for that script tier, lifted out of a consuming project. They are parked, not wired: this harness runs templates unmodified and those scripts are adapted instantiations. Read the README there before touching them.

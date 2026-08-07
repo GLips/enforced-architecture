@@ -1,6 +1,6 @@
 # Ship fast without turning your codebase into slop. Encode your data flow and structural boundaries as automatically enforced lint rules.
 
-A catalog of ~35 ready-to-steal enforcement rules for TypeScript codebases. Point your agent here to steal them directly, or to get inspiration for your own codebase.
+A catalog of ~50 ready-to-steal enforcement rules for TypeScript codebases. Point your agent here to steal them directly, or to get inspiration for your own codebase.
 
 ## Principles, briefly
 
