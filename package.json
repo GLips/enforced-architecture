@@ -3,10 +3,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check:rules": "harness/with-real-node.sh harness/run-rule-fixtures.ts"
+    "check": "bun run check:rules && bun run check:scripts",
+    "check:rules": "harness/with-real-node.sh harness/run-rule-fixtures.ts",
+    "check:scripts": "bun harness/run-script-fixtures.ts"
   },
   "devDependencies": {
     "@oxlint/plugins": "^1.77.0",
+    "@types/bun": "^1.3.14",
     "oxlint": "^1.77.0"
   }
 }

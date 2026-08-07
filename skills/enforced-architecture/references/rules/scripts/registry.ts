@@ -1,0 +1,56 @@
+// ─── The structural-check manifest ────────────────────────────────────
+//
+// The list a consuming project copies and prunes. A check absent from it is a
+// file nobody loads — implemented, fixtured, and never run — so the fixture
+// harness loads this module rather than grepping for check names: a
+// commented-out registration is invisible to a text search and not to an import.
+//
+// Prune to what the project adopted. A check pointed at a root that does not
+// exist returns cleanly by design, so an unadopted check left registered reads
+// as coverage that is not there.
+//
+// Each check's id is declared inside the check itself as well as being the key
+// to its documentation and its fixtures, so the three can be compared. A check
+// whose id drifts from its filename reports findings under a label no
+// expectation matches, which reads as a renamed check rather than a mistake.
+
+import { barrelPurityCheck } from "../api/barrel-purity.ts";
+import { barrelDiscoverabilityCheck } from "../naming/barrel-discoverability.ts";
+import { crossBoundaryAliasCheck } from "../boundary/cross-boundary-alias.ts";
+import { cssTokensCheck } from "../style/css-tokens.ts";
+import { domainCyclesCheck } from "../graph/domain-cycles.ts";
+import { featureDepsCheck } from "../graph/feature-deps.ts";
+import { featureVisibilityCheck } from "../api/feature-visibility.ts";
+import { fileSizeCheck } from "../health/file-size.ts";
+import { hookCountCheck } from "../react/hook-count.ts";
+import { layerDirectionCheck } from "../structure/layer-direction.ts";
+import { layerOccupancyCheck } from "../boundary/layer-occupancy.ts";
+import { propCountCheck } from "../react/prop-count.ts";
+import { shadowSourceCheck } from "../style/shadow-source.ts";
+import { singleComponentExportCheck } from "../react/single-component-export.ts";
+import { testFileMirrorCheck } from "../naming/test-file-mirror.ts";
+import { tokenEqualityCheck } from "../style/token-equality.ts";
+import { topologyCheck } from "../structure/topology.ts";
+import { trampolinesCheck } from "../health/trampolines.ts";
+import type { StructuralCheck } from "./lib.ts";
+
+export const structuralChecks: StructuralCheck[] = [
+  barrelPurityCheck,
+  featureVisibilityCheck,
+  crossBoundaryAliasCheck,
+  layerOccupancyCheck,
+  domainCyclesCheck,
+  featureDepsCheck,
+  fileSizeCheck,
+  trampolinesCheck,
+  barrelDiscoverabilityCheck,
+  testFileMirrorCheck,
+  hookCountCheck,
+  propCountCheck,
+  singleComponentExportCheck,
+  layerDirectionCheck,
+  topologyCheck,
+  cssTokensCheck,
+  shadowSourceCheck,
+  tokenEqualityCheck,
+];

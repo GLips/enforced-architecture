@@ -28,12 +28,19 @@ const PLUGIN_PATH = join(RULES_ROOT, "plugin.ts");
 
 /**
  * Cross-file checks that run pre-commit rather than per-file in the editor: they count across a
- * file set or resolve imports against the tree, which no per-file rule can answer. They ship as an
- * algorithm in a sibling `.md`, are not oxlint rules, and have their own harness. Listing them by
- * name rather than inferring the distinction keeps a new script template from silently counting as
- * an untested oxlint rule.
+ * file set, resolve imports against the tree, or read a surface the linter cannot see. They are
+ * not oxlint rules and have their own harness — `harness/run-script-fixtures.ts`.
+ *
+ * Read from the script registry rather than listed here, for the same reason this file imports
+ * `plugin.ts` instead of grepping it: a hand-kept list drifts, and a script template missing from
+ * it would fail here as an oxlint rule with no spec, which points at the wrong problem. A rule in
+ * NEITHER manifest still fails, in both harnesses, which is the outcome worth keeping.
  */
-const SCRIPT_TIER = new Set(["api/feature-visibility"]);
+const SCRIPT_TIER = new Set(
+  (await import(join(RULES_ROOT, "scripts/registry.ts"))).structuralChecks.map(
+    (check: { id: string }) => check.id,
+  ),
+);
 
 type RuleFailure = { rule: string; detail: string };
 
@@ -53,7 +60,13 @@ const allFiles = await walkFiles(RULES_ROOT);
 const ruleIdOf = (path: string) => relative(RULES_ROOT, path).replace(/\.ts$/, "");
 
 const tsFiles = allFiles.filter(
-  (f) => f.endsWith(".ts") && !f.startsWith(join(RULES_ROOT, "lib")) && f !== PLUGIN_PATH,
+  // `lib/` is the oxlint rules' shared helpers and `scripts/` the structural tier's substrate.
+  // Neither holds rules, and both would otherwise read as templates with no spec.
+  (f) =>
+    f.endsWith(".ts") &&
+    !f.startsWith(join(RULES_ROOT, "lib")) &&
+    !f.startsWith(join(RULES_ROOT, "scripts")) &&
+    f !== PLUGIN_PATH,
 );
 const specPaths = new Set(tsFiles.filter((f) => f.endsWith(".test.ts")));
 const rulePaths = tsFiles
