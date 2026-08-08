@@ -1,0 +1,47 @@
+// Copy to the repo root as `.oxlintrc.json`. oxlint parses it as JSONC, so the
+// config carries its own rationale and these comments can stay.
+//
+// In a monorepo this file belongs at the ROOT, with oxlint as a root dependency.
+// Without both there is no single oxlint to run from the root and nothing telling
+// it where the plugin module is, so `bunx oxlint` pulls a stray version and lints
+// with none of the architecture rules loaded — a green run that checked nothing.
+// Nested `.oxlintrc.json` files load automatically for workspaces that need their
+// own rule set (`--disable-nested-config` turns that off).
+//
+// Suppressing one line: `// oxlint-disable-next-line arch/db-isolation`. Position
+// matters for some built-ins — `react-hooks/exhaustive-deps` wants the comment
+// above the dependency array, not above the hook call. Probe rather than assume.
+{
+  // One module, not one path per rule. It calls `definePlugin({ meta: { name },
+  // rules })`; `meta.name` is the prefix every key below inherits.
+  "jsPlugins": ["./oxlint/plugin.ts"],
+
+  "ignorePatterns": ["src/gen/**"],
+
+  // Registration and activation are separate, and only one of them fails loudly.
+  // A rule the plugin exports but this block never names is loaded and never run:
+  // no warning, no output, exit 0. A key naming a rule the plugin does NOT export
+  // is fatal. The typo is caught; the omission is not — which is why the spec
+  // harness fails any rule missing from the plugin module.
+  //
+  // Keep each key equal to its file name (`oxlint/boundary/db-isolation.ts` ->
+  // "arch/db-isolation") so the diagnostic id is also the path to the rule that
+  // raised it: `error arch(db-isolation): …`
+  "rules": {
+    "arch/db-isolation": "error",
+    "arch/shared-ui-purity": "error"
+  },
+
+  // Turn a rule off for files that are legitimately outside the architecture.
+  // Use `overrides` when the exception is THIS project's; put it in the rule's own
+  // path exemptions when it is an architectural fact every project inherits
+  // (db-isolation exempts the ORM config file itself for that reason).
+  "overrides": [
+    { "files": ["*.config.ts"], "rules": { "arch/db-isolation": "off" } }
+  ]
+}
+
+// Suppressing one line: `// oxlint-disable-next-line arch/db-isolation`.
+// Position matters for some built-ins — `react-hooks/exhaustive-deps` wants the
+// comment above the dependency array, not above the hook call. Probe placement
+// rather than assuming it.

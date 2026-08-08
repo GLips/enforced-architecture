@@ -111,10 +111,10 @@ Keep the plan's rule section lean — two tables, not a copy of template content
 Read [enforcement-implementation.md](references/enforcement-implementation.md) for tooling setup. Read [migration-patterns.md](references/migration-patterns.md) for migration sequencing.
 
 **Greenfield sequence:**
-1. `.oxlintrc.json` + the rule modules and their specs in the `oxlint/` directory, all registered in `oxlint/plugin.ts`
+1. `.oxlintrc.json` from [references/setup/oxlintrc.json](references/setup/oxlintrc.json), plus the rule modules and their specs in the `oxlint/` directory, all registered in `oxlint/plugin.ts`
 2. `scripts/` — copy `config.ts`, `lib.ts`, `import-graph.ts`, `run-structural-checks.ts` and `registry.ts` from the catalog, then each selected check module. Write the project's `arch.config.ts` on top of the defaults; the checks themselves are taken unmodified
 3. Package.json scripts (`check:arch`)
-4. Lefthook pre-commit config
+4. `lefthook.yml` from [references/setup/lefthook.yml](references/setup/lefthook.yml)
 5. Framework import protection (vite.config.ts)
 6. Directory structure with empty barrels
 7. Generate documentation per [documentation-model.md](references/documentation-model.md) — CLAUDE.md rules section, and docs/architecture/ files if chosen

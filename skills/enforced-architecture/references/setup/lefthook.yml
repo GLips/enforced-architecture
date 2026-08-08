@@ -1,0 +1,66 @@
+# Copy to the repo root as `lefthook.yml`. Two kinds of commit-time work with
+# opposite shapes: one writer that mutates and re-stages, then read-only gates.
+# Target latency for the whole hook: under 15 seconds.
+#
+# husky/lint-staged work too — what matters is the ordering and the gotchas below,
+# not the tool.
+
+pre-commit:
+  # `jobs:` rather than `commands:`. lefthook's `parallel` is a single hook-level
+  # switch, so a `commands:` block is all-sequential or all-concurrent — and a
+  # writer sharing a parallel group with readers races them. Typecheck and tests
+  # read files mid-rewrite, so the run describes content that never reaches the
+  # commit: green or red at random, not reproducible. `jobs:` preserves order,
+  # and a nested `group:` runs its members in parallel.
+  jobs:
+    - name: format
+      glob: "*.{ts,tsx,js,jsx,json,css}"
+      # This step must WRITE, not just verify. A check-only hook never enforces
+      # formatting at commit: unformatted code lands, then surfaces later when
+      # someone runs the formatter by hand and it reformats files from earlier
+      # commits, sweeping unrelated changes into the diff.
+      #
+      # Nothing in this stack sorts imports — oxfmt formats without sorting and
+      # oxlint has no organize-imports rule. Pick a formatter that sorts, or
+      # accept unsorted. What matters architecturally is one writer, running first.
+      #
+      # In a monorepo where the formatter is installed per workspace, add
+      # `root: "packages/<name>/"` — it scopes {staged_files} to that subtree,
+      # relativizes the paths, and runs from that dir so bunx resolves the
+      # workspace-local version.
+      run: bunx prettier --write --ignore-unknown {staged_files}
+      # Re-stages only what the command rewrote. `git add {staged_files}` would
+      # re-stage whole files, silently completing a deliberately partial
+      # `git add -p` — the diff the author reviewed is not the diff they commit.
+      stage_fixed: true
+
+    - name: gate
+      group:
+        parallel: true
+        jobs:
+          # Lint and structure are separate jobs even though `check:arch` runs
+          # both: at pre-commit they scope differently — lint to staged files,
+          # structural checks repo-wide.
+          - name: lint
+            glob: "*.{ts,tsx,js,jsx}"
+            run: bunx oxlint --no-error-on-unmatched-pattern {staged_files}
+
+          # STAGED_FILES is what lets the orchestrator scope its advisory warnings
+          # to this commit. Compute it from git, NOT from lefthook's {staged_files}
+          # template: that template quotes each path individually, and a quoted
+          # list can't be the right-hand side of an env assignment —
+          # ENV="a" "b" cmd sets ENV=a and runs `b` as a command (exit 126,
+          # "permission denied"). File templates are built to be a command's
+          # arguments, not an env value.
+          #
+          # --diff-filter=ACMR lists added/copied/modified/renamed, skipping
+          # deletions. The whole newline-separated list lands in one env value.
+          # Unset means no filter, so CI and manual runs warn repo-wide.
+          - name: structure
+            run: STAGED_FILES="$(git diff --cached --name-only --diff-filter=ACMR)" bun run check:structure
+
+          - name: typecheck
+            run: bun run typecheck
+
+          - name: test
+            run: bun run test
