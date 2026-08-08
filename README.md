@@ -2,7 +2,7 @@
 
 # Encode your architecture as lint rules your agents can't ignore
 
-A catalog of 49 ready-to-steal enforcement rules for TypeScript codebases. Steal them, or point your coding agent here and have it design the equivalent for your stack.
+A catalog of 50 ready-to-steal enforcement rules for TypeScript codebases. Steal them, or point your coding agent here and have it design the equivalent for your stack.
 
 **The problem:** agents write a lot of code, fast, like an army of interns. Documentation doesn't hold them to your conventions—they don't read it, or they read it and forget by the next file. Your architecture decays one plausible-looking PR at a time.
 
@@ -12,7 +12,7 @@ A catalog of 49 ready-to-steal enforcement rules for TypeScript codebases. Steal
 
 - **Rules that explain their own fix.** The error message *is* the instruction, so an agent resolves a violation without reading another file or asking you.
 - **Boundaries that hold.** Not a convention people remember—an import that can't exist.
-- **49 rules across 8 categories**, each with a header stating what it prevents and an **Adapt** section for repointing it at your directory layout.
+- **50 rules across 8 categories**, each with a header stating what it prevents and an **Adapt** section for repointing it at your directory layout.
 
 ## Quick start
 
@@ -61,10 +61,10 @@ One boundary like that kills an entire class of bugs, because the import can't e
 | **api** | 6 | Public API surface—barrel conventions, no deep imports past a barrel, no server-only code leaking client-side |
 | **react** | 6 | Code smells—derived state, direct `fetch` in components, async effects without cleanup, oversized components |
 | **graph** | 3 | Cross-file dependency analysis—dependency cycles, feature coupling thresholds |
-| **health** | 3 | Quality metrics—file size, nested ternaries, pass-through wrappers |
+| **health** | 4 | Quality metrics—file size, nested ternaries, pass-through wrappers, untyped `Record` bags |
 | **naming** | 2 | Searchability—no `export *`, no renamed re-exports, test files that mirror their source |
 
-31 run as [oxlint](https://oxc.rs/docs/guide/usage/linter) plugin rules, per-file and in real time. The other 18 are cross-file scripts that run pre-commit, because questions like "does this import cross a feature boundary?" can't be answered from one file. They share one resolved import graph and one config object, so adopting one means setting a few values rather than reimplementing an algorithm. (One `graph` entry is that shared import graph, not a rule itself.)
+32 run as [oxlint](https://oxc.rs/docs/guide/usage/linter) plugin rules, per-file and in real time. The other 18 are cross-file scripts that run pre-commit, because questions like "does this import cross a feature boundary?" can't be answered from one file. They share one resolved import graph and one config object, so adopting one means setting a few values rather than reimplementing an algorithm. (One `graph` entry is that shared import graph, not a rule itself.)
 
 Almost every rule **blocks** rather than warns. Agents treat warnings as "it's fine."
 

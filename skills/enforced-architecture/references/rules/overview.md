@@ -80,6 +80,7 @@ What the harness does not cover for either kind: whether a rule survives **adapt
 |---|---|---|---|
 | [health/file-size](health/file-size.md) | Script | Mixed | Files exceeding line count thresholds (project-configurable warn + fail) |
 | [health/no-nested-ternary](health/no-nested-ternary.ts) | oxlint | Yes | Ternary expressions nested 3+ levels deep (extract to variables or helpers) |
+| [health/no-opaque-record](health/no-opaque-record.ts) | oxlint | Yes | `Record<string, unknown>` and its other spellings — index signatures and mapped types with an `unknown`/`any` value |
 | [health/trampolines](health/trampolines.md) | Script | No | Pass-through wrapper functions that add no behavior |
 
 ### naming — Searchability and discoverability
@@ -146,4 +147,4 @@ Not every project needs every rule. Use audit findings to guide selection:
 | External SDK integrations | `boundary/sdk-containment` |
 | Public barrels (two-barrel API) | `naming/barrel-discoverability` |
 | Co-located tests | `naming/test-file-mirror` |
-| Any TypeScript project | `graph/import-graph`, `boundary/cross-boundary-alias`, `boundary/env-access`, `boundary/no-test-imports`, `boundary/shared-purity`, `structure/topology`, `health/file-size`, `health/no-nested-ternary` |
+| Any TypeScript project | `graph/import-graph`, `boundary/cross-boundary-alias`, `boundary/env-access`, `boundary/no-test-imports`, `boundary/shared-purity`, `structure/topology`, `health/file-size`, `health/no-nested-ternary`, `health/no-opaque-record` |

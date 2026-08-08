@@ -16,6 +16,7 @@ import { noInlineColorRule } from "./style/no-inline-color.ts";
 import { noInlineFontSizeRule } from "./style/no-inline-font-size.ts";
 import { noInlineStylePropRule } from "./style/no-inline-style-prop.ts";
 import { noNestedTernaryRule } from "./health/no-nested-ternary.ts";
+import { noOpaqueRecordRule } from "./health/no-opaque-record.ts";
 import { noPlainExportInServerFnModuleRule } from "./structure/no-plain-export-in-server-fn-module.ts";
 import { noRawPrimitivesRule } from "./style/no-raw-primitives.ts";
 import { noRawResultRule } from "./structure/no-raw-result.ts";
@@ -64,6 +65,7 @@ export default definePlugin({
     "shared-purity": sharedPurityRule,
     "shared-ui-purity": sharedUiPurityRule,
     "no-nested-ternary": noNestedTernaryRule,
+    "no-opaque-record": noOpaqueRecordRule,
     "derived-state": derivedStateRule,
     "no-async-effect": noAsyncEffectRule,
     "no-direct-fetch": noDirectFetchRule,

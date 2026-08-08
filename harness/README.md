@@ -6,7 +6,7 @@ It proves the **chosen examples**, not the header claim in general. The cases an
 
 ```
 bun run check          # both tiers
-bun run check:rules    # 31 oxlint rules, under real Node
+bun run check:rules    # 32 oxlint rules, under real Node
 bun run check:scripts  # 18 structural-script checks, under Bun
 ```
 
@@ -74,7 +74,7 @@ Every case carries its own `filename`, in the standard layout, because the rules
 
 Every one of these was revert-probed when the runner was built. Do it again after any change here: break a rule and expect its adversarial kind to fail, stub a spec and expect all three kinds to report as never run. A harness that stays green through both is not testing anything.
 
-What it still does not check is whether **oxlint** accepts the plugin, as opposed to Node loading it. That path was verified by hand — all 31 rules enabled against a probe tree through the real CLI — and JS plugins being alpha is the reason to re-verify it after an oxlint upgrade rather than trusting a green `check:rules`.
+What it still does not check is whether **oxlint** accepts the plugin, as opposed to Node loading it. That path was verified by hand — all 32 rules enabled against a probe tree through the real CLI — and JS plugins being alpha is the reason to re-verify it after an oxlint upgrade rather than trusting a green `check:rules`.
 
 ## The runtime: real Node, not Bun
 
@@ -88,7 +88,7 @@ Verified on oxlint 1.77.0 / bun 1.3.13 / Node 24.17.0. Re-check whether JavaScri
 
 ## Scope
 
-All 49 rules are covered: 31 oxlint rules through `check:rules`, 18 structural-script checks through `check:scripts`. Nothing in the catalog ships as an untested description any more.
+All 50 rules are covered: 32 oxlint rules through `check:rules`, 18 structural-script checks through `check:scripts`. Nothing in the catalog ships as an untested description any more.
 
 The script tier used to be prose. Each consuming project hand-rolled an implementation from the algorithm in the `.md`, and three independent audits found the same result: the implementations drifted, and each one had silently stopped matching part of what its doc promised. One deployment's layer-occupancy check had three bypasses and hardcoded a path its own doc documented as configurable; another's barrel-purity discovered a third of the barrels it claimed to. Every one of those was green. That is the argument for shipping code and config rather than an algorithm — the adaptation step is where the silence was getting in, so the adaptation step is now writing config.
 
