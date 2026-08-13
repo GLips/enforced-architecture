@@ -4,7 +4,7 @@ import { noOpaqueRecordRule } from "./no-opaque-record.ts";
 const SERVICE = "/repo/src/features/billing/service/invoices.ts";
 const COMPONENT = "/repo/src/features/billing/ui/invoice-list.tsx";
 
-describeRule("health/no-opaque-record", noOpaqueRecordRule, {
+describeRule("types/no-opaque-record", noOpaqueRecordRule, {
   obvious: [
     {
       name: "the type the rule is named for, on an exported signature",
@@ -91,6 +91,52 @@ describeRule("health/no-opaque-record", noOpaqueRecordRule, {
       errors: [{ messageId: "opaqueRecord" }],
     },
     {
+      // `object` as a VALUE is the same bag: it admits every non-primitive and no property can be
+      // read off it without a cast. Banning only unknown/any teaches this as the third retry.
+      name: "the object-valued variant, after unknown and any are both refused",
+      filename: SERVICE,
+      code: `export type InvoicePayload = Record<string, object>;`,
+      errors: [{ messageId: "opaqueRecord" }],
+    },
+    {
+      name: "the object-valued index signature",
+      filename: SERVICE,
+      code: `export type InvoicePayload = { [key: string]: object };`,
+      errors: [{ messageId: "opaqueIndexSignature" }],
+    },
+    {
+      // TypeScript collapses `unknown | string` to `unknown`, so the second member is cover, not
+      // a contract. The bag is identical; only the spelling changed.
+      name: "a union that collapses back to unknown",
+      filename: SERVICE,
+      code: `export type InvoicePayload = Record<string, unknown | string>;`,
+      errors: [{ messageId: "opaqueRecord" }],
+    },
+    {
+      name: "the value spelled through a local alias",
+      filename: SERVICE,
+      code: `type Opaque = unknown;
+export type InvoicePayload = Record<string, Opaque>;`,
+      errors: [{ messageId: "opaqueRecord" }],
+    },
+    {
+      name: "a two-step alias chain to the same bag",
+      filename: SERVICE,
+      code: `type Opaque = unknown;
+type Bag = Record<string, Opaque>;
+export type InvoicePayload = Bag;`,
+      errors: [{ messageId: "opaqueRecord" }],
+    },
+    {
+      // The alias is declared BELOW the use that resolves through it. A rule collecting aliases
+      // as it walks rather than up front reports nothing here.
+      name: "an alias declared after the type that resolves through it",
+      filename: SERVICE,
+      code: `export type InvoicePayload = Record<string, Opaque>;
+type Opaque = unknown;`,
+      errors: [{ messageId: "opaqueRecord" }],
+    },
+    {
       name: "two bags in one file are two findings, not one",
       filename: SERVICE,
       code: `export type Payload = Record<string, unknown>;
@@ -126,9 +172,32 @@ export type Meta = { [key: string]: any };`,
       code: `export const cache = new Map<string, unknown>();`,
     },
     {
+      // Worth keeping loud: the upstream rule this one is modelled on reports here. `keyof T`
+      // closes the key domain, so a dirty-field tracker is a precise type, not a bag — and a rule
+      // that flags it trains people to disable the rule rather than fix the type.
       name: "a shape-preserving mapped type has a closed key domain",
       filename: SERVICE,
       code: `export type Touched<T> = { [K in keyof T]: unknown };`,
+    },
+    {
+      name: "a union with no unknown or any member is a real contract",
+      filename: SERVICE,
+      code: `export type InvoiceField = Record<string, string | number>;`,
+    },
+    {
+      name: "an alias to a concrete type is not followed anywhere bad",
+      filename: SERVICE,
+      code: `type Amount = number;
+export type Totals = Record<string, Amount>;`,
+    },
+    {
+      // A generic alias is deliberately not followed: its body is written in terms of parameters
+      // this tier cannot substitute, so resolving it would report against a type argument that
+      // may never be opaque at any real call site.
+      name: "a generic alias is not resolved through",
+      filename: SERVICE,
+      code: `type Boxed<T> = T;
+export type Totals = Record<string, Boxed<number>>;`,
     },
     {
       name: "Record<string, never> is the empty-object idiom, not a bag",
