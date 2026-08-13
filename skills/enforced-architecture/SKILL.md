@@ -28,9 +28,11 @@ Read these references before and during the process:
 | [enforcement-implementation.md](references/enforcement-implementation.md) | Phase 4 (implementation) | oxlint config, lefthook, package.json scripts, structural script orchestration |
 | [documentation-model.md](references/documentation-model.md) | Phase 4 (documentation) | What to document in CLAUDE.md and docs/architecture/, content checklists |
 | [migration-patterns.md](references/migration-patterns.md) | Phase 4 (migration) | Atomic phase decomposition, sequencing, verification |
-| [rules/overview.md](references/rules/overview.md) | Phase 3–4 (rule catalog) | Complete rule index with tags, mechanisms, and links to templates |
+| [rules/overview.md](references/rules/overview.md) | Phase 3–4 (rule catalog) | The catalog map: what each tag governs, and which rules a project needs |
 
-Rules live in `references/rules/<tag>/`, indexed with mechanism and blocking status in [rules/overview.md](references/rules/overview.md).
+The catalog is three layers: [rules/overview.md](references/rules/overview.md) picks tags, each `rules/<tag>/overview.md` picks rules, each rule template carries its own *Adapt* section.
+
+**This reference set is too heavy for one context.** When implementing from scratch, dispatch a subagent per tag directory and have it return adapted rules rather than its reading.
 
 ## Process
 
@@ -90,10 +92,10 @@ Using the chosen configuration, propose:
 
 ### Phase 3: Design enforcement rules
 
-Read [enforcement-strategy.md](references/enforcement-strategy.md) for the two-layer model. Read [rules/overview.md](references/rules/overview.md) for the complete rule catalog.
+Read [enforcement-strategy.md](references/enforcement-strategy.md) for the two-layer model. Read [rules/overview.md](references/rules/overview.md) to choose tags.
 
 **Process:**
-1. Review the rule catalog. Select rules that apply to this project's architecture.
+1. Pick the tags this architecture needs from the hub's map and *Selecting rules* table, then read `rules/<tag>/overview.md` for each to choose rules within it.
 2. For each selected rule, read its template in the appropriate `rules/<tag>/` directory.
 3. Adapt each rule to the project's specific directory names, import patterns, and conventions.
 4. Tag each rule with its enforcement mechanism: **oxlint rule** (per-file, real-time) or **structural script** (cross-file, pre-commit).

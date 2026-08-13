@@ -236,4 +236,4 @@ Default to wrapped. Layer-restrict only when wrapping adds genuinely zero value.
 
 ## Enforcement
 
-Every boundary in this document is mechanically enforced. For the complete rule catalog with mechanisms, blocking status, and links to each rule's template, see [rules/overview.md](rules/overview.md).
+Every boundary in this document is mechanically enforced, mostly by [rules/boundary/](rules/boundary/overview.md) and [rules/api/](rules/api/overview.md). For the full catalog and which tags this project needs, start at [rules/overview.md](rules/overview.md).

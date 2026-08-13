@@ -26,7 +26,7 @@ When in doubt, enforce. Every judgment call below resolves against this asymmetr
 
 Non-negotiable properties of the architecture. Everything else is convention that adapts to the project. Six of the eight have a rule that enforces them; the rule doc says what it prevents and how to adapt it.
 
-1. **Dependency direction is enforced.** Lower layers never import upper layers. No exceptions. — [layer model](#the-layer-model), [rules/boundary/](rules/overview.md)
+1. **Dependency direction is enforced.** Lower layers never import upper layers. No exceptions. — [layer model](#the-layer-model), [rules/boundary/](rules/boundary/overview.md)
 2. **Database access is concentrated.** Only designated data access modules import the database. — [server functions as the DB boundary](#server-functions-as-the-db-boundary), [rules/boundary/db-isolation.ts](rules/boundary/db-isolation.ts)
 3. **Features expose public APIs.** External consumers import through barrels, never internal paths. A feature that reorganizes internally breaks no consumer. — [import-boundaries.md](import-boundaries.md#public-api-convention-table), [rules/api/feature-public-api.ts](rules/api/feature-public-api.ts)
 4. **SDKs are contained.** Every third-party SDK is either wrapped or layer-restricted. — [SDK containment](#sdk-containment)

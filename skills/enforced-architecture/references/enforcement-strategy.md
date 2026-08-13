@@ -45,7 +45,7 @@ A rule is `create(context)` returning a visitor keyed by AST node type, plus `co
 - Anything requiring filesystem awareness (does this feature have a repo/ directory?)
 - Transitive import analysis (does this barrel transitively pull in server-only code?)
 - **Anything whose answer depends on where the importing file sits.** Whether `../../beta` leaves the current feature is a function of the importing file's depth, not of the import string, so it has to be *resolved and compared*, never matched. This is the least obvious of these and the most damaging: the rule looks right, passes its spec, and silently permits the shortest spelling of the violation. See [rules/graph/import-graph.md](rules/graph/import-graph.md).
-- **Anything that counts across files.** A rule instance sees one file and nothing else. Within a file it *can* aggregate — record what the visitor passes and decide at `"Program:exit"` — but hook counts, prop counts and file sizes are scripts in this catalog; see [rules/overview.md](rules/overview.md) for which mechanism each rule runs on.
+- **Anything that counts across files.** A rule instance sees one file and nothing else. Within a file it *can* aggregate — record what the visitor passes and decide at `"Program:exit"` — but hook counts, prop counts and file sizes are scripts in this catalog. Each tag's `overview.md` gives the mechanism per rule; [rules/overview.md](rules/overview.md) maps the tags.
 
 ### Layer 2: Structural Scripts (Cross-File Analysis)
 
@@ -56,7 +56,7 @@ Structural scripts analyze relationships between files or properties that span t
 - CI via the same script
 - NOT real-time in editor (too slow, requires full codebase scan)
 
-They ship as code with one config object rather than as algorithms to reimplement — cycles, coupling thresholds, layer occupancy, barrel purity, file size, trampolines. See [rules/overview.md](rules/overview.md) for the catalog, mechanism and blocking status per rule.
+They ship as code with one config object rather than as algorithms to reimplement — cycles, coupling thresholds, layer occupancy, barrel purity, file size, trampolines. Start at [rules/overview.md](rules/overview.md) to pick tags; mechanism and blocking status per rule are in each tag's `overview.md`.
 
 ---
 
