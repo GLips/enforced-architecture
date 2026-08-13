@@ -1,8 +1,6 @@
 # Rule Catalog
 
-62 enforcement rules across ten tags. This file is the map: what each tag governs, and which ones a given project needs. **The rules themselves live one level down** — each tag directory has an `overview.md` with its rule table and the reasoning specific to it, and each rule has a template beside that carrying its full documentation, *Adapt* section, and implementation.
-
-Read this file to choose tags. Read a tag's `overview.md` to choose rules within it. Read a rule's template to adapt it.
+62 enforcement rules across ten tags. Read this file to choose tags, a tag's `overview.md` to choose rules within it, and a rule's own template — which carries its documentation, *Adapt* section, and implementation — to adapt it.
 
 ## The tags
 

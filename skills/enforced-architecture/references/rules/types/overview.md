@@ -10,7 +10,7 @@ Three rules interlock and should be taken together — alone, each has a hole th
 - **[no-chained-type-assertions](no-chained-type-assertions.ts)** closes that, but only sees assertions stacked in one expression.
 - **[no-widen-then-assert](no-widen-then-assert.ts)** catches the same round trip split across statements, which neither of the others can see — and which a `SAFETY:` comment will otherwise silence permanently with a sentence that is true and useless.
 
-`require-safety-comment` is also the catalog's one rule built on a different mechanism from every other. The rest make the wrong thing inexpressible; this one leaves the escape hatch open and makes using it leave a trace. That fits assertions specifically, because a few of them are correct and no per-file rule can tell which. `rg "SAFETY:"` then lists every place the type system was overruled — the audit is most of the value.
+`require-safety-comment` is the catalog's one *justify* rather than *ban* rule — some assertions are correct and no per-file rule can tell which, so it leaves the hatch open and makes using it leave a trace. `rg "SAFETY:"` is most of the value.
 
 ## Rules
 
@@ -30,10 +30,10 @@ Three rules interlock and should be taken together — alone, each has a hole th
 
 ## The two that are not defaults
 
-Neither appears in the hub's selection table, and neither should be adopted without reading its header first.
+Neither appears in the hub's selection table. Both reject code that is often correct.
 
-- **`no-runtime-typeof`** bans every runtime `typeof`, including the SSR guard (`typeof window === "undefined"`) and the discrimination of a union the compiler already narrowed. This tier has no type information, so it cannot tell parsing-by-eye from a legitimate narrowing — the ban is a tooling limit hardened into a policy, not a considered position that every `typeof` is wrong. Run it with per-line disables and a convention that each states a reason, or narrow the trigger as its Adapt section describes.
-- **`no-conditional-empty-object-spread`** targets an idiom many codebases use deliberately under `exactOptionalPropertyTypes`, where the alternatives are genuinely worse. Take it as a signal about density, not a defect.
+- **`no-runtime-typeof`** hits the SSR guard (`typeof window === "undefined"`) and any union the compiler already narrowed. This tier has no type information, so the blanket ban is a tooling limit, not a position. Expect per-line disables.
+- **`no-conditional-empty-object-spread`** targets an idiom that is deliberate under `exactOptionalPropertyTypes`. A signal about density, not a defect.
 
 `no-broad-parameters`, `no-unknown-returns`, and `no-unknown-type-aliases` share [../lib/type-annotations.ts](../lib/type-annotations.ts) — copy it alongside any of the three.
 
