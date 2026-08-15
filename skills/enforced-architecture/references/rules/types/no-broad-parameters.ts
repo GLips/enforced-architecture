@@ -110,7 +110,7 @@ export const noBroadParametersRule = defineRule({
     let aliases: ReadonlyMap<string, ESTree.TSType> = new Map();
 
     const checkParameters = (node: SignatureNode) => {
-      const shadowed = lexicalTypeParameterNames(node);
+      const shadowed = lexicalTypeParameterNames(node, context.sourceCode.visitorKeys);
       for (const parameter of node.params) {
         const annotation = parameterAnnotation(parameter);
         if (annotation === null || annotation === undefined) continue;

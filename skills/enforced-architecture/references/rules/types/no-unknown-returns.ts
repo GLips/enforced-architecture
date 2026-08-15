@@ -96,7 +96,7 @@ export const noUnknownReturnsRule = defineRule({
     const checkReturnType = (node: SignatureNode) => {
       const annotation = node.returnType;
       if (annotation === null || annotation === undefined) return;
-      const shadowed = lexicalTypeParameterNames(node);
+      const shadowed = lexicalTypeParameterNames(node, context.sourceCode.visitorKeys);
       if (!resolvesToBroadType(annotation.typeAnnotation, BROAD_RETURN_KEYWORDS, aliases, shadowed)) {
         return;
       }

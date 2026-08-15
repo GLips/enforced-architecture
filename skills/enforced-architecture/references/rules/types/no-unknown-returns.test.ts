@@ -144,5 +144,17 @@ export function loadInvoice(): Boxed<Invoice> { return read(); }`,
       filename: "/repo/scripts/backfill-invoices.ts",
       code: `function readRow(): Promise<unknown> { return Promise.resolve(null); }`,
     },
+    {
+      name: "a mapped-type key that shadows an alias name",
+      filename: SERVICE,
+      code: `type Key = unknown;
+type Mapped<Input> = { [Key in keyof Input]: () => Key };`,
+    },
+    {
+      name: "an infer binder in the extends clause shadows an alias in the true branch",
+      filename: SERVICE,
+      code: `type Item = unknown;
+type Unpacked<Input> = Input extends Promise<infer Item> ? () => Item : never;`,
+    },
   ],
 });

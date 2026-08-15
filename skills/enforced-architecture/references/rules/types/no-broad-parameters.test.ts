@@ -98,6 +98,15 @@ type Payload = unknown;`,
       code: `export function merge(a: unknown, b: object): void {}`,
       errors: [{ messageId: "unknownParameter" }, { messageId: "objectParameter" }],
     },
+    {
+      // The infer binder is scoped to the TRUE branch. In the false branch the same name still
+      // means the module alias, so the shadow must not leak across.
+      name: "an infer name reused in the false branch still means the alias",
+      filename: SERVICE,
+      code: `type Item = object;
+type Fallback<Input> = Input extends infer Item ? string : (value: Item) => void;`,
+      errors: [{ messageId: "objectParameter" }],
+    },
   ],
 
   legal: [
@@ -152,6 +161,18 @@ export function handle(input: Boxed<Invoice>): void {}`,
       name: "a one-off script is not shipped module graph",
       filename: "/repo/scripts/backfill-invoices.ts",
       code: `function handle(input: object): void {}`,
+    },
+    {
+      name: "a mapped-type key that shadows an alias name",
+      filename: SERVICE,
+      code: `type Key = object;
+type Mapped<Input> = { [Key in keyof Input]: (value: Key) => void };`,
+    },
+    {
+      name: "an infer binder in the extends clause shadows an alias in the true branch",
+      filename: SERVICE,
+      code: `type Item = object;
+type Unpacked<Input> = Input extends Promise<infer Item> ? (value: Item) => void : never;`,
     },
   ],
 });

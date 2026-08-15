@@ -58,22 +58,68 @@ export function parameterName(parameter: ESTree.ParamPattern, sourceCode: Source
   return parameter.type === "Identifier" ? parameter.name : sourceCode.getText(parameter);
 }
 
+/** Visitor keys from `context.sourceCode.visitorKeys`, used to walk a subtree for infer binders. */
+type VisitorKeys = Readonly<Record<string, readonly string[]>>;
+
+function isEstreeNode(value: unknown): value is ESTree.Node {
+  return (
+    typeof value === "object" && value !== null && "type" in value && typeof value.type === "string"
+  );
+}
+
+function collectInferTypeParameterNames(
+  node: ESTree.Node,
+  visitorKeys: VisitorKeys,
+  names: Set<string>,
+): void {
+  if (node.type === "TSInferType") names.add(node.typeParameter.name.name);
+  const record = node as unknown as Readonly<Record<string, unknown>>;
+  for (const key of visitorKeys[node.type] ?? []) {
+    const value = record[key];
+    if (isEstreeNode(value)) {
+      collectInferTypeParameterNames(value, visitorKeys, names);
+      continue;
+    }
+    if (!Array.isArray(value)) continue;
+    for (const child of value) {
+      if (isEstreeNode(child)) collectInferTypeParameterNames(child, visitorKeys, names);
+    }
+  }
+}
+
 /**
  * Type parameter names in scope at `node`, which must never be resolved as aliases.
  *
  * `function box<Unknown>(value: Unknown)` names a type parameter, not the top type. Without this,
  * a file that happens to name a generic after an alias gets a false positive that reads as the
  * rule being broken — the failure mode that trains people to disable it.
+ *
+ * Two binders have scopes narrower than their subtree, so the walk tracks which child it came up
+ * from: a mapped type's key binds only in the name and value positions (`[K in X]` cannot
+ * reference `K` in `X`), and an `infer` binder declared in an extends clause is visible only in
+ * the conditional's TRUE branch — in the false branch the same name still means the module alias.
  */
-export function lexicalTypeParameterNames(node: ESTree.Node): ReadonlySet<string> {
+export function lexicalTypeParameterNames(
+  node: ESTree.Node,
+  visitorKeys: VisitorKeys,
+): ReadonlySet<string> {
   const names = new Set<string>();
+  let descendant: ESTree.Node = node;
   let current: ESTree.Node | null = node;
   while (current !== null && current.type !== "Program") {
     if ("typeParameters" in current) {
       for (const parameter of current.typeParameters?.params ?? []) names.add(parameter.name.name);
     }
-    if (current.type === "TSMappedType") names.add(current.key.name);
-    if (current.type === "TSInferType") names.add(current.typeParameter.name.name);
+    if (
+      current.type === "TSMappedType" &&
+      (descendant === current.nameType || descendant === current.typeAnnotation)
+    ) {
+      names.add(current.key.name);
+    }
+    if (current.type === "TSConditionalType" && descendant === current.trueType) {
+      collectInferTypeParameterNames(current.extendsType, visitorKeys, names);
+    }
+    descendant = current;
     current = current.parent;
   }
   return names;
