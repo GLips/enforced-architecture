@@ -32,7 +32,7 @@ Three rules interlock and should be taken together — alone, each has a hole th
 
 Neither appears in the hub's selection table. Both reject code that is often correct.
 
-- **`no-runtime-typeof`** hits the SSR guard (`typeof window === "undefined"`) and any union the compiler already narrowed. This tier has no type information, so the blanket ban is a tooling limit, not a position. Expect per-line disables.
+- **`no-runtime-typeof`** hits the SSR guard (`typeof window === "undefined"`) and any union the compiler already narrowed. This tier has no type information, so the ban is a tooling limit, not a position. The one carve-out is the direct body of a type guard, where the check leaves a named predicate behind; everywhere else, expect per-line disables.
 - **`no-conditional-empty-object-spread`** targets an idiom that is deliberate under `exactOptionalPropertyTypes`. A signal about density, not a defect.
 
 `no-broad-parameters`, `no-unknown-returns`, and `no-unknown-type-aliases` share [../lib/type-annotations.ts](../lib/type-annotations.ts) — copy it alongside any of the three.

@@ -60,6 +60,22 @@ describeRule("types/no-runtime-typeof", noRuntimeTypeofRule, {
       code: `export const ok = typeof a === "string" && typeof b === "number";`,
       errors: [{ messageId: "runtimeTypeof" }, { messageId: "runtimeTypeof" }],
     },
+    {
+      // The nearest enclosing function decides. A closure inside a guard has no predicate of its
+      // own, so the check has drifted away from the signature that vouches for it.
+      name: "a closure nested inside a type guard is not covered by it",
+      filename: SERVICE,
+      code: `export function isInvoice(value: unknown): value is Invoice { const check = () => typeof value === "object"; return check(); }`,
+      errors: [{ messageId: "runtimeTypeof" }],
+    },
+    {
+      // Same shape as a guard, minus the predicate — the narrowing stays private to this body
+      // instead of becoming a contract, so it reports.
+      name: "a throwing narrower without a predicate is not a guard",
+      filename: SERVICE,
+      code: `export function requireString(value: unknown): string { if (typeof value !== "string") throw new Error("not a string"); return value; }`,
+      errors: [{ messageId: "runtimeTypeof" }],
+    },
   ],
 
   legal: [
@@ -84,6 +100,23 @@ describeRule("types/no-runtime-typeof", noRuntimeTypeofRule, {
       name: "instanceof is a different operator and out of scope",
       filename: SERVICE,
       code: `export const isError = value instanceof Error;`,
+    },
+    {
+      // The one runtime home for a representation check: the predicate turns it into a named
+      // contract every caller narrows through.
+      name: "a typeof check in the body of a type predicate",
+      filename: SERVICE,
+      code: `export function isInvoiceId(value: unknown): value is InvoiceId { return typeof value === "string"; }`,
+    },
+    {
+      name: "the arrow spelling of the same guard",
+      filename: SERVICE,
+      code: `export const isInvoiceId = (value: unknown): value is InvoiceId => typeof value === "string";`,
+    },
+    {
+      name: "an assertion function is a guard that throws instead of returning false",
+      filename: SERVICE,
+      code: `export function assertInvoiceId(value: unknown): asserts value is InvoiceId { if (typeof value !== "string") throw new Error("not an InvoiceId"); }`,
     },
     {
       name: "a test file may inspect representations freely",
