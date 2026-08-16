@@ -31,7 +31,7 @@ The cells that carry real information are the qualified ones — where the answe
 
 | Cell | What the qualifier means | Enforced by |
 |---|---|---|
-| `infrastructure/db/` → `env.server` — *`client.ts` only* | The client file reads connection config. No other DB file touches env. | `boundary/env-access` |
+| `infrastructure/db/` → `env.server` — *`client.ts` only* | The client file reads connection config. No other DB file touches env. | `boundary/ambient-globals` |
 | `infrastructure/*` → `infrastructure/db/` — *designated files* | Auth reaches `db/client` and `db/schema` for its own tables; integrations generally reach neither. Each module imports only the DB files it needs. | `boundary/db-isolation` |
 | `features/*/controllers/` → `infrastructure/db/` — *via repo, if it exists* | A present layer may not be bypassed. With no `repo/`, controllers reach DB directly and that is correct. | `boundary/layer-occupancy` |
 | any → `features/` — *public API only* | `@/features/<name>` or `@/features/<name>/index.server`. Never a path into another feature's internals. | `api/feature-public-api` |
