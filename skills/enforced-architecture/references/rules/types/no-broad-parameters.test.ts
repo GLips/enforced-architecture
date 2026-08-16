@@ -107,6 +107,17 @@ type Payload = unknown;`,
 type Fallback<Input> = Input extends infer Item ? string : (value: Item) => void;`,
       errors: [{ messageId: "objectParameter" }],
     },
+    {
+      // The binder belongs to the NESTED conditional and is visible only in ITS true branch, so out
+      // here `Item` is the module alias again. A collector that walks the whole extends clause
+      // shadows the name and the rule goes silent — a false negative that reads exactly like the
+      // scoping being handled correctly.
+      name: "an infer binder inside a nested conditional does not shadow the outer true branch",
+      filename: SERVICE,
+      code: `type Item = object;
+type Weird<Input> = Input extends (string extends infer Item ? true : false) ? (value: Item) => void : never;`,
+      errors: [{ messageId: "objectParameter" }],
+    },
   ],
 
   legal: [

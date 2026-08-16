@@ -69,6 +69,25 @@ describeRule("types/no-runtime-typeof", noRuntimeTypeofRule, {
       errors: [{ messageId: "runtimeTypeof" }],
     },
     {
+      // An overload set that promises no predicate is not a guard, however guard-shaped the name
+      // is. Pins that the exemption reads the signature rather than merely noticing one exists.
+      name: "an overload signature without a predicate is not a guard",
+      filename: SERVICE,
+      code: `function isInvoiceId(value: unknown): boolean;
+function isInvoiceId(value: unknown): boolean { return typeof value === "string"; }`,
+      errors: [{ messageId: "runtimeTypeof" }],
+    },
+    {
+      // The overload search matches by name. A predicate declared for a DIFFERENT function in the
+      // same file must not vouch for this body.
+      name: "a predicate overload for another function does not cover this one",
+      filename: SERVICE,
+      code: `function isInvoice(value: unknown): value is Invoice;
+function isInvoice(value: unknown): boolean { return value !== null; }
+function isInvoiceId(value: unknown): boolean { return typeof value === "string"; }`,
+      errors: [{ messageId: "runtimeTypeof" }],
+    },
+    {
       // Same shape as a guard, minus the predicate — the narrowing stays private to this body
       // instead of becoming a contract, so it reports.
       name: "a throwing narrower without a predicate is not a guard",
@@ -112,6 +131,15 @@ describeRule("types/no-runtime-typeof", noRuntimeTypeofRule, {
       name: "the arrow spelling of the same guard",
       filename: SERVICE,
       code: `export const isInvoiceId = (value: unknown): value is InvoiceId => typeof value === "string";`,
+    },
+    {
+      // TypeScript puts the predicate on the OVERLOAD and widens the implementation's return type,
+      // so a rule reading only the body's own annotation rejects a guard whose published contract
+      // is exactly what it exempts.
+      name: "an overloaded guard declares its predicate on the signature",
+      filename: SERVICE,
+      code: `export function isInvoiceId(value: unknown): value is InvoiceId;
+export function isInvoiceId(value: unknown): boolean { return typeof value === "string"; }`,
     },
     {
       name: "an assertion function is a guard that throws instead of returning false",

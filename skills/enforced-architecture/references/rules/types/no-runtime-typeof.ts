@@ -36,6 +36,13 @@
 //           nearest enclosing function decides, so the check cannot
 //           drift away from the signature that vouches for it.
 //
+//           An OVERLOADED guard is exempt too: TypeScript puts the
+//           predicate on the signature and widens the implementation's
+//           return type to `boolean`, so the published contract is the
+//           predicate even though the body's own annotation is not. A
+//           method overload set is not covered — see
+//           `hasPredicateOverload`.
+//
 //           TypeScript's type-level `typeof X` is a different node
 //           (`TSTypeQuery`) and is untouched.
 //
@@ -96,6 +103,49 @@ import { defineRule } from "@oxlint/plugins";
 import type { ESTree } from "@oxlint/plugins";
 import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
 
+const STATEMENT_LIST_NODES = new Set([
+  "BlockStatement",
+  "Program",
+  "StaticBlock",
+  "TSModuleBlock",
+]);
+
+/**
+ * Whether a body-less overload signature of the same name declares the predicate.
+ *
+ * An overloaded guard puts the predicate on the SIGNATURE and widens the implementation's own
+ * return type — `function isInvoice(v: unknown): v is Invoice;` over
+ * `function isInvoice(v: unknown): boolean { … }`. Read through the implementation alone, that
+ * function vouches for nothing and every `typeof` in it reports, though the contract every caller
+ * narrows through is exactly the predicate this rule exempts.
+ *
+ * Overloads must sit adjacent in the same statement list, so matching by name within that list is
+ * the whole search. Class-method overloads are NOT covered: they are a different node
+ * (`TSEmptyBodyFunctionExpression` in a `ClassBody`), and a guard written as a method is rare
+ * enough that the extra arm would be untested weight.
+ */
+function hasPredicateOverload(implementation: ESTree.Node, name: string): boolean {
+  let container: ESTree.Node | null = implementation.parent;
+  while (container !== null && !STATEMENT_LIST_NODES.has(container.type)) {
+    container = container.parent;
+  }
+  if (container === null) return false;
+
+  const siblings: readonly ESTree.Node[] =
+    "body" in container && Array.isArray(container.body) ? container.body : [];
+  return siblings.some((statement) => {
+    // An overload set on an exported guard wraps each signature, so the declaration to read is one
+    // level down from the statement.
+    const declaration =
+      statement.type === "ExportNamedDeclaration" ? statement.declaration : statement;
+    return (
+      declaration?.type === "TSDeclareFunction" &&
+      declaration.id?.name === name &&
+      declaration.returnType?.typeAnnotation.type === "TSTypePredicate"
+    );
+  });
+}
+
 /**
  * Whether the NEAREST enclosing function declares a type predicate (`value is T`, `asserts value`).
  *
@@ -111,7 +161,10 @@ function isInsideTypeGuard(node: ESTree.Node): boolean {
       current.type === "FunctionDeclaration" ||
       current.type === "FunctionExpression"
     ) {
-      return current.returnType?.typeAnnotation.type === "TSTypePredicate";
+      if (current.returnType?.typeAnnotation.type === "TSTypePredicate") return true;
+      return current.type === "FunctionDeclaration" && current.id !== null
+        ? hasPredicateOverload(current, current.id.name)
+        : false;
     }
     current = current.parent;
   }

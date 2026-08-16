@@ -72,6 +72,15 @@ function collectInferTypeParameterNames(
   visitorKeys: VisitorKeys,
   names: Set<string>,
 ): void {
+  // A nested conditional owns the binders declared in ITS extends clause, and they are visible only
+  // in ITS true branch — `T extends (X extends infer Item ? A : B) ? …` leaves `Item` meaning the
+  // module alias again out here. Collecting through the nesting shadows a name the outer branch can
+  // still legitimately use, and a shadowed name is one the broad-type rules stop resolving: the
+  // rule goes silent, which is the failure this catalog cannot see without a case for it.
+  //
+  // Only the nesting stops the walk. `Promise<infer U>` and `(infer U)[]` are ordinary positions
+  // inside this conditional's own extends clause and must still be collected.
+  if (node.type === "TSConditionalType") return;
   if (node.type === "TSInferType") names.add(node.typeParameter.name.name);
   const record = node as unknown as Readonly<Record<string, unknown>>;
   for (const key of visitorKeys[node.type] ?? []) {
