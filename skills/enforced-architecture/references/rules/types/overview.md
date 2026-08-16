@@ -10,6 +10,8 @@ Three rules interlock and should be taken together — alone, each has a hole th
 - **[no-chained-type-assertions](no-chained-type-assertions.ts)** closes that, but only sees assertions stacked in one expression.
 - **[no-widen-then-assert](no-widen-then-assert.ts)** catches the same round trip split across statements, which neither of the others can see — and which a `SAFETY:` comment will otherwise silence permanently with a sentence that is true and useless.
 
+All three key on `as` and its angle-bracket twin, so all three are silent on the spelling that hides the same claim in a type argument — `response.json<User>()`, ``sql<Row>`…` ``. **[no-type-argument-assertion](no-type-argument-assertion.ts)** covers that one, and it is the spelling an agent reaches for after the other three have refused it, because it reads as ordinary typed API usage rather than as an override.
+
 `require-safety-comment` is the catalog's one *justify* rather than *ban* rule — some assertions are correct and no per-file rule can tell which, so it leaves the hatch open and makes using it leave a trace. `rg "SAFETY:"` is most of the value.
 
 ## Rules
@@ -20,6 +22,7 @@ Three rules interlock and should be taken together — alone, each has a hole th
 | [require-safety-comment](require-safety-comment.ts) | oxlint | Yes | Type assertions that state no reason. Requires a `SAFETY:` comment naming the invariant — the catalog's one *justify*, rather than *ban*, rule |
 | [no-chained-type-assertions](no-chained-type-assertions.ts) | oxlint | Yes | `value as unknown as T` — a compiler objection deleted rather than answered |
 | [no-widen-then-assert](no-widen-then-assert.ts) | oxlint | Yes | A known type discarded to `unknown`/`object`/`Record` and asserted back later in the same function, with nothing checked in between |
+| [no-type-argument-assertion](no-type-argument-assertion.ts) | oxlint | Yes | `response.json<User>()`, `parse<Config>(text)`, ``sql<Row>`…` `` — an assertion spelled as a type argument on a call that reads external data, which the three above cannot see |
 | [no-known-value-widening](no-known-value-widening.ts) | oxlint | Yes | `const handlers: Record<string, Handler> = {…}` — an annotation that checks a literal by deleting its keys. Use `satisfies` |
 | [no-broad-parameters](no-broad-parameters.ts) | oxlint | Yes | `unknown` and `object` function inputs, except the `cause` convention |
 | [no-unknown-returns](no-unknown-returns.ts) | oxlint | Yes | Declared return contracts of `unknown`, `any`, `Promise<unknown>`, or an alias to one |
