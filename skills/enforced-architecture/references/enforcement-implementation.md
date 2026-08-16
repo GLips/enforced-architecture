@@ -2,12 +2,13 @@
 
 How to wire up the enforcement infrastructure. Not the rules themselves — those live in [rules/](rules/overview.md).
 
-Three of the four config artifacts ship as commented files. Copy them and read the comments in place; the gotchas live on the lines they govern.
+Three of the five config artifacts ship as commented files. Copy them and read the comments in place; the gotchas live on the lines they govern. `jscpd.json` is the one that cannot carry its own: jscpd parses it as strict JSON and dies on the first comment, so its rationale sits under *Package.json Scripts* below.
 
 | Artifact | Copy from | Target |
 |---|---|---|
 | oxlint config | [setup/oxlintrc.json](setup/oxlintrc.json) | `.oxlintrc.json` (repo root; root of the monorepo) |
 | Pre-commit hook | [setup/lefthook.yml](setup/lefthook.yml) | `lefthook.yml` |
+| Duplication config | [setup/jscpd.json](setup/jscpd.json) | `.jscpd.json` (repo root) |
 | Structural check substrate | `rules/scripts/*.ts` | `scripts/` |
 | Framework import protection | [server-client-boundaries.md](server-client-boundaries.md) | `vite.config.ts` |
 
@@ -16,6 +17,8 @@ Three of the four config artifacts ship as commented files. Copy them and read t
 ## The oxlint tier
 
 Per-file rules are oxlint JS plugins: one `.ts` file per rule, every rule registered in **one** plugin module, that module named in `.oxlintrc.json`. Organize rule files by tag on disk (`oxlint/boundary/db-isolation.ts`).
+
+Three dev dependencies beyond `oxlint`. `oxlint-tsgolint` backs `options.typeAware`; `eslint-plugin-sonarjs` loads through the same `jsPlugins` array as the architecture rules, so the duplication and identity checks cost one package rather than a second tool. `jscpd` is neither — a separate binary, below. What each buys and what breaks without it is on the lines that switch them on, in [setup/oxlintrc.json](setup/oxlintrc.json).
 
 Rules share a `lib/`, and the sharing is load-bearing rather than tidy. One module owns each concern, so a new rule inherits the fix rather than a copy of the bug:
 
@@ -67,6 +70,7 @@ At pre-commit, advisory warnings scope to the files the commit touches; blocking
 
 - `check:arch` — runs `oxlint` and the structural checks **independently** and aggregates, so a lint failure cannot hide every structural finding. The single command that verifies all architectural constraints.
 - `check:structure` — structural checks only. For iterating on script changes without re-running lint.
+- `duplication` — `jscpd --config .jscpd.json src scripts`. A separate binary with its own exit code, not an oxlint plugin, and it runs in CI only ([enforcement-strategy.md](enforcement-strategy.md), Tier 3). 60 tokens / 6 lines, matched on normalized tokens in `mild` mode: renaming every variable does not hide the clone, and neither does inserting a comment or a blank line. `sonarjs/no-identical-functions` in `.oxlintrc.json` catches what fits inside one rule's window; this catches the copy that spans files. Fence repetition that is genuinely irreducible with `/* jscpd:ignore-start */ … /* jscpd:ignore-end */`. Do not raise `minTokens` instead: that hides every clone of that size, not the one you meant to allow.
 - `check:rules` — the rule specs, through the real-Node launcher (`harness/with-real-node.sh`, which explains itself). **`RuleTester` does not run under Bun**, and under Bun the specs fail with an error naming the test framework rather than the runtime — so a working gate reads as a broken suite and invites `--no-verify`. A project on Bun also needs `bun test --path-ignore-patterns='**/oxlint/**'`, or `bun test` picks the specs up and throws on every case. The `oxlint` CLI itself is fine under Bun; this binds only the rule-authoring path.
 
 ---

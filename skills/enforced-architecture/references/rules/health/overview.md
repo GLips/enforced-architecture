@@ -4,6 +4,7 @@ Set thresholds from the codebase, not the defaults. One that fires on a third of
 
 | Rule | Mechanism | Blocking | What it prevents |
 |---|---|---|---|
+| [doc-budgets](doc-budgets.md) | Script | Yes | Standing docs growing past a word ceiling, and ceilings keeping slack a shrunken doc no longer needs |
 | [file-size](file-size.md) | Script | Mixed | Files exceeding line count thresholds (project-configurable warn + fail) |
 | [no-nested-ternary](no-nested-ternary.ts) | oxlint | Yes | Ternary expressions nested 3+ levels deep (extract to variables or helpers) |
 | [trampolines](trampolines.md) | Script | No | Pass-through wrapper functions that add no behavior |

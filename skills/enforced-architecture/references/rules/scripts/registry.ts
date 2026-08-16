@@ -18,6 +18,7 @@ import { barrelPurityCheck } from "../api/barrel-purity.ts";
 import { barrelDiscoverabilityCheck } from "../naming/barrel-discoverability.ts";
 import { crossBoundaryAliasCheck } from "../boundary/cross-boundary-alias.ts";
 import { cssTokensCheck } from "../style/css-tokens.ts";
+import { docBudgetsCheck } from "../health/doc-budgets.ts";
 import { domainCyclesCheck } from "../graph/domain-cycles.ts";
 import { featureDepsCheck } from "../graph/feature-deps.ts";
 import { featureVisibilityCheck } from "../api/feature-visibility.ts";
@@ -42,6 +43,7 @@ export const structuralChecks: StructuralCheck[] = [
   domainCyclesCheck,
   featureDepsCheck,
   fileSizeCheck,
+  docBudgetsCheck,
   trampolinesCheck,
   barrelDiscoverabilityCheck,
   testFileMirrorCheck,

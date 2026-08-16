@@ -6,8 +6,8 @@ It proves the **chosen examples**, not the header claim in general. The cases an
 
 ```
 bun run check          # both tiers
-bun run check:rules    # 32 oxlint rules, under real Node
-bun run check:scripts  # 18 structural-script checks, under Bun
+bun run check:rules    # 51 oxlint rules, under real Node
+bun run check:scripts  # 19 structural-script checks, under Bun
 ```
 
 Two runners because the two tiers read differently, not because the standard differs. An oxlint rule is handed one file, so it is exercised through `RuleTester` against inline sources. A structural check scans declared roots and several scan more than one, so its cases are real files in one shared tree. Both are held to the same three-kind contract below. The script side has its own README at [script-fixtures/README.md](script-fixtures/README.md); the rest of this file is the oxlint side plus what the two share.
@@ -88,7 +88,7 @@ Verified on oxlint 1.77.0 / bun 1.3.13 / Node 24.17.0. Re-check whether JavaScri
 
 ## Scope
 
-All 50 rules are covered: 32 oxlint rules through `check:rules`, 18 structural-script checks through `check:scripts`. Nothing in the catalog ships as an untested description any more.
+All 70 rules are covered: 51 oxlint rules through `check:rules`, 19 structural-script checks through `check:scripts`. Nothing in the catalog ships as an untested description any more.
 
 The script tier used to be prose. Each consuming project hand-rolled an implementation from the algorithm in the `.md`, and three independent audits found the same result: the implementations drifted, and each one had silently stopped matching part of what its doc promised. One deployment's layer-occupancy check had three bypasses and hardcoded a path its own doc documented as configurable; another's barrel-purity discovered a third of the barrels it claimed to. Every one of those was green. That is the argument for shipping code and config rather than an algorithm — the adaptation step is where the silence was getting in, so the adaptation step is now writing config.
 

@@ -119,6 +119,21 @@ Add project-specific how-to guides as patterns emerge. Good candidates: adding a
 
 ---
 
+## Word Budgets
+
+Everything above is a doc agents read while deciding where code goes — and therefore a doc agents keep appending to. Each addition is defensible on its own: a clarifying paragraph, a worked example, a note about the case that just came up. Nothing is ever removed. The CLAUDE.md section written to be read in under a minute becomes the one that is skimmed, and the reference file written to be consulted becomes the one that is grepped and abandoned.
+
+Nothing in the enforcement tiers notices, because length is not a violation of anything. So budget it: `docs/doc-budgets.manifest.json` maps each standing doc to a word ceiling, and [health/doc-budgets](rules/health/doc-budgets.md) fails the build on two conditions rather than one.
+
+- **Over the ceiling.** The doc has to be condensed, or the material moved to the doc that owns it.
+- **More than 5% of slack under the ceiling.** This is the ratchet, and it is the half that does the work. A doc that gets condensed otherwise leaves its old ceiling behind, and that headroom is room the next agent expands into with nothing to show in a diff. Reclaiming it in the same change costs one number and puts it in the hands of the person who just did the shortening.
+
+A ceiling therefore only ever moves down by itself. Raising one is possible and deliberately conspicuous: a line in the manifest, in the commit that needed the room, carrying the reason it was needed. That is the entire mechanism — no check can tell dense prose from filler, and the budget does not try. It forces the trade to be made by someone rather than deferred forever.
+
+**Budget the standing docs only.** CLAUDE.md and the `docs/architecture/` files, because those are read on every task and their length has a per-task cost. Plans, ADRs, changelogs, and feature READMEs are written once and appended to by design; a ceiling on them is friction that buys nothing. Set the first ceilings from what the docs already weigh — the rule's *Adapt* section has the command.
+
+---
+
 ## Generating Documentation During Implementation
 
 Documentation generation is part of Phase 4 (implementation), not a separate phase. The implementing agent has all the context from the plan document — the documentation distills that context into the appropriate format.

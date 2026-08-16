@@ -14,9 +14,34 @@
 {
   // One module, not one path per rule. It calls `definePlugin({ meta: { name },
   // rules })`; `meta.name` is the prefix every key below inherits.
-  "jsPlugins": ["./oxlint/plugin.ts"],
+  //
+  // A bare package name resolves out of node_modules, so an ESLint plugin joins
+  // the same array rather than needing its own mechanism — `eslint-plugin-sonarjs`
+  // registers under the `sonarjs/` prefix. `jsPlugins` is also an `overrides` key;
+  // reach for that only to scope a plugin to a subtree.
+  "jsPlugins": ["./oxlint/plugin.ts", "eslint-plugin-sonarjs"],
 
   "ignorePatterns": ["src/gen/**"],
+
+  // `typeAware` needs the `oxlint-tsgolint` dev dependency. Without it oxlint
+  // aborts — "Failed to find tsgolint executable", exit 1, nothing linted — so a
+  // missing dependency is a loud failure, not a config that quietly does less.
+  // (Checked against oxlint 1.77.0.)
+  //
+  // Type information reaches the built-in `typescript/*` rules and nothing else.
+  // JS plugins get no type checker, so neither `arch/` nor `sonarjs/` becomes
+  // type-aware: every rule in this catalog stays a syntactic question about one
+  // file, and no amount of this flag changes that.
+  //
+  // Type-aware linting is slower, and this config pays it: one config, full
+  // safety, nothing extra for CI to know about. If pre-commit ever outgrows the
+  // cost, the escape hatch is a second `.oxlintrc.staged.json` that `extends`
+  // this file and sets `typeAware: false`, wired to the staged-file hook alone —
+  // a narrower profile of one rule list, never a second rule list.
+  //
+  // `reportUnusedDisableDirectives` is read from the ROOT config only; setting it
+  // in a nested workspace config buys nothing.
+  "options": { "typeAware": true, "reportUnusedDisableDirectives": "warn" },
 
   // Registration and activation are separate, and only one of them fails loudly.
   // A rule the plugin exports but this block never names is loaded and never run:
@@ -29,7 +54,42 @@
   // raised it: `error arch(db-isolation): …`
   "rules": {
     "arch/db-isolation": "error",
-    "arch/shared-ui-purity": "error"
+    "arch/shared-ui-purity": "error",
+
+    // The type-aware built-ins that earn the tsgolint dependency, and only those.
+    // Naming them is not decoration: `typeAware` on its own runs some at warning
+    // severity — a green exit 0 with the violation printed — and leaves the
+    // no-unsafe-* family off entirely.
+    //
+    // A promise nobody awaited is the bug agent-written async code produces most,
+    // and it surfaces as an unhandled rejection nowhere near the line that made
+    // it. The no-unsafe-* family stops a single `any` at an untyped boundary from
+    // laundering itself through the call graph as a real type.
+    "typescript/await-thenable": "error",
+    "typescript/no-floating-promises": "error",
+    "typescript/no-misused-promises": "error",
+    "typescript/no-unsafe-argument": "error",
+    "typescript/no-unsafe-assignment": "error",
+    "typescript/no-unsafe-call": "error",
+    "typescript/no-unsafe-member-access": "error",
+    "typescript/no-unsafe-return": "error",
+
+    // Structural duplication and identity slips: both branches of an if/else
+    // identical, a condition repeated in a chain, two functions with the same
+    // body. This is the shape an agent leaves behind when it did not find the
+    // code path that already existed and wrote a second one beside it.
+    //
+    // The duplication/identity subset only. sonarjs also ships complexity and
+    // style opinions; those are taste, and taste does not belong in a gate.
+    // Duplication too large for one rule's window is jscpd's job — setup/jscpd.json.
+    "sonarjs/duplicates-in-character-class": "error",
+    "sonarjs/no-all-duplicated-branches": "error",
+    "sonarjs/no-duplicate-in-composite": "error",
+    "sonarjs/no-duplicate-test-title": "error",
+    "sonarjs/no-duplicated-branches": "error",
+    "sonarjs/no-identical-conditions": "error",
+    "sonarjs/no-identical-expressions": "error",
+    "sonarjs/no-identical-functions": "error"
   },
 
   // Turn a rule off for files that are legitimately outside the architecture.
@@ -40,8 +100,3 @@
     { "files": ["*.config.ts"], "rules": { "arch/db-isolation": "off" } }
   ]
 }
-
-// Suppressing one line: `// oxlint-disable-next-line arch/db-isolation`.
-// Position matters for some built-ins — `react-hooks/exhaustive-deps` wants the
-// comment above the dependency array, not above the hook call. Probe placement
-// rather than assuming it.

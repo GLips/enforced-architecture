@@ -93,6 +93,8 @@ Tier 3 and manual full runs warn repo-wide — the full picture belongs there. S
 
 Same checks as Tier 2. Safety net for hook bypass (`--no-verify`). Required to pass for PR merge.
 
+One check runs only here: `duplication` (jscpd). Scanning the whole tree for copy-paste costs more than the 15-second hook budget, and a clone is never the finding that has to stop a commit — but it is precisely what an agent leaves behind when it did not find the code path that already existed. Mechanism and thresholds in [enforcement-implementation.md](enforcement-implementation.md).
+
 CI is the last line of defense, not the primary feedback mechanism. If a violation makes it to CI, the developer experience has already failed — the goal is to catch everything at Tier 1 or Tier 2.
 
 ---

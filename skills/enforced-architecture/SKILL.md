@@ -113,13 +113,13 @@ Keep the plan's rule section lean — two tables, not a copy of template content
 Read [enforcement-implementation.md](references/enforcement-implementation.md) for tooling setup. Read [migration-patterns.md](references/migration-patterns.md) for migration sequencing.
 
 **Greenfield sequence:**
-1. `.oxlintrc.json` from [references/setup/oxlintrc.json](references/setup/oxlintrc.json), plus the rule modules and their specs in the `oxlint/` directory, all registered in `oxlint/plugin.ts`
+1. `.oxlintrc.json` from [references/setup/oxlintrc.json](references/setup/oxlintrc.json), plus the rule modules and their specs in the `oxlint/` directory, all registered in `oxlint/plugin.ts`. Install its dev dependencies with the package manager, unversioned so the project gets current releases: `bun add -d oxlint oxlint-tsgolint eslint-plugin-sonarjs jscpd`
 2. `scripts/` — copy `config.ts`, `lib.ts`, `import-graph.ts`, `run-structural-checks.ts` and `registry.ts` from the catalog, then each selected check module. Write the project's `arch.config.ts` on top of the defaults; the checks themselves are taken unmodified
-3. Package.json scripts (`check:arch`)
+3. Package.json scripts (`check:arch`, and `duplication` for the CI-only jscpd pass), plus `.jscpd.json` from [references/setup/jscpd.json](references/setup/jscpd.json)
 4. `lefthook.yml` from [references/setup/lefthook.yml](references/setup/lefthook.yml)
 5. Framework import protection (vite.config.ts)
 6. Directory structure with empty barrels
-7. Generate documentation per [documentation-model.md](references/documentation-model.md) — CLAUDE.md rules section, and docs/architecture/ files if chosen
+7. Generate documentation per [documentation-model.md](references/documentation-model.md) — CLAUDE.md rules section, and docs/architecture/ files if chosen. Then, if `health/doc-budgets` was selected, write `docs/doc-budgets.manifest.json` from [references/setup/doc-budgets.manifest.json](references/setup/doc-budgets.manifest.json) — ceilings come from what the generated docs actually weigh, so this step follows them
 8. Verify: `bun run check:arch && bun run dev`
 
 **Migration:** Decompose into atomic phases per [migration-patterns.md](references/migration-patterns.md). Each phase produces a clean repo.

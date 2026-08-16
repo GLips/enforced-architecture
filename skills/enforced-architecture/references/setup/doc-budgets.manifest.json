@@ -1,0 +1,10 @@
+{
+  "CLAUDE.md": 900,
+  "docs/architecture/feature-patterns.md": 780,
+  "docs/architecture/import-boundaries.md": 620,
+  "docs/architecture/server-client-boundaries.md": 540,
+  "docs/architecture/error-conventions.md": 420,
+  "docs/architecture/decisions.md": 500,
+  "docs/architecture/how-to/new-feature.md": 460,
+  "docs/architecture/how-to/new-infra-adapter.md": 380
+}

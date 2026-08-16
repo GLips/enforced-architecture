@@ -196,6 +196,16 @@ export type FeatureDepsConfig = {
   fanOutThreshold: number;
 };
 
+export type DocBudgetsConfig = {
+  /**
+   * Project-relative path of the word-ceiling manifest: a flat JSON object of
+   * doc path → integer ceiling. The budgets live in their own file rather than
+   * here because raising one has to read as a documentation decision in the diff
+   * that needed it, not as a line in the file every check is configured from.
+   */
+  manifestPath: string;
+};
+
 export type FileSizeConfig = {
   /** Roots walked for size. Often wider than `source.roots` — a shared package counts too. */
   roots: string[];
@@ -329,6 +339,7 @@ export type CheckConfigs = {
   "api/feature-visibility": FeatureVisibilityConfig;
   "boundary/layer-occupancy": LayerOccupancyConfig;
   "graph/feature-deps": FeatureDepsConfig;
+  "health/doc-budgets": DocBudgetsConfig;
   "health/file-size": FileSizeConfig;
   "health/trampolines": TrampolinesConfig;
   "naming/barrel-discoverability": BarrelDiscoverabilityConfig;
@@ -377,6 +388,10 @@ export const defaultCheckConfigs: CheckConfigs = {
     totalEdgeThreshold: 4,
     pairSaturationThreshold: 3,
     fanOutThreshold: 2,
+  },
+
+  "health/doc-budgets": {
+    manifestPath: "docs/doc-budgets.manifest.json",
   },
 
   "health/file-size": {
