@@ -1,17 +1,18 @@
 # Rule Catalog
 
-62 enforcement rules across ten tags. Read this file to choose tags, a tag's `overview.md` to choose rules within it, and a rule's own template — which carries its documentation, *Adapt* section, and implementation — to adapt it.
+69 enforcement rules across eleven tags. Read this file to choose tags, a tag's `overview.md` to choose rules within it, and a rule's own template — which carries its documentation, *Adapt* section, and implementation — to adapt it.
 
 ## The tags
 
 | Tag | Rules | Governs | Read |
 |---|---|---|---|
 | **boundary** | 12 | What may import what. The only constraint that holds when nobody is reading | [boundary/overview.md](boundary/overview.md) |
-| **types** | 11 | Whether a type declaration says anything — untyped bags, `unknown` contracts, unjustified `as` | [types/overview.md](types/overview.md) |
+| **types** | 12 | Whether a type declaration says anything — untyped bags, `unknown` contracts, unjustified `as` | [types/overview.md](types/overview.md) |
 | **structure** | 9 | Where files go, so the paths other rules match are the paths code is in | [structure/overview.md](structure/overview.md) |
 | **style** | 9 | Design-system adherence — tokens, primitives, no raw values | [style/overview.md](style/overview.md) |
 | **api** | 6 | How deep a permitted import may reach. Barrels and public surface | [api/overview.md](api/overview.md) |
 | **react** | 6 | Component-level smells that survive review because each looks reasonable | [react/overview.md](react/overview.md) |
+| **effect** | 6 | Effect-TS policy bans — the syntactic residue after @effect/language-service, which owns everything type-aware | [effect/overview.md](effect/overview.md) |
 | **health** | 3 | Size and shape signals. Nothing here is a correctness defect | [health/overview.md](health/overview.md) |
 | **naming** | 3 | Keeping the public surface findable by plain text search | [naming/overview.md](naming/overview.md) |
 | **graph** | 3 | Questions no single file can answer — cycles, coupling. Build the import graph first | [graph/overview.md](graph/overview.md) |
@@ -40,10 +41,11 @@ Not every project needs every rule. Use audit findings to guide selection.
 | Public barrels (two-barrel API) | `naming/barrel-discoverability` |
 | Co-located tests | `naming/test-file-mirror` |
 | Co-located tests **and** agents writing most of them | `testing/no-module-mocking` — expect a migration, not a lint fix |
-| Agents writing most of the code | The `types/` assertion trio: `require-safety-comment`, `no-chained-type-assertions`, `no-widen-then-assert`. Taking one or two of the three leaves the hole the others close |
+| Agents writing most of the code | The `types/` assertion trio: `require-safety-comment`, `no-chained-type-assertions`, `no-widen-then-assert` — plus `types/no-type-argument-assertion`, the spelling of the same claim (`api.get<User>(url)`) that all three miss because it never writes `as`. Taking a subset leaves the hole the others close |
+| Uses Effect | All `effect/` rules — but adopt `@effect/language-service` first; the `effect/` overview explains why it is step zero and these are only what it leaves on the table |
 | A boundary where external data enters (API, queue, file) | `types/no-broad-parameters`, `types/no-unknown-returns`, `types/no-unknown-type-aliases` — these push `unknown` back to the parse site instead of letting it spread inward |
 | TypeScript 4.9+ | `types/no-known-value-widening` — the fix it names (`satisfies`) does not exist before that |
-| Any TypeScript project | `graph/import-graph`, `boundary/cross-boundary-alias`, `boundary/env-access`, `boundary/no-test-imports`, `boundary/shared-purity`, `structure/topology`, `health/file-size`, `health/no-nested-ternary`, `types/no-opaque-record`, `types/no-reflect-access` |
+| Any TypeScript project | `graph/import-graph`, `boundary/cross-boundary-alias`, `boundary/ambient-globals`, `boundary/no-test-imports`, `boundary/shared-purity`, `structure/topology`, `health/file-size`, `health/no-nested-ternary`, `types/no-opaque-record`, `types/no-reflect-access` |
 
 `types/no-runtime-typeof` and `types/no-conditional-empty-object-spread` appear in no row deliberately — both reject code that is often correct. See [types/overview.md](types/overview.md) before adopting either.
 

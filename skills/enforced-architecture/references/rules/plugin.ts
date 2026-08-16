@@ -1,4 +1,5 @@
 import { definePlugin } from "@oxlint/plugins";
+import { ambientGlobalsRule } from "./boundary/ambient-globals.ts";
 import { barrelDirectionRule } from "./api/barrel-direction.ts";
 import { clientServerInfraRule } from "./boundary/client-server-infra.ts";
 import { dbIsolationRule } from "./boundary/db-isolation.ts";
@@ -6,12 +7,17 @@ import { deprecatedPathsRule } from "./structure/deprecated-paths.ts";
 import { derivedStateRule } from "./react/derived-state.ts";
 import { domainPublicApiRule } from "./api/domain-public-api.ts";
 import { domainPurityRule } from "./boundary/domain-purity.ts";
-import { envAccessRule } from "./boundary/env-access.ts";
 import { featurePublicApiRule } from "./api/feature-public-api.ts";
 import { noArbitraryClassValuesRule } from "./style/no-arbitrary-class-values.ts";
 import { noAsyncEffectRule } from "./react/no-async-effect.ts";
 import { noDeprecatedInputValidatorRule } from "./structure/no-deprecated-input-validator.ts";
 import { noDirectFetchRule } from "./react/no-direct-fetch.ts";
+import { noDisableValidationRule } from "./effect/no-disable-validation.ts";
+import { noEffectCatchAllCauseRule } from "./effect/no-effect-catchallcause.ts";
+import { noNestedLayerProvideRule } from "./effect/no-nested-layer-provide.ts";
+import { noServiceOptionRule } from "./effect/no-service-option.ts";
+import { noSilentErrorSwallowRule } from "./effect/no-silent-error-swallow.ts";
+import { noSqlTypeParameterRule } from "./effect/no-sql-type-parameter.ts";
 import { noInlineColorRule } from "./style/no-inline-color.ts";
 import { noInlineFontSizeRule } from "./style/no-inline-font-size.ts";
 import { noInlineStylePropRule } from "./style/no-inline-style-prop.ts";
@@ -28,6 +34,7 @@ import { noModuleMockingRule } from "./testing/no-module-mocking.ts";
 import { noVacantSymbolNamesRule } from "./naming/no-vacant-symbol-names.ts";
 import { noReflectAccessRule } from "./types/no-reflect-access.ts";
 import { noRuntimeTypeofRule } from "./types/no-runtime-typeof.ts";
+import { noTypeArgumentAssertionRule } from "./types/no-type-argument-assertion.ts";
 import { noUnknownReturnsRule } from "./types/no-unknown-returns.ts";
 import { noUnknownTypeAliasesRule } from "./types/no-unknown-type-aliases.ts";
 import { noWidenThenAssertRule } from "./types/no-widen-then-assert.ts";
@@ -66,10 +73,10 @@ export default definePlugin({
     "domain-public-api": domainPublicApiRule,
     "feature-public-api": featurePublicApiRule,
     "server-import-context": serverImportContextRule,
+    "ambient-globals": ambientGlobalsRule,
     "client-server-infra": clientServerInfraRule,
     "db-isolation": dbIsolationRule,
     "domain-purity": domainPurityRule,
-    "env-access": envAccessRule,
     "no-test-imports": noTestImportsRule,
     "route-thinness": routeThinnessRule,
     "sdk-containment": sdkContainmentRule,
@@ -86,6 +93,7 @@ export default definePlugin({
     "no-vacant-symbol-names": noVacantSymbolNamesRule,
     "no-reflect-access": noReflectAccessRule,
     "no-runtime-typeof": noRuntimeTypeofRule,
+    "no-type-argument-assertion": noTypeArgumentAssertionRule,
     "no-unknown-returns": noUnknownReturnsRule,
     "no-unknown-type-aliases": noUnknownTypeAliasesRule,
     "no-widen-then-assert": noWidenThenAssertRule,
@@ -93,6 +101,12 @@ export default definePlugin({
     "derived-state": derivedStateRule,
     "no-async-effect": noAsyncEffectRule,
     "no-direct-fetch": noDirectFetchRule,
+    "no-disable-validation": noDisableValidationRule,
+    "no-effect-catchallcause": noEffectCatchAllCauseRule,
+    "no-nested-layer-provide": noNestedLayerProvideRule,
+    "no-service-option": noServiceOptionRule,
+    "no-silent-error-swallow": noSilentErrorSwallowRule,
+    "no-sql-type-parameter": noSqlTypeParameterRule,
     "deprecated-paths": deprecatedPathsRule,
     "no-deprecated-input-validator": noDeprecatedInputValidatorRule,
     "no-plain-export-in-server-fn-module": noPlainExportInServerFnModuleRule,
