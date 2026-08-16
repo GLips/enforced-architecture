@@ -44,7 +44,29 @@
 //    require a validator; a handler that binds the whole options object
 //    (`async (options) => …`) does, because `data` is reachable through it.
 //
-// 4. Registration:
+// 4. Ban the validator's no-op forms in the same change.
+//    This rule mandates that `.validator()` is called. It cannot see
+//    whether the schema passed to it validates anything, and every
+//    validation library ships a spelling that does not: `z.any()`,
+//    `z.unknown()`, a `.passthrough()` object, an empty `z.object({})`
+//    against a payload with fields, `disableValidation`-style opt-outs.
+//    Each satisfies this rule completely and leaves the boundary exactly
+//    as open as it was.
+//
+//    That is not a hole in this rule — it is the shape of every mandate.
+//    A rule requiring a call is satisfiable by a call that does nothing,
+//    so the mandate and a ban on the no-op forms are one decision and
+//    ship together. Under an agent writing the code, this matters more
+//    than it reads: `z.any()` is what a model reaches for when this rule
+//    blocks it and the real schema is not obvious, and the diff looks
+//    like compliance.
+//
+//    The paired ban is a per-file rule of its own — match the validator
+//    argument against the library's own escape hatches. `effect/no-disable-validation`
+//    is the worked example for Effect Schema, and its *Adapt* section
+//    names which constants to repoint for another library.
+//
+// 5. Registration:
 //    Add the rule to the project's oxlint plugin
 //    (`rules: { "server-fn-validation": serverFnValidationRule }`) and turn
 //    it on in `.oxlintrc.json` (`"<plugin>/server-fn-validation": "error"`).
