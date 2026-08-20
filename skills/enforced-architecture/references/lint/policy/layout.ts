@@ -468,6 +468,50 @@ export function carriesPresentation(profile: SourceProfile): boolean {
  * aliases only because this field cannot name anything but an alias.
  */
 export function assertGoverningVocabulary(vocabulary: TreeVocabulary, treeRoot: string): void {
+  // Every name that has to BE one segment, checked before anything compares
+  // them: a field holding `a/b` or `gen*` is not a name this vocabulary can
+  // reason about, and the comparisons below would be comparing patterns.
+  for (const [field, name] of Object.entries(namedSegments(vocabulary))) {
+    if (isSafeDirectorySegment(name)) continue;
+    throw new Error(
+      `The tree at "${treeRoot}" spells ${field} as "${name}", which is not a single path ` +
+        `segment. Every name in this vocabulary is one segment — the classifiers compare it ` +
+        `against one, so a value carrying "/" or a glob matches nothing and the position it ` +
+        `names becomes an area no rule claims.`,
+    );
+  }
+
+  // A name collision does not fail — it ERASES. `classifySourcePath` matches the
+  // top-level directories in order and takes the first, so `domainsDir` spelled
+  // the same as `featuresDir` classifies every domain as a feature: the domain
+  // rules go quiet, the feature rules report on the wrong subject, and the run
+  // is green. Same for the layers, where duplicate spellings collapse every
+  // position onto whichever role is listed first.
+  assertDistinctNames(treeRoot, topLevelDirsByField(vocabulary), "top-level position");
+  assertDistinctNames(treeRoot, vocabulary.featureLayerDirs, "feature layer");
+  assertDistinctNames(
+    treeRoot,
+    {
+      clientBarrelModule: vocabulary.clientBarrelModule,
+      serverBarrelModule: vocabulary.serverBarrelModule,
+    },
+    "barrel",
+  );
+
+  for (const dir of vocabulary.generatedDirs) {
+    const collision = Object.entries(topLevelDirsByField(vocabulary)).find(
+      ([, name]) => name === dir,
+    );
+    if (collision !== undefined) {
+      throw new Error(
+        `The tree at "${treeRoot}" declares generatedDirs entry "${dir}", which is also its ` +
+          `${collision[0]}. Everything under a generated directory is exempt from every rule in ` +
+          `the catalog, so this hands a whole governed position the exemption — silently, and ` +
+          `with the position still spelled in the vocabulary as though it were policed.`,
+      );
+    }
+  }
+
   for (const dir of vocabulary.generatedDirs) {
     if (isSafeDirectorySegment(dir)) continue;
     throw new Error(
@@ -498,6 +542,66 @@ export function assertGoverningVocabulary(vocabulary: TreeVocabulary, treeRoot: 
         `so. nonSourceAliases names aliases that resolve OUTSIDE this tree; it cannot name the ` +
         `tree's own root.`,
     );
+  }
+}
+
+/**
+ * The tree's five top-level positions, by the field that spells each.
+ *
+ * Built here rather than spelled at each caller, because the set is what
+ * `classifySourcePath` matches a first segment against: a position added to that
+ * classifier and not to this map is a position whose name may collide with
+ * another's and erase it.
+ */
+export function topLevelDirsByField(vocabulary: TreeVocabulary): Record<string, string> {
+  return {
+    routesDir: vocabulary.routesDir,
+    featuresDir: vocabulary.featuresDir,
+    domainsDir: vocabulary.domainsDir,
+    infrastructureDir: vocabulary.infrastructureDir,
+    sharedDir: vocabulary.sharedDir,
+  };
+}
+
+/**
+ * Every field whose value must be exactly one path segment, by field name.
+ *
+ * `generatedDirs` is checked separately: it is a LIST, and its entries carry
+ * their own message about the ignore pattern they become.
+ */
+function namedSegments(vocabulary: TreeVocabulary): Record<string, string> {
+  return {
+    ...topLevelDirsByField(vocabulary),
+    ...vocabulary.featureLayerDirs,
+    sharedUiSubdir: vocabulary.sharedUiSubdir,
+    dbSubdir: vocabulary.dbSubdir,
+    dbSchemaSubdir: vocabulary.dbSchemaSubdir,
+    apiClientName: vocabulary.apiClientName,
+    browserStorageName: vocabulary.browserStorageName,
+    themeModuleName: vocabulary.themeModuleName,
+    rootRouteName: vocabulary.rootRouteName,
+    clientBarrelModule: vocabulary.clientBarrelModule,
+    serverBarrelModule: vocabulary.serverBarrelModule,
+  };
+}
+
+/** Throws when two of `names` share a spelling, naming both fields and what the collision erases. */
+function assertDistinctNames(
+  treeRoot: string,
+  names: Record<string, string>,
+  subject: string,
+): void {
+  const seen = new Map<string, string>();
+  for (const [field, name] of Object.entries(names)) {
+    const first = seen.get(name);
+    if (first !== undefined) {
+      throw new Error(
+        `The tree at "${treeRoot}" spells both ${first} and ${field} as "${name}". Each ${subject} ` +
+          `is matched by name and the first match wins, so one of them can never be reached: its ` +
+          `rules report nothing and the other's report on files that are not their subject.`,
+      );
+    }
+    seen.set(name, field);
   }
 }
 
@@ -692,15 +796,16 @@ export function subdividedDirs(vocabulary: TreeVocabulary): string[] {
   return [vocabulary.featuresDir, vocabulary.domainsDir];
 }
 
-/** The closed set of first path segments under a source root. */
+/**
+ * The closed set of first path segments under a source root.
+ *
+ * The values of `topLevelDirsByField`, never a second listing of the same five
+ * fields: the validator needs the field NAMES to say which two collided, and
+ * every other caller needs only the names — two lists would let a sixth
+ * position be added to one and validated by neither.
+ */
 export function topLevelDirs(vocabulary: TreeVocabulary): string[] {
-  return [
-    vocabulary.routesDir,
-    vocabulary.featuresDir,
-    vocabulary.domainsDir,
-    vocabulary.infrastructureDir,
-    vocabulary.sharedDir,
-  ];
+  return Object.values(topLevelDirsByField(vocabulary));
 }
 // ORDERING DEPENDENCY, and it is not extractable: adding a sixth top-level
 // directory means adding it BOTH here and as an arm in `classifySourcePath`

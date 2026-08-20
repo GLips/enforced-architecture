@@ -85,6 +85,32 @@ export const DECLARED_TREES: DeclaredTree[] = [
 // tree fails on the first import of this file rather than reporting clean
 // forever. A harness assertion would cover this repo's list and no adopter's.
 for (const tree of DECLARED_TREES) assertGoverningVocabulary(tree.vocabulary, tree.root);
+assertDistinctDeclaredRoots(DECLARED_TREES);
+
+/**
+ * Rejects a list that declares one root twice.
+ *
+ * Two entries at the same root is not a tree governed twice, it is a tree
+ * governed by whichever vocabulary each tier happens to pick: `declaredTreeFor`
+ * returns ONE match and the second entry's vocabulary never applies, while the
+ * structural tier builds a context per entry and runs every check against both.
+ * A repo that meant to give its second root a different vocabulary and mistyped
+ * the root gets a green run in which half its declarations do nothing.
+ */
+export function assertDistinctDeclaredRoots(trees: readonly DeclaredTree[]): void {
+  const seen = new Set<string>();
+  for (const tree of trees) {
+    if (seen.has(tree.root)) {
+      throw new Error(
+        `The tree at "${tree.root}" is declared twice. A root has ONE vocabulary: the oxlint tier ` +
+          `resolves a file to the first declaration and never reads the second, while the ` +
+          `structural tier runs every check once per declaration — so the two tiers disagree ` +
+          `about the tree's spelling and about how many times it was checked.`,
+      );
+    }
+    seen.add(tree.root);
+  }
+}
 
 /**
  * The architecture rules govern application source. Tests and one-off scripts sit outside that

@@ -56,7 +56,12 @@ import {
   type TargetArea,
   type TreeVocabulary,
 } from "./layout.ts";
-import { classifyFileRole, declaredTreeFor, type DeclaredTree } from "./declared-trees.ts";
+import {
+  assertDistinctDeclaredRoots,
+  classifyFileRole,
+  declaredTreeFor,
+  type DeclaredTree,
+} from "./declared-trees.ts";
 
 // Every classifier below takes the vocabulary of the tree the path sits in. These
 // cases spell the recommended one, because the rows are the recommended layout;
@@ -750,6 +755,53 @@ describeSuite("a vocabulary cannot declare its own tree out of existence", () =>
   testCase("the tree root itself, spelled as a dot, is refused", () => {
     const silenced: TreeVocabulary = { ...RECOMMENDED_VOCABULARY, generatedDirs: ["."] };
     assert.throws(() => assertGoverningVocabulary(silenced, "src"), /not a directory name/);
+  });
+
+  // A name collision does not fail loudly — it ERASES. Every case below is a
+  // vocabulary that reads as fully adopted and leaves a whole position, or a
+  // whole tree, governed by nothing.
+  testCase("two top-level positions sharing a name would classify one as the other", () => {
+    const collided: TreeVocabulary = { ...RECOMMENDED_VOCABULARY, domainsDir: "features" };
+    assert.throws(() => assertGoverningVocabulary(collided, "src"), /spells both/);
+  });
+
+  testCase("a generated directory that IS a governed position exempts the whole position", () => {
+    const exempted: TreeVocabulary = { ...RECOMMENDED_VOCABULARY, generatedDirs: ["features"] };
+    assert.throws(() => assertGoverningVocabulary(exempted, "src"), /also its featuresDir/);
+  });
+
+  testCase("two feature layers sharing a name collapse three roles onto one", () => {
+    const collided: TreeVocabulary = {
+      ...RECOMMENDED_VOCABULARY,
+      featureLayerDirs: { ui: "ui", controllers: "ui", service: "ui", repo: "ui" },
+    };
+    assert.throws(() => assertGoverningVocabulary(collided, "src"), /spells both/);
+  });
+
+  testCase("one barrel name for both barrels erases the client/server distinction", () => {
+    const collided: TreeVocabulary = { ...RECOMMENDED_VOCABULARY, serverBarrelModule: "index" };
+    assert.throws(() => assertGoverningVocabulary(collided, "src"), /spells both/);
+  });
+
+  testCase("a name that is a path is not a name", () => {
+    const path: TreeVocabulary = { ...RECOMMENDED_VOCABULARY, sharedUiSubdir: "ui/primitives" };
+    assert.throws(() => assertGoverningVocabulary(path, "src"), /not a single path segment/);
+  });
+
+  testCase("one root declared twice is governed by one vocabulary and checked by two", () => {
+    const twice: DeclaredTree[] = [
+      { root: "src", vocabulary: RECOMMENDED_VOCABULARY },
+      { root: "src", vocabulary: { ...RECOMMENDED_VOCABULARY, featuresDir: "capabilities" } },
+    ];
+    assert.throws(() => assertDistinctDeclaredRoots(twice), /declared twice/);
+  });
+
+  testCase("two DIFFERENT roots are the monorepo case and stay legal", () => {
+    const both: DeclaredTree[] = [
+      { root: "apps/web/src", vocabulary: RECOMMENDED_VOCABULARY },
+      { root: "packages/core/src", vocabulary: RECOMMENDED_VOCABULARY },
+    ];
+    assert.doesNotThrow(() => assertDistinctDeclaredRoots(both));
   });
 
   testCase("a relative prefix is not an alias", () => {
