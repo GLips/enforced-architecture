@@ -43,8 +43,9 @@
 // default or namespace import, `import x = require()`, `require()` and
 // `await import()`, bound, destructured, or read straight off the load
 // expression. On a bare `globalPath` the field is half-supported: the spellings
-// that NAME the export are caught and the ones that rebind the module object
-// are not, because a bare global has no segment above it to rebind. What is NOT followed is the capability passed on as a
+// that NAME the export are caught, and every spelling that hands over the module
+// OBJECT is not — a bare global has no segment above it for the module to stand
+// in for. What is NOT followed is the capability passed on as a
 // value (`f(process)`), a module bound by assignment rather than declaration,
 // and `import("node:process").then(({ env }) => …)`, where the name is a
 // callback parameter and following it means following the promise. The module
@@ -222,10 +223,13 @@ export const ambientGlobalsRule = defineRule({
       if (parent.type !== "MemberExpression" || parent.object !== loaded) return;
       for (const policy of enforced) {
         const segments = capabilitySegments(policy, specifier);
-        if (segments === undefined) continue;
-        // A dotted path starts at its first segment; a bare global IS the module's export, so the
-        // namespace is not its parent and the path starts empty. Same split as a destructure.
-        roots.push({ node: loaded, path: segments.length >= 2 ? segments[0] : "" });
+        // Dotted paths only, the same cut the import and import-equals arms make. A bare global has
+        // no segment above it, so the module object would have to enter the walk at the empty path
+        // — and the shipped table pairs `alsoImportedFrom` with no bare path, which would leave
+        // that arm unreachable by any fixture. Bare-path support is one decision, taken in all
+        // three arms at once with fixtures, not a branch waiting here for a table that may come.
+        if (segments === undefined || segments.length < 2) continue;
+        roots.push({ node: loaded, path: segments[0] });
       }
     };
 
@@ -367,7 +371,11 @@ export const ambientGlobalsRule = defineRule({
       // spellings that DO bind a name belong to the VariableDeclarator arm below, and two arms
       // reaching one read report it twice.
       ImportExpression(node) {
-        pushUnboundLoadRoot(node.parent?.type === "AwaitExpression" ? node.parent : node);
+        // The read hangs off the AWAIT, not the import — and a cast may sit between the two
+        // (`await (import("node:process") as never)`), so the await is found from the outermost
+        // wrapper rather than from the import's own parent.
+        const loaded = outermostTransparentWrapper(node);
+        pushUnboundLoadRoot(loaded.parent?.type === "AwaitExpression" ? loaded.parent : node);
       },
 
       CallExpression(node) {

@@ -70,6 +70,15 @@ export const noRawPrimitivesRule = defineRule({
     if (PRIMITIVES_LAYER.test(filename) || RENDER_BOUNDARY.test(filename)) return {};
 
     return {
+      // --- React Native arm ---
+      // Every name the file takes from the platform module, under react-native's own spelling —
+      // so `View as Screen` and `RN.View` are the same finding as `View`.
+      ...visitImportedNames(context.sourceCode, [PLATFORM_MODULE], (name, node) => {
+        if (PLATFORM_RENDERING_PRIMITIVES.has(name)) {
+          context.report({ node, messageId: "platformPrimitive" });
+        }
+      }),
+
       // --- Web / DOM arm ---
       // One handler covers self-closing and has-children, with attributes or without: every
       // element has exactly one opening tag, whatever it wraps.
@@ -80,15 +89,6 @@ export const noRawPrimitivesRule = defineRule({
           context.report({ node: node.name, messageId: "rawHtmlElement" });
         }
       },
-
-      // --- React Native arm ---
-      // Every name the file takes from the platform module, under react-native's own spelling —
-      // so `View as Screen` and `RN.View` are the same finding as `View`.
-      ...visitImportedNames(context.sourceCode, [PLATFORM_MODULE], (name, node) => {
-        if (PLATFORM_RENDERING_PRIMITIVES.has(name)) {
-          context.report({ node, messageId: "platformPrimitive" });
-        }
-      }),
 
       // `export { View } from "react-native"` hands the primitive to every importer of this
       // module without the word `import` appearing anywhere — the same leak, one keyword over.

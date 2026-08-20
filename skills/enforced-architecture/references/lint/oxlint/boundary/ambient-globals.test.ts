@@ -168,6 +168,18 @@ describeRule("boundary/ambient-globals", ambientGlobalsRule, {
       errors: [{ messageId: "ambientGlobalOutsideOwner" }],
     },
     {
+      name: "the ambient loader spelled as a var, which is how @types/node declares it",
+      filename: SERVICE,
+      code: `declare var require: (id: string) => { env: Record<string, string> };\nexport const key = require("node:process").env.STRIPE_KEY;`,
+      errors: [{ messageId: "ambientGlobalOutsideOwner" }],
+    },
+    {
+      name: "a cast inside the await rather than around it",
+      filename: SERVICE,
+      code: `export const key = (await (import("node:process") as never)).env.STRIPE_KEY;`,
+      errors: [{ messageId: "ambientGlobalOutsideOwner" }],
+    },
+    {
       name: "a rest element beside the capability, which names no key of its own",
       filename: SERVICE,
       code: `const { env, ...rest } = require("node:process");\nexport const key = [env.STRIPE_KEY, rest];`,

@@ -169,6 +169,12 @@ describeRule("style/no-raw-primitives", noRawPrimitivesRule, {
       errors: [{ messageId: "platformPrimitive" }],
     },
     {
+      name: "the ambient loader spelled as a var, which is how @types/node declares it",
+      filename: COMPONENT,
+      code: `declare var require: (id: string) => { View: unknown };\nexport const used = require("react-native").View;`,
+      errors: [{ messageId: "platformPrimitive" }],
+    },
+    {
       name: "an optional call on the loader, which wraps the call in a chain node",
       filename: COMPONENT,
       code: `const { View } = require?.("react-native");\nexport const used = View;`,

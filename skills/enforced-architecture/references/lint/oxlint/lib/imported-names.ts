@@ -34,6 +34,11 @@ import {
 //   - A name reached through a NESTED destructure (`const { Animated: { View } } = require("m")`).
 //     The export actually read is the outer key, which binds nothing and so has no Variable; the
 //     inner name is not an export of the module and is deliberately not reported as one.
+//   - The CommonJS interop hop, `require("m").default.View` and `RN.default.View`. `default` is
+//     followed on the SPECIFIER side, where an ImportBinding says structurally that the name is the
+//     module object; a member read cannot be told apart from an export genuinely called `default`,
+//     and following it there would have to follow `const { default: RN } = require("m")` too, which
+//     binds a name and is a different walk again. One decision for all three, or none.
 //   - Passing the namespace on as a value (`export const RN2 = RN`, `f(RN)`): the read happens in
 //     whatever code receives it, which this file never sees. `export * from "m"` is the same leak
 //     and IS catchable, so the rules here fence that one themselves.
@@ -104,9 +109,16 @@ function isRebound(identifier: ESTree.IdentifierReference, sourceCode: SourceCod
   const variable = reference?.resolved;
   if (variable === null || variable === undefined) return false;
   // An ambient declaration describes something that exists already, so it binds nothing of its own.
-  return variable.defs.some(
-    (definition) => !("declare" in definition.node && definition.node.declare === true),
-  );
+  // `declare` sits on the DECLARATION, and a `Variable` definition's node is the DECLARATOR inside
+  // it — so `declare var require`, which is how @types/node itself spells the loader, needs the
+  // climb. Reading `declare` off the declarator finds nothing there and calls it a rebind, which
+  // turns every `require()` spelling in the file off.
+  return variable.defs.some((definition) => {
+    const declaration: ESTree.Node | null | undefined =
+      definition.node.type === "VariableDeclarator" ? definition.parent : definition.node;
+    if (declaration === null || declaration === undefined) return true;
+    return !("declare" in declaration && declaration.declare === true);
+  });
 }
 
 /**
