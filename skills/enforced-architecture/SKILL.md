@@ -91,21 +91,24 @@ Using the chosen configuration, propose:
 
 ### Phase 3: Design enforcement rules
 
-Read [lint/overview.md](references/lint/overview.md) to choose tags, and *Rule Design Principles* in [enforcement-implementation.md](references/enforcement-implementation.md) for what a rule has to be.
+Read [lint/overview.md](references/lint/overview.md) for the tag map, and *Rule Design Principles* in [enforcement-implementation.md](references/enforcement-implementation.md) for what a rule has to be.
+
+**The catalog comes in whole.** What this phase decides is where each rule points and what its numbers are — never which rules run. `lint/oxlint/plugin.ts` and the `rules` block of [references/setup/oxlintrc.json](references/setup/oxlintrc.json) are one list wearing two hats, and they are copied together: a config key naming a rule the plugin does not export is fatal, so registering a subset and then copying the shipped config takes the entire lint run down with it.
 
 **Process:**
-1. Pick the tags this architecture needs from the hub's map and *Selecting rules* table. Its tag table has one column per tier, so it also tells you which halves of a tag exist; read `lint/<tier>/<tag>/overview.md` for each to choose rules within it.
-2. For each selected rule, read its template in the appropriate `lint/<tier>/<tag>/` directory.
-3. Adapt each rule to the project's specific directory names, import patterns, and conventions.
+1. Read `lint/<tier>/<tag>/overview.md` for every tag. The table has one column per tier, so it also tells you which halves of a tag exist.
+2. Read each rule's template in `lint/<tier>/<tag>/`. Its *Adapt* section names what this project has to repoint — a template whose *Adapt* section says **nothing here** reads `lint/policy/`, and repointing `layout.ts` is its whole adaptation.
+3. Adapt each rule to the project's directory names, import patterns and thresholds.
 4. A rule's enforcement mechanism is its tier, and the tier is its directory — `lint/oxlint/` is per-file and real-time, `lint/structural/` is cross-file and pre-commit. Carry the path into the plan and the mechanism comes with it.
 5. Add project-specific rules not covered by the catalog.
 
-Keep the plan's rule section lean — two tables, not a copy of template content. The templates already carry mechanism, blocking status, messages, and implementation.
+Keep the plan's rule section lean — one table, not a copy of template content. The templates already carry mechanism, blocking status, messages, and implementation.
 
-- **Included** — rule id (`tag/name`) and its adaptation: project-specific paths, package lists, thresholds, or "Standard".
-- **Excluded** — every catalog rule not selected, with the reason (e.g. "No domains layer"). Say why, or the next agent re-litigates the same choice.
+- **Adaptation** — rule id (`tag/name`) and what this project repointed it at: paths, package lists, thresholds, or "Standard".
 
-**Done when:** Every architectural constraint has a corresponding rule selected from the catalog (or added as project-specific). Every selected rule notes its project-specific adaptations.
+A rule that looks unnecessary is usually a rule whose subject this tree does not have yet — it is silent until the tree grows one, which is the point of taking it now. When a rule's subject genuinely lives somewhere this project does not own, the answer is to say *where it lives* rather than to leave the rule out: a tree nobody declared is a tree nobody enforced, and it reads as a clean one.
+
+**Done when:** Every catalog rule is registered and switched on, and every one that needed repointing records what it was repointed at.
 
 ### Phase 4: Plan implementation
 
@@ -124,13 +127,13 @@ lint/
 **Greenfield sequence:**
 1. `lint/policy/` — copied whole, then adapted: `layout.ts` is where the directory names, alias prefix and feature layers are repointed at this project, and it is the only file in the tree that needs it. Both tiers read it, so it lands before either
 2. `lint/oxlint/` — the rules and their specs under `<tag>/`, plus `lib/`, all registered in `lint/oxlint/plugin.ts`. Then `.oxlintrc.json` at the root from [references/setup/oxlintrc.json](references/setup/oxlintrc.json) — that file is the whole manifest, not a sample to extend: every registered rule is already named there at a deliberate severity, so copying it is the last decision about which rules run. The dev dependencies are unversioned so the project gets current releases: `bun add -d oxlint oxlint-tsgolint eslint-plugin-sonarjs jscpd`
-3. `lint/structural/` — the substrate (`config.ts`, `check-substrate.ts`, `import-graph.ts`, `registry.ts`, `run-structural-checks.ts`) and each selected check, all taken unmodified. Write `arch.config.ts` on top of `defaultCheckConfigs`
+3. `lint/structural/` — the substrate (`config.ts`, `check-substrate.ts`, `import-graph.ts`, `registry.ts`, `run-structural-checks.ts`) and every check, all taken unmodified. Write `arch.config.ts` on top of `defaultCheckConfigs`
 4. One tsconfig per tier — [references/setup/oxlint.tsconfig.json](references/setup/oxlint.tsconfig.json) and [references/setup/structural.tsconfig.json](references/setup/structural.tsconfig.json) — and add both to the typecheck script by path. They are separate programs because the tiers run under different runtimes
 5. Package.json scripts (`check:arch`, and `duplication` for the CI-only jscpd pass), plus `.jscpd.json` from [references/setup/jscpd.json](references/setup/jscpd.json)
 6. `lefthook.yml` from [references/setup/lefthook.yml](references/setup/lefthook.yml)
 7. Framework import protection (vite.config.ts)
 8. Directory structure with empty barrels
-9. Generate documentation per [documentation-model.md](references/documentation-model.md) — CLAUDE.md rules section, and docs/architecture/ files if chosen. Then, if `health/doc-budgets` was selected, write `docs/doc-budgets.manifest.json` from [references/setup/doc-budgets.manifest.json](references/setup/doc-budgets.manifest.json) — ceilings come from what the generated docs actually weigh, so this step follows them
+9. Generate documentation per [documentation-model.md](references/documentation-model.md) — CLAUDE.md rules section, and docs/architecture/ files if chosen. Then write `docs/doc-budgets.manifest.json` for `health/doc-budgets` from [references/setup/doc-budgets.manifest.json](references/setup/doc-budgets.manifest.json) — ceilings come from what the generated docs actually weigh, so this step follows them
 10. Verify: `bun run check:arch && bun run dev`
 
 **Migration:** Decompose into atomic phases per [migration-patterns.md](references/migration-patterns.md). Each phase produces a clean repo.

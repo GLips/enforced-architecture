@@ -27,7 +27,7 @@ All three key on `as` and its angle-bracket twin, so all three are silent on the
 | [no-broad-parameters](no-broad-parameters.ts) | Yes | A body reads a parameter with no guard and no cast, and a wrong argument fails at the call site |
 | [no-unknown-returns](no-unknown-returns.ts) | Yes | A caller reads a field off the result with no narrowing of its own |
 | [no-unknown-type-aliases](no-unknown-type-aliases.ts) | Yes | A name in a signature states a contract; no alias chain ends at `unknown` |
-| [no-reflect-access](no-reflect-access.ts) | Yes | A property rename and a wrong argument count still fail to compile |
+| [no-reflect-access](no-reflect-access.ts) | Yes, but **inert** — it reports nothing under the real linter, so `setup/oxlintrc.json` holds its key back until ea-48 | A property rename and a wrong argument count still fail to compile |
 | [no-runtime-typeof](no-runtime-typeof.ts) | Yes | Each representation check sits in one named guard or one schema. **Reports correct code** — see below |
 | [no-conditional-empty-object-spread](no-conditional-empty-object-spread.ts) | No | Shows which object literals do not state their own keys. Ships non-blocking |
 

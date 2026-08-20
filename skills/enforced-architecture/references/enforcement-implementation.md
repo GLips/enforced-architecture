@@ -173,7 +173,7 @@ Three, and they are all the same shape: the rule does nothing, and nothing says 
 
 Not "implementing" — the catalog's checks are runnable modules, proved against fixtures in the skill's own CI. Reimplementing one from its doc is how a check ends up silently matching less than the doc promises, which is what happened at three separate deployments before this tier shipped as code.
 
-1. Copy `lint/policy/` first if it is not already there, then `lint/structural/{config,check-substrate,import-graph,registry,run-structural-checks}.ts` into the project's `lint/structural/`, plus each selected `lint/structural/<tag>/<name>.ts`
+1. Copy `lint/policy/` first if it is not already there, then `lint/structural/{config,check-substrate,import-graph,registry,run-structural-checks}.ts` into the project's `lint/structural/`, plus every `lint/structural/<tag>/<name>.ts`
 2. Register the checks in `lint/structural/registry.ts`. A check that is not registered is a file that ships and never runs
 3. Write `arch.config.ts`: spread `defaultCheckConfigs` and override what differs. Each rule's *Adapt* section names its keys, because the config object is where every per-repo *value* lives. Directory names, the alias prefix and the layer order are not per-repo values here — they come from `lint/policy/layout.ts`, and overriding one in `arch.config.ts` instead of repointing it there gives this tier a private answer the oxlint tier will not share
 4. Run once against the real tree and calibrate thresholds *just above* current values, so they signal growth rather than firing on day one. A check that fires on the state of the world the day it was installed gets switched off in the same week

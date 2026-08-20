@@ -1,7 +1,8 @@
 # Rule Catalog
 
-Every enforcement rule in one tree, split by **tier** first and **tag** second. Read this file to
-choose tags, a tier's tag `overview.md` to choose rules within it, then the rule itself to adapt it.
+Every enforcement rule in one tree, split by **tier** first and **tag** second. Read this file for
+the tag map, a tier's tag `overview.md` for what the rules in it hold, then the rule itself to
+adapt it. Adapting is the only decision on offer here — the catalog is taken whole.
 The per-tag counts in the table below are the only ones stated anywhere — a total in prose goes
 stale on the next add or delete and nothing checks it.
 
@@ -56,11 +57,18 @@ it says what the rule can see.
 `placement/` and `boundary/` are the pair most often confused: `placement/` is where code may live,
 `boundary/` is what code may import.
 
-## Selecting rules
+## What each rule's subject is
 
-Not every project needs every rule. Use audit findings to guide selection.
+Every rule here is adopted. This table is the other question — which part of the tree owns each
+rule's subject, so you know what a rule is pointed at and what it is waiting for. A row this
+project has nothing matching is a rule that stays silent until it does, and that silence is the
+rule doing its job: the day the tree grows a `domains/` directory or a first `createServerFn`,
+the fence is already standing.
 
-| If the project has... | Include these rules |
+Audit findings tell you which rows are live TODAY, and so which violations the rollout has to
+sweep. They do not decide which rules ship.
+
+| If the project has... | ...these rules have a subject in it |
 |---|---|
 | Database layer | `boundary/db-isolation`, `placement/schema-placement`, `placement/no-raw-result` |
 | `domains/` directory | `graph/domain-cycles` — both domain purity and how deep an import may reach into a domain are columns in `boundary/import-policy`, not rules to add |
@@ -87,8 +95,15 @@ Not every project needs every rule. Use audit findings to guide selection.
 | Any TypeScript project | `graph/import-graph`, `boundary/import-policy` — both tiers, they are two halves of one rule — `boundary/ambient-globals`, `boundary/no-test-imports`, `placement/topology`, `health/file-size`, `health/no-nested-ternary`, `types/no-opaque-record`, `types/no-reflect-access` |
 
 `types/no-runtime-typeof` and `types/no-conditional-empty-object-spread` appear in no row
-deliberately — both reject code that is often correct. See
-[oxlint/types/overview.md](oxlint/types/overview.md) before adopting either.
+because their subject is any TypeScript file, not a structure a project either has or lacks.
+Both ship on — `no-conditional-empty-object-spread` at `warn`, which is what its `Shows:` header
+buys. Read [oxlint/types/overview.md](oxlint/types/overview.md) for what each rejects that is
+sometimes correct.
+
+`types/no-reflect-access` is in the last row and is **currently inert**: it reports nothing when
+oxlint runs it, so `setup/oxlintrc.json` holds its key back. ea-48 fixes the rule and restores
+the key. Copy it anyway — the registration is what makes the fix arrive as a version bump rather
+than an adoption decision.
 
 ## Adopting a rule
 
