@@ -1,6 +1,6 @@
 # Enforcement Implementation
 
-How to wire up the enforcement infrastructure. Not the rules themselves — those live in [rules/](rules/overview.md).
+How to wire up the enforcement infrastructure. Not the rules themselves — those live in [lint/](lint/overview.md).
 
 Three of the five config artifacts ship as commented files. Copy them and read the comments in place; the gotchas live on the lines they govern. `jscpd.json` is the one that cannot carry its own: jscpd parses it as strict JSON and dies on the first comment, so its rationale sits under *Package.json Scripts* below.
 
@@ -9,24 +9,25 @@ Three of the five config artifacts ship as commented files. Copy them and read t
 | oxlint config | [setup/oxlintrc.json](setup/oxlintrc.json) | `.oxlintrc.json` (repo root; root of the monorepo) |
 | Pre-commit hook | [setup/lefthook.yml](setup/lefthook.yml) | `lefthook.yml` |
 | Duplication config | [setup/jscpd.json](setup/jscpd.json) | `.jscpd.json` (repo root) |
-| Structural check substrate | `rules/scripts/*.ts` | `scripts/` |
+| Structural check substrate | [lint/structural/](lint/structural/) | `lint/structural/` |
+| Rule catalog | [lint/](lint/overview.md) | `lint/` (mirrors the catalog's tier split) |
 | Framework import protection | [server-client-boundaries.md](server-client-boundaries.md) | `vite.config.ts` |
 
 ---
 
 ## The oxlint tier
 
-Per-file rules are oxlint JS plugins: one `.ts` file per rule, every rule registered in **one** plugin module, that module named in `.oxlintrc.json`. Organize rule files by tag on disk (`oxlint/boundary/db-isolation.ts`).
+Per-file rules are oxlint JS plugins: one `.ts` file per rule, every rule registered in **one** plugin module, that module named in `.oxlintrc.json`. Organize rule files by tag on disk (`lint/oxlint/boundary/db-isolation.ts`) — the same tier-then-tag tree the catalog ships.
 
 Three dev dependencies beyond `oxlint`. `oxlint-tsgolint` backs `options.typeAware`; `eslint-plugin-sonarjs` loads through the same `jsPlugins` array as the architecture rules, so the duplication and identity checks cost one package rather than a second tool. `jscpd` is neither — a separate binary, below. What each buys and what breaks without it is on the lines that switch them on, in [setup/oxlintrc.json](setup/oxlintrc.json).
 
 Rules share a `lib/`, and the sharing is load-bearing rather than tidy. One module owns each concern, so a new rule inherits the fix rather than a copy of the bug:
 
-- [lib/architecture-exempt-paths.ts](rules/lib/architecture-exempt-paths.ts) — the one global test/script exemption.
-- [lib/module-source-visitor.ts](rules/lib/module-source-visitor.ts) — every place a module specifier can appear.
-- [lib/range-index.ts](rules/lib/range-index.ts) — subtree questions answered at `Program:exit`.
-- [lib/rule-options.ts](rules/lib/rule-options.ts) — reading a configured option without trusting `meta.schema` to have held.
-- [lib/rule-spec.ts](rules/lib/rule-spec.ts) — the three-kind spec contract.
+- [lib/architecture-exempt-paths.ts](lint/oxlint/lib/architecture-exempt-paths.ts) — the one global test/script exemption.
+- [lib/module-source-visitor.ts](lint/oxlint/lib/module-source-visitor.ts) — every place a module specifier can appear.
+- [lib/range-index.ts](lint/oxlint/lib/range-index.ts) — subtree questions answered at `Program:exit`.
+- [lib/rule-options.ts](lint/oxlint/lib/rule-options.ts) — reading a configured option without trusting `meta.schema` to have held.
+- [lib/rule-spec.ts](lint/oxlint/lib/rule-spec.ts) — the three-kind spec contract.
 
 **oxlint's JS plugins are alpha** as of 1.77 and say so. The API is ESLint's `create(context)` returning a visitor, so the exposure is churn in a young API, not a design bet.
 
@@ -78,7 +79,7 @@ At pre-commit, advisory warnings scope to the files the commit touches; blocking
 
 ## Matching Imports in a Visitor
 
-Most rules in the catalog are import rules. Go through [lib/module-source-visitor.ts](rules/lib/module-source-visitor.ts) — it covers every place a specifier appears and the rule supplies one callback:
+Most rules in the catalog are import rules. Go through [lib/module-source-visitor.ts](lint/oxlint/lib/module-source-visitor.ts) — it covers every place a specifier appears and the rule supplies one callback:
 
 ```ts
 const DB_SPECIFIER = /^@\/infrastructure\/db(?:\/|$)/;
@@ -110,7 +111,7 @@ Three, and they are all the same shape: the rule does nothing, and nothing says 
 
 **A typo'd visitor key never fires.** `{ ImportDeclaraton(node) { … } }` loads clean, runs, reports nothing, exits 0. Visitor keys are not validated against the node types — an unknown key is a key nothing visits, and the result is indistinguishable from a codebase with no violations. Note the asymmetry with the config, where the *same* typo is fatal: the half that is checked is the half that does not matter.
 
-**A parent is visited before its children.** The walk is depth-first and pre-order, so no visitor can answer "does this subtree contain X" at the moment it sees the enclosing node. Any rule shaped as a claim about a subtree records what it sees and decides at `"Program:exit"`; [lib/range-index.ts](rules/lib/range-index.ts) is that pattern factored out.
+**A parent is visited before its children.** The walk is depth-first and pre-order, so no visitor can answer "does this subtree contain X" at the moment it sees the enclosing node. Any rule shaped as a claim about a subtree records what it sees and decides at `"Program:exit"`; [lib/range-index.ts](lint/oxlint/lib/range-index.ts) is that pattern factored out.
 
 **A rule sees one file.** A rule instance is created per file and knows nothing about any other. It cannot resolve a specifier to the file it lands in, ask whether a directory exists, or aggregate across a file set. Everything of that shape is a structural script: cycles, coupling, transitive barrel purity, and the depth-dependent question of whether `../../beta` leaves the current feature.
 
@@ -118,8 +119,8 @@ Three, and they are all the same shape: the rule does nothing, and nothing says 
 
 ## Adding a New Rule
 
-1. Read the template `rules/<tag>/<name>.ts` and the spec beside it, `rules/<tag>/<name>.test.ts`
-2. Copy both into `oxlint/<tag>/` and adapt the named constants at the top — the template's *Adapt* section names which. The constants are hoisted precisely so adaptation is an edit to a regex or a list, not a rewrite of the visitor
+1. Read the template `lint/oxlint/<tag>/<name>.ts` and the spec beside it, `lint/oxlint/<tag>/<name>.test.ts`
+2. Copy both into the project's `lint/oxlint/<tag>/` and adapt the named constants at the top — the template's *Adapt* section names which. The constants are hoisted precisely so adaptation is an edit to a regex or a list, not a rewrite of the visitor
 3. Register it in the plugin module under its file name
 4. Switch it on in `.oxlintrc.json`. Registered but unlisted is loaded and never run
 5. Extend the three-kind spec (below) — the adversarial cases decide whether the rule works
@@ -131,8 +132,8 @@ Three, and they are all the same shape: the rule does nothing, and nothing says 
 
 Not "implementing" — the catalog's checks are runnable modules, proved against fixtures in the skill's own CI. Reimplementing one from its doc is how a check ends up silently matching less than the doc promises, which is what happened at three separate deployments before this tier shipped as code.
 
-1. Copy `rules/scripts/{config,lib,import-graph,run-structural-checks}.ts` into `scripts/`, plus each selected `rules/<tag>/<name>.ts`
-2. Register the checks in `scripts/registry.ts`. A check that is not registered is a file that ships and never runs
+1. Copy `lint/structural/{config,lib,import-graph,registry,run-structural-checks}.ts` into the project's `lint/structural/`, plus each selected `lint/structural/<tag>/<name>.ts`
+2. Register the checks in `lint/structural/registry.ts`. A check that is not registered is a file that ships and never runs
 3. Write `arch.config.ts`: spread `defaultCheckConfigs` and override what differs. Each rule's *Adapt* section names its keys, because the config object is the entire adoption surface
 4. Run once against the real tree and calibrate thresholds *just above* current values, so they signal growth rather than firing on day one. A check that fires on the state of the world the day it was installed gets switched off in the same week
 5. Write the project's three cases against its own code. The catalog's fixtures prove the check; yours prove the config
@@ -151,7 +152,7 @@ Not "implementing" — the catalog's checks are runnable modules, proved against
 
 **Specs are permanent and they run in CI.** A rule is code with exactly one job and a silent failure mode: when it stops matching it does not error, it goes green. Enforcement code needs regression tests more than application code does, because application code has users who notice.
 
-Every rule ships its spec beside it, importing the rule file directly — one artifact, no second copy to drift. The three kinds and why each exists are the contract of [lib/rule-spec.ts](rules/lib/rule-spec.ts), which throws on an empty list.
+Every rule ships its spec beside it, importing the rule file directly — one artifact, no second copy to drift. The three kinds and why each exists are the contract of [lib/rule-spec.ts](lint/oxlint/lib/rule-spec.ts), which throws on an empty list.
 
 Two things the contract cannot enforce for you:
 

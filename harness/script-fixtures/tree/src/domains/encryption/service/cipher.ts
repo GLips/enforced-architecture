@@ -6,7 +6,7 @@
 // createServerFn: domain logic stays pure and is called from a controller.
 //
 // It sits under service/ rather than at the domain root because
-// `structure/topology` holds a subdivided directory's root to index.ts,
+// `placement/topology` holds a subdivided directory's root to index.ts,
 // index.server.ts and errors.ts.
 import { createHash } from "node:crypto";
 

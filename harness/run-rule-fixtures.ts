@@ -23,24 +23,14 @@ import { fileURLToPath } from "node:url";
 
 const HARNESS_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HARNESS_DIR, "..");
-const RULES_ROOT = join(REPO_ROOT, "skills/enforced-architecture/references/rules");
-const PLUGIN_PATH = join(RULES_ROOT, "plugin.ts");
-
 /**
- * Cross-file checks that run pre-commit rather than per-file in the editor: they count across a
- * file set, resolve imports against the tree, or read a surface the linter cannot see. They are
- * not oxlint rules and have their own harness — `harness/run-script-fixtures.ts`.
- *
- * Read from the script registry rather than listed here, for the same reason this file imports
- * `plugin.ts` instead of grepping it: a hand-kept list drifts, and a script template missing from
- * it would fail here as an oxlint rule with no spec, which points at the wrong problem. A rule in
- * NEITHER manifest still fails, in both harnesses, which is the outcome worth keeping.
+ * The oxlint tier is a directory, not a filter. Every `.ts` under this root is either a rule, a
+ * rule's spec, or shared helpers in `lib/` — the whole-tree tier lives in a sibling directory with
+ * its own harness (`harness/run-script-fixtures.ts`), so nothing here has to ask which tier a file
+ * belongs to.
  */
-const SCRIPT_TIER = new Set(
-  (await import(join(RULES_ROOT, "scripts/registry.ts"))).structuralChecks.map(
-    (check: { id: string }) => check.id,
-  ),
-);
+const OXLINT_ROOT = join(REPO_ROOT, "skills/enforced-architecture/references/lint/oxlint");
+const PLUGIN_PATH = join(OXLINT_ROOT, "plugin.ts");
 
 type RuleFailure = { rule: string; detail: string };
 
@@ -56,25 +46,19 @@ async function walkFiles(dir: string): Promise<string[]> {
   return found;
 }
 
-const allFiles = await walkFiles(RULES_ROOT);
-const ruleIdOf = (path: string) => relative(RULES_ROOT, path).replace(/\.ts$/, "");
+const allFiles = await walkFiles(OXLINT_ROOT);
+const ruleIdOf = (path: string) => relative(OXLINT_ROOT, path).replace(/\.ts$/, "");
 
 const tsFiles = allFiles.filter(
-  // `lib/` is the oxlint rules' shared helpers and `scripts/` the structural tier's substrate.
-  // Neither holds rules, and both would otherwise read as templates with no spec.
-  (f) =>
-    f.endsWith(".ts") &&
-    !f.startsWith(join(RULES_ROOT, "lib")) &&
-    !f.startsWith(join(RULES_ROOT, "scripts")) &&
-    f !== PLUGIN_PATH,
+  // `lib/` is the shared helpers these rules import. It holds no rules, and would otherwise read
+  // as a folder of templates with no specs.
+  (f) => f.endsWith(".ts") && !f.startsWith(join(OXLINT_ROOT, "lib")) && f !== PLUGIN_PATH,
 );
 const specPaths = new Set(tsFiles.filter((f) => f.endsWith(".test.ts")));
-const rulePaths = tsFiles
-  .filter((f) => !f.endsWith(".test.ts") && !SCRIPT_TIER.has(ruleIdOf(f)))
-  .sort();
+const rulePaths = tsFiles.filter((f) => !f.endsWith(".test.ts")).sort();
 
 if (rulePaths.length === 0) {
-  console.error(`No rule templates found under ${RULES_ROOT}`);
+  console.error(`No rule templates found under ${OXLINT_ROOT}`);
   process.exit(1);
 }
 
@@ -88,7 +72,7 @@ const plugin = await import(PLUGIN_PATH)
   .then((module) => module.default)
   .catch((error: Error) => error);
 if (plugin instanceof Error) {
-  console.log(`  FAIL  <plugin> rules/plugin.ts does not load, so every rule is silent:`);
+  console.log(`  FAIL  <plugin> oxlint/plugin.ts does not load, so every rule is silent:`);
   console.log(`        ${plugin.message.replace(/\n/g, "\n        ")}`);
   process.exit(1);
 }
@@ -121,9 +105,9 @@ async function checkRule(rulePath: string): Promise<RuleFailure[]> {
   const bound = registered[name];
   const exported = await import(rulePath).then((module) => Object.values(module));
   if (bound === undefined) {
-    fail(`not registered in rules/plugin.ts under the key "${name}"`);
+    fail(`not registered in oxlint/plugin.ts under the key "${name}"`);
   } else if (!exported.includes(bound)) {
-    fail(`rules/plugin.ts binds the key "${name}" to a rule this file does not export`);
+    fail(`oxlint/plugin.ts binds the key "${name}" to a rule this file does not export`);
   }
 
   return failures;
@@ -180,7 +164,7 @@ rulePaths.forEach((rulePath, index) => {
 // spec would otherwise read as full coverage.
 const orphans = [...specPaths]
   .filter((spec) => !rulePaths.includes(spec.replace(/\.test\.ts$/, ".ts")))
-  .map((spec) => relative(RULES_ROOT, spec));
+  .map((spec) => relative(OXLINT_ROOT, spec));
 for (const orphan of orphans) {
   console.log(`  FAIL  <orphan> ${orphan} sits beside no rule template`);
 }

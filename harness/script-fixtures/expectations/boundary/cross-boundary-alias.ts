@@ -44,7 +44,7 @@ export const crossBoundaryAliasFixtures: CheckFixtures = {
     // which the reader rejects outright. Same whole-graph abort as the generic
     // arrow above, different cause: every graph-reading check goes silent at
     // once, so this is caught by the crash guard rather than by a missing
-    // finding. The blanking pass in `scripts/import-graph.ts` is what it holds
+    // finding. The blanking pass in `lint/structural/import-graph.ts` is what it holds
     // in place.
     "FAIL src/features/alpha/ui/shebang-crossing.ts",
   ],

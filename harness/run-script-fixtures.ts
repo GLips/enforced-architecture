@@ -33,12 +33,12 @@ import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { FIXTURE_TREE, fixtureConfig } from "./script-fixtures/config.ts";
 import type { CheckFixtures, GeneratedFixture } from "./script-fixtures/expectations.ts";
-import { runStructuralChecks } from "../skills/enforced-architecture/references/rules/scripts/run-structural-checks.ts";
-import { structuralChecks } from "../skills/enforced-architecture/references/rules/scripts/registry.ts";
+import { runStructuralChecks } from "../skills/enforced-architecture/references/lint/structural/run-structural-checks.ts";
+import { structuralChecks } from "../skills/enforced-architecture/references/lint/structural/registry.ts";
 
 const HARNESS_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HARNESS_DIR, "..");
-const RULES_ROOT = join(REPO_ROOT, "skills/enforced-architecture/references/rules");
+const STRUCTURAL_ROOT = join(REPO_ROOT, "skills/enforced-architecture/references/lint/structural");
 const EXPECTATIONS_ROOT = join(HARNESS_DIR, "script-fixtures/expectations");
 
 const KINDS = ["obvious", "adversarial", "legal"] as const;
@@ -81,15 +81,15 @@ for (const path of expectationPaths) {
 const registeredIds = structuralChecks.map((check) => check.id);
 
 for (const id of registeredIds) {
-  const implementation = join(RULES_ROOT, `${id}.ts`);
+  const implementation = join(STRUCTURAL_ROOT, `${id}.ts`);
   if (!existsSync(implementation)) {
-    fail(id, `registered, but there is no rules/${id}.ts — the id and the file disagree`);
+    fail(id, `registered, but there is no structural/${id}.ts — the id and the file disagree`);
   }
   // A check with no doc is a check whose intent, negative space, and adapt notes
   // live nowhere. The catalog indexes rules by their doc; an undocumented one is
   // unreachable from `overview.md`.
-  if (!existsSync(join(RULES_ROOT, `${id}.md`))) {
-    fail(id, `registered, but there is no rules/${id}.md to say what it is for`);
+  if (!existsSync(join(STRUCTURAL_ROOT, `${id}.md`))) {
+    fail(id, `registered, but there is no structural/${id}.md to say what it is for`);
   }
   if (!fixturesByCheck.has(id)) {
     fail(
@@ -102,7 +102,7 @@ for (const id of registeredIds) {
 
 for (const id of fixturesByCheck.keys()) {
   if (registeredIds.includes(id)) continue;
-  fail(id, "has expectations but is not registered in scripts/registry.ts — it never runs");
+  fail(id, "has expectations but is not registered in structural/registry.ts — it never runs");
 }
 
 const duplicates = registeredIds.filter((id, index) => registeredIds.indexOf(id) !== index);

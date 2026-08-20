@@ -134,7 +134,7 @@ Each migration phase specifies:
 **Rules activated:** `boundary/cross-boundary-alias`.
 
 **Changes (all mechanical):**
-- Build [graph/import-graph](rules/graph/import-graph.md) in the shared library, then write `boundary/cross-boundary-alias` as its first consumer — it is a structural script, not a lint rule, and it has nothing to run against until the graph exists
+- Build [graph/import-graph](lint/structural/graph/import-graph.md) in the shared library, then write `boundary/cross-boundary-alias` as its first consumer — it is a structural script, not a lint rule, and it has nothing to run against until the graph exists
 - Run `bun run check:arch` — violations list every relative import crossing a boundary
 - Rewrite each to use the `@/` alias
 
@@ -146,10 +146,10 @@ Each migration phase specifies:
 
 **Goal:** Files live in the correct layers. Layer direction is enforced.
 
-**Rules activated:** `structure/layer-direction`, `boundary/domain-purity`, `boundary/route-thinness`, `boundary/shared-ui-purity`, `structure/server-fn-placement`, `boundary/server-no-upward`, `boundary/shared-purity`, `structure/schema-placement`.
+**Rules activated:** `placement/layer-direction`, `boundary/domain-purity`, `boundary/route-thinness`, `boundary/shared-ui-purity`, `placement/server-fn-placement`, `boundary/server-no-upward`, `boundary/shared-purity`, `placement/schema-placement`.
 
 **Changes:**
-- Write the lint rules and the structural `structure/layer-direction` consumer
+- Write the lint rules and the structural `placement/layer-direction` consumer
 - Run `bun run check:arch` — violations show every misplaced file and wrong-direction import
 - Move misplaced files to correct layer directories (mechanical)
 - Move `createServerFn` calls from non-controller locations to `controllers/` (judgment -- may require refactoring)

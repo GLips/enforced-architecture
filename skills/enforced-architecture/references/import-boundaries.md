@@ -97,7 +97,7 @@ Enforcement (the `api/feature-public-api` rule):
 
 Cross-feature UI imports are banned even between features. If two features need the same UI component, it gets promoted to `shared/ui/` once three features need it (promotion threshold).
 
-The cells above say *which paths* a cross-feature import may name. Whether the edge is allowed at all is a separate decision, and the default is open: any feature may import any other feature's public API. A project can flip that default to deny with [api/feature-visibility](rules/api/feature-visibility.md), which requires the importee to name each permitted consumer in its own `visibility.json`. Decide this in Phase 2 alongside the matrix — it changes the answer in every `features/` cell — and take it when agents write most of the code.
+The cells above say *which paths* a cross-feature import may name. Whether the edge is allowed at all is a separate decision, and the default is open: any feature may import any other feature's public API. A project can flip that default to deny with [api/feature-visibility](lint/structural/api/feature-visibility.md), which requires the importee to name each permitted consumer in its own `visibility.json`. Decide this in Phase 2 alongside the matrix — it changes the answer in every `features/` cell — and take it when agents write most of the code.
 
 ---
 
@@ -236,4 +236,4 @@ Default to wrapped. Layer-restrict only when wrapping adds genuinely zero value.
 
 ## Enforcement
 
-Every boundary in this document is mechanically enforced, mostly by [rules/boundary/](rules/boundary/overview.md) and [rules/api/](rules/api/overview.md). For the full catalog and which tags this project needs, start at [rules/overview.md](rules/overview.md).
+Every boundary in this document is mechanically enforced, mostly by the [boundary](lint/oxlint/boundary/overview.md) and [api](lint/oxlint/api/overview.md) tags across both tiers. For the full catalog and which tags this project needs, start at [lint/overview.md](lint/overview.md).

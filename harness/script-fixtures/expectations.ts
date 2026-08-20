@@ -20,7 +20,7 @@ export type FixtureFinding = string;
 export type GeneratedFixture = { path: string; lines: number; symbol: string };
 
 export type CheckFixtures = {
-  /** The catalog rule id. Must match a check registered in `scripts/registry.ts`. */
+  /** The catalog rule id. Must match a check registered in `lint/structural/registry.ts`. */
   check: string;
 
   /**

@@ -63,13 +63,13 @@ reading why it moved.
 
 Each of these leaves a green run behind a check nothing exercises:
 
-- **A check missing from `scripts/registry.ts`.** The registry is the manifest a
+- **A check missing from `structural/registry.ts`.** The registry is the manifest a
   consuming project copies; a check absent from it ships as a file nobody loads.
   The runner imports it rather than grepping, so a commented-out registration
   fails.
 - **A registered check with no expectations file**, and the reverse — an
   expectations file under no registered check's name.
-- **A check with no `rules/<id>.ts` or no `rules/<id>.md`.** The id, the
+- **A check with no `structural/<id>.ts` or no `structural/<id>.md`.** The id, the
   implementation, and the doc must be the same three names.
 - **A check that threw.** It is reported as a blocking failure rather than as an
   empty result, because "found nothing" and "crashed" produce identical findings.
@@ -85,9 +85,9 @@ delete a check from the registry and expect the runner to say so.
 Four files, and the runner fails until all four line up:
 
 ```
-skills/…/rules/<tag>/<name>.ts        the check, exporting a StructuralCheck
-skills/…/rules/<tag>/<name>.md        intent, negative space, adapt notes
-skills/…/rules/scripts/registry.ts    one entry
+skills/…/lint/structural/<tag>/<name>.ts   the check, exporting a StructuralCheck
+skills/…/lint/structural/<tag>/<name>.md   intent, negative space, adapt notes
+skills/…/lint/structural/registry.ts       one entry
 harness/script-fixtures/expectations/<tag>/<name>.ts
 ```
 
@@ -96,7 +96,7 @@ Plus its fixtures in `tree/`. Two rules keep a shared tree workable:
 - **A fixture must be legal for every check but its own.** The tree is a
   conforming repo except where it deliberately is not, so a new file at an
   unlisted path or carrying a relative cross-boundary import trips
-  `structure/topology` or `boundary/cross-boundary-alias` on top of whatever it
+  `placement/topology` or `boundary/cross-boundary-alias` on top of whatever it
   was written for.
 - **Never edit another check's expectations.** If a fixture makes another check
   fire, move or rename the fixture rather than widening someone else's contract.

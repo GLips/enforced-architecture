@@ -26,9 +26,9 @@ When in doubt, enforce. Every judgment call below resolves against this asymmetr
 
 Non-negotiable properties of the architecture. Everything else is convention that adapts to the project. Six of the eight have a rule that enforces them; the rule doc says what it prevents and how to adapt it.
 
-1. **Dependency direction is enforced.** Lower layers never import upper layers. No exceptions. — [layer model](#the-layer-model), [rules/boundary/](rules/boundary/overview.md)
-2. **Database access is concentrated.** Only designated data access modules import the database. — [server functions as the DB boundary](#server-functions-as-the-db-boundary), [rules/boundary/db-isolation.ts](rules/boundary/db-isolation.ts)
-3. **Features expose public APIs.** External consumers import through barrels, never internal paths. A feature that reorganizes internally breaks no consumer. — [import-boundaries.md](import-boundaries.md#public-api-convention-table), [rules/api/feature-public-api.ts](rules/api/feature-public-api.ts)
+1. **Dependency direction is enforced.** Lower layers never import upper layers. No exceptions. — [layer model](#the-layer-model), [boundary rules](lint/oxlint/boundary/overview.md)
+2. **Database access is concentrated.** Only designated data access modules import the database. — [server functions as the DB boundary](#server-functions-as-the-db-boundary), [lint/oxlint/boundary/db-isolation.ts](lint/oxlint/boundary/db-isolation.ts)
+3. **Features expose public APIs.** External consumers import through barrels, never internal paths. A feature that reorganizes internally breaks no consumer. — [import-boundaries.md](import-boundaries.md#public-api-convention-table), [lint/oxlint/api/feature-public-api.ts](lint/oxlint/api/feature-public-api.ts)
 4. **SDKs are contained.** Every third-party SDK is either wrapped or layer-restricted. — [SDK containment](#sdk-containment)
 5. **Cross-boundary imports use aliases.** — [the cross-boundary alias rule](#the-cross-boundary-alias-rule)
 6. **Rules are blocking.** — [principle 4](#4-all-rules-blocking-from-day-one)
@@ -61,7 +61,7 @@ Architecture has a tax. Every layer costs readability. Every abstraction costs d
 
 The goal is not maximum structure. It is the minimum structure that maintains dependency invariants. Two controls prevent architecture from becoming ceremony.
 
-**Optional layer occupancy.** Layers exist in a fixed logical order, but physical presence is optional. A feature with two files and no complex data access does not need four directories. What makes this safe rather than sloppy is that occupancy is enforced: a layer that exists may not be bypassed, and a layer that does not exist costs nothing — see [rules/boundary/layer-occupancy.md](rules/boundary/layer-occupancy.md). Never scaffold empty directories, never create `.gitkeep` files, never create a layer "because we might need it later."
+**Optional layer occupancy.** Layers exist in a fixed logical order, but physical presence is optional. A feature with two files and no complex data access does not need four directories. What makes this safe rather than sloppy is that occupancy is enforced: a layer that exists may not be bypassed, and a layer that does not exist costs nothing — see [lint/structural/boundary/layer-occupancy.md](lint/structural/boundary/layer-occupancy.md). Never scaffold empty directories, never create `.gitkeep` files, never create a layer "because we might need it later."
 
 **No-trampoline policy.** A layer function must add at least one of: domain-level validation, authorization or policy enforcement, orchestration of multiple dependencies, data mapping, error normalization or retry, telemetry boundary behavior. If it does none of these it is a trampoline. Do not add `repo/` or `service/` until it earns directory-wide use from controllers; restructure or remove the layer instead of bypassing it.
 
@@ -87,7 +87,7 @@ Feature-internal conventions belong in feature implementation plans. The archite
 
 What matters is what a file imports, not whether that code executes. A file importing the database client is a violation even in a dead code path, and a dynamic import of a restricted module is a violation even if never triggered.
 
-Static analysis does not need to model runtime control flow. Its guarantees cover the import forms the shared extractor represents, and an extraction gap that is not documented is a hole nobody knows about — see [rules/graph/import-graph.md](rules/graph/import-graph.md).
+Static analysis does not need to model runtime control flow. Its guarantees cover the import forms the shared extractor represents, and an extraction gap that is not documented is a hole nobody knows about — see [lint/structural/graph/import-graph.md](lint/structural/graph/import-graph.md).
 
 ---
 
@@ -152,7 +152,7 @@ Only the first is caught by the bundler. The other two are caught only by rules 
 
 So features own their queries, not their tables. Adding a table means adding it centrally, then querying it from the feature that needs it. This reads backwards if you are used to feature-owned migrations, and it is the only model that survives cross-domain foreign keys.
 
-The same logic governs data another feature owns: technically any repo can import any table, but a feature that needs another feature's data calls that feature's server API rather than writing its own query. The owning feature controls how its data is exposed, including auth, validation, and query optimization — and a project can put *who may consume it* under the owner's control too, see [rules/api/feature-visibility.md](rules/api/feature-visibility.md).
+The same logic governs data another feature owns: technically any repo can import any table, but a feature that needs another feature's data calls that feature's server API rather than writing its own query. The owning feature controls how its data is exposed, including auth, validation, and query optimization — and a project can put *who may consume it* under the owner's control too, see [lint/structural/api/feature-visibility.md](lint/structural/api/feature-visibility.md).
 
 ---
 
@@ -192,7 +192,7 @@ This is the rule that makes every other import-path rule work, and without it th
 
 Every import rule pattern-matches on the aliased path. "Files in `routes/` cannot import `@/infrastructure/db`" works because it can match that string — and `../../infrastructure/db` names the same module with a string the rule never sees. So all imports crossing a top-level boundary use the alias, and relative imports that traverse into another top-level directory are banned. Inside one boundary, relative imports are expected and correct: they cross nothing.
 
-Treat this as the load-bearing one when sequencing a migration. Details and the check itself: [rules/boundary/cross-boundary-alias.md](rules/boundary/cross-boundary-alias.md).
+Treat this as the load-bearing one when sequencing a migration. Details and the check itself: [lint/structural/boundary/cross-boundary-alias.md](lint/structural/boundary/cross-boundary-alias.md).
 
 ---
 
@@ -214,7 +214,7 @@ Cross-feature UI is banned. When Feature A needs something in Feature B's UI dir
 
 Large files are architecture smells: a file past a few hundred lines is doing too many things or working at too many levels of abstraction. Enforce it mechanically, with graduated thresholds — a warning that gives an agent room to split as part of work it is already doing, and a hard failure behind it. Hitting the hard limit should be rare when the warning is calibrated.
 
-Exceptions go in one centralized list with a TODO each, never as per-file ignore comments. Scattered exemptions are invisible; a list is auditable. Thresholds and exclusions: [rules/health/file-size.md](rules/health/file-size.md).
+Exceptions go in one centralized list with a TODO each, never as per-file ignore comments. Scattered exemptions are invisible; a list is auditable. Thresholds and exclusions: [lint/structural/health/file-size.md](lint/structural/health/file-size.md).
 
 ---
 

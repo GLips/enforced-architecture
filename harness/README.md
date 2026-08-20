@@ -1,16 +1,16 @@
 # Rule fixture harness
 
-Runs every rule in `skills/enforced-architecture/references/rules/` against the cases that prove it, and fails CI when one stops behaving.
+Runs every rule in `skills/enforced-architecture/references/lint/` against the cases that prove it, and fails CI when one stops behaving.
 
 It proves the **chosen examples**, not the header claim in general. The cases and the rule come from the same author, so an unimagined violation spelling is unimagined in both. Treat a green run as "the contract I wrote down still holds", not as "this rule is correct."
 
 ```
 bun run check          # both tiers
-bun run check:rules    # 51 oxlint rules, under real Node
-bun run check:scripts  # 19 structural-script checks, under Bun
+bun run check:rules    # 54 oxlint rules, under real Node
+bun run check:scripts  # 16 structural checks, under Bun
 ```
 
-Two runners because the two tiers read differently, not because the standard differs. An oxlint rule is handed one file, so it is exercised through `RuleTester` against inline sources. A structural check scans declared roots and several scan more than one, so its cases are real files in one shared tree. Both are held to the same three-kind contract below. The script side has its own README at [script-fixtures/README.md](script-fixtures/README.md); the rest of this file is the oxlint side plus what the two share.
+Two runners because the two tiers read differently, not because the standard differs. Each runner owns one directory — `lint/oxlint/` and `lint/structural/` — so neither has to ask which tier a file belongs to; the path already said. An oxlint rule is handed one file, so it is exercised through `RuleTester` against inline sources. A structural check scans declared roots and several scan more than one, so its cases are real files in one shared tree. Both are held to the same three-kind contract below. The script side has its own README at [script-fixtures/README.md](script-fixtures/README.md); the rest of this file is the oxlint side plus what the two share.
 
 ## Why this exists
 
@@ -25,8 +25,8 @@ Moving from GritQL to oxlint changed which silences are possible but not that th
 Each rule ships two files:
 
 ```
-skills/enforced-architecture/references/rules/<tag>/<rule>.ts        the rule
-skills/enforced-architecture/references/rules/<tag>/<rule>.test.ts   its specs
+skills/enforced-architecture/references/lint/oxlint/<tag>/<rule>.ts        the rule
+skills/enforced-architecture/references/lint/oxlint/<tag>/<rule>.test.ts   its specs
 ```
 
 The spec imports the shipped rule directly, so there is no second copy of any rule and nothing to drift. That is possible because the templates are not placeholder-bearing, which is the thing worth knowing before touching this. They are concrete rules written against one standard layout — `src/domains`, `src/features/<name>/{controllers,repo,service,ui}`, `src/infrastructure`, `src/routes`, `src/shared/ui`, and the `@/` alias. Their **Adapt** sections document *alternatives* in prose; they do not mark holes that something has to fill.
@@ -64,8 +64,8 @@ Every case carries its own `filename`, in the standard layout, because the rules
 
 `harness/run-rule-fixtures.ts` exists for the five things a spec cannot say about itself. Each one leaves a green run behind a rule nothing exercises:
 
-- **`rules/plugin.ts` does not load.** The runner imports the manifest rather than grepping it, because a plugin that fails to load takes *every* rule silent with it — the largest version of the failure everything here guards against.
-- **A rule missing from `rules/plugin.ts`, or bound to the wrong export.** The plugin module is the manifest a consuming project copies; a rule absent from it ships as a file nobody loads. Tested, and never run. A text search would pass a commented-out registration; an import does not.
+- **`oxlint/plugin.ts` does not load.** The runner imports the manifest rather than grepping it, because a plugin that fails to load takes *every* rule silent with it — the largest version of the failure everything here guards against.
+- **A rule missing from `oxlint/plugin.ts`, or bound to the wrong export.** The plugin module is the manifest a consuming project copies; a rule absent from it ships as a file nobody loads. Tested, and never run. A text search would pass a commented-out registration; an import does not.
 - **A rule with no spec beside it.**
 - **A spec pointed at the wrong rule** — it must call `describeRule("<its own id>", …)` and import the rule file beside it.
 - **A kind that never ran.** The runner reads TAP result *names* rather than file results, because `describeRule` makes every kind announce itself as `<rule id> (<kind>)`. A spec that throws while loading reports no name at all, so its three kinds are simply absent — which is how a stubbed or deleted check gets caught instead of passing on zero cases.
@@ -88,7 +88,7 @@ Verified on oxlint 1.77.0 / bun 1.3.13 / Node 24.17.0. Re-check whether JavaScri
 
 ## Scope
 
-All 70 rules are covered: 51 oxlint rules through `check:rules`, 19 structural-script checks through `check:scripts`. Nothing in the catalog ships as an untested description any more.
+All 70 rules are covered: 54 oxlint rules through `check:rules`, 16 structural checks through `check:scripts`. Nothing in the catalog ships as an untested description any more.
 
 The script tier used to be prose. Each consuming project hand-rolled an implementation from the algorithm in the `.md`, and three independent audits found the same result: the implementations drifted, and each one had silently stopped matching part of what its doc promised. One deployment's layer-occupancy check had three bypasses and hardcoded a path its own doc documented as configurable; another's barrel-purity discovered a third of the barrels it claimed to. Every one of those was green. That is the argument for shipping code and config rather than an algorithm — the adaptation step is where the silence was getting in, so the adaptation step is now writing config.
 

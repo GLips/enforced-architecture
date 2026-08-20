@@ -40,7 +40,7 @@ export const barrelPurityFixtures: CheckFixtures = {
     // the trace runs to the depth cap and reports the cap against a barrel that
     // imports nothing server-only at all.
     "src/features/loyalty/index.ts",
-    // Already in the tree for `structure/topology`: a barrel re-exporting one
+    // Already in the tree for `placement/topology`: a barrel re-exporting one
     // local module that imports nothing. The trivial case still has to be
     // silent, and it is the only barrel here that predates this check.
     "src/features/scanner/index.ts",

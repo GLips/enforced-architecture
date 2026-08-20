@@ -28,7 +28,7 @@ The rules target a specific stack; the reasoning behind them doesn't. The catalo
 npx skills add GLips/enforced-architecture
 ```
 
-Start with [`rules/overview.md`](skills/enforced-architecture/references/rules/overview.md)—it maps the eleven tags and has a *Selecting rules* table for "if your project has X, take these." Each tag directory then has its own `overview.md` listing that tag's rules and what each prevents.
+Start with [`lint/overview.md`](skills/enforced-architecture/references/lint/overview.md)—it maps the eleven tags, says which of the two enforcement tiers each one lands in, and has a *Selecting rules* table for "if your project has X, take these." Every tag directory under `lint/oxlint/` and `lint/structural/` then has its own `overview.md` listing that tier's half of the tag and what each rule prevents.
 
 ## What happens when an agent breaks a rule
 

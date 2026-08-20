@@ -6,6 +6,6 @@
 // layer up with `indexOf` hands an undefined layer -1 — above every real layer
 // — and every import of a feature-root file becomes an upward edge. Treating it
 // as index 0 puts it at the top instead, which fires the moment the importer is
-// below ui. Whether a file belongs at a feature root is structure/topology's
+// below ui. Whether a file belongs at a feature root is placement/topology's
 // finding, and never this one's.
 export { LayersError } from "../errors.ts";

@@ -19,7 +19,7 @@
   // the same array rather than needing its own mechanism — `eslint-plugin-sonarjs`
   // registers under the `sonarjs/` prefix. `jsPlugins` is also an `overrides` key;
   // reach for that only to scope a plugin to a subtree.
-  "jsPlugins": ["./oxlint/plugin.ts", "eslint-plugin-sonarjs"],
+  "jsPlugins": ["./lint/oxlint/plugin.ts", "eslint-plugin-sonarjs"],
 
   "ignorePatterns": ["src/gen/**"],
 
@@ -49,7 +49,7 @@
   // is fatal. The typo is caught; the omission is not — which is why the spec
   // harness fails any rule missing from the plugin module.
   //
-  // Keep each key equal to its file name (`oxlint/boundary/db-isolation.ts` ->
+  // Keep each key equal to its file name (`lint/oxlint/boundary/db-isolation.ts` ->
   // "arch/db-isolation") so the diagnostic id is also the path to the rule that
   // raised it: `error arch(db-isolation): …`
   "rules": {

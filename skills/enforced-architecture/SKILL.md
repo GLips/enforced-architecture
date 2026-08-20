@@ -28,9 +28,9 @@ Read these references before and during the process:
 | [enforcement-implementation.md](references/enforcement-implementation.md) | Phase 4 (implementation) | oxlint config, lefthook, package.json scripts, structural script orchestration |
 | [documentation-model.md](references/documentation-model.md) | Phase 4 (documentation) | What to document in CLAUDE.md and docs/architecture/, content checklists |
 | [migration-patterns.md](references/migration-patterns.md) | Phase 4 (migration) | Atomic phase decomposition, sequencing, verification |
-| [rules/overview.md](references/rules/overview.md) | Phase 3–4 (rule catalog) | The catalog map: what each tag governs, and which rules a project needs |
+| [lint/overview.md](references/lint/overview.md) | Phase 3–4 (rule catalog) | The catalog map: what each tag governs, and which rules a project needs |
 
-The catalog is three layers: [rules/overview.md](references/rules/overview.md) picks tags, each `rules/<tag>/overview.md` picks rules, each rule template carries its own *Adapt* section.
+The catalog is split by **tier** first and **tag** second — `lint/oxlint/` is the per-file tier, `lint/structural/` the whole-tree tier, `lint/policy/` the runtime-neutral tables both read. It is three layers deep: [lint/overview.md](references/lint/overview.md) picks tags, each `lint/<tier>/<tag>/overview.md` picks rules within that tier, each rule template carries its own *Adapt* section.
 
 **This reference set is too heavy for one context.** When implementing from scratch, dispatch a subagent per tag directory and have it return adapted rules rather than its reading.
 
@@ -92,13 +92,13 @@ Using the chosen configuration, propose:
 
 ### Phase 3: Design enforcement rules
 
-Read [enforcement-strategy.md](references/enforcement-strategy.md) for the two-layer model. Read [rules/overview.md](references/rules/overview.md) to choose tags.
+Read [enforcement-strategy.md](references/enforcement-strategy.md) for the two-layer model. Read [lint/overview.md](references/lint/overview.md) to choose tags.
 
 **Process:**
-1. Pick the tags this architecture needs from the hub's map and *Selecting rules* table, then read `rules/<tag>/overview.md` for each to choose rules within it.
-2. For each selected rule, read its template in the appropriate `rules/<tag>/` directory.
+1. Pick the tags this architecture needs from the hub's map and *Selecting rules* table. Its tag table has one column per tier, so it also tells you which halves of a tag exist; read `lint/<tier>/<tag>/overview.md` for each to choose rules within it.
+2. For each selected rule, read its template in the appropriate `lint/<tier>/<tag>/` directory.
 3. Adapt each rule to the project's specific directory names, import patterns, and conventions.
-4. Tag each rule with its enforcement mechanism: **oxlint rule** (per-file, real-time) or **structural script** (cross-file, pre-commit).
+4. A rule's enforcement mechanism is its tier, and the tier is its directory — `lint/oxlint/` is per-file and real-time, `lint/structural/` is cross-file and pre-commit. Carry the path into the plan and the mechanism comes with it.
 5. Add project-specific rules not covered by the catalog.
 
 Keep the plan's rule section lean — two tables, not a copy of template content. The templates already carry mechanism, blocking status, messages, and implementation.
@@ -151,7 +151,7 @@ Combine all phases into a single document:
 
 **Important:** The plan document lives in the project repo and will be read by agents in future sessions. Include this reference for rule implementation:
 
-> Rule templates are in the `enforced-architecture` skill (`~/.claude/skills/enforced-architecture/references/rules/`). Each rule in this plan references its template. **oxlint rules:** read the template, adapt paths and patterns to this project's structure, and write the result to `oxlint/` with its spec, registered in `oxlint/plugin.ts`. **Structural scripts:** copy the module and the `scripts/` substrate unmodified, register it, and put every project-specific value in `arch.config.ts` — the rule's *Adapt* section names the keys. Do not reimplement one from its doc.
+> Rule templates are in the `enforced-architecture` skill (`~/.claude/skills/enforced-architecture/references/lint/`), split by tier: `lint/oxlint/<tag>/` and `lint/structural/<tag>/`. Each rule in this plan references its template by that path, so the path names the tier. The project mirrors the tree — copy into its own `lint/`. **oxlint rules:** read the template, adapt paths and patterns to this project's structure, and write the result to `lint/oxlint/<tag>/` with its spec, registered in `lint/oxlint/plugin.ts`. **Structural checks:** copy the module and the `lint/structural/` substrate unmodified, register it in `lint/structural/registry.ts`, and put every project-specific value in `lint/structural/arch.config.ts` — the rule's *Adapt* section names the keys. Do not reimplement one from its doc.
 
 ## Tone
 

@@ -20,7 +20,7 @@ import {
   type ArchitectureConfig,
   defaultCheckConfigs,
   defaultSourceConfig,
-} from "../../skills/enforced-architecture/references/rules/scripts/config.ts";
+} from "../../skills/enforced-architecture/references/lint/structural/config.ts";
 import { radius, spacing } from "./tree/src/shared/ui/theme.ts";
 
 export const FIXTURE_TREE = resolve(import.meta.dir, "tree");
@@ -36,13 +36,13 @@ export const fixtureConfig: ArchitectureConfig = {
       roots: ["src", "packages/core/src"],
     },
 
-    "structure/topology": {
-      ...defaultCheckConfigs["structure/topology"],
+    "placement/topology": {
+      ...defaultCheckConfigs["placement/topology"],
       // The two source-root files the boundary fixtures need. A file directly in
       // the source root is not a layer, and naming each one here rather than
       // widening `allowedRoots` is the distinction this check exists to hold.
       allowedRootFiles: [
-        ...defaultCheckConfigs["structure/topology"].allowedRootFiles,
+        ...defaultCheckConfigs["placement/topology"].allowedRootFiles,
         "entry-neighbour.ts",
         "root-neighbour.ts",
       ],

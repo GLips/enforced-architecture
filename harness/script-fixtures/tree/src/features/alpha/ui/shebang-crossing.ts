@@ -3,7 +3,7 @@
 //
 // A shebang is valid at the top of an executable source file and Bun's reader
 // REJECTS it. Nothing catches that, so without the blanking pass in
-// `scripts/import-graph.ts` this one file aborts the entire graph — every
+// `lint/structural/import-graph.ts` this one file aborts the entire graph — every
 // graph-reading check reports nothing at all, and the run is green.
 //
 // Blanked rather than stripped, so every later offset still maps to its real

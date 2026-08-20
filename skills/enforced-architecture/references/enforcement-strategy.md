@@ -44,8 +44,8 @@ A rule is `create(context)` returning a visitor keyed by AST node type, plus `co
 - Anything requiring cross-file analysis (cycles, coupling metrics, any claim about a *set* of files)
 - Anything requiring filesystem awareness (does this feature have a repo/ directory?)
 - Transitive import analysis (does this barrel transitively pull in server-only code?)
-- **Anything whose answer depends on where the importing file sits.** Whether `../../beta` leaves the current feature is a function of the importing file's depth, not of the import string, so it has to be *resolved and compared*, never matched. This is the least obvious of these and the most damaging: the rule looks right, passes its spec, and silently permits the shortest spelling of the violation. See [rules/graph/import-graph.md](rules/graph/import-graph.md).
-- **Anything that counts across files.** A rule instance sees one file and nothing else. Within a file it *can* aggregate — record what the visitor passes and decide at `"Program:exit"` — but hook counts, prop counts and file sizes are scripts in this catalog. Each tag's `overview.md` gives the mechanism per rule; [rules/overview.md](rules/overview.md) maps the tags.
+- **Anything whose answer depends on where the importing file sits.** Whether `../../beta` leaves the current feature is a function of the importing file's depth, not of the import string, so it has to be *resolved and compared*, never matched. This is the least obvious of these and the most damaging: the rule looks right, passes its spec, and silently permits the shortest spelling of the violation. See [lint/structural/graph/import-graph.md](lint/structural/graph/import-graph.md).
+- **Anything that counts across files.** A rule instance sees one file and nothing else. Within a file it *can* aggregate — record what the visitor passes and decide at `"Program:exit"` — but a file's line count is a question about the file rather than about anything in it, so `health/file-size` is a structural check. A rule's tier is its directory — `lint/oxlint/` or `lint/structural/` — and [lint/overview.md](lint/overview.md) maps which tags have a half in each.
 
 ### Layer 2: Structural Scripts (Cross-File Analysis)
 
@@ -56,7 +56,7 @@ Structural scripts analyze relationships between files or properties that span t
 - CI via the same script
 - NOT real-time in editor (too slow, requires full codebase scan)
 
-They ship as code with one config object rather than as algorithms to reimplement — cycles, coupling thresholds, layer occupancy, barrel purity, file size, trampolines. Start at [rules/overview.md](rules/overview.md) to pick tags; mechanism and blocking status per rule are in each tag's `overview.md`.
+They ship as code with one config object rather than as algorithms to reimplement — cycles, coupling thresholds, layer occupancy, barrel purity, file size, trampolines. Start at [lint/overview.md](lint/overview.md) to pick tags; blocking status per rule is in `lint/structural/<tag>/overview.md`.
 
 ---
 
@@ -136,4 +136,4 @@ All rules (except `boundary/no-test-imports`) exclude test files and one-off scr
 - `**/src/test/**`
 - `**/scripts/**`
 
-Tests need cross-boundary imports for setup and assertions, and a script is not part of the shipped module graph. The exclusion lives in exactly two places — `isArchitectureExemptPath` in the rules' shared `lib/`, and the structural scripts' file collection — and is never repeated per rule. Per-rule copies drift, and they drift identically: every rule carrying its own near-copy of the exemption over-matches the same way, and each one has to be found separately.
+Tests need cross-boundary imports for setup and assertions, and a script is not part of the shipped module graph. The exclusion lives in exactly two places — `isArchitectureExemptPath` in `lint/oxlint/lib/`, and the structural tier's file collection — and is never repeated per rule. Per-rule copies drift, and they drift identically: every rule carrying its own near-copy of the exemption over-matches the same way, and each one has to be found separately.
