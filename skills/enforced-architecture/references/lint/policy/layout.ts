@@ -352,8 +352,20 @@ export const RECOMMENDED_VOCABULARY: TreeVocabulary = {
  */
 export const SOURCE_EXTENSIONS = ["ts", "tsx", "mts", "cts", "js", "jsx", "mjs", "cjs"];
 
-/** The one glob every source walk uses. `**\/*.{ts,tsx,mts,cts,…}`. */
-export const SOURCE_FILE_GLOB = `**/*.{${SOURCE_EXTENSIONS.join(",")}}`;
+/**
+ * Every source file in ONE directory: `*.{ts,tsx,mts,cts,…}`.
+ *
+ * A check that knows the DEPTH of its subject composes this rather than writing
+ * its own extension list at that depth. `naming/barrel-discoverability` knows a
+ * barrel sits exactly one directory below a subdivided root; naming the barrel
+ * module and its extension in the same glob narrows it to one of the eight
+ * extensions this tier walks, and an `index.mts` barrel is then a file the check
+ * never opens rather than a barrel it clears.
+ */
+export const SOURCE_EXTENSION_GLOB = `*.{${SOURCE_EXTENSIONS.join(",")}}`;
+
+/** The one glob every whole-tree source walk uses. `**\/*.{ts,tsx,mts,cts,…}`. */
+export const SOURCE_FILE_GLOB = `**/${SOURCE_EXTENSION_GLOB}`;
 
 /**
  * Every position a file can occupy. Exhaustive by construction: the policy table

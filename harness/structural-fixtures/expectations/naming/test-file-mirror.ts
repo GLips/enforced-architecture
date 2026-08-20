@@ -17,6 +17,9 @@ export const testFileMirrorFixtures: CheckFixtures = {
     // was not recognised as a test at all — and the exemption predicate did not
     // recognise it either, so it drew every OTHER rule instead.
     "WARN src/features/mirror/service/orphan-modern.test.mts",
+    // The same off-convention `.spec` name as `pricing.spec.ts`, in an extension
+    // an extension-listing pattern does not name.
+    "WARN src/features/mirror/service/ledgers.spec.mts",
   ],
 
   // This check fails loudest in the over-matching direction — it warns on files

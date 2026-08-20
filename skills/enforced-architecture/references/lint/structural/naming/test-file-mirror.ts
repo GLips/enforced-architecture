@@ -33,44 +33,59 @@ import {
 } from "../check-substrate.ts";
 
 /**
- * Extensions a test's sibling source may carry. `.tsx` is not decoration: a
- * lookup for `<base>.ts` alone reports every component test in the project as an
- * orphan, and that flood is what gets a warning-level check switched off.
+ * The two spellings a test carries when it is NOT named after its module —
+ * matched against the path with its extension already stripped.
+ *
+ * Not configuration. `testSuffixes` is vocabulary, because which suffix a
+ * project blesses is a name it chooses; "a `.spec` file is off-convention" is
+ * the check's own claim about every project, and handing it over as a regex list
+ * hands over the check. An adopter who writes `.spec` sets `testSuffixes` to
+ * `[".spec"]` and this list stops applying to them, because a blessed suffix is
+ * matched before it — see the ordering in `run`.
  */
+const OFF_CONVENTION_TEST_SPELLINGS = [/\.spec$/, /(^|\/)test_[^/]+$/];
+
 export const testFileMirrorCheck: StructuralCheck = {
   id: "naming/test-file-mirror",
   scope: "tree",
 
   run(context) {
     const { config } = context;
-    const { testSuffixes, nonconforming, orphanAllowedDirs } =
-      config.checks["naming/test-file-mirror"];
+    const { testSuffixes, orphanAllowedDirs } = config.checks["naming/test-file-mirror"];
     const findings: Finding[] = [];
 
     for (const absolute of collectTreeFiles(context, SOURCE_FILE_GLOB, { includeExempt: true })) {
       const sourcePath = toSourcePath(context, absolute);
       const file = toProjectPath(config, absolute);
+      // Extension gone before either branch reads the name. Which extension a
+      // test carries says nothing about whether it is spelled on-convention, and
+      // a pattern that names extensions governs the ones it lists.
+      const bareSourcePath = withoutSourceExtension(sourcePath);
 
-      // Off-convention names are answered first because a `.spec.` file
-      // typically DOES sit beside its source: the orphan branch below has
-      // nothing to say about it, and asking it first would let the file pass.
-      if (nonconforming.some((pattern) => pattern.test(sourcePath))) {
-        findings.push({
-          severity: "warning",
-          file,
-          message:
-            `Off-convention test name — this project's suffixes are ${testSuffixes.join(", ")}.\n` +
-            `Spelled this way the test does not surface in a search for the module it\n` +
-            `covers. Rename it to that module's name plus the suffix, so the code and the\n` +
-            `test that constrains it are one search apart.`,
-        });
+      // The blessed suffixes are asked FIRST, and that ordering is the whole
+      // reason a project may bless `.spec`: the off-convention list below is
+      // fixed, so a project whose convention IS `.spec` would otherwise be told
+      // its every test is misnamed by a list it cannot edit.
+      const suffix = longestTestSuffix(bareSourcePath, testSuffixes);
+
+      // An off-convention name typically DOES sit beside its source, so the
+      // orphan branch has nothing to say about it. Reporting it here is the only
+      // thing that steers the file toward the name a search would find.
+      if (suffix === undefined) {
+        if (OFF_CONVENTION_TEST_SPELLINGS.some((pattern) => pattern.test(bareSourcePath))) {
+          findings.push({
+            severity: "warning",
+            file,
+            message:
+              `Off-convention test name — this project's suffixes are ${testSuffixes.join(", ")}.\n` +
+              `Spelled this way the test does not surface in a search for the module it\n` +
+              `covers. Rename it to that module's name plus the suffix, so the code and the\n` +
+              `test that constrains it are one search apart.`,
+          });
+        }
         continue;
       }
 
-      // Matched against the path with its extension already gone, so one
-      // extensionless suffix covers every spelling the walker accepts.
-      const suffix = longestTestSuffix(withoutSourceExtension(sourcePath), testSuffixes);
-      if (suffix === undefined) continue;
       if (orphanAllowedDirs.some((dir) => sourcePath.startsWith(`${dir}/`))) continue;
 
       const bare = withoutSourceExtension(absolute);

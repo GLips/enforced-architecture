@@ -10,6 +10,10 @@ export const barrelDiscoverabilityFixtures: CheckFixtures = {
     // stops asserting anything. One kind per path is what makes the multiset
     // catch a dropped branch.
     "FAIL src/features/gateway/index.ts",
+    // The same statement in an `index.mts`. A barrel's name is `index`; the
+    // extension is not part of it, and a walk that spells one extension governs
+    // one eighth of the barrels this tier can see.
+    "FAIL src/features/portal/index.mts",
   ],
 
   // Four shapes on four lines of ONE barrel, so the count is the entire

@@ -20,7 +20,12 @@
 // not this one's.
 // ──────────────────────────────────────────────────────────────────────
 
-import { barrelModules, subdividedDirs } from "../../policy/layout.ts";
+import {
+  barrelModules,
+  SOURCE_EXTENSION_GLOB,
+  subdividedDirs,
+  withoutSourceExtension,
+} from "../../policy/layout.ts";
 import {
   blankComments,
   collectTreeFiles,
@@ -28,6 +33,7 @@ import {
   lineStartOffsets,
   readFile,
   toProjectPath,
+  toSourcePath,
   type Finding,
   type StructuralCheck,
 } from "../check-substrate.ts";
@@ -68,14 +74,19 @@ export const barrelDiscoverabilityCheck: StructuralCheck = {
     // spells barrels. A glob configured beside this rule is the same fact
     // written twice, and the copy that goes stale reports clean over the barrels
     // it no longer matches.
-    const barrelGlobs = subdividedDirs(vocabulary).flatMap((dir) =>
-      barrelModules(vocabulary).map((barrel) => `${dir}/*/${barrel}.ts`),
-    );
+    const barrelGlobs = subdividedDirs(vocabulary).map((dir) => `${dir}/*/${SOURCE_EXTENSION_GLOB}`);
+    const barrels = barrelModules(vocabulary);
 
     for (const glob of barrelGlobs) {
       // The glob carries its own path, so it is matched from the tree's source
-      // root — barrels are named by where they sit.
+      // root — barrels are named by where they sit. The EXTENSION is not part of
+      // that name: the walk takes every source extension and the barrel name is
+      // matched with the extension stripped, so an `index.mts` is the unit's
+      // barrel exactly as an `index.ts` is.
       for (const absolute of collectTreeFiles(context, glob)) {
+        const bare = withoutSourceExtension(toSourcePath(context, absolute));
+        if (!barrels.includes(bare.slice(bare.lastIndexOf("/") + 1))) continue;
+
         const file = toProjectPath(config, absolute);
         // Blanked, never stripped: the reported line is the only thing that
         // sends a reader to the statement, and a commented-out `export *` in a

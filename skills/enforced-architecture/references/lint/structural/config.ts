@@ -139,8 +139,6 @@ export type TestFileMirrorConfig = {
    * tests findable said nothing about them.
    */
   testSuffixes: string[];
-  /** Off-convention spellings, actively steered toward the canonical suffix. */
-  nonconforming: RegExp[];
   /**
    * Source-root-relative directories where a test with no sibling source is
    * legitimate — cross-cutting suites that map to no single module.
@@ -252,7 +250,6 @@ export const defaultCheckConfigs: CheckConfigs = {
 
   "naming/test-file-mirror": {
     testSuffixes: [".test", ".integration.test"],
-    nonconforming: [/\.spec\.[tj]sx?$/, /(^|\/)test_[^/]+\.[tj]sx?$/],
     orphanAllowedDirs: [],
   },
 
