@@ -62,6 +62,19 @@ export const featureVisibilityFixtures: CheckFixtures = {
     // whichever spelling the import happened to use. `granted-target` below is
     // the same pair with the grant written, and the two only pass together.
     "FAIL src/features/aliased-target/visibility.json",
+    // hoister imports `escaping-link`, a symlink whose target is not in the tree
+    // at all — `vendor/escaping-target`, the shape vendoring and monorepo
+    // hoisting produce. `aliased-link` above is the same spelling problem with
+    // the target beside it, and it passes with this hole wide open: that name
+    // folds onto an ENUMERATED directory, and this one folds onto nothing, so
+    // only this fixture separates "resolve the name" from "resolve the name and
+    // then answer not-a-feature when the listing has never heard of it".
+    //
+    // The address is the LINK, not the target: `vendor/…` is a path no
+    // features/ vocabulary can name, and a finding nobody can clear is worth no
+    // more than the silence it replaces. `granted-escaping-link` below is the
+    // same pair with the grant written, and the two only pass together.
+    "FAIL src/features/escaping-link/visibility.json",
     // listed/visibility.json is a JSON ARRAY. It parses and it IS an object, so
     // it reaches the rejection through neither of the arms above, and dropping
     // just that disjunct is neither a crash nor a wording change:
@@ -139,6 +152,19 @@ export const featureVisibilityFixtures: CheckFixtures = {
     // back. An unclearable finding is invisible to every fixture that only ever
     // checks the denial — which is what this legal neighbour exists to say.
     "src/features/granted-target/visibility.json",
+    // The cleared half of the ESCAPING-symlink pair, and the step
+    // `escaping-link` stops short of. hoister imports `granted-escaping-link`,
+    // whose target sits outside the source root, and the grant is written in
+    // that target — reached, and reachable, only through the link name the
+    // denial's message prints.
+    //
+    // Without it, a check that denies an escaping importee without reading a
+    // grant file at it passes the denial and is unclearable: the author writes
+    // exactly the grant the message asks for and nothing changes. That is
+    // invisible to every fixture that only ever checks the denial, and the
+    // existence assertion on this path is also what keeps the vendored target
+    // and its link in the tree.
+    "src/features/granted-escaping-link/visibility.json",
     // The cycle cluster, granted in every direction. `graph/feature-deps` fails
     // on these features and this check must not — the two questions are
     // independent, and a grant is a complete answer to exactly one of them.

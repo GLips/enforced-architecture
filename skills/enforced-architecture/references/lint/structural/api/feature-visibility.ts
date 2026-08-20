@@ -21,11 +21,24 @@
 //
 // A cycle of granted edges is graph/feature-deps's finding, not this one's. No
 // grant makes a cycle legal.
+//
+// The enumeration is every DIRECTORY under features/, and a symlink is not one.
+// A feature that exists only as a link out of the tree — vendored code, a
+// hoisted package — is therefore denied and cleared under the LINK name, by the
+// deny arm alone. The two arms that iterate the enumeration never reach it: a
+// grant written there is never reported stale, and a malformed visibility.json
+// there reports nothing and leaves every import of that feature unaudited.
+//
+// Two importees this rule stays silent about, both because the finding would be
+// unclearable. A loose FILE at the features root classifies as a feature named
+// `orphan-module.ts`, and no `orphan-module.ts/visibility.json` can exist —
+// `placement/topology` reports the file itself. A link to a file outside the
+// root is the same shape with a longer path.
 // ──────────────────────────────────────────────────────────────────────
 
 import type { Finding, StructuralCheck } from "../check-substrate.ts";
 import { readFile } from "../check-substrate.ts";
-import { existsSync, realpathSync } from "node:fs";
+import { existsSync, realpathSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 /** Importing feature name → why the importee accepts that consumer. */
@@ -92,9 +105,9 @@ export const featureVisibilityCheck: StructuralCheck = {
     // symlinked feature to its target, and on a case-insensitive filesystem it
     // returns the directory as stored, so `@/features/Closed` and
     // `@/features/closed` are the one feature the module resolver already
-    // treats them as. A name that resolves to no feature directory — the loose
-    // file at the features root, or a path that is simply not there — has no
-    // canonical form and is skipped; see `canonicalFeature`.
+    // treats them as. A name that resolves to a DIRECTORY is a feature whether
+    // or not the enumeration listed it; only a name resolving to a file, or to
+    // nothing, is skipped. See `canonicalFeature`.
     const canonicalFeature = featureCanonicaliser(join(config.projectRoot, featuresDir), [
       ...visibility.keys(),
     ]);
@@ -113,11 +126,12 @@ export const featureVisibilityCheck: StructuralCheck = {
 
     for (const [key, files] of importersByEdge) {
       const [importer = "", importee = ""] = key.split("\0");
-      // Every importee reaching this loop is a canonical feature name, so the
-      // map has an entry — `canonicalFeature` dropped the edges whose importee
-      // resolves to no feature directory.
-      const file = visibility.get(importee);
-      if (file === undefined) continue;
+      // The map is keyed by the ENUMERATED directories, and one canonical
+      // feature is not among them: a link whose target leaves the features root,
+      // which `subdirs` does not list and `realpathSync` cannot fold onto
+      // anything it does. Read its grant file at the path the message is about
+      // to name — that read is what makes such a finding clearable.
+      const file = visibility.get(importee) ?? readGrantsFor(importee);
       // A malformed file already reported itself. Deriving deny-all violations
       // from it would bury that one real error under every edge into the feature.
       if (file.kind === "malformed") continue;
@@ -181,14 +195,24 @@ export const featureVisibilityCheck: StructuralCheck = {
  * is what makes those one identity — the identity the module resolver already
  * uses, which is the only one that governs the same tree the imports do.
  *
- * Undefined covers the two ways a name resolves to no feature. A loose file at
- * the features root classifies as a feature (`features/orphan-module.ts` becomes
- * a feature named `orphan-module.ts`) and denying an import of it would file
- * against `orphan-module.ts/visibility.json`, a path nobody can create and a
- * finding nobody can clear — `placement/topology` reports the file itself, which
- * is the half that can be acted on. And a name resolving to nothing at all is an
- * import that does not load; whatever is wrong with it, it is not a visibility
- * question.
+ * A name resolving to a DIRECTORY is a feature even when no enumerated one is
+ * it. A link out of the features root — vendored code, a hoisted monorepo
+ * package — is the resolver loading real code under a name the listing does not
+ * contain, and answering "not a feature" there is deny-by-default with a hole in
+ * it. It is its own feature, under the LINK name: that is the one spelling whose
+ * `visibility.json` an author can create, and a finding nobody can clear is
+ * worth no more than the silence it replaces.
+ *
+ * Undefined is the two ways a name resolves to no feature, and both are about
+ * that same clearability. A loose file at the features root classifies as a
+ * feature (`features/orphan-module.ts` becomes a feature named
+ * `orphan-module.ts`) and denying an import of it would file against
+ * `orphan-module.ts/visibility.json`, a path nobody can create —
+ * `placement/topology` reports the file itself, which is the half that can be
+ * acted on. So the test is the directory, not "does it leave the root": a link
+ * to a file outside it is still a file, and still unaddressable. And a name
+ * resolving to nothing at all is an import that does not load; whatever is wrong
+ * with it, it is not a visibility question.
  */
 function featureCanonicaliser(
   featuresRoot: string,
@@ -210,7 +234,12 @@ function featureCanonicaliser(
       // this is a boundary rather than an impossible case.
       return undefined;
     }
-    return byRealPath.get(real);
+    const enumerated = byRealPath.get(real);
+    if (enumerated !== undefined) return enumerated;
+    // Resolves outside the features root, so no enumerated directory can be it.
+    // A directory there is loadable code and gets denied under the link name; a
+    // file there is as unaddressable as the loose file at the root.
+    return statSync(real).isDirectory() ? name : undefined;
   };
 }
 
