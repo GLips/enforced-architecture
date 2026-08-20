@@ -207,6 +207,18 @@ describeRule("boundary/import-policy", importPolicyRule, {
       code: `import { formatDate } from "@/lib/format-date";`,
       errors: [{ messageId: "unclassifiedTarget" }],
     },
+    {
+      // The same unpoliced area named with ONE segment, which is the spelling
+      // that gets there. `src/lib.ts` and `src/lib/` are one string to a
+      // classifier, so an arm reading "one segment, therefore a file in the
+      // source root" hands `@/lib` the source-root row — the permissive one —
+      // while the deep spelling above stays loud. Add `src/lib/index.ts` and the
+      // bare name is unmetered access to everything under it.
+      name: "a bare alias naming no area is as loud as the deep one, not more permissive",
+      filename: FEATURE_UI,
+      code: `import { formatDate } from "@/lib";`,
+      errors: [{ messageId: "unclassifiedTarget" }],
+    },
   ],
 
   legal: [

@@ -35,6 +35,9 @@ export const layerDirectionCheck: StructuralCheck = {
 
   run({ config, importGraph }) {
     const { layerOrder } = config.source;
+    const root = config.source.roots[0];
+    if (root === undefined) return [];
+
     const findings: Finding[] = [];
 
     for (const edge of importGraph()) {
@@ -47,17 +50,24 @@ export const layerDirectionCheck: StructuralCheck = {
       // The feature's own barrel is the one unranked end this check does judge,
       // and it judges it without a rank: it sits above every layer by
       // construction, because it re-exports them.
-      if (
-        edge.from.layer !== undefined &&
-        isUnitBarrel(`${config.source.featuresDirName}/${feature}`, edge.target)
-      ) {
+      //
+      // Gated on the SOURCE not being a barrel, rather than on the source having
+      // a layer. `features/x/errors.ts` sits in no layer and produces the
+      // identical cycle — `index.ts` re-exports it — so a layer guard here reads
+      // as "the barrel is safe from the feature root", which it is not. What the
+      // guard has to exclude is a barrel importing a barrel: `index.server.ts`
+      // re-exporting `index.ts` is explicitly legal, and is the one edge into
+      // this barrel that comes from inside the unit and should stay silent.
+      const unit = `${config.source.featuresDirName}/${feature}`;
+      if (!isUnitBarrel(unit, stripRoot(edge.file, root)) && isUnitBarrel(unit, edge.target)) {
+        const inside = edge.from.layer ?? `${feature}'s root`;
         findings.push({
           severity: "error",
           file: edge.file,
           line: edge.line,
           message:
             `"${edge.specifier}" reaches feature "${feature}"'s own barrel from inside it.\n` +
-            `The barrel re-exports every layer, so ${edge.from.layer} importing it depends on\n` +
+            `The barrel re-exports every layer, so ${inside} importing it depends on\n` +
             `all of them at once — the layers above this one included — and the cycle runs\n` +
             `through the file whose job is to describe the feature from OUTSIDE. Import the\n` +
             `sibling module directly: the barrel is for consumers, not for the feature itself.`,
@@ -95,3 +105,8 @@ export const layerDirectionCheck: StructuralCheck = {
     return findings;
   },
 };
+
+/** `src/features/billing/index.ts` -> `features/billing/index.ts`, or the path unchanged. */
+function stripRoot(projectPath: string, root: string): string {
+  return projectPath.startsWith(`${root}/`) ? projectPath.slice(root.length + 1) : projectPath;
+}

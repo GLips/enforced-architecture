@@ -49,13 +49,13 @@ import {
   ASSET_EXTENSIONS,
   BARREL_MODULES,
   DOMAINS_DIR,
-  ENV_MODULES,
   FEATURE_LAYERS,
   FEATURES_DIR,
   INFRASTRUCTURE_DIR,
   ROUTES_DIR,
   SHARED_DIR,
   SOURCE_ROOT,
+  SOURCE_ROOT_FILES,
 } from "../policy/layout.ts";
 
 /**
@@ -148,6 +148,7 @@ export const defaultSourceConfig: SourceConfig = {
     /\.integration\.test\.[tj]sx?$/,
     /\/__tests__\//,
     /\/src\/test\//,
+    /\/scripts\//,
     /\.gen\.[tj]sx?$/,
     /\.d\.ts$/,
   ],
@@ -428,13 +429,11 @@ export const defaultCheckConfigs: CheckConfigs = {
 
   "placement/topology": {
     allowedRoots: [ROUTES_DIR, FEATURES_DIR, DOMAINS_DIR, INFRASTRUCTURE_DIR, SHARED_DIR],
-    allowedRootFiles: [
-      ...Object.keys(ENV_MODULES).map((module) => `${module}.ts`),
-      "router.tsx",
-      "client.tsx",
-      "server.ts",
-      "styles.css",
-    ],
+    // The same list `classifyTargetPath` gates its source-root arm on, so a
+    // project declaring a new entrypoint declares it once. Two lists here means
+    // a file this check permits that the import policy calls an unpoliced area,
+    // or the reverse — and neither tier can see the other's copy.
+    allowedRootFiles: [...SOURCE_ROOT_FILES],
     // Keyed by the same names `subdividedDirs` above carries, so renaming a
     // directory in layout.ts cannot leave this map pointing at the old one.
     boundaries: {

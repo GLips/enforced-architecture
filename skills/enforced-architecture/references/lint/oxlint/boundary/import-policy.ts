@@ -47,7 +47,7 @@ import { defineRule } from "@oxlint/plugins";
 import { evaluateImportPolicy, POLICY_MESSAGES } from "../../policy/import-policy.ts";
 import {
   classifySourcePath,
-  readAliasOrPackage,
+  classifySpecifier,
   sourcePathFromFilename,
 } from "../../policy/layout.ts";
 import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
@@ -86,7 +86,7 @@ export const importPolicyRule = defineRule({
     }
 
     return visitModuleSources((source, specifier) => {
-      const target = readAliasOrPackage(specifier);
+      const target = classifySpecifier(specifier);
       // Undefined covers a relative path, an asset, and an alias resolving
       // outside the source root. The first belongs to the structural tier; the
       // other two are not module edges at all.

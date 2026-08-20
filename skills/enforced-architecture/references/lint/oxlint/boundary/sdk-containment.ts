@@ -52,7 +52,7 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule } from "@oxlint/plugins";
-import { packageNameOf, SOURCE_ROOT } from "../../policy/layout.ts";
+import { classifySpecifier, SOURCE_ROOT } from "../../policy/layout.ts";
 import { PACKAGE_OWNERS } from "../../policy/package-owners.ts";
 import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
 import { visitModuleSources } from "../lib/module-source-visitor.ts";
@@ -91,13 +91,17 @@ export const sdkContainmentRule = defineRule({
     if (contained.length === 0) return {};
 
     return visitModuleSources((source, specifier) => {
-      // Only a bare specifier names a package. A relative path that happens to end
-      // in a package's name is a file in this repo.
-      if (specifier.startsWith(".") || specifier.startsWith("/")) return;
-      const name = packageNameOf(specifier);
+      // Which specifiers name a PACKAGE is `lint/policy/layout.ts`'s answer, not
+      // this rule's. Only the policy KEY is different here — exact package and
+      // exact module rather than area — and re-deriving the vocabulary underneath
+      // it is how a rule ends up disagreeing with the tier it sits in: an inline
+      // `startsWith(".")` test reads `@/foo` as a package named `@/foo`, because
+      // an alias is neither relative nor bare.
+      const target = classifySpecifier(specifier);
+      if (target?.kind !== "package") return;
 
       for (const row of contained) {
-        if (row.package !== name) continue;
+        if (row.package !== target.name) continue;
         context.report({
           node: source,
           messageId: "rawSdkOutsideOwner",

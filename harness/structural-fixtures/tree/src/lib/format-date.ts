@@ -14,7 +14,7 @@
 // being in no area is a fact about the FILE, so a second import must not produce
 // a second finding.
 import { sharedThing } from "../shared/lib/shared-thing.ts";
-import { rootThing } from "../root-neighbour.ts";
+import { rootThing } from "../router.tsx";
 
 export const provenance = `${sharedThing}${rootThing}`;
 

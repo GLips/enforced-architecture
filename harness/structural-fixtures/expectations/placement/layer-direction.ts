@@ -27,6 +27,13 @@ export const layerDirectionFixtures: CheckFixtures = {
     // aliased specifier belongs to the linter — so without this arm the edge is
     // governed by nothing in either tier.
     "FAIL src/features/orders/ui/barrel-alias-upward.ts",
+    // The same barrel edge from a file at the FEATURE ROOT, which sits in no
+    // layer. `index.ts` re-exports it, so the cycle is identical — and an arm
+    // gated on the source HAVING a layer waves it past, which reads as "the
+    // barrel is safe from the feature root". The guard has to exclude a barrel
+    // importing a barrel instead; `index.server.ts` re-exporting `index.ts` is
+    // the legal edge it must not catch.
+    "FAIL src/features/orders/errors.ts",
   ],
 
   legal: [

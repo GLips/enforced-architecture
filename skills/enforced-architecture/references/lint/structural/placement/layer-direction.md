@@ -34,6 +34,8 @@ import { placeOrder } from "../index.ts";            // reaches the feature's ow
 
 The barrel sits in no layer, so the rank comparison below skips it — and it is the sharpest upward edge a feature can contain. The barrel re-exports the layers, so `ui` reaching it takes a dependency on all of them at once, including every layer above `ui`, and the cycle runs through the file whose job is to describe the feature from *outside*. The fix is to import the sibling module directly; the barrel is for consumers.
 
+It fires from a feature ROOT file too, not only from a layer. `errors.ts` sits in no layer and `index.ts` re-exports it, so the cycle is identical — an arm gated on the source having a layer would read as "the barrel is safe from the feature root", which it is not. What the guard excludes instead is a barrel importing a barrel: `index.server.ts` re-exporting `index.ts` is explicitly legal and is the one edge into this barrel from inside the unit that must stay silent.
+
 This arm is here rather than in `boundary/import-policy` because the policy engine returns `internal` for it: source and target are one unit, which is exactly right for a policy about crossings and exactly wrong for the question of direction inside a feature. It also fires on the **aliased** spelling, which is what auto-import writes and which the structural half of `import-policy` never sees.
 
 ## Why this is a script and not a lint rule
@@ -63,7 +65,7 @@ Every edge in the import graph whose two ends sit in the **same feature** and ca
 
 **It does not detect downward layer skips.** `controllers` importing straight past `service` into `repo`, or past both into the DB schema, runs the *right* way and is silent here. That is [boundary/layer-occupancy](../boundary/layer-occupancy.md), which asks a different question — whether the skipped layer exists on disk — and needs the layer names by name to ask it. The two rules get conflated constantly. Direction and occupancy are independent: an edge can be wrong under either, both, or neither, and one check answering both is a check nobody can predict.
 
-**A file at a feature root is not this rule's finding — except the barrel.** An ordinary root file has no layer, so no edge touching it can run upward or downward. Whether it belongs there at all is `placement/topology`'s question, and answering it here means an absent layer needs a rank — which it acquires by accident, `-1` from an `indexOf` or `0` from being treated as the top, and either one invents violations against ordinary code.
+**A file at a feature root is not this rule's finding — except when a barrel is on either end.** An ordinary root file has no layer, so no edge touching it can run upward or downward. Whether it belongs there at all is `placement/topology`'s question, and answering it here means an absent layer needs a rank — which it acquires by accident, `-1` from an `indexOf` or `0` from being treated as the top, and either one invents violations against ordinary code.
 
 **It says nothing about whether an edge should exist.** Only which way it runs. A `ui`→`service` import that skips `controllers` entirely, a feature importing a domain, a service importing a package — all outside.
 
@@ -106,7 +108,7 @@ The second is the same violation as the first with a different spelling, and the
 
 ## Fixtures
 
-The barrel arm carries three of its own. The relative `../index.ts` and the aliased `@/features/<self>` are the same edge in the two spellings a feature writes it in — the aliased one is what an editor's auto-import produces, so it is the likelier of the two. The legal neighbour is a layer importing *another* feature's barrel, which is the ordinary way one feature uses another: an arm that compares the path shape instead of the feature name reports every cross-feature import in the repo.
+The barrel arm carries four of its own. The relative `../index.ts` and the aliased `@/features/<self>` are the same edge in the two spellings a feature writes it in — the aliased one is what an editor's auto-import produces, so it is the likelier of the two. The third is the same edge from a feature ROOT file, which has no layer and which a rank-shaped implementation therefore waves past. The legal neighbour is a layer importing *another* feature's barrel, which is the ordinary way one feature uses another: an arm that compares the path shape instead of the feature name reports every cross-feature import in the repo.
 
 The three direction violations are one edge in three spellings, which is the rest of the test. The plain `../service/…` from `repo/` is the regression guard: it is the only one a specifier pattern already caught, and resolving properly had to keep it. The nested `../../service/…` and the same-feature aliased climb are what a pattern loses — the first because it expected one `../`, the second because it expected any `../` at all.
 

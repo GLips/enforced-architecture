@@ -5,7 +5,7 @@
 // gets wrong, and the one that gets it switched off, because the file it
 // refuses is one the architecture's own directory model recommends.
 //
-// The neighbouring `entry-neighbour.ts` and `root-neighbour.ts` are here for
+// The neighbouring `client.tsx` and `router.tsx` are here for
 // another check and reach the same branch; this one proves the branch reads the
 // catalog default rather than only the fixture config's two additions.
 export const databaseUrl = process.env.DATABASE_URL ?? "";

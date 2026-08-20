@@ -10,18 +10,21 @@ This reference covers the recommended setup: domains layer present, features wit
 
 Read as: "Can `{row}` import from `{column}`?"
 
-| Source ↓ imports Target → | `infrastructure/db/` | `infrastructure/*` | `features/` | `domains/` | `shared/` | `shared/ui/` | `routes/` | `env.server` | `env.client` |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| **`infrastructure/db/`** | self | NO | NO | NO | YES | NO | NO | `client.ts` only | NO |
-| **`infrastructure/*`** | designated files | self | NO | NO | YES | NO | NO | YES | YES |
-| **`features/*/controllers/`** | via repo (if exists) | YES | public API only | YES | YES | NO | NO | YES | YES |
-| **`features/*/service/`** | NO | NO | public API only | YES | YES | NO | NO | NO | NO |
-| **`features/*/repo/`** | YES | YES | NO | NO | YES | NO | NO | NO | NO |
-| **`features/*/ui/`** | NO | NO | own controllers, other features' public API | NO | YES | YES | NO | NO | YES |
-| **`domains/*`** | NO | NO | NO | self (no cycles) | YES | NO | NO | NO | NO |
-| **`shared/*`** | NO | NO | NO | NO | self | --- | NO | NO | YES |
-| **`shared/ui/*`** | NO | NO | NO | NO | YES | self | NO | NO | YES |
-| **`routes/*`** | NO | client-safe allowlist only | YES (client-safe public API + ui) | NO | YES | YES | self | NO | YES |
+| Source ↓ imports Target → | `infrastructure/db/` | `infrastructure/*` | `features/` | `domains/` | `shared/` | `shared/ui/` | `routes/` | `env.server` | `env.client` | source root | packages |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| **`infrastructure/db/`** | self | NO | NO | NO | YES | NO | NO | `client.ts` only | NO | NO | YES |
+| **`infrastructure/*`** | designated files | self | NO | NO | YES | NO | NO | YES | YES | NO | YES |
+| **`features/*/controllers/`** | via repo (if exists) | YES | public API only | barrels only | YES | NO | NO | YES | YES | NO | YES |
+| **`features/*/service/`** | NO | NO | public API only | barrels only | YES | NO | NO | NO | NO | NO | YES |
+| **`features/*/repo/`** | YES | YES | NO | NO | YES | NO | NO | NO | NO | NO | YES |
+| **`features/*/ui/`** | NO | client-safe allowlist only | own controllers, other features' public API | NO | YES | YES | NO | NO | YES | NO | YES |
+| **`domains/*`** | NO | NO | NO | barrels, self (no cycles) | YES | NO | NO | NO | NO | NO | types only |
+| **`shared/*`** | NO | NO | NO | NO | self | NO | NO | NO | YES | NO | YES |
+| **`shared/ui/*`** | NO | NO | NO | NO | YES | self | NO | NO | YES | NO | YES |
+| **`routes/*`** | NO | client-safe allowlist only | YES (client-safe public API + ui) | NO | YES | YES | self | NO | YES | NO | YES |
+| **`features/*/index.ts`** | NO | NO | NO | NO | NO | NO | NO | NO | NO | NO | NO |
+| **`features/*` root files** | NO | NO | barrels only | barrels only | YES | NO | NO | NO | NO | NO | YES |
+| **source root** (`client.tsx`, `router.tsx`, …) | NO | YES | NO | NO | YES | YES | YES | YES | YES | self | YES |
 
 ### Reading the matrix
 
@@ -38,7 +41,15 @@ The cells that carry real information are the qualified ones — where the answe
 | `features/*/ui/` → `infrastructure/*` — *client-safe allowlist* | A short allowlist (a browser auth client, a query client). Everything else is server-only. | `boundary/client-server-infra` |
 | `features/*/ui/` → `features/` — *own controllers, others' public API* | Relative imports within the feature; the client-safe barrel across features. Cross-feature `ui/*` is banned outright, and so is the feature's own barrel from inside it. | `boundary/import-policy`, `placement/layer-direction` |
 | `routes/*` → `features/` — *client-safe public API + `ui/*`* | Routes may deep-import `ui/`, and only `ui/`. Never `index.server`, controllers, service, or repo. | `boundary/import-policy`, `api/server-import-context` |
-| `domains/*` → `domains/` — *self, no cycles* | Domains import each other through barrels; a cycle between two is a hard failure, because domains are the floor. | `graph/domain-cycles` |
+| `domains/*` → `domains/` — *barrels, self, no cycles* | Domains import each other through barrels; a cycle between two is a hard failure, because domains are the floor. | `boundary/import-policy`, `graph/domain-cycles` |
+| `domains/*` → packages — *types only* | A type import is erased and cannot change what an answer depends on. A runtime one can, including a schema library — parsing is a boundary decision. | `boundary/import-policy` |
+
+The last three rows and the last two columns are positions with no directory of their own, and they are in the table because `boundary/import-policy` decides them whether or not anyone wrote them down:
+
+- **`features/*/index.ts`** — a feature's barrel imports NOTHING outside its own feature. It exists to re-export, and every dependency it takes on is one every consumer inherits without asking.
+- **`features/*` root files** — `errors.ts` and friends sit in no layer. They may reach a barrel and `shared/`, and nothing else; they may not reach their own feature's barrel, which is a cycle (`placement/layer-direction`).
+- **source root** — `client.tsx`, `router.tsx`, `server.ts` and the env modules are ONE unit, so they import each other freely. **`env.server` from this row is permitted by the policy and fenced only by the bundler**, because one profile covers both the browser entrypoint and the server one. If that matters to a project, split the row before adopting.
+- **packages** are the column every other rule forgets. Only `domains/*` is restricted, and only at runtime: a domain may name a package's TYPES from anywhere and execute none of them. Containment of a specific package is `boundary/sdk-containment`'s question, not this table's.
 
 Three cells look like ordinary NOs and are worth stating explicitly, because each is a purity claim rather than a direction claim:
 

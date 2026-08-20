@@ -64,7 +64,7 @@
 // ── Adapt ────────────────────────────────────────────────────────────────────
 //
 // Change a cell, not a rule. The row is the position a file occupies and the
-// column is where its import lands; `Surface` is what the cell grants, and it
+// column is where its import lands; `ImportSurface` is what the cell grants, and it
 // carries the exposure question with it so `deny` stays a DIRECTION message and a
 // surface mismatch stays an EXPOSURE message without either being separate data.
 //
@@ -107,7 +107,7 @@ import {
  *     why: "The router mounts the query client because …",
  *   }
  */
-export type Surface =
+export type ImportSurface =
   | "deny"
   | "any"
   | "barrel"
@@ -125,7 +125,7 @@ export type Surface =
  * That is why the `feature-barrel` row is `deny` across the board rather than
  * needing an "own only" value, and why there is no public relation enum.
  */
-export const IMPORT_POLICY: Record<SourceProfile, Record<TargetArea, Surface>> = {
+export const IMPORT_POLICY: Record<SourceProfile, Record<TargetArea, ImportSurface>> = {
   route: {
     route: "any",
     feature: "barrel-or-ui-subtree",
@@ -269,6 +269,13 @@ export const IMPORT_POLICY: Record<SourceProfile, Record<TargetArea, Surface>> =
     package: "any",
   },
 
+  // NEGATIVE SPACE: one profile covers `client.tsx` and `server.ts` alike, so the
+  // `env-server` cell below permits the BROWSER entrypoint to import server env
+  // and the bundler is the only thing that stops it. That is a real gap and a
+  // deliberate one: splitting this into a client-entry and a server-entry profile
+  // needs a rule for telling them apart that is not "the filename", and a wrong
+  // guess denies the server entrypoint its own config. A project that wants the
+  // fence rather than the bundler adds the two profiles and decides both rows.
   "source-root": {
     route: "any",
     feature: "deny",
@@ -291,6 +298,14 @@ export const IMPORT_POLICY: Record<SourceProfile, Record<TargetArea, Surface>> =
  * because a type import is erased and cannot make a verdict depend on anything.
  * This is the only profile where the runtime/type distinction changes an outcome,
  * so it is a flag on one row rather than an applicability framework. Every other profile applies to all imports.
+ *
+ * The two tiers mark `typeOnly` at different granularities, and both denials are
+ * correct. The linter reads it per DECLARATION; the resolved graph reads it per
+ * specifier string, so a module a domain imports both as `import type` and at
+ * runtime is type-only in neither. A reader comparing the two diagnostics on one
+ * line sees `deniedDirection` from the linter and `impureDomainRuntimeImport`
+ * from the graph — one edge, two message ids, and the coarser reading is the
+ * safe direction to be wrong in.
  *
  * `package` is deliberately absent, which is stricter than the table's
  * `domain → package: "any"` cell and is meant to be: the cell governs the type
@@ -527,7 +542,7 @@ export function renderPolicyMessage(
  * caller has already returned on it, and a branch here for a case that cannot
  * arrive is a code path with no subject.
  */
-type GrantingSurface = Exclude<Surface, "deny">;
+type GrantingSurface = Exclude<ImportSurface, "deny">;
 
 function surfaceAdmits(surface: GrantingSurface, unit: string, path: string): boolean {
   if (surface === "any") return true;

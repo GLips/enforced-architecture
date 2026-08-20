@@ -34,12 +34,12 @@ import {
   evaluateImportPolicy,
   IMPORT_POLICY,
   type PolicyVerdict,
-  type Surface,
+  type ImportSurface,
 } from "./import-policy.ts";
 import {
   classifySourcePath,
   classifyTargetPath,
-  readAliasOrPackage,
+  classifySpecifier,
   type SourceProfile,
   sourcePathFromFilename,
   type TargetArea,
@@ -71,7 +71,7 @@ type Row = {
   specifier: string;
   profile: SourceProfile;
   area: TargetArea;
-  surface: Surface;
+  surface: ImportSurface;
 };
 
 const CLASSIFICATION: Row[] = [
@@ -290,7 +290,7 @@ describeSuite("classification: every path lands on the cell its author intended"
       assert.notEqual(from, undefined, `${row.from} classified as nothing`);
       assert.equal(from?.profile, row.profile);
 
-      const read = readAliasOrPackage(row.specifier);
+      const read = classifySpecifier(row.specifier);
       assert.notEqual(read, undefined, `${row.specifier} read as nothing`);
 
       const area =
@@ -326,9 +326,9 @@ describeSuite("classification: what is deliberately not classified", () => {
   });
 
   testCase("an asset and a relative path are not this tier's question", () => {
-    assert.equal(readAliasOrPackage("../styles.css"), undefined);
-    assert.equal(readAliasOrPackage("./InvoiceTable"), undefined);
-    assert.equal(readAliasOrPackage("@/styles.css?url"), undefined);
+    assert.equal(classifySpecifier("../styles.css"), undefined);
+    assert.equal(classifySpecifier("./InvoiceTable"), undefined);
+    assert.equal(classifySpecifier("@/styles.css?url"), undefined);
   });
 
   testCase("a filename outside any source root yields no path to classify", () => {
@@ -343,7 +343,7 @@ function verdict(
   specifier: string,
   options: { typeOnly?: boolean } = {},
 ): PolicyVerdict {
-  const read = readAliasOrPackage(specifier);
+  const read = classifySpecifier(specifier);
   assert.notEqual(read, undefined, `${specifier} is not a specifier this helper can read`);
   return evaluateImportPolicy({
     sourcePath: from,

@@ -36,18 +36,6 @@ export const fixtureConfig: ArchitectureConfig = {
       roots: ["src", "packages/core/src"],
     },
 
-    "placement/topology": {
-      ...defaultCheckConfigs["placement/topology"],
-      // The two source-root files the boundary fixtures need. A file directly in
-      // the source root is not a layer, and naming each one here rather than
-      // widening `allowedRoots` is the distinction this check exists to hold.
-      allowedRootFiles: [
-        ...defaultCheckConfigs["placement/topology"].allowedRootFiles,
-        "entry-neighbour.ts",
-        "root-neighbour.ts",
-      ],
-    },
-
     "style/token-equality": {
       ...defaultCheckConfigs["style/token-equality"],
       spacingScale: spacing,

@@ -90,6 +90,32 @@ export const ENV_MODULES: Record<string, "env-server" | "env-client"> = {
 };
 
 /**
+ * Every FILE that may sit directly in the source root, with its extension.
+ *
+ * This list is what stops the last arm of `classifyTargetPath` from being
+ * "anything left over". One path segment is ambiguous by construction — the
+ * classifier cannot tell the file `src/lib.ts` from the directory `src/lib/` —
+ * so without a declared list, `@/lib` reads as a source-root file and reaches
+ * `source-root`'s permissive row, while `@/lib/format-date` correctly reports
+ * `unclassifiedTarget`. Add `src/lib/index.ts` and every route can reach an
+ * unpoliced tree through the bare spelling, which is the exact state the
+ * unclassified messages exist to make loud.
+ *
+ * `placement/topology` reads this same list as its `allowedRootFiles`, so a
+ * project adding an entrypoint declares it once. A project that adopted only the
+ * oxlint tier has no topology check at all, which is the other half of the
+ * argument for the list living here rather than in that rule's config.
+ */
+export const SOURCE_ROOT_FILES = [
+  ...Object.keys(ENV_MODULES).map((module) => `${module}.ts`),
+  "router.tsx",
+  "client.tsx",
+  "server.ts",
+  "styles.css",
+  "routeTree.gen.ts",
+];
+
+/**
  * Aliases that resolve OUTSIDE the source root. A tsconfig path mapping onto a
  * sibling directory — `@/assets/*` onto the repo's `assets/` — is not an
  * unpoliced area, it is not an application module at all. Without this, the
@@ -268,7 +294,7 @@ export function aliasSpecifierFor(pathFromSourceRoot: string): string {
  * because it follows from the data: a package has no relative spelling, and a
  * relative path has no meaning without the tree.
  */
-export function readAliasOrPackage(
+export function classifySpecifier(
   specifier: string,
 ): { kind: "module"; path: string } | { kind: "package"; name: string } | undefined {
   if (isAssetSpecifier(specifier)) return undefined;
@@ -384,16 +410,26 @@ export function classifyTargetPath(pathFromSourceRoot: string): TargetPlace | un
   // deliberately absent: they are subdivided, so the bare directory names no unit at all.
   if (second === undefined) {
     const env = ENV_MODULES[path];
-    if (env !== undefined) return { area: env, unit: path, path };
+    // The env modules carry their own AREA, because what may reach server env is
+    // the question two columns of the table exist to answer — and the source-root
+    // UNIT, because they sit in the source root and `src/router.tsx` importing
+    // `./env.client` is two files in one unit composing the app. Splitting the
+    // unit off the area here reported that sibling import as a hidden crossing
+    // and told the author to write `@/env.client`, which is the same edge.
+    if (env !== undefined) return { area: env, unit: SOURCE_ROOT_UNIT, path };
     if (top === ROUTES_DIR) return { area: "route", unit: ROUTES_DIR, path };
     if (top === INFRASTRUCTURE_DIR) {
       return { area: "infrastructure", unit: INFRASTRUCTURE_DIR, path };
     }
     if (top === SHARED_DIR) return { area: "shared", unit: SHARED_DIR, path };
-    // Anything else with one segment is another file in the source root. There is
-    // no per-file unit here for the same reason there is no per-file profile.
-    if (top === FEATURES_DIR || top === DOMAINS_DIR) return undefined;
-    return { area: "source-root", unit: SOURCE_ROOT_UNIT, path };
+    // A DECLARED source-root file, and nothing else. One segment cannot be read
+    // as "a file, therefore the source root": `src/lib.ts` and `src/lib/` are one
+    // string here, so falling through would hand `@/lib` the source-root row and
+    // leave an unpoliced directory reachable by its bare name from anywhere.
+    if (SOURCE_ROOT_FILES.some((file) => withoutSourceExtension(file) === path)) {
+      return { area: "source-root", unit: SOURCE_ROOT_UNIT, path };
+    }
+    return undefined;
   }
 
   if (top === ROUTES_DIR) return { area: "route", unit: ROUTES_DIR, path };

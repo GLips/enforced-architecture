@@ -40,6 +40,27 @@ and the directory has bought nothing.
 The table is exhaustive by type: every `SourceProfile` must name every `TargetArea`, so adding
 either without deciding the new cells is a compile error rather than a silent `any`.
 
+## There is a second path classifier, and which one to reach for
+
+`structural/import-graph.ts` classifies a path too, into a **boundary** — `features/alpha`,
+`shared`, `infrastructure` — and that is not the same answer `layout.ts` gives. Both take a
+source-root-relative path and split it on segments; they deliberately disagree about one thing, and
+the disagreement is the point:
+
+| | `import-graph.ts`'s `classify` | `layout.ts`'s `classifySourcePath` |
+|---|---|---|
+| Answers | boundary, feature, layer | profile and **unit** |
+| `shared/ui/card.ts` | boundary `shared` | unit `shared/ui` |
+| Reach for it when | the question is about the coarse grouping — cycles between features, coupling counts, which feature an edge belongs to | the question is what an edge is *permitted* to do |
+
+`graph/domain-cycles` and `graph/feature-deps` want the coarse one: a cycle between two features is
+a fact about the features, and subdividing `shared` would not change it. Anything the policy touches
+wants the fine one, because `shared/ui` and `shared` being one boundary and two units is exactly the
+edge a boundary comparison cannot see.
+
+A new check picks by that question, not by which import is closer to hand. `placement/layer-direction`
+uses both in one function and is the seam to read first if this ever needs changing.
+
 The spec ships beside the tables for the same reason a rule's spec ships beside the rule — a project
 copying `policy/` gets the proof that it still means what it meant here. It runs under Node with the
 oxlint tier (`bun run check:rules`), because a table proved in one runtime and consumed in two is a

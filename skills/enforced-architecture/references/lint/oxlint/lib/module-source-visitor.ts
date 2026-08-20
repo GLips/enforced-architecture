@@ -1,33 +1,32 @@
 import type { ESTree, Visitor } from "@oxlint/plugins";
 
-/**
- * Every place a module specifier can appear: the four static forms, `import()`, the two CommonJS
- * spellings, `import x = require(…)`, and `import("…")` in type position. Boundary rules fence on
- * the specifier string, and a fence that misses one form is one `await import()` — or one
- * `export … from` — away from useless, so they all go through here rather than each rule picking
- * the node types it happened to think of.
- *
- * This is the single biggest correctness win of the port. Under GritQL the same coverage needed
- * `or { JsModuleSource() as $source, \`import($source)\` }` pasted into every boundary template,
- * and the templates that forgot the second arm silently ignored dynamic imports.
- *
- * `require()` and `require.resolve()` are here because the resolved import graph retains both and
- * this helper did not, so the two tiers disagreed about what an import even IS — and a rule the
- * graph would have caught passed the linter. This is NOT a prohibition on CommonJS: the two
- * spellings create the same dependency, so a rule about dependencies has to see both.
- * `typescript/no-require-imports` exists if the prohibition is ever wanted as well.
- *
- * The TypeScript-only spellings are here for the same reason the CommonJS ones are: they compile,
- * they name an aliased module, and the tier that owns aliased specifiers is this one. A form that
- * only this tier can see is a form that escapes BOTH tiers when it is missed, because the resolved
- * graph skips every non-relative edge.
- *
- * NEGATIVE SPACE: a computed specifier — `import(path)`, `require(name)`, an interpolated template
- * — is not visited, because there is nothing to fence on. A template with no substitutions IS
- * checkable and is visited. `boundary/ambient-globals` does not read this helper at all: its
- * subject is a global rather than a module edge, and the module spellings it does recognise are
- * one field on one policy row.
- */
+// Every place a module specifier can appear: the four static forms, `import()`, the two CommonJS
+// spellings, `import x = require(…)`, and `import("…")` in type position. Boundary rules fence on
+// the specifier string, and a fence that misses one form is one `await import()` — or one
+// `export … from` — away from useless, so they all go through here rather than each rule picking
+// the node types it happened to think of.
+//
+// This is the single biggest correctness win of the port. Under GritQL the same coverage needed
+// `or { JsModuleSource() as $source, \`import($source)\` }` pasted into every boundary template,
+// and the templates that forgot the second arm silently ignored dynamic imports.
+//
+// `require()` and `require.resolve()` are here because the resolved import graph retains both and
+// this helper did not, so the two tiers disagreed about what an import even IS — and a rule the
+// graph would have caught passed the linter. This is NOT a prohibition on CommonJS: the two
+// spellings create the same dependency, so a rule about dependencies has to see both.
+// `typescript/no-require-imports` exists if the prohibition is ever wanted as well.
+//
+// The TypeScript-only spellings are here for the same reason the CommonJS ones are: they compile,
+// they name an aliased module, and the tier that owns aliased specifiers is this one. A form that
+// only this tier can see is a form that escapes BOTH tiers when it is missed, because the resolved
+// graph skips every non-relative edge.
+//
+// NEGATIVE SPACE: a computed specifier — `import(path)`, `require(name)`, an interpolated template
+// — is not visited, because there is nothing to fence on. A template with no substitutions IS
+// checkable and is visited. `boundary/ambient-globals` does not read this helper at all: its
+// subject is a global rather than a module edge, and the module spellings it does recognise are
+// one field on one policy row.
+
 /**
  * The node a diagnostic is anchored to. A `TemplateElement` rather than a cast, because the only
  * honest node for `import(`@/shared/utils`)` is the quasi itself — casting it to a StringLiteral

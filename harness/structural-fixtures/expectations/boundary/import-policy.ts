@@ -70,8 +70,15 @@ export const importPolicyFixtures: CheckFixtures = {
     // Two files directly in the source root importing each other. They have no
     // directory component, so taking "the first path segment" as the unit reads
     // them as two units and invents a crossing.
-    "src/entry-neighbour.ts",
-    "src/root-neighbour.ts",
+    "src/client.tsx",
+    "src/router.tsx",
+    // A source-root entrypoint importing a sibling env module — the most common
+    // edge in the source root, in its most natural spelling. The env modules
+    // carry their own AREA, because what may reach server env is what two
+    // columns of the table exist to answer; they carry the source root's UNIT,
+    // because that is where they sit. Split those apart and this reports a
+    // permitted crossing and prescribes `@/env.server`: the same edge.
+    "src/server.ts",
     // Relative imports landing inside features/alpha, in both the plain and the
     // wrapped spelling. The climb is the same shape as the fires-cases; only
     // where it lands differs, so a check keying on `../` counts reports these.
