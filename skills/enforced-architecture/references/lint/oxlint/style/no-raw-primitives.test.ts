@@ -99,6 +99,39 @@ describeRule("style/no-raw-primitives", noRawPrimitivesRule, {
       errors: [{ messageId: "platformPrimitive" }],
     },
     {
+      name: "a backtick specifier, which is what a string-literal fence teaches people to write",
+      filename: COMPONENT,
+      code: `const { View } = require(\`react-native\`);\nexport const used = View;`,
+      errors: [{ messageId: "platformPrimitive" }],
+    },
+    {
+      name: "bound inside a function, where a module-scope sweep sees no binding at all",
+      filename: COMPONENT,
+      code: `function open() {\n  const { View } = require("react-native");\n  return View;\n}\nexport const used = open;`,
+      errors: [{ messageId: "platformPrimitive" }],
+    },
+    {
+      name: "an unbound read and an import specifier in one file, found by different arms",
+      filename: COMPONENT,
+      code: `import { Text } from "react-native";\nexport const a = require("react-native").View;\nexport const b = Text;`,
+      errors: [
+        { messageId: "platformPrimitive", line: 1 },
+        { messageId: "platformPrimitive", line: 2 },
+      ],
+    },
+    {
+      name: "two primitives in one destructure, which must draw one diagnostic each and not four",
+      filename: COMPONENT,
+      code: `const { View, Text } = require("react-native");\nexport const used = [View, Text];`,
+      errors: [{ messageId: "platformPrimitive" }, { messageId: "platformPrimitive" }],
+    },
+    {
+      name: "a rest element beside a primitive, which names no key of its own",
+      filename: COMPONENT,
+      code: `import * as RN from "react-native";\nconst { View, ...rest } = RN;\nexport const used = [View, rest];`,
+      errors: [{ messageId: "platformPrimitive" }],
+    },
+    {
       name: "a re-export hands the primitive on without the word import appearing",
       filename: COMPONENT,
       code: `export { Text } from "react-native";`,
@@ -158,6 +191,36 @@ describeRule("style/no-raw-primitives", noRawPrimitivesRule, {
       name: "a package that merely starts with the platform module's name is a different package",
       filename: COMPONENT,
       code: `import { View } from "react-native-web";\nexport const used = View;`,
+    },
+    {
+      name: "a different package reaches nothing, through any of the runtime load spellings",
+      filename: COMPONENT,
+      code: `import Eq = require("react-native-web");\nconst RN = require("react-native-web");\nexport const used = [Eq.View, RN.View, require("react-native-web").View];`,
+    },
+    {
+      name: "a call that is not a module load, and one that names a path without loading it",
+      filename: COMPONENT,
+      code: `export const a = load("react-native").View;\nexport const b = require.resolve("react-native").View;`,
+    },
+    {
+      name: "an import-equals that aliases a local namespace loads no module at all",
+      filename: COMPONENT,
+      code: `declare namespace NS { const View: unknown; }\nimport alias = NS;\nexport const used = alias.View;`,
+    },
+    {
+      name: "an array pattern binds an element of the module object, which is not the module",
+      filename: COMPONENT,
+      code: `const [RN] = require("react-native");\nexport const used = RN.View;`,
+    },
+    {
+      name: "a namespace handed on as a value is read wherever it lands, which is not this file",
+      filename: COMPONENT,
+      code: `import * as RN from "react-native";\nexport const platform = RN;`,
+    },
+    {
+      name: "an interpolated specifier names a family of modules, so there is nothing to fence on",
+      filename: COMPONENT,
+      code: `const suffix = "-web";\nexport const used = require(\`react-native\${suffix}\`).View;`,
     },
     {
       name: "the primitives layer is where the raw elements are allowed to live",

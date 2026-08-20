@@ -39,11 +39,12 @@
 // type-only import is erased and reads nothing.
 //
 // Where `alsoImportedFrom` names a module, every spelling that reaches it is
-// one read: a named or namespace import, `require()`, `await import()` — bound
-// or destructured — and a bare `(await import("node:process")).env`. What is
-// NOT followed is the capability passed on as a value (`f(process)`), and
-// `import("node:process").then(({ env }) => …)`, where the name is a callback
-// parameter and following it means following the promise.
+// one read: a named, default or namespace import, `import x = require()`,
+// `require()` and `await import()` — bound, destructured, or read straight off
+// the load expression. What is NOT followed is the capability passed on as a
+// value (`f(process)`), a module bound by assignment rather than declaration,
+// and `import("node:process").then(({ env }) => …)`, where the name is a
+// callback parameter and following it means following the promise.
 // ──────────────────────────────────────────────────────────────────────
 
 import {
@@ -210,6 +211,25 @@ export const ambientGlobalsRule = defineRule({
     };
 
     /**
+     * Records a read taken straight off a load expression, which binds no name for the reference
+     * walk to find: `(await import("node:process")).env`, `require("node:process").env`.
+     */
+    const pushUnboundLoadRoot = (loaded: ESTree.Node) => {
+      const specifier = runtimeImportSpecifier(loaded);
+      if (specifier === undefined) return;
+      const parent: ESTree.Node | null | undefined = loaded.parent;
+      if (parent === null || parent === undefined) return;
+      if (parent.type !== "MemberExpression" || parent.object !== loaded) return;
+      for (const policy of enforced) {
+        const segments = capabilitySegments(policy, specifier);
+        if (segments === undefined) continue;
+        // A dotted path starts at its first segment; a bare global IS the module's export, so the
+        // namespace is not its parent and the path starts empty. Same split as a destructure.
+        roots.push({ node: loaded, path: segments.length >= 2 ? segments[0] : "" });
+      }
+    };
+
+    /**
      * Reports the properties of a destructure whose keys complete a restricted path.
      *
      * `basePath` is what the destructured object IS: the host's empty path for `const { fetch } =
@@ -341,23 +361,31 @@ export const ambientGlobalsRule = defineRule({
         }
       },
 
-      // `(await import("node:process")).env` loads the module and reads the capability in one
-      // expression, binding nothing — so no declaration and no reference names it, and only the
-      // AST has it. Restricted to the member read: the two spellings that DO bind a name are the
-      // VariableDeclarator arm's below, and two arms reaching one read report it twice.
+      // `(await import("node:process")).env` and `require("node:process").env` load the module and
+      // read the capability in one expression, binding nothing — so no declaration and no
+      // reference names either, and only the AST has them. Restricted to the member read: the
+      // spellings that DO bind a name belong to the VariableDeclarator arm below, and two arms
+      // reaching one read report it twice.
       ImportExpression(node) {
-        const specifier = runtimeImportSpecifier(node);
-        if (specifier === undefined) return;
-        const loaded: ESTree.Node = node.parent?.type === "AwaitExpression" ? node.parent : node;
-        const parent: ESTree.Node | null | undefined = loaded.parent;
-        if (parent === null || parent === undefined) return;
-        if (parent.type !== "MemberExpression" || parent.object !== loaded) return;
+        pushUnboundLoadRoot(node.parent?.type === "AwaitExpression" ? node.parent : node);
+      },
+
+      CallExpression(node) {
+        pushUnboundLoadRoot(node);
+      },
+
+      // `import process = require("node:process")` binds the module and reaches no
+      // ImportDeclaration. Only the rebinding is needed — a type-only import-equals can be read
+      // only in type position, which is a TSQualifiedName the member walk never matches, so it
+      // falls out with no `importKind` guard.
+      TSImportEqualsDeclaration(node) {
+        if (node.moduleReference.type !== "TSExternalModuleReference") return;
+        const specifier = node.moduleReference.expression.value;
         for (const policy of enforced) {
           const segments = capabilitySegments(policy, specifier);
-          if (segments === undefined) continue;
-          // A dotted path starts at its first segment; a bare global IS the module's export, so
-          // the namespace is not its parent and the path starts empty. Same split as a destructure.
-          roots.push({ node: loaded, path: segments.length >= 2 ? segments[0] : "" });
+          if (segments !== undefined && segments.length >= 2) {
+            rebindAsPathRoot(node, node.id.name, segments[0]);
+          }
         }
       },
 

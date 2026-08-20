@@ -114,6 +114,24 @@ describeRule("boundary/ambient-globals", ambientGlobalsRule, {
       errors: [{ messageId: "ambientGlobalOutsideOwner" }],
     },
     {
+      name: "the CommonJS spelling of the same one-expression read",
+      filename: SERVICE,
+      code: `export const key = require("node:process").env.STRIPE_KEY;`,
+      errors: [{ messageId: "ambientGlobalOutsideOwner" }],
+    },
+    {
+      name: "the TypeScript import-equals form, which reaches no ImportDeclaration",
+      filename: SERVICE,
+      code: `import proc = require("node:process");\nexport const key = proc.env.STRIPE_KEY;`,
+      errors: [{ messageId: "ambientGlobalOutsideOwner" }],
+    },
+    {
+      name: "a backtick specifier, which is what a string-literal fence teaches people to write",
+      filename: SERVICE,
+      code: `const { env } = require(\`node:process\`);\nexport const key = env.STRIPE_KEY;`,
+      errors: [{ messageId: "ambientGlobalOutsideOwner" }],
+    },
+    {
       name: "the host spellings of a bare global, which a name-only pattern misses",
       filename: SERVICE,
       code: `export const load = () => window.fetch("/api/a");\nexport const also = () => self["fetch"]("/api/b");`,
@@ -162,6 +180,16 @@ describeRule("boundary/ambient-globals", ambientGlobalsRule, {
   ],
 
   legal: [
+    {
+      name: "a module that is not the capability's, however it is loaded",
+      filename: SERVICE,
+      code: `import path = require("node:path");\nconst { join } = require("node:path");\nexport const p = [path.sep, join("a", "b"), require("node:path").resolve("c")];`,
+    },
+    {
+      name: "an import-equals that aliases a local namespace loads no module at all",
+      filename: SERVICE,
+      code: `declare namespace NS { const env: Record<string, string>; }\nimport alias = NS;\nexport const key = alias.env.STRIPE_KEY;`,
+    },
     {
       name: "the one module allowed to read env, which is the point of the rule",
       filename: "/repo/src/env.ts",

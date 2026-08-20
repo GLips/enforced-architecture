@@ -22,10 +22,11 @@
 //
 // The platform arm fences on the NAME react-native hands over, however the file
 // gets at it: a named import, an alias, a namespace or default import read as
-// `RN.View`, a `require()` or `await import()` destructure, and a bare
-// `(await import("react-native")).View`. See lib/imported-names.ts for the
-// spellings that deliberately report nothing — chiefly a computed key and a
-// namespace passed on as a value.
+// `RN.View`, `import RN = require("react-native")`, a `require()` or
+// `await import()` destructure, and a bare `(await import("react-native")).View`.
+// See lib/imported-names.ts for the spellings that deliberately report nothing —
+// chiefly a computed key, an interpolated specifier, and a namespace passed on
+// as a value.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule } from "@oxlint/plugins";
@@ -83,7 +84,7 @@ export const noRawPrimitivesRule = defineRule({
       // --- React Native arm ---
       // Every name the file takes from the platform module, under react-native's own spelling —
       // so `View as Screen` and `RN.View` are the same finding as `View`.
-      ...visitImportedNames(context.sourceCode, PLATFORM_MODULE, (name, node) => {
+      ...visitImportedNames(context.sourceCode, [PLATFORM_MODULE], (name, node) => {
         if (PLATFORM_RENDERING_PRIMITIVES.has(name)) {
           context.report({ node, messageId: "platformPrimitive" });
         }

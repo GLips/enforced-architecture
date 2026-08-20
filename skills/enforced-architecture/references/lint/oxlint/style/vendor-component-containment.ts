@@ -23,10 +23,11 @@
 //
 // The import arm fences on the NAME the library hands over, however the file
 // gets at it: a named import, an alias, a namespace or default import read as
-// `Mantine.Textarea`, a `require()` or `await import()` destructure, and a bare
+// `Mantine.Textarea`, `import M = require("@mantine/core")`, a `require()` or
+// `await import()` destructure, and a bare
 // `(await import("@mantine/core")).Textarea`. See lib/imported-names.ts for the
-// spellings that deliberately report nothing — chiefly a computed key and a
-// namespace passed on as a value.
+// spellings that deliberately report nothing — chiefly a computed key, an
+// interpolated specifier, and a namespace passed on as a value.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree } from "@oxlint/plugins";
@@ -74,7 +75,7 @@ export const vendorComponentContainmentRule = defineRule({
       // The library's name for the component, not the local one, so `Textarea as MantineTextarea`
       // cannot dodge the check. The table is keyed on exact names, so `TextareaProps` and
       // `TextareaAutosize` are different components rather than prefix matches.
-      ...visitImportedNames(context.sourceCode, VENDOR_MODULE, (component, node) => {
+      ...visitImportedNames(context.sourceCode, [VENDOR_MODULE], (component, node) => {
         reportIfWrapped(node, component);
       }),
 

@@ -118,11 +118,11 @@ A hand-rolled `ImportDeclaration` visitor is the natural thing to write and cove
 
 ### When the rule cares which names were imported
 
-Go through [lib/imported-names.ts](lint/oxlint/lib/imported-names.ts). It calls back once per name the file takes from one module, with the node to blame:
+Go through [lib/imported-names.ts](lint/oxlint/lib/imported-names.ts). It calls back once per name the file takes from the modules you name, with the node to blame:
 
 ```ts
 return {
-  ...visitImportedNames(context.sourceCode, "@mantine/core", (component, node) => {
+  ...visitImportedNames(context.sourceCode, [VENDOR_MODULE], (component, node) => {
     if (WRAPPED_COMPONENTS[component] !== undefined) {
       context.report({ node, messageId: "unwrappedVendorComponent" });
     }
@@ -130,13 +130,17 @@ return {
 };
 ```
 
-**Do not loop an `ImportDeclaration`'s specifiers instead.** That is the natural thing to write and it is a fence with a hole in it: `import * as RN from "react-native"` names no specifier, so the primitive arrives as `RN.View` with nothing for a specifier loop to see, and `require()` and `await import()` bind the name without an `ImportDeclaration` at all. The module reads oxlint's scope analysis, which hands over the binding and every reference to it already resolved — that is the only way the namespace form is answerable per file, and it is shadow-correct for free.
+**Do not loop an `ImportDeclaration`'s specifiers instead.** That is the natural thing to write and it is a fence with a hole in it: `import * as RN from "react-native"` names no specifier, so the primitive arrives as `RN.View` with nothing for a specifier loop to see, and `require()` and `await import()` bind the name without an `ImportDeclaration` at all. The module reads oxlint's scope analysis, which hands over the binding and every reference to it already resolved — that is the only way the namespace form is answerable per file, and for the four static spellings it is shadow-correct for free.
+
+**The module list is a list for a reason: call it once.** The returned visitor is spread into the rule's own, so a second call's `ImportExpression` / `CallExpression` / `Program:exit` keys overwrite the first's and one whole module goes unchecked with nothing to see — the failure mode the next section is about. Two modules go in one call.
 
 What the module settles, and what each costs to get wrong:
 
 - **The name is the EXPORTING module's, never the local one.** `{ Textarea as TA }` reports `Textarea`. A rule matching the binding lets one rename through. (On the export side you still read specifiers yourself: `imported` is the exported name, `local` the binding, and a re-export's `local` is the name the source module used.)
 - **Every name is tested.** `import { Button, Textarea }` reports `Textarea`. A rule reading `node.specifiers[0]` passes that import silently — the second name in a clause is the cheapest thing in this catalog to miss.
 - **Type-only is two flags, not one.** `import type { X }` sets `importKind: "type"` on the *declaration*; `import { type X }` sets it on the *specifier* — and the specifiers of a type-only declaration each report `"value"`, so a rule checking one level and not the other lets the other spelling through. `visitImportedNames` drops both, because a type import binds no runtime value. A rule about coupling rather than about the bundle wants the opposite and reads specifiers itself — `boundary/db-isolation` reports `import type { Invoice }` from the schema, because knowing the schema's shape is the dependency it exists to prevent.
+
+- **The `require` half matches a name, not a binding.** The static forms resolve through scope analysis, so a shadowing local is not a use of the import. `require("m")` has no binding to resolve — the callee is matched by the word `require` — so a file that shadows it with a parameter of its own (`function f(require) { … }`) reads as loading the module.
 
 Compare against a `Set` of exact names, so `TextareaProps` cannot match. Reach for a regex only when the name has real shape, and anchor it end to end.
 
