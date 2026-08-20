@@ -66,9 +66,11 @@ export const layerDirectionFixtures: CheckFixtures = {
     // The two ends in layers of DIFFERENT features, ranked so that comparing
     // them yields an upward verdict: consumer/repo reaches provider/service.
     // Layers rank only within one feature, and this is the ONLY edge in the tree
-    // that says so — every other cross-feature edge lands on a barrel, which
-    // sits in no layer, so the rank arm never reaches it and the same-feature
-    // guard can be deleted with the whole suite green.
+    // that says so. The direction is why: the tree's other cross-feature edges
+    // either land on a barrel, which sits in no layer and never reaches the rank
+    // arm, or run downward like alpha/ui -> beta/service and pass it. Without an
+    // upward-ranked cross-feature pair the same-feature guard can be deleted with
+    // the whole suite green.
     "src/features/consumer/repo/cross-feature-neighbour.ts",
   ],
 };

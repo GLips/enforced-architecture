@@ -149,11 +149,23 @@ export const featureVisibilityFixtures: CheckFixtures = {
     // reads leaf-two's barrel. A grant is a feature's answer about another
     // feature, and a route has no visibility.json to be named in — so this edge
     // needs no entry anywhere, and the guard on the importing end is what says
-    // so. Every other edge into a feature in this tree starts in another
-    // feature, so all of them pass with that half deleted; this is the only one
-    // that separates the two, and the finding it would produce reads
-    // "undefined imports leaf-two".
+    // so. Every other edge into a feature in this tree starts INSIDE a feature —
+    // the same one, dropped by the importer/importee comparison, or another one,
+    // which needs a grant — so all of them pass with that half deleted. This is
+    // the only edge that separates the two, and the finding it would produce
+    // reads "undefined imports leaf-two".
     "src/features/leaf-two/visibility.json",
+    // The route itself, which this check can never file against: the address of
+    // a visibility finding is always an importEE's grant file. It is listed for
+    // the OTHER half of the legal contract — the runner asserts each path exists,
+    // and leaf-two/visibility.json exists for reasons of its own. Without this
+    // line, deleting the route file leaves the suite green and puts the guard
+    // straight back to being deletable, which is the state this pair of entries
+    // was written to end. leaf-two/visibility.json cannot carry that weight on
+    // its own: it exists because leaf-two grants hub, and hub's import is
+    // untouched by this fixture, so its presence says nothing about whether the
+    // route file is still there.
+    "src/routes/feature-barrel-neighbour.ts",
   ],
 
   // The branches whose only distinguishing output is their wording. Every path

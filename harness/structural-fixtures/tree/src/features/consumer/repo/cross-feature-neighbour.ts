@@ -6,10 +6,14 @@
 // and `service` in provider are not two rungs of one ladder, and there is no
 // direction between them to be wrong about.
 //
-// The tree's other cross-feature edges all land on a BARREL, which sits in no
-// layer, so the rank arm never reaches them — every one of them passes whether
-// the guard is there or not. This is the only edge in the tree that separates
-// the two, and without it the guard can be deleted with the whole suite green.
+// What makes this pair the only one that separates the guard from its absence is
+// the DIRECTION, not the crossing. Most of the tree's cross-feature edges land on
+// a barrel — or on a loose file at the features root — which sits in no layer, so
+// the rank arm never reaches them at all. The alpha/ui crossings into
+// beta/service do have a layer on both ends, and they rank downward, so the rank
+// arm passes them whether the guard is there or not. An upward-ranked
+// cross-feature pair is what is needed, and this is the tree's only one; without
+// it the guard can be deleted with the whole suite green.
 //
 // Spelled through the alias deliberately. `boundary/import-policy` reads
 // relative edges only — the aliased half belongs to the oxlint tier, which does
