@@ -23,7 +23,7 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree, type Range } from "@oxlint/plugins";
-import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
+import { classifyFileRole } from "../../policy/declared-trees.ts";
 
 const LAYER_NAMESPACES = new Set(["Layer"]);
 const PROVIDE_METHOD = "provide";
@@ -52,7 +52,7 @@ export const noNestedLayerProvideRule = defineRule({
     },
   },
   create(context) {
-    if (isArchitectureExemptPath(context.filename)) return {};
+    if (classifyFileRole(context.filename) === undefined) return {};
 
     // The walk is pre-order, so an outer call is visited before anything nested in it — the
     // containment question is only answerable once every call in the file has been seen.

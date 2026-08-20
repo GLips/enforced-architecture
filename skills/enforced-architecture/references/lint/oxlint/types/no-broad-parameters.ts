@@ -18,7 +18,7 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree } from "@oxlint/plugins";
-import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
+import { classifyFileRole } from "../../policy/declared-trees.ts";
 import {
   collectLocalTypeAliases,
   FUNCTION_SIGNATURE_NODES,
@@ -48,7 +48,7 @@ export const noBroadParametersRule = defineRule({
     },
   },
   create(context) {
-    if (isArchitectureExemptPath(context.filename)) return {};
+    if (classifyFileRole(context.filename) === undefined) return {};
 
     let aliases: ReadonlyMap<string, ESTree.TSType> = new Map();
 

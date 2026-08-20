@@ -13,15 +13,15 @@
 // Anchor each alternative in `TEST_SPECIFIER` on a separator or a dot. A bare
 // `test` alternative also matches `@/shared/latest` and `../ui/protest`.
 //
-// A relative path to the shared test directory, `../../test/setup`, holds
-// neither `@/test/` nor `/src/test/`. This rule does not match it.
+// A relative path to the shared test directory, `../../test/setup`, resolves to
+// no path this rule can read — a linter cannot resolve a relative specifier —
+// so this rule does not match it. boundary/import-policy in the structural tier
+// is the tier that sees those.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule } from "@oxlint/plugins";
-import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
+import { classifyFileRole, namesTestModule } from "../../policy/declared-trees.ts";
 import { visitModuleSources } from "../lib/module-source-visitor.ts";
-
-const TEST_SPECIFIER = /\.test$|\.test\.|__tests__|^@\/test\/|\/src\/test\//;
 
 export const noTestImportsRule = defineRule({
   meta: {
@@ -32,11 +32,18 @@ export const noTestImportsRule = defineRule({
     },
   },
   create(context) {
-    const { filename } = context;
-    if (!filename.includes("/src/") || isArchitectureExemptPath(filename)) return {};
+    const role = classifyFileRole(context.filename);
+    if (role === undefined) return {};
+    const { aliasPrefix } = role.tree.vocabulary;
 
     return visitModuleSources((source, specifier) => {
-      if (TEST_SPECIFIER.test(specifier)) {
+      // The alias prefix is stripped so an aliased specifier and a source-root
+      // path are one string, which is what lets `namesTestModule` own the
+      // convention for both this rule and the exemption every other rule reads.
+      const path = specifier.startsWith(aliasPrefix)
+        ? specifier.slice(aliasPrefix.length)
+        : specifier;
+      if (namesTestModule(path)) {
         context.report({ node: source, messageId: "testImport" });
       }
     });

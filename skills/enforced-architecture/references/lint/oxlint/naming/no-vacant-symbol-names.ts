@@ -22,7 +22,7 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree } from "@oxlint/plugins";
-import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
+import { classifyFileRole } from "../../policy/declared-trees.ts";
 
 const VACANT_TERMS = new Set([
   "data",
@@ -82,7 +82,7 @@ export const noVacantSymbolNamesRule = defineRule({
     },
   },
   create(context) {
-    if (isArchitectureExemptPath(context.filename)) return {};
+    if (classifyFileRole(context.filename) === undefined) return {};
 
     const report = (identifier: ESTree.Node & { name: string }) => {
       if (vacantTerm(identifier.name) === null) return;

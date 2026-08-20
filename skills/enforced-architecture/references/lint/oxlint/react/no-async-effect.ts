@@ -30,10 +30,7 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree, type Range } from "@oxlint/plugins";
-import {
-  isArchitectureExemptPath,
-  isComponentFile,
-} from "../lib/architecture-exempt-paths.ts";
+import { classifyFileRole, isComponentFile } from "../../policy/declared-trees.ts";
 import { createRangeIndex } from "../lib/range-index.ts";
 
 const EFFECT_HOOK = "useEffect";
@@ -54,7 +51,7 @@ export const noAsyncEffectRule = defineRule({
   },
   create(context) {
     const { filename } = context;
-    if (!isComponentFile(filename) || isArchitectureExemptPath(filename)) return {};
+    if (!isComponentFile(filename) || classifyFileRole(filename) === undefined) return {};
 
     // Async work and cleanup are both facts about the effect callback's whole subtree, which a
     // visitor cannot know when it reaches the callback. Every async spelling records its range on

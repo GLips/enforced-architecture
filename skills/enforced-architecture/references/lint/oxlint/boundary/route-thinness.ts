@@ -1,9 +1,9 @@
 // ─── boundary/route-thinness ─────────────────────────────────────────
 //
-// Makes sure: No file in src/routes/ imports the database layer or
-// `@/env.server`. A route file runs in the browser too, so that env import puts
-// a secret in the browser bundle. To find a query you read features/, and a
-// framework migration rewrites src/routes/ with no data access to move.
+// Makes sure: No route file imports the database layer or the server env module.
+// A route file runs in the browser too, so that env import puts a secret in the
+// browser bundle. To find a query you read the features tree, and a framework
+// migration rewrites the routes tree with no data access to move.
 //
 // Not here: `*/index.server` in a route. api/server-import-context owns it, and
 // owns it with a distinction this rule cannot make: a route file named
@@ -17,14 +17,29 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule } from "@oxlint/plugins";
-import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
+import { classifyFileRole } from "../../policy/declared-trees.ts";
+import {
+  aliasSpecifierFor,
+  isUnderPath,
+  type TreeVocabulary,
+} from "../../policy/layout.ts";
 import { visitModuleSources } from "../lib/module-source-visitor.ts";
 
-const ROUTE_LAYER = /\/src\/routes\//;
-
-// Two arms, and deliberately not three — see `Not here:` in the header for why `*/index.server`
-// belongs to api/server-import-context and cannot be added back here.
-const BANNED_SPECIFIERS = [/^@\/infrastructure\/db(?:\/|$)/, /^@\/env\.server$/];
+// The two areas a route may not name, spelled from the tree's vocabulary. Two
+// arms, and deliberately not three — see `Not here:` in the header for why a
+// server barrel belongs to api/server-import-context and cannot be added back
+// here.
+//
+// Every env module the tree declares as `env-server` is banned, not just the one
+// spelled `env.server`: a project on the single-module option puts the same
+// secrets in `env.ts`, and a rule naming one spelling misses the other in
+// silence.
+function bannedSpecifiers(vocabulary: TreeVocabulary): string[] {
+  const serverEnv = Object.entries(vocabulary.envModules)
+    .filter(([, exposure]) => exposure === "env-server")
+    .map(([module]) => aliasSpecifierFor(vocabulary, module));
+  return [aliasSpecifierFor(vocabulary, vocabulary.dbDir), ...serverEnv];
+}
 
 export const routeThinnessRule = defineRule({
   meta: {
@@ -35,11 +50,12 @@ export const routeThinnessRule = defineRule({
     },
   },
   create(context) {
-    const { filename } = context;
-    if (isArchitectureExemptPath(filename) || !ROUTE_LAYER.test(filename)) return {};
+    const role = classifyFileRole(context.filename);
+    if (role?.place?.profile !== "route") return {};
+    const banned = bannedSpecifiers(role.tree.vocabulary);
 
     return visitModuleSources((source, specifier) => {
-      if (BANNED_SPECIFIERS.some((banned) => banned.test(specifier))) {
+      if (banned.some((prefix) => isUnderPath(specifier, prefix))) {
         context.report({ node: source, messageId: "serverOnlyImportInRoute" });
       }
     });

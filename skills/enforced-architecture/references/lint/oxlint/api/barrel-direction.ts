@@ -23,19 +23,20 @@
 // ─────────────────────────────────────────────────────────────────────
 
 import { defineRule } from "@oxlint/plugins";
-import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
+import { classifyFileRole, isModule } from "../../policy/declared-trees.ts";
+import { withoutSourceExtension } from "../../policy/layout.ts";
 import { visitModuleSources } from "../lib/module-source-visitor.ts";
 
-// Anchored on `/src/` and on exactly one segment between the layer and the barrel, so
-// `src/features-legacy/billing/index.ts` and `src/features/billing/ui/index.ts` are not mistaken
-// for the feature's public barrel. `index.server.ts` does not match this pattern — the server
-// barrel is the one file allowed to import in either direction.
-const CLIENT_BARREL_FILE = /\/src\/(?:domains|features)\/[^/]+\/index\.[tj]sx?$/;
-
-// The last segment must BE `index.server`, so a neighbour named `index.server-config` is a
-// different module. Matches the barrel however it is spelled from inside the feature: `./index.server`,
-// `@/features/billing/index.server`, `../billing/index.server`, with or without an extension.
-const SERVER_BARREL_SPECIFIER = /(?:^|\/)index\.server(?:\.[tj]sx?)?$/;
+/**
+ * The last segment must BE the server barrel, so a neighbour named
+ * `index.server-config` is a different module. Matches it however it is spelled
+ * from inside the unit: `./index.server`, `@/features/billing/index.server`,
+ * `../billing/index.server`, with or without an extension.
+ */
+function namesServerBarrel(specifier: string, serverBarrelModule: string): boolean {
+  const bare = withoutSourceExtension(specifier);
+  return bare === serverBarrelModule || bare.endsWith(`/${serverBarrelModule}`);
+}
 
 export const barrelDirectionRule = defineRule({
   meta: {
@@ -46,12 +47,24 @@ export const barrelDirectionRule = defineRule({
     },
   },
   create(context) {
-    const { filename } = context;
-    if (isArchitectureExemptPath(filename)) return {};
-    if (!CLIENT_BARREL_FILE.test(filename)) return {};
+    // The CLIENT barrel of a feature or a domain, and nothing else. Read off the
+    // classification rather than off a path regex, so
+    // `features-legacy/billing/index.ts` and `features/billing/ui/index.ts` are
+    // not mistaken for a public barrel and a renamed features directory does not
+    // silence the rule. The server barrel is excluded by name — it is the one
+    // file allowed to import in either direction — which is why this tests the
+    // client barrel module rather than the `feature-barrel` profile, and why the
+    // domain arm (no barrel profile of its own) is reachable at all.
+    const role = classifyFileRole(context.filename);
+    if (role === undefined) return {};
+    const { vocabulary } = role.tree;
+    const unit = role.place?.unit;
+    if (unit === undefined) return {};
+    if (!isModule(role, `${unit}/${vocabulary.clientBarrelModule}`)) return {};
+    if (role.place?.profile !== "feature-barrel" && role.place?.profile !== "domain") return {};
 
     return visitModuleSources((source, specifier) => {
-      if (SERVER_BARREL_SPECIFIER.test(specifier)) {
+      if (namesServerBarrel(specifier, vocabulary.serverBarrelModule)) {
         context.report({ node: source, messageId: "clientBarrelImportsServerBarrel" });
       }
     });

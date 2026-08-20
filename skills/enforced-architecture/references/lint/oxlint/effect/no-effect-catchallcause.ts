@@ -25,7 +25,7 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree } from "@oxlint/plugins";
-import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
+import { classifyFileRole } from "../../policy/declared-trees.ts";
 
 // Keyed by `string` on purpose: every lookup is a member name read off the AST, so a map narrowed
 // to its own two keys would refuse the only argument it is ever given. The VALUE side stays a
@@ -54,7 +54,7 @@ export const noEffectCatchAllCauseRule = defineRule({
     },
   },
   create(context) {
-    if (isArchitectureExemptPath(context.filename)) return {};
+    if (classifyFileRole(context.filename) === undefined) return {};
 
     return {
       // The member reference, not the call: data-last usage inside a `.pipe(…)` passes the function

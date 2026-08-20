@@ -16,7 +16,7 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree } from "@oxlint/plugins";
-import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
+import { classifyFileRole } from "../../policy/declared-trees.ts";
 
 function isEmptyObjectExpression(node: ESTree.Expression): boolean {
   return node.type === "ObjectExpression" && node.properties.length === 0;
@@ -31,7 +31,7 @@ export const noConditionalEmptyObjectSpreadRule = defineRule({
     },
   },
   create(context) {
-    if (isArchitectureExemptPath(context.filename)) return {};
+    if (classifyFileRole(context.filename) === undefined) return {};
 
     return {
       SpreadElement(node) {

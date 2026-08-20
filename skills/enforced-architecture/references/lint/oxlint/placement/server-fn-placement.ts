@@ -22,14 +22,10 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule } from "@oxlint/plugins";
-import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
+import { classifyFileRole, isAtProfile } from "../../policy/declared-trees.ts";
 import { visitIdentifierNamed } from "../lib/identifier-occurrences.ts";
 
 const SERVER_FN_FACTORY = "createServerFn";
-
-// Anchored on both slashes: a top-level `src/controllers/` is not a feature's controllers, and a
-// `legacy-controllers/` holding endpoints nobody migrated is exactly what this rule exists to find.
-const CONTROLLERS_PATH = /\/src\/features\/[^/]+\/controllers\//;
 
 export const serverFnPlacementRule = defineRule({
   meta: {
@@ -40,8 +36,12 @@ export const serverFnPlacementRule = defineRule({
     },
   },
   create(context) {
-    const { filename } = context;
-    if (CONTROLLERS_PATH.test(filename) || isArchitectureExemptPath(filename)) return {};
+    // The profile, not a path: a top-level `src/controllers/` is not a feature's
+    // controllers layer, and a `legacy-controllers/` holding endpoints nobody
+    // migrated classifies as nothing at all — which is exactly what this rule
+    // exists to find.
+    const role = classifyFileRole(context.filename);
+    if (role === undefined || isAtProfile(role, "feature-controllers")) return {};
 
     return visitIdentifierNamed(SERVER_FN_FACTORY, (node) => {
       context.report({ node, messageId: "serverFnOutsideControllers" });

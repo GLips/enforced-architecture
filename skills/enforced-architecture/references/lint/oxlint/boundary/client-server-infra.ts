@@ -26,20 +26,37 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule } from "@oxlint/plugins";
-import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
+import { classifyFileRole, isAtProfile } from "../../policy/declared-trees.ts";
+import {
+  classifySpecifier,
+  classifyTargetPath,
+  type SourceProfile,
+} from "../../policy/layout.ts";
 import { visitModuleSources } from "../lib/module-source-visitor.ts";
 
-const INFRASTRUCTURE_SPECIFIER = /^@\/infrastructure(?:\/|$)/;
+/**
+ * The modules the browser may take from the adapter layer, RELATIVE to the
+ * tree's infrastructure directory. Relative because the directory is vocabulary
+ * and these two names are not: a project that calls its adapters `adapters/`
+ * renames it once and this list follows.
+ *
+ * Each entry matches EXACTLY. An entry read as a prefix would admit a whole
+ * subtree, and the browser then gets every module in it.
+ */
+const CLIENT_SAFE_INFRASTRUCTURE = ["auth/client", "providers/query-client"];
 
-const CLIENT_SAFE_INFRASTRUCTURE = [
-  /^@\/infrastructure\/auth\/client$/,
-  /^@\/infrastructure\/providers\/query-client$/,
+/**
+ * The positions that only ever run on the server. Profiles rather than path
+ * regexes, so a tree that renames a layer keeps the same exemption instead of
+ * quietly losing it.
+ */
+const SERVER_PROFILES: SourceProfile[] = [
+  "infrastructure",
+  "feature-controllers",
+  "feature-repo",
+  "feature-service",
 ];
 
-const SERVER_LAYERS = [
-  /\/src\/infrastructure\//,
-  /\/src\/features\/[^/]+\/(?:controllers|repo|service)\//,
-];
 const SERVER_MODULE = /\.server\.[tj]sx?$/;
 
 export const clientServerInfraRule = defineRule({
@@ -51,14 +68,21 @@ export const clientServerInfraRule = defineRule({
     },
   },
   create(context) {
-    const { filename } = context;
-    if (!filename.includes("/src/") || isArchitectureExemptPath(filename)) return {};
-    if (SERVER_MODULE.test(filename) || SERVER_LAYERS.some((layer) => layer.test(filename)))
-      return {};
+    const role = classifyFileRole(context.filename);
+    if (role === undefined) return {};
+    if (SERVER_MODULE.test(role.sourcePath) || isAtProfile(role, ...SERVER_PROFILES)) return {};
+
+    const { vocabulary } = role.tree;
+    const clientSafe = CLIENT_SAFE_INFRASTRUCTURE.map(
+      (module) => `${vocabulary.infrastructureDir}/${module}`,
+    );
 
     return visitModuleSources((source, specifier) => {
-      if (!INFRASTRUCTURE_SPECIFIER.test(specifier)) return;
-      if (CLIENT_SAFE_INFRASTRUCTURE.some((safe) => safe.test(specifier))) return;
+      const target = classifySpecifier(vocabulary, specifier);
+      if (target?.kind !== "module") return;
+      const to = classifyTargetPath(vocabulary, target.path);
+      if (to?.area !== "infrastructure") return;
+      if (clientSafe.includes(to.path)) return;
       context.report({ node: source, messageId: "serverOnlyInfraInClient" });
     });
   },

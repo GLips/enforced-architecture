@@ -24,13 +24,9 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree } from "@oxlint/plugins";
-import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
+import { classifyFileRole, isAtProfile } from "../../policy/declared-trees.ts";
 
 const STYLE_PROPS = new Set(["style"]);
-
-// Anchored on `/src/` so a feature's own `shared/ui/` folder, or a `src/shared/ui-legacy/`, does
-// not inherit the primitives layer's exemption.
-const PRIMITIVES_LAYER = /\/src\/shared\/ui\//;
 
 /**
  * Whether an expression ships an object literal, through any of the wrappers that keep one from
@@ -72,8 +68,10 @@ export const noInlineStylePropRule = defineRule({
     },
   },
   create(context) {
-    const { filename } = context;
-    if (isArchitectureExemptPath(filename) || PRIMITIVES_LAYER.test(filename)) return {};
+    // The primitives layer as a PROFILE, so a feature's own `shared/ui/` folder,
+    // or a `shared/ui-legacy/`, does not inherit its exemption.
+    const role = classifyFileRole(context.filename);
+    if (role === undefined || isAtProfile(role, "shared-ui")) return {};
 
     return {
       JSXAttribute(node) {

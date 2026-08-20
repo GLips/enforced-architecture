@@ -25,19 +25,10 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule } from "@oxlint/plugins";
-import { classifySpecifier, SOURCE_ROOT } from "../../policy/layout.ts";
+import { classifyFileRole } from "../../policy/declared-trees.ts";
+import { aliasSpecifierFor, classifySpecifier } from "../../policy/layout.ts";
 import { PACKAGE_OWNERS } from "../../policy/package-owners.ts";
-import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
 import { visitModuleSources } from "../lib/module-source-visitor.ts";
-
-/**
- * Anchored at both ends. The leading separator is what stops
- * `stripe-legacy.ts` from inheriting `stripe.ts`'s exemption, and the source root
- * is what stops a same-named file somewhere else in the repo from claiming it.
- */
-function isOwner(filename: string, owner: string): boolean {
-  return filename.endsWith(`/${SOURCE_ROOT}/${owner}`);
-}
 
 export const sdkContainmentRule = defineRule({
   meta: {
@@ -52,14 +43,20 @@ export const sdkContainmentRule = defineRule({
     },
   },
   create(context) {
-    const { filename } = context;
-    if (isArchitectureExemptPath(filename)) return {};
+    const role = classifyFileRole(context.filename);
+    if (role === undefined) return {};
+    const { vocabulary } = role.tree;
 
     // An owning module is exempt for its OWN package only, which is what keeps the
     // wrapper layer from becoming one permission: the payments adapter has no
     // business opening the analytics client.
+    //
+    // Compared as a WHOLE path from the tree's source root, which is what the
+    // `/src/`-anchored suffix match it replaces was reaching for: `stripe-legacy.ts`
+    // must not inherit `stripe.ts`'s exemption, and neither must a same-named file
+    // somewhere else in the repo.
     const contained = PACKAGE_OWNERS.filter(
-      (row) => !row.owners.some((owner) => isOwner(filename, owner)),
+      (row) => !row.owners.includes(role.sourcePath),
     );
     if (contained.length === 0) return {};
 
@@ -70,7 +67,7 @@ export const sdkContainmentRule = defineRule({
       // it is how a rule ends up disagreeing with the tier it sits in: an inline
       // `startsWith(".")` test reads `@/foo` as a package named `@/foo`, because
       // an alias is neither relative nor bare.
-      const target = classifySpecifier(specifier);
+      const target = classifySpecifier(vocabulary, specifier);
       if (target?.kind !== "package") return;
 
       for (const row of contained) {
@@ -80,7 +77,9 @@ export const sdkContainmentRule = defineRule({
           messageId: "rawSdkOutsideOwner",
           data: {
             package: specifier,
-            ownerNames: row.owners.map((owner) => `${SOURCE_ROOT}/${owner}`).join(" or "),
+            ownerNames: row.owners
+              .map((owner) => aliasSpecifierFor(vocabulary, owner))
+              .join(" or "),
             why: row.why,
           },
         });

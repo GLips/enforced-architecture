@@ -20,7 +20,7 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule } from "@oxlint/plugins";
-import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
+import { classifyFileRole } from "../../policy/declared-trees.ts";
 import { visitModuleSources } from "../lib/module-source-visitor.ts";
 
 // Anchored at the head of the specifier and closed on the trailing slash, so a live directory whose
@@ -42,8 +42,7 @@ export const deprecatedPathsRule = defineRule({
     },
   },
   create(context) {
-    const { filename } = context;
-    if (isArchitectureExemptPath(filename)) return {};
+    if (classifyFileRole(context.filename) === undefined) return {};
 
     return visitModuleSources((source, specifier) => {
       for (const { pattern, messageId } of DEPRECATED_PATHS) {

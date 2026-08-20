@@ -26,21 +26,24 @@
 // ─────────────────────────────────────────────────────────────────────
 
 import { defineRule } from "@oxlint/plugins";
-import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
+import { classifyFileRole, isAtProfile } from "../../policy/declared-trees.ts";
+import { type SourceProfile, withoutSourceExtension } from "../../policy/layout.ts";
 import { visitModuleSources } from "../lib/module-source-visitor.ts";
 
-// Anchored on `/src/` and on whole segments, so `src/features/billing/legacy-service/` is still a
-// client context — a directory that merely ends in a server layer's name is not that layer.
-const SERVER_CONTEXTS = [
-  /\/src\/infrastructure\//,
-  /\/src\/features\/[^/]+\/(?:controllers|repo|service)\//,
-  /\.server\.[tj]sx?$/,
+/**
+ * The positions that run on the server. Profiles rather than path regexes, so
+ * `features/billing/legacy-service/` is still a client context — a directory
+ * that merely ends in a server layer's name is not that layer — and a tree that
+ * renames a layer keeps the same answer.
+ */
+const SERVER_PROFILES: SourceProfile[] = [
+  "infrastructure",
+  "feature-controllers",
+  "feature-repo",
+  "feature-service",
 ];
 
-// Requires a preceding `/`, matching the relative (`../billing/index.server`) and aliased
-// (`@/features/billing/index.server`) spellings alike, and ends at the segment boundary so a
-// neighbour named `index.server-config` is a different module.
-const SERVER_BARREL_SPECIFIER = /\/index\.server(?:\.[tj]sx?)?$/;
+const SERVER_MODULE = /\.server\.[tj]sx?$/;
 
 export const serverImportContextRule = defineRule({
   meta: {
@@ -51,12 +54,18 @@ export const serverImportContextRule = defineRule({
     },
   },
   create(context) {
-    const { filename } = context;
-    if (isArchitectureExemptPath(filename)) return {};
-    if (SERVER_CONTEXTS.some((serverContext) => serverContext.test(filename))) return {};
+    const role = classifyFileRole(context.filename);
+    if (role === undefined) return {};
+    if (SERVER_MODULE.test(role.sourcePath) || isAtProfile(role, ...SERVER_PROFILES)) return {};
+
+    const { serverBarrelModule } = role.tree.vocabulary;
 
     return visitModuleSources((source, specifier) => {
-      if (SERVER_BARREL_SPECIFIER.test(specifier)) {
+      // Requires a preceding `/`, matching the relative
+      // (`../billing/index.server`) and aliased spellings alike, and ends at the
+      // segment boundary so a neighbour named `index.server-config` is a
+      // different module.
+      if (withoutSourceExtension(specifier).endsWith(`/${serverBarrelModule}`)) {
         context.report({ node: source, messageId: "serverBarrelInClientContext" });
       }
     });

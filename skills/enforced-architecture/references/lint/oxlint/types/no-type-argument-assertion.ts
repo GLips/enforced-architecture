@@ -26,7 +26,7 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree } from "@oxlint/plugins";
-import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
+import { classifyFileRole } from "../../policy/declared-trees.ts";
 
 // Matched against the LAST segment of the callee, so the receiver never has to be enumerated. Every
 // name here reads external bytes: the HTTP verbs (axios, ky, ofetch and every wrapper of them),
@@ -91,7 +91,7 @@ export const noTypeArgumentAssertionRule = defineRule({
     },
   },
   create(context) {
-    if (isArchitectureExemptPath(context.filename)) return {};
+    if (classifyFileRole(context.filename) === undefined) return {};
 
     const sourceCode = context.sourceCode;
 

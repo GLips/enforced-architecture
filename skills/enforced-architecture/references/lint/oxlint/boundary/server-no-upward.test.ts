@@ -52,12 +52,6 @@ describeRule("boundary/server-no-upward", serverNoUpwardRule, {
       errors: [{ messageId: "infraImportsUpperLayer" }],
     },
     {
-      name: "the bare layer barrel has no path segment after it to match on",
-      filename: TELEMETRY,
-      code: `import features from "@/features";\nimport domains from "@/domains";`,
-      errors: [{ messageId: "infraImportsUpperLayer" }, { messageId: "infraImportsUpperLayer" }],
-    },
-    {
       name: "a nested infrastructure module is still infrastructure",
       filename: "/repo/src/infrastructure/payments/stripe/webhooks/handler.ts",
       code: `import { markPaid } from "@/features/billing";`,
@@ -66,6 +60,16 @@ describeRule("boundary/server-no-upward", serverNoUpwardRule, {
   ],
 
   legal: [
+    {
+      // Upward, and reported — by boundary/import-policy, as `unclassifiedTarget`.
+      // A subdivided directory names no unit, so this rule has no area to compare
+      // against and stays quiet rather than guessing. The two messages are
+      // jointly actionable: the fix is to name the feature, and this rule then
+      // reports the edge that names it.
+      name: "the bare subdivided directory is import-policy's finding, not this rule's",
+      filename: TELEMETRY,
+      code: `import features from "@/features";\nimport domains from "@/domains";`,
+    },
     {
       name: "infrastructure reaching sideways to its own layer",
       filename: MAILER,

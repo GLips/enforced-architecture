@@ -21,7 +21,7 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree } from "@oxlint/plugins";
-import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
+import { classifyFileRole } from "../../policy/declared-trees.ts";
 import { collectLocalTypeAliases, resolvesToBroadType } from "../lib/type-annotations.ts";
 
 const BROAD_KEYWORDS = new Set(["TSUnknownKeyword", "TSAnyKeyword"]);
@@ -35,7 +35,7 @@ export const noUnknownTypeAliasesRule = defineRule({
     },
   },
   create(context) {
-    if (isArchitectureExemptPath(context.filename)) return {};
+    if (classifyFileRole(context.filename) === undefined) return {};
 
     return {
       // Judged at Program rather than on TSTypeAliasDeclaration, because resolving one alias needs

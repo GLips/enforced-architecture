@@ -23,7 +23,7 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree } from "@oxlint/plugins";
-import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
+import { classifyFileRole } from "../../policy/declared-trees.ts";
 
 const OPTIONAL_SERVICE_ACCESSORS = new Set(["serviceOption"]);
 
@@ -44,7 +44,7 @@ export const noServiceOptionRule = defineRule({
     },
   },
   create(context) {
-    if (isArchitectureExemptPath(context.filename)) return {};
+    if (classifyFileRole(context.filename) === undefined) return {};
 
     return {
       // The member reference rather than the call, so a data-last use inside `.pipe(…)` — which

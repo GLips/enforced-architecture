@@ -25,7 +25,7 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree, type Scope, type SourceCode, type Variable } from "@oxlint/plugins";
-import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
+import { classifyFileRole } from "../../policy/declared-trees.ts";
 
 type TypeAssertion = ESTree.TSAsExpression | ESTree.TSTypeAssertion;
 type BroadKind = "top" | "object" | "record";
@@ -178,7 +178,7 @@ export const noWidenThenAssertRule = defineRule({
     },
   },
   create(context) {
-    if (isArchitectureExemptPath(context.filename)) return {};
+    if (classifyFileRole(context.filename) === undefined) return {};
 
     const sourceCode = context.sourceCode;
 

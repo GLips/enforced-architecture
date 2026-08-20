@@ -31,21 +31,26 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree } from "@oxlint/plugins";
-import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
+import { classifyFileRole, isModule } from "../../policy/declared-trees.ts";
+import { aliasSpecifierFor } from "../../policy/layout.ts";
 import { exportedName, visitImportedNames } from "../lib/imported-names.ts";
 import { sourceOrderedReports } from "../lib/source-ordered-reports.ts";
 
 const VENDOR_MODULE = "@mantine/core";
 
-const WRAPPED_COMPONENTS: Record<string, { wrapper: string; why: string; wrapperPath: RegExp }> = {
+/**
+ * The wrapper module for each contained component, named RELATIVE to the tree's
+ * primitives directory. Relative because that directory is vocabulary: a project
+ * that calls it `design-system/` renames it once and every row here follows,
+ * where a hard-coded `@/shared/ui/textarea` would leave the wrapper importing the
+ * original and reporting itself.
+ */
+const WRAPPED_COMPONENTS: Record<string, { wrapperModule: string; why: string }> = {
   Textarea: {
-    wrapper: "@/shared/ui/textarea",
+    wrapperModule: "textarea",
     why: "The app wrapper carries the convention every compose box shares (Enter submits, Shift+Enter inserts a newline, via onEnter); importing the library component directly reintroduces a field that hand-rolls or omits it.",
-    wrapperPath: /\/src\/shared\/ui\/textarea\.tsx$/,
   },
 };
-
-const SOURCE_ROOT = /\/src\//;
 
 export const vendorComponentContainmentRule = defineRule({
   meta: {
@@ -58,8 +63,11 @@ export const vendorComponentContainmentRule = defineRule({
     },
   },
   create(context) {
-    const { filename } = context;
-    if (!SOURCE_ROOT.test(filename) || isArchitectureExemptPath(filename)) return {};
+    const role = classifyFileRole(context.filename);
+    if (role === undefined) return {};
+    const { vocabulary } = role.tree;
+    const wrapperPathOf = (wrapperModule: string) =>
+      `${vocabulary.sharedUiDir}/${wrapperModule}`;
 
     // The import arm only finds its names once the whole file is walked, so without a single
     // ordering owner every one of them lands after every re-export diagnostic, whatever the lines.
@@ -67,12 +75,19 @@ export const vendorComponentContainmentRule = defineRule({
 
     const reportIfWrapped = (node: ESTree.Node, component: string) => {
       const wrapped = WRAPPED_COMPONENTS[component];
+      if (wrapped === undefined) return;
+      const wrapperPath = wrapperPathOf(wrapped.wrapperModule);
       // The wrapper module MUST import the original — it is the one file that may.
-      if (wrapped === undefined || wrapped.wrapperPath.test(filename)) return;
+      if (isModule(role, wrapperPath)) return;
       ordered.report({
         node,
         messageId: "unwrappedVendorComponent",
-        data: { component, wrapper: wrapped.wrapper, why: wrapped.why, vendor: VENDOR_MODULE },
+        data: {
+          component,
+          wrapper: aliasSpecifierFor(vocabulary, wrapperPath),
+          why: wrapped.why,
+          vendor: VENDOR_MODULE,
+        },
       });
     };
 

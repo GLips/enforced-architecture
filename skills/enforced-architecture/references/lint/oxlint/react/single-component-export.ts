@@ -21,7 +21,7 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree } from "@oxlint/plugins";
-import { isArchitectureExemptPath, isComponentFile } from "../lib/architecture-exempt-paths.ts";
+import { classifyFileRole, isComponentFile } from "../../policy/declared-trees.ts";
 import { exportedComponents } from "../lib/component-declarations.ts";
 
 export const singleComponentExportRule = defineRule({
@@ -33,7 +33,7 @@ export const singleComponentExportRule = defineRule({
     },
   },
   create(context) {
-    if (isArchitectureExemptPath(context.filename) || !isComponentFile(context.filename)) return {};
+    if (classifyFileRole(context.filename) === undefined || !isComponentFile(context.filename)) return {};
     // A barrel re-exports by design: every name in one is defined elsewhere.
     if (context.filename.endsWith("/index.tsx")) return {};
 

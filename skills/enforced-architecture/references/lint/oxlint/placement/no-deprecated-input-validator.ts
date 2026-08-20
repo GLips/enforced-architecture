@@ -24,7 +24,7 @@
 
 import type { ESTree, Range } from "@oxlint/plugins";
 import { defineRule } from "@oxlint/plugins";
-import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
+import { classifyFileRole } from "../../policy/declared-trees.ts";
 import { createRangeIndex } from "../lib/range-index.ts";
 
 const DEPRECATED_METHOD = "inputValidator";
@@ -51,8 +51,7 @@ export const noDeprecatedInputValidatorRule = defineRule({
     },
   },
   create(context) {
-    const { filename } = context;
-    if (isArchitectureExemptPath(filename)) return {};
+    if (classifyFileRole(context.filename) === undefined) return {};
 
     // The builder is whatever the method is called ON, and the factory can sit arbitrarily deep
     // inside it — `createServerFn().middleware([auth]).inputValidator(…)`. A visitor reaches the

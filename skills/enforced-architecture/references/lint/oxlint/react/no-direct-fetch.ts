@@ -28,10 +28,7 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree } from "@oxlint/plugins";
-import {
-  isArchitectureExemptPath,
-  isComponentFile,
-} from "../lib/architecture-exempt-paths.ts";
+import { classifyFileRole, isComponentFile } from "../../policy/declared-trees.ts";
 
 const FETCH_GLOBAL = "fetch";
 const GLOBAL_OBJECTS = new Set(["globalThis", "window", "self"]);
@@ -60,7 +57,7 @@ export const noDirectFetchRule = defineRule({
   },
   create(context) {
     const { filename } = context;
-    if (!isComponentFile(filename) || isArchitectureExemptPath(filename)) return {};
+    if (!isComponentFile(filename) || classifyFileRole(filename) === undefined) return {};
 
     return {
       CallExpression(node) {

@@ -30,7 +30,7 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule } from "@oxlint/plugins";
-import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
+import { classifyFileRole, isAtProfile, isModule } from "../../policy/declared-trees.ts";
 import { exportedName, visitImportedNames } from "../lib/imported-names.ts";
 import { sourceOrderedReports } from "../lib/source-ordered-reports.ts";
 
@@ -48,10 +48,7 @@ const PLATFORM_RENDERING_PRIMITIVES = new Set([
   "View", "Text", "Pressable", "TouchableOpacity", "ScrollView", "TextInput", "Image",
 ]);
 
-// Anchored on `/src/` so a feature's own `shared/ui/` folder, or a `src/shared/ui-legacy/`, does
-// not inherit the primitives layer's exemption.
-const PRIMITIVES_LAYER = /\/src\/shared\/ui\//;
-const RENDER_BOUNDARY = /\/src\/routes\/__root\.tsx$/;
+
 
 export const noRawPrimitivesRule = defineRule({
   meta: {
@@ -66,9 +63,14 @@ export const noRawPrimitivesRule = defineRule({
     },
   },
   create(context) {
-    const { filename } = context;
-    if (isArchitectureExemptPath(filename)) return {};
-    if (PRIMITIVES_LAYER.test(filename) || RENDER_BOUNDARY.test(filename)) return {};
+    // The primitives layer as a PROFILE, so a feature's own `shared/ui/` folder,
+    // or a `shared/ui-legacy/`, does not inherit its exemption. The render
+    // boundary is a named module in the tree's vocabulary for the same reason:
+    // it is one file, and a suffix match would hand the exemption to any
+    // `__root.tsx` anywhere.
+    const role = classifyFileRole(context.filename);
+    if (role === undefined || isAtProfile(role, "shared-ui")) return {};
+    if (isModule(role, role.tree.vocabulary.rootRouteModule)) return {};
 
     // Both arms report, and the React Native one only finds its names once the whole file is
     // walked — so without a single ordering owner a file's diagnostics come out with every

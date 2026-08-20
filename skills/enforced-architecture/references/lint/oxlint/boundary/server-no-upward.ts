@@ -11,14 +11,24 @@
 //
 // A relative specifier reaches the same module and no pattern here sees it.
 // Adopt boundary/import-policy in the structural tier with this rule.
+//
+// A bare `@/features` names no unit, so there is no area to compare and this
+// rule is silent. boundary/import-policy reports that specifier as an
+// unclassified target in both tiers, which is the finding that edge gets.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule } from "@oxlint/plugins";
-import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
+import { classifyFileRole } from "../../policy/declared-trees.ts";
+import { classifySpecifier, classifyTargetPath, type TargetArea } from "../../policy/layout.ts";
 import { visitModuleSources } from "../lib/module-source-visitor.ts";
 
-const INFRASTRUCTURE_LAYER = /\/src\/infrastructure\//;
-const UPPER_LAYER_SPECIFIER = /^@\/(?:features|domains|routes)(?:\/|$)/;
+/**
+ * The areas that sit ABOVE an adapter. Named as areas rather than as an
+ * `@/(features|domains|routes)` regex, so a tree that renames any of the three
+ * keeps the same fence — a regex spelling a directory this rule does not own is
+ * a rule that goes quiet on a rename rather than one that errors.
+ */
+const UPPER_AREAS: TargetArea[] = ["feature", "domain", "route"];
 
 export const serverNoUpwardRule = defineRule({
   meta: {
@@ -29,11 +39,15 @@ export const serverNoUpwardRule = defineRule({
     },
   },
   create(context) {
-    const { filename } = context;
-    if (!INFRASTRUCTURE_LAYER.test(filename) || isArchitectureExemptPath(filename)) return {};
+    const role = classifyFileRole(context.filename);
+    if (role?.place?.profile !== "infrastructure") return {};
+    const { vocabulary } = role.tree;
 
     return visitModuleSources((source, specifier) => {
-      if (UPPER_LAYER_SPECIFIER.test(specifier)) {
+      const target = classifySpecifier(vocabulary, specifier);
+      if (target?.kind !== "module") return;
+      const to = classifyTargetPath(vocabulary, target.path);
+      if (to !== undefined && UPPER_AREAS.includes(to.area)) {
         context.report({ node: source, messageId: "infraImportsUpperLayer" });
       }
     });

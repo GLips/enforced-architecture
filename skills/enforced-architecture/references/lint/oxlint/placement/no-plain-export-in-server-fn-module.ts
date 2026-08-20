@@ -28,7 +28,7 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree } from "@oxlint/plugins";
-import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
+import { classifyFileRole } from "../../policy/declared-trees.ts";
 
 const COMPILER_BRIDGE_FACTORIES = new Set(["createServerFn", "createMiddleware"]);
 const SERVER_ONLY_PATH = /\.server\.[tj]sx?$/;
@@ -77,8 +77,8 @@ export const noPlainExportInServerFnModuleRule = defineRule({
     },
   },
   create(context) {
-    const { filename } = context;
-    if (isArchitectureExemptPath(filename) || SERVER_ONLY_PATH.test(filename)) return {};
+    const role = classifyFileRole(context.filename);
+    if (role === undefined || SERVER_ONLY_PATH.test(role.sourcePath)) return {};
 
     // Nothing can be judged during the walk. Whether this is a bridge module at all is only settled
     // once the whole file has been seen — the first export is visited long before a bridge call

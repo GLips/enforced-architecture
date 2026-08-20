@@ -43,131 +43,10 @@
   // in a nested workspace config buys nothing.
   "options": { "typeAware": true, "reportUnusedDisableDirectives": "warn" },
 
-  // Registration and activation are separate, and only one of them fails loudly.
-  // A rule the plugin exports but this block never names is loaded and never run:
-  // no warning, no output, exit 0. A key naming a rule the plugin does NOT export
-  // is fatal. The typo is caught; the omission is not — which is why the spec
-  // harness fails any rule missing from the plugin module.
-  //
-  // Keep each key equal to its file name (`lint/oxlint/boundary/db-isolation.ts` ->
-  // "arch/db-isolation") so the diagnostic id is also the path to the rule that
-  // raised it: `error arch(db-isolation): …`
-  //
-  // Every `arch/` severity below is read off the rule's own header rather than
-  // decided here. A header opens with one of two labels, and the label IS the
-  // severity: `Makes sure:` claims a property the codebase can rely on, which
-  // only holds if the build stops when it breaks — `error`. `Shows:` reports
-  // something a reader learns, which a build has no business failing on —
-  // `warn`. The four warnings below are the four `Shows:` rules in the catalog.
-  // The `typescript/` and `sonarjs/` entries carry no such label and were picked
-  // one at a time; their sections say why.
-  //
-  // NOT ENFORCED, either direction. `harness/run-rule-fixtures.ts` fails a rule
-  // whose header carries neither label, and stops there — nothing reads this
-  // file, so a header relabelled from `Shows:` to `Makes sure:` leaves the
-  // severity here stale and `bun run check` green. Re-derive the column by hand
-  // when a label moves, until ea-49 makes the harness read this file.
-  //
-  // A project that wants a warning to block edits the severity here and leaves
-  // the header alone: the label says what the rule BUYS, not what this project
-  // decided to do about it.
+  // The built-in rules, on for every file in the repo. Every `arch/` key sits in
+  // the tree-scoped `overrides` block at the bottom, with the rationale for the
+  // whole plugin.
   "rules": {
-    // ── api: what a unit's surface is, and who may name which half of it ──
-    "arch/barrel-direction": "error",
-    "arch/server-import-context": "error",
-
-    // ── boundary: what may cross into a tree, and what may not leave one ──
-    "arch/ambient-globals": "error",
-    "arch/client-server-infra": "error",
-    "arch/db-isolation": "error",
-    "arch/import-policy": "error",
-    "arch/no-test-imports": "error",
-    "arch/route-thinness": "error",
-    "arch/sdk-containment": "error",
-    "arch/server-no-upward": "error",
-
-    // ── effect: failures stay typed, services stay in the requirements ──
-    // Four of these are silent in a project that does not use Effect: they test
-    // for the `Effect.` or `Layer.` namespace before matching. Two do not, and
-    // reach further than the tag name suggests — `no-sql-type-parameter` matches
-    // any tag named `sql`, which is postgres.js and Kysely as much as
-    // `@effect/sql`, and `no-disable-validation` matches any `.make(props, opts)`
-    // carrying a `disableValidation` property. Both are still the right verdict
-    // on those call sites; they are just not dormant, so read them as rules this
-    // project takes rather than as ones awaiting an Effect adoption.
-    "arch/no-disable-validation": "error",
-    "arch/no-effect-catchallcause": "error",
-    "arch/no-nested-layer-provide": "error",
-    "arch/no-service-option": "error",
-    "arch/no-silent-error-swallow": "error",
-    // Double-reports with `arch/no-type-argument-assertion` until ea-51 lands:
-    // `sql` is in that rule's call-name set, so one `sql<Row>` template draws two
-    // errors prescribing two different fixes. Both stay on — each verdict is
-    // right, and neither rule is the one to drop — but the noise is real and the
-    // fix is a one-line deletion from the OTHER rule, not a severity here.
-    "arch/no-sql-type-parameter": "error",
-
-    // ── health: a decision is readable ──
-    "arch/no-nested-ternary": "error",
-
-    // ── naming: an exported name is an address you can search for ──
-    "arch/no-vacant-symbol-names": "error",
-
-    // ── placement: the one directory each kind of declaration lives in ──
-    "arch/deprecated-paths": "error",
-    "arch/no-deprecated-input-validator": "error",
-    "arch/no-plain-export-in-server-fn-module": "error",
-    "arch/no-raw-result": "error",
-    "arch/schema-placement": "error",
-    "arch/server-fn-placement": "error",
-    "arch/server-fn-validation": "error",
-
-    // ── react: state is derived, effects clean up, data comes through the cache ──
-    "arch/derived-state": "error",
-    "arch/no-async-effect": "error",
-    "arch/no-direct-fetch": "error",
-    // Counts, not properties. Each reports a number a reader uses to decide what
-    // to split next, and a component that collects many hooks or many props by
-    // design is not a defect.
-    "arch/hook-count": "warn",
-    "arch/prop-count": "warn",
-    "arch/single-component-export": "warn",
-
-    // ── style: every visual value names a token, and every vendor
-    //    component is reached through its wrapper ──
-    "arch/no-arbitrary-class-values": "error",
-    "arch/no-inline-color": "error",
-    "arch/no-inline-font-size": "error",
-    "arch/no-inline-style-prop": "error",
-    "arch/no-raw-primitives": "error",
-    "arch/vendor-component-containment": "error",
-
-    // ── testing: a test exercises the module it names ──
-    "arch/no-module-mocking": "error",
-
-    // ── types: no value arrives somewhere claiming a type nothing checked ──
-    "arch/no-broad-parameters": "error",
-    "arch/no-chained-type-assertions": "error",
-    "arch/no-known-value-widening": "error",
-    "arch/no-opaque-record": "error",
-    "arch/no-runtime-typeof": "error",
-    "arch/no-type-argument-assertion": "error",
-    "arch/no-unknown-returns": "error",
-    "arch/no-unknown-type-aliases": "error",
-    "arch/no-widen-then-assert": "error",
-    "arch/require-safety-comment": "error",
-    // A report on a spread that could have been written plainly, not a property
-    // anything depends on.
-    "arch/no-conditional-empty-object-spread": "warn",
-
-    // HELD BACK: `arch/no-reflect-access` is registered in plugin.ts and
-    // deliberately absent here, pending ea-48. It reports nothing when oxlint
-    // runs it — the global scope binds `Reflect`, so the rule's shadow check
-    // treats every use as shadowed and returns early. Its spec stays green
-    // because RuleTester populates no global scope. A key that cannot fire is
-    // worse than a missing one: it reads as coverage. The key goes back in the
-    // same change that fixes the rule.
-
     // NEGATIVE SPACE: `typescript/no-require-imports` is deliberately absent, and
     // was looked at rather than overlooked. It bans the CommonJS *form* —
     // `require(…)`, `require.resolve(…)`, `import x = require(…)` — everywhere,
@@ -218,11 +97,173 @@
     "sonarjs/no-identical-functions": "error"
   },
 
-  // Turn a rule off for files that are legitimately outside the architecture.
-  // Use `overrides` when the exception is THIS project's; put it in the rule's own
-  // path exemptions when it is an architectural fact every project inherits
-  // (db-isolation exempts the ORM config file itself for that reason).
+  // ── the declared trees ──────────────────────────────────────────────────
+  //
+  // Every `arch/` rule is scoped HERE, to the source roots this project declared
+  // in `lint/policy/declared-trees.ts`, and the two lists have to agree: one glob
+  // per declared root, spelled `<root>/**`. `harness/run-rule-fixtures.ts` fails
+  // the build when they diverge, because a root declared in one and missing from
+  // the other is a tree that reads as governed and is not.
+  //
+  // A monorepo lists one glob per governed root:
+  //
+  //   "files": ["apps/web/src/**", "packages/core/src/**"]
+  //
+  // and the alternative is a nested `.oxlintrc.json` inside each workspace that
+  // `extends` this file — same scoping, expressed as file placement instead of a
+  // glob. Nested configs load automatically; `--disable-nested-config` turns that
+  // off. Either way the declaration list stays the source of truth, and the guard
+  // reads whichever this file spells.
+  //
+  // NEGATIVE SPACE, and setup docs say it too: a tree not named here is a tree
+  // this project did not adopt for. The rules are silent there — no findings, no
+  // "unclassified" diagnostic — and that silence is not coverage. Adding a
+  // package without adding its root leaves it unpoliced, and nothing says so.
+  //
+  // The scoping is belt AND braces: every `arch/` rule also resolves the file it
+  // is handed against the declared trees and returns early outside them, so a
+  // project that reaches oxlint some other way still gets the same silence. The
+  // globs are what keep the rules from being loaded for files they will never
+  // report on.
+  //
+  // `typescript/` and `sonarjs/` stay GLOBAL above. They are questions about a
+  // file — an unawaited promise, two identical branches — not about a position
+  // in an architecture, and a config file or a script wants them just as much.
+  //
+  // A project turning one `arch/` rule off for a subtree of a declared tree is
+  // the menu this catalog exists to refuse. Where an exception is an
+  // architectural FACT — a generated file, a test — it belongs in
+  // `isArchitectureExemptPath`, which both tiers read.
   "overrides": [
-    { "files": ["*.config.ts"], "rules": { "arch/db-isolation": "off" } }
+    {
+      "files": ["src/**"],
+
+      // Registration and activation are separate, and only one of them fails loudly.
+      // A rule the plugin exports but this block never names is loaded and never run:
+      // no warning, no output, exit 0. A key naming a rule the plugin does NOT export
+      // is fatal. The typo is caught; the omission is not — which is why the spec
+      // harness fails any rule missing from the plugin module.
+      //
+      // Keep each key equal to its file name (`lint/oxlint/boundary/db-isolation.ts` ->
+      // "arch/db-isolation") so the diagnostic id is also the path to the rule that
+      // raised it: `error arch(db-isolation): …`
+      //
+      // Every `arch/` severity here is read off the rule's own header rather than
+      // decided here. A header opens with one of two labels, and the label IS the
+      // severity: `Makes sure:` claims a property the codebase can rely on, which
+      // only holds if the build stops when it breaks — `error`. `Shows:` reports
+      // something a reader learns, which a build has no business failing on —
+      // `warn`. The four warnings here are the four `Shows:` rules in the catalog.
+      // The `typescript/` and `sonarjs/` entries carry no such label and were picked
+      // one at a time; their sections above say why.
+      //
+      // NOT ENFORCED, either direction. `harness/run-rule-fixtures.ts` fails a rule
+      // whose header carries neither label, and stops there — nothing reads the
+      // severity column, so a header relabelled from `Shows:` to `Makes sure:`
+      // leaves the value here stale and `bun run check` green. Re-derive the column
+      // by hand when a label moves, until ea-49 makes the harness read it. The
+      // guard that DOES read this file reads only the `files` globs above.
+      //
+      // A project that wants a warning to block edits the severity here and leaves
+      // the header alone: the label says what the rule BUYS, not what this project
+      // decided to do about it.
+      "rules": {
+      // ── api: what a unit's surface is, and who may name which half of it ──
+      "arch/barrel-direction": "error",
+      "arch/server-import-context": "error",
+
+      // ── boundary: what may cross into a tree, and what may not leave one ──
+      "arch/ambient-globals": "error",
+      "arch/client-server-infra": "error",
+      "arch/db-isolation": "error",
+      "arch/import-policy": "error",
+      "arch/no-test-imports": "error",
+      "arch/route-thinness": "error",
+      "arch/sdk-containment": "error",
+      "arch/server-no-upward": "error",
+
+      // ── effect: failures stay typed, services stay in the requirements ──
+      // Four of these are silent in a project that does not use Effect: they test
+      // for the `Effect.` or `Layer.` namespace before matching. Two do not, and
+      // reach further than the tag name suggests — `no-sql-type-parameter` matches
+      // any tag named `sql`, which is postgres.js and Kysely as much as
+      // `@effect/sql`, and `no-disable-validation` matches any `.make(props, opts)`
+      // carrying a `disableValidation` property. Both are still the right verdict
+      // on those call sites; they are just not dormant, so read them as rules this
+      // project takes rather than as ones awaiting an Effect adoption.
+      "arch/no-disable-validation": "error",
+      "arch/no-effect-catchallcause": "error",
+      "arch/no-nested-layer-provide": "error",
+      "arch/no-service-option": "error",
+      "arch/no-silent-error-swallow": "error",
+      // Double-reports with `arch/no-type-argument-assertion` until ea-51 lands:
+      // `sql` is in that rule's call-name set, so one `sql<Row>` template draws two
+      // errors prescribing two different fixes. Both stay on — each verdict is
+      // right, and neither rule is the one to drop — but the noise is real and the
+      // fix is a one-line deletion from the OTHER rule, not a severity here.
+      "arch/no-sql-type-parameter": "error",
+
+      // ── health: a decision is readable ──
+      "arch/no-nested-ternary": "error",
+
+      // ── naming: an exported name is an address you can search for ──
+      "arch/no-vacant-symbol-names": "error",
+
+      // ── placement: the one directory each kind of declaration lives in ──
+      "arch/deprecated-paths": "error",
+      "arch/no-deprecated-input-validator": "error",
+      "arch/no-plain-export-in-server-fn-module": "error",
+      "arch/no-raw-result": "error",
+      "arch/schema-placement": "error",
+      "arch/server-fn-placement": "error",
+      "arch/server-fn-validation": "error",
+
+      // ── react: state is derived, effects clean up, data comes through the cache ──
+      "arch/derived-state": "error",
+      "arch/no-async-effect": "error",
+      "arch/no-direct-fetch": "error",
+      // Counts, not properties. Each reports a number a reader uses to decide what
+      // to split next, and a component that collects many hooks or many props by
+      // design is not a defect.
+      "arch/hook-count": "warn",
+      "arch/prop-count": "warn",
+      "arch/single-component-export": "warn",
+
+      // ── style: every visual value names a token, and every vendor
+      //    component is reached through its wrapper ──
+      "arch/no-arbitrary-class-values": "error",
+      "arch/no-inline-color": "error",
+      "arch/no-inline-font-size": "error",
+      "arch/no-inline-style-prop": "error",
+      "arch/no-raw-primitives": "error",
+      "arch/vendor-component-containment": "error",
+
+      // ── testing: a test exercises the module it names ──
+      "arch/no-module-mocking": "error",
+
+      // ── types: no value arrives somewhere claiming a type nothing checked ──
+      "arch/no-broad-parameters": "error",
+      "arch/no-chained-type-assertions": "error",
+      "arch/no-known-value-widening": "error",
+      "arch/no-opaque-record": "error",
+      "arch/no-runtime-typeof": "error",
+      "arch/no-type-argument-assertion": "error",
+      "arch/no-unknown-returns": "error",
+      "arch/no-unknown-type-aliases": "error",
+      "arch/no-widen-then-assert": "error",
+      "arch/require-safety-comment": "error",
+      // A report on a spread that could have been written plainly, not a property
+      // anything depends on.
+      "arch/no-conditional-empty-object-spread": "warn"
+
+      // HELD BACK: `arch/no-reflect-access` is registered in plugin.ts and
+      // deliberately absent here, pending ea-48. It reports nothing when oxlint
+      // runs it — the global scope binds `Reflect`, so the rule's shadow check
+      // treats every use as shadowed and returns early. Its spec stays green
+      // because RuleTester populates no global scope. A key that cannot fire is
+      // worse than a missing one: it reads as coverage. The key goes back in the
+      // same change that fixes the rule.
+      }
+    }
   ]
 }

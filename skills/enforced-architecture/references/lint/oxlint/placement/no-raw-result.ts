@@ -27,12 +27,11 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree } from "@oxlint/plugins";
-import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
+import { classifyFileRole, isAtProfile } from "../../policy/declared-trees.ts";
+import type { SourceProfile } from "../../policy/layout.ts";
 
-const DATA_ACCESS_LAYERS = [
-  /\/src\/features\/[^/]+\/repo\//,
-  /\/src\/features\/[^/]+\/controllers\//,
-];
+/** The layers that run queries. Profiles, so a renamed layer keeps its scope. */
+const DATA_ACCESS_PROFILES: SourceProfile[] = ["feature-repo", "feature-controllers"];
 
 const DB_CLIENT = "db";
 const UNSERIALIZABLE_WRITE_METHODS = new Set(["delete", "insert", "update"]);
@@ -105,9 +104,8 @@ export const noRawResultRule = defineRule({
     },
   },
   create(context) {
-    const { filename } = context;
-    if (isArchitectureExemptPath(filename)) return {};
-    if (!DATA_ACCESS_LAYERS.some((layer) => layer.test(filename))) return {};
+    const role = classifyFileRole(context.filename);
+    if (role === undefined || !isAtProfile(role, ...DATA_ACCESS_PROFILES)) return {};
 
     return {
       ReturnStatement(node) {

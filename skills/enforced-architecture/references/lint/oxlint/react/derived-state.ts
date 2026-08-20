@@ -24,7 +24,7 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree, type Range } from "@oxlint/plugins";
-import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
+import { classifyFileRole } from "../../policy/declared-trees.ts";
 import { createRangeIndex } from "../lib/range-index.ts";
 
 const STATE_HOOK = "useState";
@@ -45,7 +45,7 @@ export const derivedStateRule = defineRule({
     },
   },
   create(context) {
-    if (isArchitectureExemptPath(context.filename)) return {};
+    if (classifyFileRole(context.filename) === undefined) return {};
 
     // "Does this effect callback contain a setter call, and nothing that excuses it?" is a question
     // about a subtree, and a visitor reaches the callback before anything inside it. Ranges recorded

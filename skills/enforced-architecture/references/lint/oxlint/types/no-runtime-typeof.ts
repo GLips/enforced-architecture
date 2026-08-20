@@ -25,7 +25,7 @@
 
 import { defineRule } from "@oxlint/plugins";
 import type { ESTree } from "@oxlint/plugins";
-import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
+import { classifyFileRole } from "../../policy/declared-trees.ts";
 
 const STATEMENT_LIST_NODES = new Set([
   "BlockStatement",
@@ -104,7 +104,7 @@ export const noRuntimeTypeofRule = defineRule({
     },
   },
   create(context) {
-    if (isArchitectureExemptPath(context.filename)) return {};
+    if (classifyFileRole(context.filename) === undefined) return {};
 
     return {
       // Only the runtime operator. TypeScript's type-level `typeof X` parses to TSTypeQuery, so

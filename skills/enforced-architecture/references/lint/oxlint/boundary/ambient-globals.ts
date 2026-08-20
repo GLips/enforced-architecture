@@ -1,10 +1,10 @@
 // ─── boundary/ambient-globals ────────────────────────────────────────
 //
 // Makes sure: `process.env`, `import.meta.env`, `fetch` and `localStorage` are
-// read in one module each: @/env, the API client, and the browser storage
-// wrapper. To give every request a timeout, or every stored key one name and one
-// format, you edit one file. A missing variable fails at boot in @/env, and not
-// as an undefined deep inside a request.
+// read in one module each: the tree's env modules, its API client, and its
+// browser storage wrapper. To give every request a timeout, or every stored key
+// one name and one format, you edit one file. A missing variable fails at boot
+// in the env module, and not as an undefined deep inside a request.
 //
 // A global is never imported, so no rule that reads specifiers can fence one.
 // This is the rule for a capability that the module graph does not mention.
@@ -28,9 +28,10 @@
 // with no typed client. Both together report two diagnostics that say different
 // things about one violation.
 //
-// Scope is `/src/`, so vite.config.ts and next.config.js are unaffected. What
-// the BUILD reads is a different question from what value the app reads at
-// runtime, and one exemption for both gets reused for runtime code.
+// Scope is the declared trees, so vite.config.ts and next.config.js are
+// unaffected — they sit outside every one of them. What the BUILD reads is a
+// different question from what value the app reads at runtime, and one
+// exemption for both gets reused for runtime code.
 //
 // The rule resolves references, so a local binding that shadows the name,
 // `client.fetch()` and `{ fetch: 1 }` are not reads. A rebound host
@@ -60,7 +61,8 @@ import {
   type Reference,
   type SourceCode,
 } from "@oxlint/plugins";
-import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
+import { classifyFileRole, type FileRole, isModule } from "../../policy/declared-trees.ts";
+import type { TreeVocabulary } from "../../policy/layout.ts";
 import {
   exportedName,
   runtimeImportSpecifier,
@@ -74,8 +76,15 @@ import {
 } from "../lib/transparent-wrappers.ts";
 
 type AmbientGlobalPolicyBase = {
-  /** Files permitted to touch it. An EMPTY list is a ban — there is no owner to point at. */
-  allowedIn: RegExp[];
+  /**
+   * Modules permitted to touch it, as paths from the tree's source root with no
+   * extension. An EMPTY list is a ban — there is no owner to point at.
+   *
+   * Whole module paths rather than regexes: an `api-client-legacy.ts` beside the
+   * owner must not inherit its permission, and a regex is the shape that lets an
+   * adopter widen the owner set until the capability has no owner at all.
+   */
+  allowedIn: string[];
   /** What to import instead. Omitted for a banned global, where nothing replaces it. */
   owner?: string;
   /** Why the capability has one door. Lands in the diagnostic. */
@@ -110,40 +119,57 @@ type AmbientGlobalPolicy = AmbientGlobalPolicyBase &
       }
   );
 
-const ENV_MODULE = /\/src\/env\.[tj]s$/;
-const API_CLIENT_MODULE = /\/src\/infrastructure\/api-client\.[tj]s$/;
-const BROWSER_STORAGE_MODULE = /\/src\/infrastructure\/browser-storage\.[tj]s$/;
+/**
+ * The capability owners, in the resolved tree's own vocabulary.
+ *
+ * EVERY env module is an owner of the env reads, not just the one spelled
+ * `env.ts`. A project on the split option puts its secrets in `env.server.ts`,
+ * and a rule naming one spelling reports the very module the message tells the
+ * reader to move the read into.
+ */
+function restrictedAmbientGlobals(vocabulary: TreeVocabulary): AmbientGlobalPolicy[] {
+  const envModules = Object.keys(vocabulary.envModules);
+  const envOwner = envModules[0] ?? "";
+  const envWhy =
+    "The env module validates every variable once at boot, so a missing one fails there rather than as an undefined deep in a request.";
+  const alias = (module: string) => `${vocabulary.aliasPrefix}${module}`;
 
-const RESTRICTED_AMBIENT_GLOBALS: AmbientGlobalPolicy[] = [
-  {
-    globalPath: "process.env",
-    allowedIn: [ENV_MODULE],
-    owner: "@/env",
-    why: "The env module validates every variable once at boot, so a missing one fails there rather than as an undefined deep in a request.",
-    alsoImportedFrom: /^(?:node:)?process$/,
-  },
-  {
-    // The same capability under the bundler's spelling. A project on Vite alone can drop the
-    // `process.env` entry above; a project on Node alone can drop this one. Neither can drop both
-    // and still claim the env module is the only reader.
-    globalPath: "import.meta.env",
-    allowedIn: [ENV_MODULE],
-    owner: "@/env",
-    why: "The env module validates every variable once at boot, so a missing one fails there rather than as an undefined deep in a request.",
-  },
-  {
-    globalPath: "fetch",
-    allowedIn: [API_CLIENT_MODULE],
-    owner: "@/infrastructure/api-client",
-    why: "Base URL, auth headers, timeout and error decoding are decided once at the client; a bare fetch decides them again, differently, and usually omits the last one.",
-  },
-  {
-    globalPath: "localStorage",
-    allowedIn: [BROWSER_STORAGE_MODULE],
-    owner: "@/infrastructure/browser-storage",
-    why: "Key names, serialization, and the private-mode and server-render cases where the API is absent or throws belong in the wrapper, not at each call site.",
-  },
-];
+  return [
+    {
+      globalPath: "process.env",
+      allowedIn: envModules,
+      owner: alias(envOwner),
+      why: envWhy,
+      alsoImportedFrom: /^(?:node:)?process$/,
+    },
+    {
+      // The same capability under the bundler's spelling. A project on Vite alone can drop the
+      // `process.env` entry above; a project on Node alone can drop this one. Neither can drop both
+      // and still claim the env module is the only reader.
+      globalPath: "import.meta.env",
+      allowedIn: envModules,
+      owner: alias(envOwner),
+      why: envWhy,
+    },
+    {
+      globalPath: "fetch",
+      allowedIn: [vocabulary.apiClientModule],
+      owner: alias(vocabulary.apiClientModule),
+      why: "Base URL, auth headers, timeout and error decoding are decided once at the client; a bare fetch decides them again, differently, and usually omits the last one.",
+    },
+    {
+      globalPath: "localStorage",
+      allowedIn: [vocabulary.browserStorageModule],
+      owner: alias(vocabulary.browserStorageModule),
+      why: "Key names, serialization, and the private-mode and server-render cases where the API is absent or throws belong in the wrapper, not at each call site.",
+    },
+  ];
+}
+
+/** True when `role` is one of the modules a policy names as an owner. */
+function isOwnerModule(role: FileRole, policy: AmbientGlobalPolicy): boolean {
+  return policy.allowedIn.some((module) => isModule(role, module));
+}
 
 // A global is reachable as a property of the global object, which is a different node shape for the
 // same read. Stripped before matching, so one entry covers every host.
@@ -185,12 +211,11 @@ export const ambientGlobalsRule = defineRule({
     },
   },
   create(context) {
-    const { filename } = context;
-    if (!filename.includes("/src/")) return {};
-    if (isArchitectureExemptPath(filename)) return {};
+    const role = classifyFileRole(context.filename);
+    if (role === undefined) return {};
 
-    const enforced = RESTRICTED_AMBIENT_GLOBALS.filter(
-      (policy) => !policy.allowedIn.some((allowed) => allowed.test(filename)),
+    const enforced = restrictedAmbientGlobals(role.tree.vocabulary).filter(
+      (policy) => !isOwnerModule(role, policy),
     );
     if (enforced.length === 0) return {};
 

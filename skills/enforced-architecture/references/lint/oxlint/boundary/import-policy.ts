@@ -1,7 +1,7 @@
 // ─── boundary/import-policy ───────────────────────────────────────────
 //
 // Makes sure: One table decides every aliased specifier and every bare package
-// name under src/. A feature and a domain are reached at their barrel, so you
+// name inside a declared tree. A feature and a domain are reached at their barrel, so you
 // move a file inside one and no file outside it changes. `@/env.server` reaches
 // no client file, and a domain takes no runtime package.
 //
@@ -23,13 +23,13 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule } from "@oxlint/plugins";
-import { evaluateImportPolicy, POLICY_MESSAGES } from "../../policy/import-policy.ts";
 import {
-  classifySourcePath,
-  classifySpecifier,
-  sourcePathFromFilename,
-} from "../../policy/layout.ts";
-import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
+  describeKnownAreas,
+  evaluateImportPolicy,
+  POLICY_MESSAGES,
+} from "../../policy/import-policy.ts";
+import { classifyFileRole } from "../../policy/declared-trees.ts";
+import { classifySpecifier } from "../../policy/layout.ts";
 import { isTypeOnlyDeclaration, visitModuleSources } from "../lib/module-source-visitor.ts";
 
 export const importPolicyRule = defineRule({
@@ -43,35 +43,43 @@ export const importPolicyRule = defineRule({
   },
 
   create(context) {
-    const { filename } = context;
-    if (isArchitectureExemptPath(filename)) return {};
+    // Outside every declared tree this rule is silent, `unclassifiedSource`
+    // included — which is the whole point of the declaration. The loud
+    // unclassified diagnostic used to fire on the `Program` node of every file
+    // the substring `/src/` reached, so a correct monorepo package with its own
+    // layout drew a blocking error on 100% of its files, imports or not.
+    const role = classifyFileRole(context.filename);
+    if (role === undefined) return {};
 
-    const sourcePath = sourcePathFromFilename(filename);
-    if (sourcePath === undefined) return {};
+    const { vocabulary } = role.tree;
+    const { sourcePath } = role;
 
     // Reported on the program rather than per import, because a file matching no
     // profile is unpoliced whether or not it imports anything — and a file with
     // no imports is precisely the one a per-import check would pass in silence.
-    if (classifySourcePath(sourcePath) === undefined) {
+    // Loud INSIDE a declared tree and silent outside every one of them: an area
+    // nobody decided is a hole, and a package nobody adopted is not.
+    if (role.place === undefined) {
       return {
         Program(node) {
           context.report({
             node,
             messageId: "unclassifiedSource",
-            data: { path: sourcePath },
+            data: { path: sourcePath, areas: describeKnownAreas(vocabulary) },
           });
         },
       };
     }
 
     return visitModuleSources((source, specifier) => {
-      const target = classifySpecifier(specifier);
+      const target = classifySpecifier(vocabulary, specifier);
       // Undefined covers a relative path, an asset, and an alias resolving
       // outside the source root. The first belongs to the structural tier; the
       // other two are not module edges at all.
       if (target === undefined) return;
 
       const verdict = evaluateImportPolicy({
+        vocabulary,
         sourcePath,
         target,
         specifier,

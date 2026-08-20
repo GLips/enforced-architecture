@@ -26,7 +26,7 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree } from "@oxlint/plugins";
-import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
+import { classifyFileRole } from "../../policy/declared-trees.ts";
 
 const SERVER_FN_FACTORIES = new Set(["createServerFn"]);
 const HANDLER_METHOD = "handler";
@@ -90,7 +90,7 @@ export const serverFnValidationRule = defineRule({
     },
   },
   create(context) {
-    if (isArchitectureExemptPath(context.filename)) return {};
+    if (classifyFileRole(context.filename) === undefined) return {};
 
     return {
       CallExpression(node) {

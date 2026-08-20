@@ -30,20 +30,20 @@
 // them separately, the ban names no fix, and a rule with no fix to name is one
 // people disable.
 //
-// TOKEN_SOURCE holds the scale itself and the documented raster boundaries — a
-// canvas terminal, a PDF generator, a chart config takes a size as an API
-// argument. Derive that number from the scale inside the exempt file.
+// The tree's `themeModule` holds the scale itself and the documented raster
+// boundaries — a canvas terminal, a PDF generator, a chart config takes a size
+// as an API argument. Derive that number from the scale inside the exempt file.
+//
+// The domain layer is skipped because it carries no presentation — that is
+// `carriesPresentation` in lint/policy/layout.ts, shared with the other two
+// style rules that ask the same question.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree } from "@oxlint/plugins";
-import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
+import { classifyFileRole, isModule } from "../../policy/declared-trees.ts";
+import { carriesPresentation } from "../../policy/layout.ts";
 
 const SCALE_PROPERTIES = new Set(["fontSize"]);
-
-// Anchored on `/src/` so a sibling that merely ends in the same word — a `legacy-theme.ts`, a
-// package called `domains-utils` — does not inherit the exemption.
-const TOKEN_SOURCE = /\/src\/shared\/ui\/theme\.ts$/;
-const NON_UI_LAYER = /\/src\/domains\//;
 
 /**
  * The static name of a non-computed property key.
@@ -79,9 +79,18 @@ export const noInlineFontSizeRule = defineRule({
     },
   },
   create(context) {
-    const { filename } = context;
-    if (isArchitectureExemptPath(filename)) return {};
-    if (TOKEN_SOURCE.test(filename) || NON_UI_LAYER.test(filename)) return {};
+    // Three gates, one owner each. `carriesPresentation` is the shared answer to
+    // "does the style tier have a subject at this position" — it used to be a
+    // private `/\/src\/domains\//` in this rule and in
+    // style/no-inline-font-size, and absent from
+    // style/no-arbitrary-class-values, and nothing recorded whether the
+    // asymmetry was a decision. The token source is a named module in the tree's
+    // vocabulary rather than a path suffix, so a `legacy-theme.ts` beside it
+    // does not inherit the exemption.
+    const role = classifyFileRole(context.filename);
+    if (role === undefined) return {};
+    if (role.place !== undefined && !carriesPresentation(role.place.profile)) return {};
+    if (isModule(role, role.tree.vocabulary.themeModule)) return {};
 
     return {
       Property(node) {

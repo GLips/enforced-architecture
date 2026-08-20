@@ -57,15 +57,19 @@ describeRule("boundary/no-test-imports", noTestImportsRule, {
       code: `import type { SeededRow } from "@/test/seed";`,
       errors: [{ messageId: "testImport" }],
     },
-    {
-      name: "a relative path into the shared test root, which the alias arm alone would miss",
-      filename: REPO_LAYER,
-      code: `import { seedDb } from "../../../src/test/seed";`,
-      errors: [{ messageId: "testImport" }],
-    },
   ],
 
   legal: [
+    {
+      // A violation, and not this tier's. The specifier names no path a linter
+      // can read, and the only thing that once matched it was a literal `src/`
+      // in the pattern — root knowledge this tier no longer holds, and which was
+      // wrong for every tree whose root is spelled differently. The structural
+      // tier resolves the specifier and boundary/import-policy reports it there.
+      name: "a relative path into the shared test root is the structural tier's finding",
+      filename: REPO_LAYER,
+      code: `import { seedDb } from "../../../src/test/seed";`,
+    },
     {
       name: "a test file may import whatever it likes — the rule governs production code",
       filename: "/repo/src/features/billing/service/charge.test.ts",

@@ -40,10 +40,17 @@ import {
   classifySourcePath,
   classifyTargetPath,
   classifySpecifier,
+  RECOMMENDED_VOCABULARY,
   type SourceProfile,
-  sourcePathFromFilename,
   type TargetArea,
+  type TreeVocabulary,
 } from "./layout.ts";
+import { classifyFileRole, declaredTreeFor, type DeclaredTree } from "./declared-trees.ts";
+
+// Every classifier below takes the vocabulary of the tree the path sits in. These
+// cases spell the recommended one, because the rows are the recommended layout;
+// the two-tree cases at the bottom are where a SECOND vocabulary is exercised.
+const VOCABULARY = RECOMMENDED_VOCABULARY;
 
 // node:test's `describe` and `it` hand back the suite's promise, and the runner
 // owns and awaits the suite it created. Discarding the handle is correct rather
@@ -286,17 +293,17 @@ const CLASSIFICATION: Row[] = [
 describeSuite("classification: every path lands on the cell its author intended", () => {
   for (const row of CLASSIFICATION) {
     testCase(row.name, () => {
-      const from = classifySourcePath(row.from);
+      const from = classifySourcePath(VOCABULARY, row.from);
       assert.notEqual(from, undefined, `${row.from} classified as nothing`);
       assert.equal(from?.profile, row.profile);
 
-      const read = classifySpecifier(row.specifier);
+      const read = classifySpecifier(VOCABULARY, row.specifier);
       assert.notEqual(read, undefined, `${row.specifier} read as nothing`);
 
       const area =
         read?.kind === "package"
           ? ("package" as TargetArea)
-          : classifyTargetPath(read?.path ?? "")?.area;
+          : classifyTargetPath(VOCABULARY, read?.path ?? "")?.area;
       assert.equal(area, row.area);
 
       assert.deepEqual(IMPORT_POLICY[row.profile][row.area], row.surface);
@@ -306,35 +313,31 @@ describeSuite("classification: every path lands on the cell its author intended"
 
 describeSuite("classification: what is deliberately not classified", () => {
   testCase("a top-level directory nobody declared is unclassified, not silently exempt", () => {
-    assert.equal(classifySourcePath("lib/format-date.ts"), undefined);
-    assert.equal(classifyTargetPath("lib/format-date"), undefined);
+    assert.equal(classifySourcePath(VOCABULARY, "lib/format-date.ts"), undefined);
+    assert.equal(classifyTargetPath(VOCABULARY, "lib/format-date"), undefined);
   });
 
   testCase("a directory inside a feature that is not a layer is unclassified", () => {
-    assert.equal(classifySourcePath("features/billing/helpers/format.ts"), undefined);
+    assert.equal(classifySourcePath(VOCABULARY, "features/billing/helpers/format.ts"), undefined);
   });
 
   testCase("a file at a feature root IS classified, so topology reports it alone", () => {
     // `placement/topology` rejects a root file that is not on its list. Leaving
     // it unclassified here would report one mistake twice, with two fixes named.
-    assert.equal(classifySourcePath("features/billing/constants.ts")?.profile, "feature-root");
+    assert.equal(classifySourcePath(VOCABULARY, "features/billing/constants.ts")?.profile, "feature-root");
   });
 
   testCase("the bare subdivided directories name no unit at all", () => {
-    assert.equal(classifyTargetPath("features"), undefined);
-    assert.equal(classifyTargetPath("domains"), undefined);
+    assert.equal(classifyTargetPath(VOCABULARY, "features"), undefined);
+    assert.equal(classifyTargetPath(VOCABULARY, "domains"), undefined);
   });
 
   testCase("an asset and a relative path are not this tier's question", () => {
-    assert.equal(classifySpecifier("../styles.css"), undefined);
-    assert.equal(classifySpecifier("./InvoiceTable"), undefined);
-    assert.equal(classifySpecifier("@/styles.css?url"), undefined);
+    assert.equal(classifySpecifier(VOCABULARY, "../styles.css"), undefined);
+    assert.equal(classifySpecifier(VOCABULARY, "./InvoiceTable"), undefined);
+    assert.equal(classifySpecifier(VOCABULARY, "@/styles.css?url"), undefined);
   });
 
-  testCase("a filename outside any source root yields no path to classify", () => {
-    assert.equal(sourcePathFromFilename("/repo/lint/structural/registry.ts"), undefined);
-    assert.equal(sourcePathFromFilename("/repo/src/shared/ui/Button.tsx"), "shared/ui/Button.tsx");
-  });
 });
 
 /** The evaluator, in the shape the OXLINT adapter calls it: a specifier. */
@@ -343,9 +346,10 @@ function verdict(
   specifier: string,
   options: { typeOnly?: boolean } = {},
 ): PolicyVerdict {
-  const read = classifySpecifier(specifier);
+  const read = classifySpecifier(VOCABULARY, specifier);
   assert.notEqual(read, undefined, `${specifier} is not a specifier this helper can read`);
   return evaluateImportPolicy({
+    vocabulary: VOCABULARY,
     sourcePath: from,
     target: read as { kind: "module"; path: string } | { kind: "package"; name: string },
     specifier,
@@ -361,6 +365,7 @@ function resolvedVerdict(
   options: { typeOnly?: boolean } = {},
 ): PolicyVerdict {
   return evaluateImportPolicy({
+    vocabulary: VOCABULARY,
     sourcePath: from,
     target: { kind: "module", path: target },
     specifier,

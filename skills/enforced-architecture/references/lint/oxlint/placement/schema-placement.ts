@@ -24,15 +24,10 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule } from "@oxlint/plugins";
-import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
+import { classifyFileRole } from "../../policy/declared-trees.ts";
+import { isUnderPath } from "../../policy/layout.ts";
 
 const SCHEMA_DECLARATIONS = new Set(["pgTable", "relations"]);
-
-// Both anchored on their enclosing slashes, so a sibling that merely shares a prefix — a
-// `schema-archive/` holding retired tables, a `drizzle-helpers/` of query utilities — is still
-// governed. Only the real schema directory and the real migration output are exempt.
-const SCHEMA_DIRECTORY = /\/src\/infrastructure\/db\/schema\//;
-const MIGRATION_DIRECTORY = /\/drizzle\//;
 
 export const schemaPlacementRule = defineRule({
   meta: {
@@ -43,9 +38,18 @@ export const schemaPlacementRule = defineRule({
     },
   },
   create(context) {
-    const { filename } = context;
-    if (SCHEMA_DIRECTORY.test(filename) || MIGRATION_DIRECTORY.test(filename)) return {};
-    if (isArchitectureExemptPath(filename)) return {};
+    // Generated migration output sits outside every declared tree, so this rule
+    // is already silent there and needs no exemption of its own. The same is
+    // true of a monorepo package that IS the schema package and declares its own
+    // tree: it names its schema directory in that tree's `dbSchemaPath`, and the
+    // rule reads that rather than prescribing a directory the package does not
+    // have.
+    const role = classifyFileRole(context.filename);
+    if (role === undefined) return {};
+    // Whole segments, so a sibling that merely shares a prefix — a
+    // `schema-archive/` holding retired tables, a `drizzle-helpers/` of query
+    // utilities — is still governed.
+    if (isUnderPath(role.sourcePath, role.tree.vocabulary.dbSchemaPath)) return {};
 
     return {
       // The declaration is a CALL, wherever it sits: a visitor reaches one nested in a factory or an

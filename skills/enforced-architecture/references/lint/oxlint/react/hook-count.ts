@@ -26,7 +26,7 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree, type Range } from "@oxlint/plugins";
-import { isArchitectureExemptPath, isComponentFile } from "../lib/architecture-exempt-paths.ts";
+import { classifyFileRole, isComponentFile } from "../../policy/declared-trees.ts";
 import { exportedComponents } from "../lib/component-declarations.ts";
 import { numericRuleOption } from "../lib/rule-options.ts";
 
@@ -52,7 +52,7 @@ export const hookCountRule = defineRule({
     },
   },
   create(context) {
-    if (isArchitectureExemptPath(context.filename) || !isComponentFile(context.filename)) return {};
+    if (classifyFileRole(context.filename) === undefined || !isComponentFile(context.filename)) return {};
 
     const threshold = numericRuleOption(context.options[0], "threshold", DEFAULT_THRESHOLD);
     // Recorded on the way past and attributed at the end: a visitor reaches a component's function

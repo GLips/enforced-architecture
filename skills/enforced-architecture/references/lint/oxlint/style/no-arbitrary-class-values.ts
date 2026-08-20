@@ -5,8 +5,18 @@
 // own scale such as `text-sm`. To change the body size or the surface color,
 // you edit the theme config once, and every class that names the token follows.
 //
-// TOKEN_SOURCE must stay exempt. The theme config writes the raw values the
-// tokens resolve to, so the rule reports the very lines that define the scale.
+// The framework's theme config — `tailwind.config.ts` — writes the raw values
+// the tokens resolve to, and needs no exemption here: it sits at the project
+// root, outside every declared tree, so this rule is already silent there. A
+// project that moves it INSIDE a declared tree has to name it in that tree's
+// `themeModule`, which is the exemption this rule reads.
+//
+// The domain layer is skipped because it carries no presentation — that is
+// `carriesPresentation` in lint/policy/layout.ts. This rule had no such gate
+// while style/no-inline-color and style/no-inline-font-size did, and the
+// asymmetry was an omission rather than a decision: a domain cannot import a
+// primitive at all, so a utility class in one is a placement problem and not a
+// styling one.
 //
 // Add GENERIC_SCALE_UTILITY only after the semantic type classes exist
 // (`text-body`, `text-caption`). Before that, an agent has a banned class and
@@ -22,7 +32,8 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree } from "@oxlint/plugins";
-import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
+import { classifyFileRole, isModule } from "../../policy/declared-trees.ts";
+import { carriesPresentation } from "../../policy/layout.ts";
 
 // `p-[7px]`, `text-[13px]`, `bg-[#fff]` — the arbitrary-value bracket syntax carrying a literal
 // length, percentage, or color. A `md:` / `hover:` variant prefix sits before the match and does
@@ -55,8 +66,6 @@ const ARBITRARY_VAR_UTILITY =
 // semantic one.
 const GENERIC_SCALE_UTILITY = /\btext-(?:xs|sm|base|lg|xl|2xl|3xl|4xl|5xl|6xl|7xl|8xl|9xl)\b/;
 
-const TOKEN_SOURCE = /\/tailwind\.config\.[tj]s$/;
-
 // Ordered, so a string carrying more than one off-token shape reports them in a stable order.
 const OFF_TOKEN_PATTERNS = [
   { pattern: ARBITRARY_VALUE_UTILITY, messageId: "arbitraryValue" },
@@ -77,8 +86,18 @@ export const noArbitraryClassValuesRule = defineRule({
     },
   },
   create(context) {
-    const { filename } = context;
-    if (isArchitectureExemptPath(filename) || TOKEN_SOURCE.test(filename)) return {};
+    // Three gates, one owner each. `carriesPresentation` is the shared answer to
+    // "does the style tier have a subject at this position" — it used to be a
+    // private `/\/src\/domains\//` in this rule and in
+    // style/no-inline-font-size, and absent from
+    // style/no-arbitrary-class-values, and nothing recorded whether the
+    // asymmetry was a decision. The token source is a named module in the tree's
+    // vocabulary rather than a path suffix, so a `legacy-theme.ts` beside it
+    // does not inherit the exemption.
+    const role = classifyFileRole(context.filename);
+    if (role === undefined) return {};
+    if (role.place !== undefined && !carriesPresentation(role.place.profile)) return {};
+    if (isModule(role, role.tree.vocabulary.themeModule)) return {};
 
     const reportOffTokenClasses = (node: ESTree.Node, text: string) => {
       for (const { pattern, messageId } of OFF_TOKEN_PATTERNS) {

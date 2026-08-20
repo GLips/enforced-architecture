@@ -25,7 +25,7 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree } from "@oxlint/plugins";
-import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
+import { classifyFileRole } from "../../policy/declared-trees.ts";
 
 const CATCH_METHODS = new Set(["catchAll", "catchTag", "catchTags"]);
 const VOID_EFFECT_MEMBERS = new Set(["void", "unit"]);
@@ -95,7 +95,7 @@ export const noSilentErrorSwallowRule = defineRule({
     },
   },
   create(context) {
-    if (isArchitectureExemptPath(context.filename)) return {};
+    if (classifyFileRole(context.filename) === undefined) return {};
 
     return {
       CallExpression(node) {

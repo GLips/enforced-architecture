@@ -44,6 +44,13 @@ const PLUGIN_PATH = join(OXLINT_ROOT, "plugin.ts");
  * the vocabulary it reads is the right shape rather than an omission.
  */
 const POLICY_ROOT = join(REPO_ROOT, "skills/enforced-architecture/references/lint/policy");
+/**
+ * The shipped oxlint config. Read here for ONE claim: that the trees it scopes
+ * the `arch/` rules to are the trees `policy/declared-trees.ts` declares.
+ * Declaration and scoping are one list wearing two hats, and a root in one and
+ * not the other is a tree that reads as governed and is not.
+ */
+const OXLINTRC_PATH = join(REPO_ROOT, "skills/enforced-architecture/references/setup/oxlintrc.json");
 
 type RuleFailure = { rule: string; detail: string };
 
@@ -150,6 +157,7 @@ async function checkRule(rulePath: string): Promise<RuleFailure[]> {
 }
 
 const structural = await Promise.all(rulePaths.map(checkRule));
+const configFailures = await checkTreeScoping();
 
 // Run every spec in one Node process — `node --test` gives each file its own subprocess.
 const specList = [
@@ -207,6 +215,9 @@ const orphans = [...specPaths]
 for (const orphan of orphans) {
   console.log(`  FAIL  <orphan> ${orphan} sits beside no rule template`);
 }
+for (const detail of configFailures) {
+  console.log(`  FAIL  <config> ${detail}`);
+}
 
 if (run.status !== 0) console.log(`\n${tap}`);
 
@@ -214,7 +225,11 @@ console.log(
   `\n${rulePaths.length - failedRules}/${rulePaths.length} oxlint rule templates proved against their obvious / adversarial / legal specs,` +
     ` plus ${policySpecs.length} spec file(s) over the shared tables in lint/policy/.`,
 );
-process.exit(failedRules === 0 && orphans.length === 0 && run.status === 0 ? 0 : 1);
+process.exit(
+  failedRules === 0 && orphans.length === 0 && configFailures.length === 0 && run.status === 0
+    ? 0
+    : 1,
+);
 
 /**
  * Whether a rule's banner states what the rule buys, rather than what it matches. `Makes sure:`
@@ -228,4 +243,96 @@ function statesWhatItBuys(source: string): boolean {
   return lines
     .slice(0, end === -1 ? lines.length : end)
     .some((line) => /^\/\/ (Makes sure|Shows):/.test(line));
+}
+
+/**
+ * Strip `//` comments so `JSON.parse` can read the shipped JSONC config.
+ *
+ * String-aware rather than a regex, because `"arch/db-isolation"` is a key with
+ * a slash in it and a naive cut would truncate the object at the first one. Block
+ * comments are not handled: the config uses none, and a stripper that quietly
+ * accepted a form the file never takes would be untested code.
+ */
+function stripLineComments(source: string): string {
+  let out = "";
+  let inString = false;
+  let escaped = false;
+  for (let index = 0; index < source.length; index += 1) {
+    const character = source[index];
+    if (inString) {
+      out += character;
+      if (escaped) escaped = false;
+      else if (character === "\\") escaped = true;
+      else if (character === '"') inString = false;
+      continue;
+    }
+    if (character === '"') {
+      inString = true;
+      out += character;
+      continue;
+    }
+    if (character === "/" && source[index + 1] === "/") {
+      while (index < source.length && source[index] !== "\n") index += 1;
+      out += "\n";
+      continue;
+    }
+    out += character;
+  }
+  return out;
+}
+
+/**
+ * The tree-scoping guard: the shipped config's `arch/` scope equals the declared
+ * tree list, one `<root>/**` glob per root.
+ *
+ * This is the only thing here that reads the config file, and it deliberately
+ * says nothing about severities — see the note in the config itself. What it
+ * catches is the divergence that produces a silently unpoliced tree: a project
+ * declaring `packages/core/src` and never widening the glob gets a tree every
+ * rule resolves and oxlint never runs them over, and a project widening the glob
+ * without declaring the root gets rules that load and return early on every file.
+ * Both read as green.
+ */
+async function checkTreeScoping(): Promise<string[]> {
+  const { DECLARED_TREES } = (await import(join(POLICY_ROOT, "declared-trees.ts"))) as {
+    DECLARED_TREES: { root: string }[];
+  };
+  const config = JSON.parse(stripLineComments(await readFile(OXLINTRC_PATH, "utf8"))) as {
+    rules?: Record<string, unknown>;
+    overrides?: { files?: string[]; rules?: Record<string, unknown> }[];
+  };
+
+  const failures: string[] = [];
+  const globalArchKeys = Object.keys(config.rules ?? {}).filter((key) => key.startsWith("arch/"));
+  if (globalArchKeys.length > 0) {
+    failures.push(
+      `setup/oxlintrc.json enables ${globalArchKeys.join(", ")} outside any tree-scoped override, ` +
+        `so those rules run over files no declared tree owns`,
+    );
+  }
+
+  const scopedGlobs = new Set(
+    (config.overrides ?? [])
+      .filter((entry) => Object.keys(entry.rules ?? {}).some((key) => key.startsWith("arch/")))
+      .flatMap((entry) => entry.files ?? []),
+  );
+  const declaredGlobs = new Set(DECLARED_TREES.map((tree) => `${tree.root}/**`));
+
+  for (const glob of declaredGlobs) {
+    if (!scopedGlobs.has(glob)) {
+      failures.push(
+        `policy/declared-trees.ts declares a tree setup/oxlintrc.json never scopes the rules to ` +
+          `(no "${glob}" glob), so oxlint runs no architecture rule over it`,
+      );
+    }
+  }
+  for (const glob of scopedGlobs) {
+    if (!declaredGlobs.has(glob)) {
+      failures.push(
+        `setup/oxlintrc.json scopes the arch rules to "${glob}", which no tree in ` +
+          `policy/declared-trees.ts declares, so every rule returns early on those files`,
+      );
+    }
+  }
+  return failures;
 }

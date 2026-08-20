@@ -17,7 +17,7 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree, type Range } from "@oxlint/plugins";
-import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
+import { classifyFileRole } from "../../policy/declared-trees.ts";
 
 const MAX_TERNARY_DEPTH = 2;
 
@@ -37,7 +37,7 @@ export const noNestedTernaryRule = defineRule({
     },
   },
   create(context) {
-    if (isArchitectureExemptPath(context.filename)) return {};
+    if (classifyFileRole(context.filename) === undefined) return {};
 
     const conditionals: ESTree.ConditionalExpression[] = [];
     const depths = new Map<ESTree.ConditionalExpression, number>();
