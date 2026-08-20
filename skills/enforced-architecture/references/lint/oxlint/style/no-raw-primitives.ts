@@ -32,6 +32,7 @@
 import { defineRule } from "@oxlint/plugins";
 import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
 import { exportedName, visitImportedNames } from "../lib/imported-names.ts";
+import { sourceOrderedReports } from "../lib/source-ordered-reports.ts";
 
 const RAW_HTML_ELEMENTS = new Set([
   "div", "span", "p", "main", "section", "header", "footer", "nav", "aside", "article",
@@ -69,13 +70,18 @@ export const noRawPrimitivesRule = defineRule({
     if (isArchitectureExemptPath(filename)) return {};
     if (PRIMITIVES_LAYER.test(filename) || RENDER_BOUNDARY.test(filename)) return {};
 
+    // Both arms report, and the React Native one only finds its names once the whole file is
+    // walked — so without a single ordering owner a file's diagnostics come out with every
+    // imported name after every raw element, whatever their line numbers.
+    const ordered = sourceOrderedReports(context);
+
     return {
       // --- React Native arm ---
       // Every name the file takes from the platform module, under react-native's own spelling —
       // so `View as Screen` and `RN.View` are the same finding as `View`.
       ...visitImportedNames(context.sourceCode, [PLATFORM_MODULE], (name, node) => {
         if (PLATFORM_RENDERING_PRIMITIVES.has(name)) {
-          context.report({ node, messageId: "platformPrimitive" });
+          ordered.report({ node, messageId: "platformPrimitive" });
         }
       }),
 
@@ -86,7 +92,7 @@ export const noRawPrimitivesRule = defineRule({
         // A member or namespaced name (`<Foo.Bar>`, `<svg:rect>`) is never an intrinsic.
         if (node.name.type !== "JSXIdentifier") return;
         if (RAW_HTML_ELEMENTS.has(node.name.name)) {
-          context.report({ node: node.name, messageId: "rawHtmlElement" });
+          ordered.report({ node: node.name, messageId: "rawHtmlElement" });
         }
       },
 
@@ -99,7 +105,7 @@ export const noRawPrimitivesRule = defineRule({
         for (const specifier of node.specifiers) {
           if (specifier.exportKind === "type") continue;
           if (PLATFORM_RENDERING_PRIMITIVES.has(exportedName(specifier.local))) {
-            context.report({ node: specifier, messageId: "platformPrimitive" });
+            ordered.report({ node: specifier, messageId: "platformPrimitive" });
           }
         }
       },
@@ -107,8 +113,11 @@ export const noRawPrimitivesRule = defineRule({
       ExportAllDeclaration(node) {
         if (node.source.value !== PLATFORM_MODULE) return;
         if (node.exportKind === "type") return;
-        context.report({ node: node.source, messageId: "platformStarReExport" });
+        ordered.report({ node: node.source, messageId: "platformStarReExport" });
       },
+
+      // Last, so its `Program:exit` is the surviving one. `visitImportedNames` has none.
+      ...ordered.visitor(),
     };
   },
 });

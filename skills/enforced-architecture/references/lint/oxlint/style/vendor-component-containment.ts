@@ -33,6 +33,7 @@
 import { defineRule, type ESTree } from "@oxlint/plugins";
 import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
 import { exportedName, visitImportedNames } from "../lib/imported-names.ts";
+import { sourceOrderedReports } from "../lib/source-ordered-reports.ts";
 
 const VENDOR_MODULE = "@mantine/core";
 
@@ -60,11 +61,15 @@ export const vendorComponentContainmentRule = defineRule({
     const { filename } = context;
     if (!SOURCE_ROOT.test(filename) || isArchitectureExemptPath(filename)) return {};
 
+    // The import arm only finds its names once the whole file is walked, so without a single
+    // ordering owner every one of them lands after every re-export diagnostic, whatever the lines.
+    const ordered = sourceOrderedReports(context);
+
     const reportIfWrapped = (node: ESTree.Node, component: string) => {
       const wrapped = WRAPPED_COMPONENTS[component];
       // The wrapper module MUST import the original — it is the one file that may.
       if (wrapped === undefined || wrapped.wrapperPath.test(filename)) return;
-      context.report({
+      ordered.report({
         node,
         messageId: "unwrappedVendorComponent",
         data: { component, wrapper: wrapped.wrapper, why: wrapped.why, vendor: VENDOR_MODULE },
@@ -97,12 +102,15 @@ export const vendorComponentContainmentRule = defineRule({
         if (node.exportKind === "type") return;
         // A star re-export names no specifier to blame, and republishes every wrapped component
         // at once — including ones added to the table later.
-        context.report({
+        ordered.report({
           node: node.source,
           messageId: "vendorStarReExport",
           data: { vendor: VENDOR_MODULE },
         });
       },
+
+      // Last, so its `Program:exit` is the surviving one. `visitImportedNames` has none.
+      ...ordered.visitor(),
     };
   },
 });

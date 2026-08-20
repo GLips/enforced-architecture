@@ -48,8 +48,9 @@ import {
 //
 // ONE CONVENTION FOR THE CONDITIONS BELOW, because a file that applies two teaches neither. A
 // condition that decides what this module FINDS is pinned by a fixture — delete it and a spec goes
-// red, without exception. A condition that only narrows a type, or names which of two nodes a
-// binding is, stays even where no input reaches its other branch: it is how the next reader knows
+// red, without exception. A condition that only narrows a type, or names WHICH SLOT of its parent
+// a node fills (`parent.object === node` beside a `parent.property` that `staticKeyName` already
+// refuses), stays even where no input reaches its other branch: it is how the next reader knows
 // the shape being matched. Where a condition claimed to decide something and did not, it was
 // deleted and replaced by a comment saying why the absence is deliberate — `takeNamespaceReads`
 // below carries one, and `takeFromImportBinding` the other.
@@ -140,6 +141,51 @@ function staticSpecifier(node: ESTree.Node | undefined): string | undefined {
 }
 
 /**
+ * Calls back once per load expression that binds NO name and has a member read taken off it:
+ * `require("m").View`, `(await import("m")).env`. The callback gets the module's specifier and the
+ * node that IS the module object, whose parent is the member read.
+ *
+ * Separate from `visitImportedNames` because two rules need the same walk and want different
+ * answers from it: a name fence wants the key, and `boundary/ambient-globals` wants the module
+ * object to keep walking members from. It is a shared export rather than a second copy because two
+ * copies of this exact walk is what let `(await (import("m") as never)).env` escape one rule while
+ * the other caught it — the same cast, the same walk, two answers.
+ *
+ * `boundary/ambient-globals` cannot share `visitImportedNames` itself, and should not: it selects
+ * modules by RegExp, and a module set that took a pattern would be the predicate-shaped knob the
+ * catalog's posture rules out. It shares the walk and keeps its own selection.
+ */
+export function visitUnboundModuleObjects(
+  sourceCode: SourceCode,
+  onModuleObject: (specifier: string, moduleObject: ESTree.Node) => void,
+): Visitor {
+  const visit = (node: ESTree.Node) => {
+    const specifier = runtimeImportSpecifier(node, sourceCode);
+    if (specifier === undefined) return;
+    // `(require("m") as never).View` is the same read with a TypeScript node wedged in.
+    const moduleObject = outermostTransparentWrapper(node);
+    const parent: ESTree.Node | null | undefined = moduleObject.parent;
+    if (parent === null || parent === undefined) return;
+    // A load nobody reads from is nothing to fence: `await import("m")` for its side effects only.
+    if (parent.type !== "MemberExpression" || parent.object !== moduleObject) return;
+    onModuleObject(specifier, moduleObject);
+  };
+
+  return {
+    ImportExpression(node) {
+      // The read hangs off the AWAIT, not the import — and a cast may sit between the two
+      // (`await (import("m") as never)`), so the await is found from the outermost wrapper.
+      const loaded = outermostTransparentWrapper(node);
+      visit(loaded.parent?.type === "AwaitExpression" ? loaded.parent : node);
+    },
+
+    CallExpression(node) {
+      visit(node);
+    },
+  };
+}
+
+/**
  * Calls back once per name this file takes from any of `moduleSpecifiers`, with the node to blame
  * and the module it came from.
  *
@@ -148,44 +194,38 @@ function staticSpecifier(node: ESTree.Node | undefined): string | undefined {
  *
  * A SET of modules rather than one, though every rule in the catalog fences a single module today.
  * The visitor this returns is spread into a rule's own visitor object, so a rule calling it twice
- * would have the second call's `Program:exit` key silently overwrite the first's — one whole module
+ * would have the second call's `Program` key silently overwrite the first's — one whole module
  * going unchecked with nothing to see. Taking the set is what makes that unwritable.
  *
- * Names are buffered and delivered at `Program:exit` in source order. oxlint emits diagnostics in
- * the order a rule reports them, and the two spellings that bind nothing are found mid-traversal
- * while the scope answer is a whole-file one — so without the sort a file's diagnostics come out
- * grouped by how the name was spelled rather than by where it is.
+ * Callbacks fire in no particular order, and deliberately: the scope sweep runs at `Program` while
+ * the two spellings that bind nothing are found mid-traversal, so nothing here can put a file's
+ * findings in source order. Ordering is `lib/source-ordered-reports.ts`'s, which is the only place
+ * that sees ALL of a rule's diagnostics — a sort here would order the imported names among
+ * themselves and still emit them after every diagnostic the rule's other arms raise.
  *
- * NO SPEC PINS THE SORT, and one cannot: `RuleTester` sorts a rule's diagnostics by span before
- * comparing, so under the harness the ordering is right either way. Verified against the oxlint
- * CLI instead — `import { Text }` on line 1 and `require(…).View` on line 2 come out 2 then 1
- * without it. Delete it and every spec stays green.
+ * The sweep runs at `Program` rather than `Program:exit` for the same reason. Scope analysis is
+ * complete before traversal starts, so the answer is the same either way, and leaving `Program:exit`
+ * free is what lets a consuming rule spread the ordered reporter over this without a collision.
  */
 export function visitImportedNames(
   sourceCode: SourceCode,
   moduleSpecifiers: readonly string[],
   onImportedName: (name: string, node: ESTree.Node, moduleSpecifier: string) => void,
 ): Visitor {
-  const found: { name: string; node: ESTree.Node; specifier: string }[] = [];
-  const take = (name: string, node: ESTree.Node, specifier: string) => {
-    found.push({ name, node, specifier });
-  };
+  const take = onImportedName;
 
   /**
-   * A read straight off the load expression, which binds nothing: `(await import("m")).View`,
-   * `require("m").View`. There is no Variable for scope analysis to answer about, so this is the
-   * one spelling that has to come off the AST — and the one a fence on bindings alone leaves open.
+   * The key of a read straight off the load expression, which binds nothing:
+   * `(await import("m")).View`. There is no Variable for scope analysis to answer about, so this is
+   * the one spelling that has to come off the AST — and the one a fence on bindings alone leaves
+   * open. `visitUnboundModuleObjects` above owns the walk that gets here.
    */
-  const takeUnboundMemberRead = (node: ESTree.Node) => {
-    const specifier = runtimeImportSpecifier(node, sourceCode);
-    if (specifier === undefined || !moduleSpecifiers.includes(specifier)) return;
-    // `(require("m") as never).View` is the same read with a TypeScript node wedged in.
-    const loaded = outermostTransparentWrapper(node);
-    const parent: ESTree.Node | null | undefined = loaded.parent;
-    if (parent === null || parent === undefined) return;
-    if (parent.type !== "MemberExpression" || parent.object !== loaded) return;
-    const key = staticKeyName(parent.property, parent.computed);
-    if (key !== undefined) take(key, parent, specifier);
+  const takeUnboundMemberRead = (specifier: string, moduleObject: ESTree.Node) => {
+    if (!moduleSpecifiers.includes(specifier)) return;
+    const read = moduleObject.parent;
+    if (read === null || read === undefined || read.type !== "MemberExpression") return;
+    const key = staticKeyName(read.property, read.computed);
+    if (key !== undefined) take(key, read, specifier);
   };
 
   const takePatternKeys = (pattern: ESTree.Node, specifier: string) => {
@@ -316,18 +356,9 @@ export function visitImportedNames(
   };
 
   return {
-    ImportExpression(node) {
-      // The read hangs off the AWAIT, not the import — and a cast may sit between the two
-      // (`await (import("m") as never)`), so the await is found from the outermost wrapper.
-      const loaded = outermostTransparentWrapper(node);
-      takeUnboundMemberRead(loaded.parent?.type === "AwaitExpression" ? loaded.parent : node);
-    },
+    ...visitUnboundModuleObjects(sourceCode, takeUnboundMemberRead),
 
-    CallExpression(node) {
-      takeUnboundMemberRead(node);
-    },
-
-    "Program:exit"() {
+    Program() {
       // Every scope, not just the module one: `function f() { const { View } = require("m") }`
       // binds inside a function scope, and a module-scope-only sweep calls that file clean.
       for (const scope of sourceCode.scopeManager.scopes) {
@@ -344,8 +375,6 @@ export function visitImportedNames(
           else takeFromRuntimeImportBinding(variable, definition);
         }
       }
-      found.sort((left, right) => left.node.range[0] - right.node.range[0]);
-      for (const { name, node, specifier } of found) onImportedName(name, node, specifier);
     },
   };
 }

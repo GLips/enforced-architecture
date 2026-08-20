@@ -47,7 +47,10 @@ Rules share a `lib/`, and the sharing is load-bearing rather than tidy. One modu
 
 - [lib/architecture-exempt-paths.ts](lint/oxlint/lib/architecture-exempt-paths.ts) — the one global test/script exemption.
 - [lib/module-source-visitor.ts](lint/oxlint/lib/module-source-visitor.ts) — every place a module specifier can appear.
-- [lib/imported-names.ts](lint/oxlint/lib/imported-names.ts) — every name a file takes from one module, under the exporting module's spelling.
+- [lib/imported-names.ts](lint/oxlint/lib/imported-names.ts) — every name a file takes from one module, under the exporting module's spelling, and the walk from a load expression to the module object.
+- [lib/static-key-name.ts](lint/oxlint/lib/static-key-name.ts) — the name a property key spells, dotted or computed.
+- [lib/transparent-wrappers.ts](lint/oxlint/lib/transparent-wrappers.ts) — the TypeScript nodes that wrap a value without changing what it is.
+- [lib/source-ordered-reports.ts](lint/oxlint/lib/source-ordered-reports.ts) — a rule's diagnostics emitted in source order, for a rule that reports from both traversal and a whole-file pass.
 - [lib/range-index.ts](lint/oxlint/lib/range-index.ts) — subtree questions answered at `Program:exit`.
 - [lib/rule-options.ts](lint/oxlint/lib/rule-options.ts) — reading a configured option without trusting `meta.schema` to have held.
 - [lib/rule-spec.ts](lint/oxlint/lib/rule-spec.ts) — the three-kind spec contract.

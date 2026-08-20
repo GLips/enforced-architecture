@@ -175,6 +175,18 @@ describeRule("style/no-raw-primitives", noRawPrimitivesRule, {
       errors: [{ messageId: "platformPrimitive" }],
     },
     {
+      name: "an arbitrary module namespace name, which spells the export as a string",
+      filename: COMPONENT,
+      code: `import { "View" as Screen } from "react-native";\nexport const used = Screen;`,
+      errors: [{ messageId: "platformPrimitive" }],
+    },
+    {
+      name: "two wrappers on the load side, where stepping through one is not enough",
+      filename: COMPONENT,
+      code: `const { View } = (require("react-native") as never)!;\nexport const used = View;`,
+      errors: [{ messageId: "platformPrimitive" }],
+    },
+    {
       name: "an optional call on the loader, which wraps the call in a chain node",
       filename: COMPONENT,
       code: `const { View } = require?.("react-native");\nexport const used = View;`,

@@ -61,25 +61,50 @@ import {
   type SourceCode,
 } from "@oxlint/plugins";
 import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
-import { exportedName, runtimeImportSpecifier } from "../lib/imported-names.ts";
+import {
+  exportedName,
+  runtimeImportSpecifier,
+  visitUnboundModuleObjects,
+} from "../lib/imported-names.ts";
+import { sourceOrderedReports } from "../lib/source-ordered-reports.ts";
 import { staticKeyName } from "../lib/static-key-name.ts";
 import {
   isTransparentWrapper,
   outermostTransparentWrapper,
 } from "../lib/transparent-wrappers.ts";
 
-type AmbientGlobalPolicy = {
-  /** The read as it is spelled in source, host-free: `fetch`, `process.env`. */
-  globalPath: string;
+type AmbientGlobalPolicyBase = {
   /** Files permitted to touch it. An EMPTY list is a ban — there is no owner to point at. */
   allowedIn: RegExp[];
   /** What to import instead. Omitted for a banned global, where nothing replaces it. */
   owner?: string;
   /** Why the capability has one door. Lands in the diagnostic. */
   why: string;
-  /** Modules that hand the same capability out as a binding, for a dotted path only. */
-  alsoImportedFrom?: RegExp;
 };
+
+/**
+ * `alsoImportedFrom` is available only on a DOTTED `globalPath`, and the type is what says so.
+ *
+ * The module object stands in for the segment above the capability — `require("node:process")` is
+ * `process`, so `.env` off it is `process.env`. A bare path has no segment above it, so there is
+ * nothing for the module to be, and every arm below would need a second answer for the case. Five
+ * arms once carried a `segments.length >= 2` cut for it that no fixture could reach, and they did
+ * not all agree. Making the pairing unwritable deletes the cut instead of repeating it.
+ */
+type AmbientGlobalPolicy = AmbientGlobalPolicyBase &
+  (
+    | {
+        /** The read as it is spelled in source, host-free: `fetch`, `localStorage`. */
+        globalPath: string;
+        alsoImportedFrom?: never;
+      }
+    | {
+        /** The read as it is spelled in source, host-free: `process.env`. */
+        globalPath: `${string}.${string}`;
+        /** Modules that hand the same capability out as a binding. */
+        alsoImportedFrom: RegExp;
+      }
+  );
 
 const ENV_MODULE = /\/src\/env\.[tj]s$/;
 const API_CLIENT_MODULE = /\/src\/infrastructure\/api-client\.[tj]s$/;
@@ -168,6 +193,10 @@ export const ambientGlobalsRule = defineRule({
     // Roots are collected and walked at Program:exit rather than reported as they are found: the
     // scope analysis is a whole-file answer, and sorting by position keeps the diagnostics in
     // source order however the references were grouped.
+    // Every arm reports through this, including the ones that could be in order on their own:
+    // half a rule buffering is what scrambles the other half.
+    const ordered = sourceOrderedReports(context);
+
     const roots: { node: ESTree.Node; path: string }[] = [];
 
     const restrictedFor = (path: string): AmbientGlobalPolicy | undefined =>
@@ -180,21 +209,34 @@ export const ambientGlobalsRule = defineRule({
       policy: AmbientGlobalPolicy,
       messageId: "ambientGlobalOutsideOwner" | "ambientGlobalReExported",
     ) => {
-      context.report({
+      ordered.report({
         node,
         messageId: policy.allowedIn.length === 0 ? "bannedAmbientGlobal" : messageId,
         data: { globalPath: policy.globalPath, owner: policy.owner ?? "", why: policy.why },
       });
     };
 
-    /** The path segments of a policy whose `alsoImportedFrom` covers this specifier. */
-    const capabilitySegments = (
+    /**
+     * The two ends of a dotted path whose `alsoImportedFrom` covers the specifier: the segment the
+     * MODULE stands in for (`process` for `require("node:process")`), and the export that IS the
+     * capability (`env`).
+     *
+     * Never empty. The policy type admits `alsoImportedFrom` only beside a dotted `globalPath`, so
+     * a matched policy always has a segment above its capability.
+     */
+    const importedCapability = (
       policy: AmbientGlobalPolicy,
       specifier: string,
-    ): string[] | undefined =>
-      policy.alsoImportedFrom !== undefined && policy.alsoImportedFrom.test(specifier)
-        ? policy.globalPath.split(".")
-        : undefined;
+    ): { moduleStandsFor: string; capabilityExport: string } | undefined => {
+      if (policy.alsoImportedFrom === undefined || !policy.alsoImportedFrom.test(specifier)) {
+        return undefined;
+      }
+      const segments = policy.globalPath.split(".");
+      return {
+        moduleStandsFor: policy.globalPath.slice(0, policy.globalPath.indexOf(".")),
+        capabilityExport: segments[segments.length - 1] ?? "",
+      };
+    };
 
     /**
      * Rebinds a module binding that IS the path's first segment, so reads through it rejoin the
@@ -212,24 +254,16 @@ export const ambientGlobalsRule = defineRule({
     /**
      * Records a read taken straight off a load expression, which binds no name for the reference
      * walk to find: `(await import("node:process")).env`, `require("node:process").env`.
+     *
+     * `lib/imported-names.ts` owns the walk that finds `moduleObject`. It used to be a copy here,
+     * and the copy is how a cast inside the await escaped this rule while the two style rules
+     * caught it.
      */
-    const pushUnboundLoadRoot = (node: ESTree.Node) => {
-      const specifier = runtimeImportSpecifier(node, context.sourceCode);
-      if (specifier === undefined) return;
-      // `(require("node:process") as never).env` is the same read with a TypeScript node wedged in.
-      const loaded = outermostTransparentWrapper(node);
-      const parent: ESTree.Node | null | undefined = loaded.parent;
-      if (parent === null || parent === undefined) return;
-      if (parent.type !== "MemberExpression" || parent.object !== loaded) return;
+    const pushUnboundLoadRoot = (specifier: string, moduleObject: ESTree.Node) => {
       for (const policy of enforced) {
-        const segments = capabilitySegments(policy, specifier);
-        // Dotted paths only, the same cut the import and import-equals arms make. A bare global has
-        // no segment above it, so the module object would have to enter the walk at the empty path
-        // — and the shipped table pairs `alsoImportedFrom` with no bare path, which would leave
-        // that arm unreachable by any fixture. Bare-path support is one decision, taken in all
-        // three arms at once with fixtures, not a branch waiting here for a table that may come.
-        if (segments === undefined || segments.length < 2) continue;
-        roots.push({ node: loaded, path: segments[0] });
+        const capability = importedCapability(policy, specifier);
+        if (capability === undefined) continue;
+        roots.push({ node: moduleObject, path: capability.moduleStandsFor });
       }
     };
 
@@ -309,9 +343,8 @@ export const ambientGlobalsRule = defineRule({
         // A type-only import pulls in no runtime value, so it cannot read the capability.
         if (node.importKind === "type") return;
         for (const policy of enforced) {
-          const segments = capabilitySegments(policy, node.source.value);
-          if (segments === undefined) continue;
-          const capabilityExport = segments[segments.length - 1];
+          const capability = importedCapability(policy, node.source.value);
+          if (capability === undefined) continue;
 
           for (const specifier of node.specifiers) {
             if (specifier.type === "ImportSpecifier" && specifier.importKind === "type") continue;
@@ -319,16 +352,14 @@ export const ambientGlobalsRule = defineRule({
             // reads through it are ordinary member reads and rejoin the same walk. `{ default as
             // proc }` is the default export wearing a named specifier's node shape, and comparing
             // it against the capability's export name — which is what it is NOT — lets it through.
-            // Dotted paths only: a bare global has no segment above it to rebind, and treating the
-            // module namespace as one would report every use of the module.
             const rebinds =
               specifier.type !== "ImportSpecifier" ||
               exportedName(specifier.imported) === "default";
             if (rebinds) {
-              if (segments.length >= 2) rebindAsPathRoot(node, specifier.local.name, segments[0]);
+              rebindAsPathRoot(node, specifier.local.name, capability.moduleStandsFor);
               continue;
             }
-            if (exportedName(specifier.imported) === capabilityExport) {
+            if (exportedName(specifier.imported) === capability.capabilityExport) {
               report(specifier, policy, "ambientGlobalOutsideOwner");
             }
           }
@@ -341,14 +372,15 @@ export const ambientGlobalsRule = defineRule({
       ExportNamedDeclaration(node) {
         if (node.source === null || node.exportKind === "type") return;
         for (const policy of enforced) {
-          const segments = capabilitySegments(policy, node.source.value);
-          if (segments === undefined) continue;
-          const capabilityExport = segments[segments.length - 1];
+          const capability = importedCapability(policy, node.source.value);
+          if (capability === undefined) continue;
 
           for (const specifier of node.specifiers) {
             if (specifier.exportKind === "type") continue;
+            // `export { default as proc }` re-exports the module object, which IS the segment above
+            // the capability — so it launders the capability exactly as the named export does.
             const source = exportedName(specifier.local);
-            if (source === capabilityExport || (segments.length >= 2 && source === "default")) {
+            if (source === capability.capabilityExport || source === "default") {
               report(specifier, policy, "ambientGlobalReExported");
             }
           }
@@ -358,7 +390,7 @@ export const ambientGlobalsRule = defineRule({
       ExportAllDeclaration(node) {
         if (node.exportKind === "type") return;
         for (const policy of enforced) {
-          if (capabilitySegments(policy, node.source.value) === undefined) continue;
+          if (importedCapability(policy, node.source.value) === undefined) continue;
           // A star re-export republishes every export of the module under this file's name — the
           // one carrying the capability included — and names no specifier to blame.
           report(node.source, policy, "ambientGlobalReExported");
@@ -367,20 +399,10 @@ export const ambientGlobalsRule = defineRule({
 
       // `(await import("node:process")).env` and `require("node:process").env` load the module and
       // read the capability in one expression, binding nothing — so no declaration and no
-      // reference names either, and only the AST has them. Restricted to the member read: the
-      // spellings that DO bind a name belong to the VariableDeclarator arm below, and two arms
-      // reaching one read report it twice.
-      ImportExpression(node) {
-        // The read hangs off the AWAIT, not the import — and a cast may sit between the two
-        // (`await (import("node:process") as never)`), so the await is found from the outermost
-        // wrapper rather than from the import's own parent.
-        const loaded = outermostTransparentWrapper(node);
-        pushUnboundLoadRoot(loaded.parent?.type === "AwaitExpression" ? loaded.parent : node);
-      },
-
-      CallExpression(node) {
-        pushUnboundLoadRoot(node);
-      },
+      // reference names either, and only the AST has them. The shared walk is restricted to the
+      // member read: the spellings that DO bind a name belong to the VariableDeclarator arm below,
+      // and two arms reaching one read report it twice.
+      ...visitUnboundModuleObjects(context.sourceCode, pushUnboundLoadRoot),
 
       // `import process = require("node:process")` binds the module and reaches no
       // ImportDeclaration. Only the rebinding is needed — a type-only import-equals can be read
@@ -390,9 +412,9 @@ export const ambientGlobalsRule = defineRule({
         if (node.moduleReference.type !== "TSExternalModuleReference") return;
         const specifier = node.moduleReference.expression.value;
         for (const policy of enforced) {
-          const segments = capabilitySegments(policy, specifier);
-          if (segments !== undefined && segments.length >= 2) {
-            rebindAsPathRoot(node, node.id.name, segments[0]);
+          const capability = importedCapability(policy, specifier);
+          if (capability !== undefined) {
+            rebindAsPathRoot(node, node.id.name, capability.moduleStandsFor);
           }
         }
       },
@@ -404,14 +426,14 @@ export const ambientGlobalsRule = defineRule({
         const specifier = runtimeImportSpecifier(node.init, context.sourceCode);
         if (specifier === undefined) return;
         for (const policy of enforced) {
-          const segments = capabilitySegments(policy, specifier);
-          if (segments === undefined) continue;
+          const capability = importedCapability(policy, specifier);
+          if (capability === undefined) continue;
           if (node.id.type === "ObjectPattern") {
-            reportDestructuredMembers(node.id, segments.length >= 2 ? segments[0] : "");
+            reportDestructuredMembers(node.id, capability.moduleStandsFor);
             continue;
           }
-          if (node.id.type === "Identifier" && segments.length >= 2) {
-            rebindAsPathRoot(node, node.id.name, segments[0]);
+          if (node.id.type === "Identifier") {
+            rebindAsPathRoot(node, node.id.name, capability.moduleStandsFor);
           }
         }
       },
@@ -424,11 +446,10 @@ export const ambientGlobalsRule = defineRule({
             path: GLOBAL_OBJECT_HOSTS.has(name) ? "" : name,
           });
         }
-        // NO SPEC PINS THIS SORT, and one cannot: `RuleTester` sorts a rule's diagnostics by span
-        // before comparing, so under the harness the ordering is right either way. The oxlint CLI
-        // emits in report order, which is why it is here. Delete it and every spec stays green.
-        roots.sort((left, right) => left.node.range[0] - right.node.range[0]);
+        // No sort here: `roots` is half the rule's diagnostics, and ordering half of them is what
+        // scrambles the other half. `lib/source-ordered-reports.ts` sees all of them.
         for (const root of roots) reportAmbientRead(root.node, root.path);
+        ordered.flushInSourceOrder();
       },
     };
   },

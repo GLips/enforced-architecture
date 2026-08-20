@@ -84,6 +84,12 @@ describeRule("boundary/ambient-globals", ambientGlobalsRule, {
       errors: [{ messageId: "ambientGlobalReExported" }],
     },
     {
+      name: "re-exporting the module's default hands on the object the capability hangs off",
+      filename: SERVICE,
+      code: `export { default as proc } from "node:process";`,
+      errors: [{ messageId: "ambientGlobalReExported" }],
+    },
+    {
       name: "a star re-export republishes the capability without naming it",
       filename: SERVICE,
       code: `export * from "node:process";`,

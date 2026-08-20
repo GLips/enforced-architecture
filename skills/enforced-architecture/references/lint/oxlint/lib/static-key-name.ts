@@ -10,7 +10,10 @@ import type { ESTree } from "@oxlint/plugins";
  * NEGATIVE SPACE: a key that is not statically known — `ns[name]`, a template with a substitution,
  * a `Symbol` — names nothing a per-file rule can follow, and gets `undefined` rather than a guess.
  * A caller that stops there is correct; one that falls back to the source text is guessing. A
- * numeric key is `undefined` too: no module exports a name a number could spell.
+ * numeric key is `undefined` too — `ns[0]` is an index, not an export name. ES2022 does let a
+ * module export the string `"0"`, and `exportedName` handles that on the specifier side; here it
+ * would arrive as `ns["0"]`, a string literal, and is caught by the branch below rather than by a
+ * number.
  */
 export function staticKeyName(key: ESTree.Node, computed: boolean): string | undefined {
   // A non-computed key is an Identifier OR a string literal — `{ "localStorage": ls }` is a quoted
