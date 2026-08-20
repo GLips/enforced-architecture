@@ -12,9 +12,28 @@ Most of these ship as commented files. Copy them and read the comments in place;
 | oxlint tier program | [setup/oxlint.tsconfig.json](setup/oxlint.tsconfig.json) | `lint/oxlint/tsconfig.json` |
 | Structural tier program | [setup/structural.tsconfig.json](setup/structural.tsconfig.json) | `lint/structural/tsconfig.json` |
 | Real-Node spec launcher | [setup/with-real-node.sh](setup/with-real-node.sh) | `lint/oxlint/with-real-node.sh` |
+| Shared policy tables | [lint/policy/](lint/policy/overview.md) | `lint/policy/` (copied whole; `layout.ts` is the one file repointed) |
 | Structural check substrate | [lint/structural/](lint/structural/) | `lint/structural/` |
 | Rule catalog | [lint/](lint/overview.md) | `lint/` (mirrors the catalog's tier split) |
 | Framework import protection | [server-client-boundaries.md](server-client-boundaries.md) | `vite.config.ts` |
+
+---
+
+## The policy tables, below both tiers
+
+`lint/policy/` is neither tier. It holds the tables both of them read — the layout vocabulary, the
+import policy, and the package ownership rows — under a neutrality contract: no Node APIs, no Bun
+APIs, no oxlint or ESTree types, no import from either tier. See
+[lint/policy/overview.md](lint/policy/overview.md).
+
+Copy it **first**. Both tiers import from it, both tsconfigs include it, and a rule whose *Adapt*
+section says "nothing here" is a rule whose adaptation happens in
+[lint/policy/layout.ts](lint/policy/layout.ts) — the source root, alias prefix, directory names and
+feature layers, stated once.
+
+The point of the contract is that one edge cannot reach two verdicts depending on how it was
+spelled. Split a table back into a per-tier copy and the two copies drift without either failing:
+each tier can only see its own.
 
 ---
 
@@ -53,7 +72,7 @@ Run each independently and aggregate. Reserve `&&` for steps where the second ge
 
 Structural checks ship with the modules they share, and the sharing is the point: duplicated across scripts, they drift apart on exclusions and on what counts as an import, without either copy reporting that it has.
 
-- **`config.ts`** — every per-repo value for every check, one object. The adoption surface.
+- **`config.ts`** — every per-repo value for every check, one object. The adoption surface for this tier's *thresholds and policies*; the shape of the tree is not among them. `defaultSourceConfig` derives `roots`, `aliasPrefix`, `subdividedDirs`, `layerOrder` and `assetExtensions` from [lint/policy/layout.ts](lint/policy/layout.ts) rather than restating them, so a repoint lands once and both tiers move together.
 - **`check-substrate.ts`** — file collection with the global exclusions applied once, plus the `Finding` and `StructuralCheck` shapes.
 - **`import-graph.ts`** — the resolved graph, and `scanDeclaredImports` for the one check that needs raw specifiers instead. Any check asking where an import *lands* consumes this rather than matching how the specifier is spelled.
 - **`run-structural-checks.ts`** — the orchestrator.
@@ -123,7 +142,7 @@ Three, and they are all the same shape: the rule does nothing, and nothing says 
 ## Adding a New Rule
 
 1. Read the template `lint/oxlint/<tag>/<name>.ts` and the spec beside it, `lint/oxlint/<tag>/<name>.test.ts`
-2. Copy both into the project's `lint/oxlint/<tag>/` and adapt the named constants at the top — the template's *Adapt* section names which. The constants are hoisted precisely so adaptation is an edit to a regex or a list, not a rewrite of the visitor
+2. Copy both into the project's `lint/oxlint/<tag>/` and adapt the named constants at the top — the template's *Adapt* section names which. The constants are hoisted precisely so adaptation is an edit to a regex or a list, not a rewrite of the visitor. A template whose *Adapt* section says **nothing here** is one that reads `lint/policy/`: it needs no edit, and editing it instead of `lint/policy/layout.ts` gives that rule a private answer the other tier will not share
 3. Register it in the plugin module under its file name
 4. Switch it on in `.oxlintrc.json`. Registered but unlisted is loaded and never run
 5. Extend the three-kind spec (below) — the adversarial cases decide whether the rule works
@@ -135,9 +154,9 @@ Three, and they are all the same shape: the rule does nothing, and nothing says 
 
 Not "implementing" — the catalog's checks are runnable modules, proved against fixtures in the skill's own CI. Reimplementing one from its doc is how a check ends up silently matching less than the doc promises, which is what happened at three separate deployments before this tier shipped as code.
 
-1. Copy `lint/structural/{config,check-substrate,import-graph,registry,run-structural-checks}.ts` into the project's `lint/structural/`, plus each selected `lint/structural/<tag>/<name>.ts`
+1. Copy `lint/policy/` first if it is not already there, then `lint/structural/{config,check-substrate,import-graph,registry,run-structural-checks}.ts` into the project's `lint/structural/`, plus each selected `lint/structural/<tag>/<name>.ts`
 2. Register the checks in `lint/structural/registry.ts`. A check that is not registered is a file that ships and never runs
-3. Write `arch.config.ts`: spread `defaultCheckConfigs` and override what differs. Each rule's *Adapt* section names its keys, because the config object is the entire adoption surface
+3. Write `arch.config.ts`: spread `defaultCheckConfigs` and override what differs. Each rule's *Adapt* section names its keys, because the config object is where every per-repo *value* lives. Directory names, the alias prefix and the layer order are not per-repo values here — they come from `lint/policy/layout.ts`, and overriding one in `arch.config.ts` instead of repointing it there gives this tier a private answer the oxlint tier will not share
 4. Run once against the real tree and calibrate thresholds *just above* current values, so they signal growth rather than firing on day one. A check that fires on the state of the world the day it was installed gets switched off in the same week
 5. Write the project's three cases against its own code. The catalog's fixtures prove the check; yours prove the config
 6. Run `bun run check:arch`

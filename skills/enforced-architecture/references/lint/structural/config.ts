@@ -44,6 +44,20 @@
 //
 // ──────────────────────────────────────────────────────────────────────
 
+import {
+  ALIAS_PREFIX,
+  ASSET_EXTENSIONS,
+  BARREL_MODULES,
+  DOMAINS_DIR,
+  ENV_MODULES,
+  FEATURE_LAYERS,
+  FEATURES_DIR,
+  INFRASTRUCTURE_DIR,
+  ROUTES_DIR,
+  SHARED_DIR,
+  SOURCE_ROOT,
+} from "../policy/layout.ts";
+
 /**
  * Facts about the source tree that more than one check needs. Getting one of
  * these wrong makes several checks quietly wrong together, which is the argument
@@ -111,13 +125,24 @@ export type SourceConfig = {
   jsxImportSource: string;
 };
 
+// Every field that describes the SHAPE of the tree is derived from
+// `lint/policy/layout.ts` rather than restated here, and that is load-bearing
+// rather than tidy. The oxlint tier reads those constants directly; this tier
+// reads them through this object. A second literal `"features"` in this file is
+// a second place the answer lives, and the failure mode is the one the policy
+// engine exists to remove: the two tiers police two different trees while both
+// report clean, because neither can see the other's copy.
+//
+// What stays a literal below is what layout.ts has no opinion about — which
+// files are not source at all, and which package injects JSX runtime imports.
+// Those are facts about the build, not about the architecture.
 export const defaultSourceConfig: SourceConfig = {
-  roots: ["src"],
-  aliasPrefix: "@/",
-  subdividedDirs: ["features", "domains"],
-  featuresDirName: "features",
-  domainsDirName: "domains",
-  layerOrder: ["ui", "controllers", "service", "repo"],
+  roots: [SOURCE_ROOT],
+  aliasPrefix: ALIAS_PREFIX,
+  subdividedDirs: [FEATURES_DIR, DOMAINS_DIR],
+  featuresDirName: FEATURES_DIR,
+  domainsDirName: DOMAINS_DIR,
+  layerOrder: [...FEATURE_LAYERS],
   exclude: [
     /\.test\.[tj]sx?$/,
     /\.integration\.test\.[tj]sx?$/,
@@ -126,21 +151,7 @@ export const defaultSourceConfig: SourceConfig = {
     /\.gen\.[tj]sx?$/,
     /\.d\.ts$/,
   ],
-  assetExtensions: [
-    "css",
-    "scss",
-    "svg",
-    "png",
-    "jpg",
-    "jpeg",
-    "gif",
-    "webp",
-    "avif",
-    "woff",
-    "woff2",
-    "ttf",
-    "otf",
-  ],
+  assetExtensions: [...ASSET_EXTENSIONS],
   jsxImportSource: "react",
 };
 
@@ -341,7 +352,7 @@ export type CheckConfigs = {
 
 export const defaultCheckConfigs: CheckConfigs = {
   "api/barrel-purity": {
-    barrelDirs: ["domains", "features"],
+    barrelDirs: [DOMAINS_DIR, FEATURES_DIR],
     barrelFilenames: ["index.ts", "index.tsx"],
     serverOnlyPatterns: [
       /^node:/,
@@ -381,6 +392,9 @@ export const defaultCheckConfigs: CheckConfigs = {
   },
 
   "health/file-size": {
+    // NOT derived from SOURCE_ROOT, deliberately: file size is a health signal
+    // about anything a human maintains, and a shared package outside the source
+    // root counts. See the field's own doc above.
     roots: ["src"],
     warnThreshold: 500,
     failThreshold: 600,
@@ -394,10 +408,9 @@ export const defaultCheckConfigs: CheckConfigs = {
 
   "naming/barrel-discoverability": {
     barrelGlobs: [
-      "domains/*/index.ts",
-      "domains/*/index.server.ts",
-      "features/*/index.ts",
-      "features/*/index.server.ts",
+      ...[DOMAINS_DIR, FEATURES_DIR].flatMap((dir) =>
+        BARREL_MODULES.map((barrel) => `${dir}/*/${barrel}.ts`),
+      ),
     ],
     flagTypeAliases: true,
   },
@@ -414,23 +427,23 @@ export const defaultCheckConfigs: CheckConfigs = {
   },
 
   "placement/topology": {
-    allowedRoots: ["routes", "features", "domains", "infrastructure", "shared"],
+    allowedRoots: [ROUTES_DIR, FEATURES_DIR, DOMAINS_DIR, INFRASTRUCTURE_DIR, SHARED_DIR],
     allowedRootFiles: [
-      "env.ts",
-      "env.server.ts",
-      "env.client.ts",
+      ...Object.keys(ENV_MODULES).map((module) => `${module}.ts`),
       "router.tsx",
       "client.tsx",
       "server.ts",
       "styles.css",
     ],
+    // Keyed by the same names `subdividedDirs` above carries, so renaming a
+    // directory in layout.ts cannot leave this map pointing at the old one.
     boundaries: {
-      features: {
+      [FEATURES_DIR]: {
         kind: "layered",
-        rootFiles: ["index.ts", "index.server.ts", "errors.ts"],
-        layers: ["ui", "controllers", "service", "repo"],
+        rootFiles: [...BARREL_MODULES.map((barrel) => `${barrel}.ts`), "errors.ts"],
+        layers: [...FEATURE_LAYERS],
       },
-      domains: { kind: "unlayered" },
+      [DOMAINS_DIR]: { kind: "unlayered" },
     },
   },
 

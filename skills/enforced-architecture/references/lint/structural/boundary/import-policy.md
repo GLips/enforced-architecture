@@ -60,7 +60,7 @@ Three classes of edge are outside it by construction, and each is a false positi
 
 ## Adapt
 
-Nothing in this file, and nothing in the check. The policy is [lint/policy/import-policy.ts](../../policy/import-policy.ts) and the shape of the tree is [lint/policy/layout.ts](../../policy/layout.ts); the structural tier's `arch.config.ts` should take `roots`, `aliasPrefix`, `subdividedDirs`, `layerOrder` and `assetExtensions` from that module rather than restating them, so the two tiers cannot end up policing two different trees while both report clean.
+Nothing in this file, and nothing in the check. The policy is [lint/policy/import-policy.ts](../../policy/import-policy.ts) and the shape of the tree is [lint/policy/layout.ts](../../policy/layout.ts). `defaultSourceConfig` in [../config.ts](../config.ts) already derives `roots`, `aliasPrefix`, `subdividedDirs`, `layerOrder` and `assetExtensions` from that module rather than restating them — keep it that way, because a literal directory name copied back into `arch.config.ts` is how two tiers end up policing two different trees while both report clean.
 
 The only real adjustment is at adoption: an existing codebase will have crossings already. Fix them rather than filtering them.
 

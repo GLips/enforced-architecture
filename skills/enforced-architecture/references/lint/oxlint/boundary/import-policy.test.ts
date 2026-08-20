@@ -1,7 +1,6 @@
-// The cases the four oxlint rules this replaces carried, plus the ones only a
-// merged rule can be asked. `shared-purity`, `shared-ui-purity`, `domain-purity`
-// and `feature-public-api` each proved their own slice; the interesting failures
-// now live where their slices used to meet, so those are here too.
+// One case per direction the adapter has to get right, and — because this is one
+// rule where a per-directory design would be several — cases on the edges BETWEEN
+// those directions, which is where a set of narrower rules has nobody to answer.
 //
 // The ENGINE's cases — that a path reaches the cell its author intended, and that
 // one edge spelled two ways reaches one verdict — are in

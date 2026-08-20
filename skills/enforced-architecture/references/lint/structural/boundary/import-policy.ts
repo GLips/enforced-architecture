@@ -4,8 +4,7 @@
 // Mechanism: structural check (resolution across the tree)
 // Blocking:  Yes
 //
-// The resolved half of one policy, and the replacement for
-// `boundary/cross-boundary-alias`. It walks every RELATIVE import edge in the
+// The resolved half of one policy. It walks every RELATIVE import edge in the
 // tree, resolves it — which the linter cannot do — and hands it to the same
 // evaluator the oxlint tier reads. Three outcomes:
 //
@@ -17,14 +16,13 @@
 //   allow-crossing  the edge is legal and leaves its unit, so the only finding is
 //                   that it is spelled relatively.
 //
-// EVERY relative edge is passed, not a pre-filtered subset, and that is what
-// closes the hole this check was rebuilt around. `cross-boundary-alias` selected
-// on `from.boundary !== to.boundary`, and `src/shared/ui/**` and `src/shared/**`
-// are one boundary — so `import { theme } from "../lib/tokens"` inside
-// `src/shared/ui/` was caught by nothing at all: the shared-ui rule matched only
-// `@/` specifiers, and the boundary comparison stayed quiet. Any future nested
-// profile would have recreated the same hole, so the selector is gone rather than
-// widened.
+// EVERY relative edge is passed, with no pre-filter — not even the obvious one
+// of skipping edges whose two ends share a boundary. `src/shared/ui/**` and
+// `src/shared/**` are one boundary and two UNITS, so that filter cannot see
+// `import { theme } from "../lib/tokens"` written inside `src/shared/ui/`, and
+// unit identity is what the evaluator decides `internal` on. Do not reintroduce
+// a selector here: the argument in full, and why any future nested profile
+// recreates the same hole, is in boundary/import-policy.md.
 //
 // See boundary/import-policy.md for the negative space and the adapt notes, and
 // graph/import-graph.md for how an edge gets resolved at all.

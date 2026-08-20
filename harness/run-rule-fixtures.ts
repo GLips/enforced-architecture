@@ -75,10 +75,9 @@ if (rulePaths.length === 0) {
   process.exit(1);
 }
 
-const policySpecs = (await walkFiles(POLICY_ROOT)).filter((f) => f.endsWith(".test.ts")).sort();
-const policyModules = (await walkFiles(POLICY_ROOT)).filter(
-  (f) => f.endsWith(".ts") && !f.endsWith(".test.ts"),
-);
+const policyFiles = await walkFiles(POLICY_ROOT);
+const policySpecs = policyFiles.filter((f) => f.endsWith(".test.ts")).sort();
+const policyModules = policyFiles.filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts"));
 // A policy module is read by BOTH tiers, so it going unexercised is worse than a
 // rule going unexercised, not better. There is no per-module requirement — the
 // engine and the vocabulary are proved through one entry point — but a policy

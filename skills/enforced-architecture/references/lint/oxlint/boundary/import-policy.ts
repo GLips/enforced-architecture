@@ -15,11 +15,6 @@
 // and the structural check below it read the same table, so the two spellings of
 // one edge cannot reach different verdicts.
 //
-// It replaces four rules that each carried their own copy of overlapping policy:
-// `boundary/shared-purity`, `boundary/shared-ui-purity`, `boundary/domain-purity`
-// and `api/feature-public-api`. Their prose survives as the rationale
-// interpolated into these messages; their path regexes do not survive at all.
-//
 // Applies:  All src/** files EXCEPT test files and scripts.
 //
 // ── What this rule deliberately does not see ──────────────────────────

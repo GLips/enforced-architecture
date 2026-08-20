@@ -19,20 +19,10 @@
 // each forbid the other's fix is an edit loop. Read together, the two resolve to
 // "the dependency has to be supplied from above", which is the right answer.
 //
-// ── What this replaces ───────────────────────────────────────────────────────
-//
-// Two adaptation surfaces became one list of rows. `sdk-containment` used to
-// carry a regex alternation of package names, whose trailing `(?:\/|$)` pairing
-// its own header spent five paragraphs warning about — forget it and
-// `stripe-mock` is read as `stripe`. Subpaths are the reader's job now, matched
-// through the canonical package name, so there is no anchor to get wrong.
-//
-// It also carried an `APP_ENTRYPOINTS` filename list, which that header called a
-// bypass vector in the same breath as recommending it. There is no entrypoint
-// exemption here and no way to spell one. An entrypoint that genuinely has to set
-// an SDK up is a module that owns it, and it says so by being on that package's
-// `owners` list — which is a decision one row records rather than a category of
-// file that inherits a pass.
+// A row names a package by its CANONICAL name and never by pattern. Matching a
+// subpath is the reader's job — `stripe/webhooks` is `stripe` — so there is no
+// anchor to get wrong, where a regex alternation of package names has one per
+// entry and reads `stripe-mock` as `stripe` the first time somebody forgets it.
 //
 // ── Adapt ────────────────────────────────────────────────────────────────────
 //

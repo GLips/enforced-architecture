@@ -1,6 +1,6 @@
 # policy — the tables both tiers read
 
-Runtime-neutral. A module here may import nothing but other modules here, and may reference:
+Runtime-neutral. The contract binds what SHIPS into both runtimes — a `<name>.test.ts` beside a table ships into neither and is outside it, which is why the spec here imports `node:test`. Every other module may import nothing but other modules here, and may reference:
 
 - **no Node APIs** — no `node:fs`, no `node:path`, nothing that assumes a filesystem
 - **no Bun APIs** — no `Bun.Glob`, no `Bun.file`

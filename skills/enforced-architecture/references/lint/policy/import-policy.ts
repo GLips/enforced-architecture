@@ -289,9 +289,8 @@ export const IMPORT_POLICY: Record<SourceProfile, Record<TargetArea, Surface>> =
  * A runtime import from a domain must land in one of these areas. Everything else
  * in that row is denied at runtime and evaluated by the table when type-only,
  * because a type import is erased and cannot make a verdict depend on anything.
- * That is what `domain-purity` did, and it is the only profile where the
- * runtime/type distinction changes an outcome — so it is a flag on one row rather
- * than an applicability framework. Every other profile applies to all imports.
+ * This is the only profile where the runtime/type distinction changes an outcome,
+ * so it is a flag on one row rather than an applicability framework. Every other profile applies to all imports.
  *
  * `package` is deliberately absent, which is stricter than the table's
  * `domain → package: "any"` cell and is meant to be: the cell governs the type

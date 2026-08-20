@@ -22,12 +22,11 @@
 // it decides which rows apply to the file being linted, and matches a specifier
 // to a package by canonical name so a subpath cannot step around a row.
 //
-// This rule stayed separate through the merge that folded four boundary rules
-// into `arch/import-policy`, and refusing that merge was deliberate. Its policy
-// is keyed by exact package and exact module, not by area; the ordering that
-// would have let one table express both forces `domain → package` to claim the
-// domain may import any package — a cell stating something untrue so machinery
-// could work.
+// This is deliberately NOT a row in `arch/import-policy`'s table. That table is
+// keyed by area; this policy is keyed by exact package and exact module, and the
+// ordering that would let one table express both forces `domain → package` to
+// claim a domain may import any package — a cell stating something untrue so the
+// machinery could work.
 //
 // NEGATIVE SPACE: a package with no row is UNCONSTRAINED, and this rule cannot
 // detect that state. Whether a package reaches a network, a keychain or a
@@ -35,11 +34,12 @@
 // mechanical proxy would flag React while still missing the first bad import.
 // Adding an SDK means adding the row — nothing reminds you.
 //
-// NEGATIVE SPACE: there is no entrypoint exemption and no way to spell one. The
-// filename list this rule used to carry was a bypass vector by its own
-// documentation's admission. An entrypoint that genuinely has to set an SDK up
-// owns it, and says so by appearing on that package's `owners` list — a decision
-// one row records rather than a category of file that inherits a pass.
+// NEGATIVE SPACE: there is no entrypoint exemption and no way to spell one. An
+// entrypoint that genuinely has to set an SDK up owns it, and says so by
+// appearing on that package's `owners` list — a decision one row records rather
+// than a category of file that inherits a pass. A filename that inherits a pass
+// is a bypass vector: it exempts every import in the file, not the one the
+// entrypoint needed.
 //
 // ── Adapt ─────────────────────────────────────────────────────────────
 //

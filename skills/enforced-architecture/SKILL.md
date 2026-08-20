@@ -131,7 +131,7 @@ lint/
 7. Framework import protection (vite.config.ts)
 8. Directory structure with empty barrels
 9. Generate documentation per [documentation-model.md](references/documentation-model.md) — CLAUDE.md rules section, and docs/architecture/ files if chosen. Then, if `health/doc-budgets` was selected, write `docs/doc-budgets.manifest.json` from [references/setup/doc-budgets.manifest.json](references/setup/doc-budgets.manifest.json) — ceilings come from what the generated docs actually weigh, so this step follows them
-9. Verify: `bun run check:arch && bun run dev`
+10. Verify: `bun run check:arch && bun run dev`
 
 **Migration:** Decompose into atomic phases per [migration-patterns.md](references/migration-patterns.md). Each phase produces a clean repo.
 
@@ -148,16 +148,16 @@ Write the plan to `docs/plans/<date>-enforced-architecture-plan.md` (e.g., `docs
 Combine all phases into a single document:
 
 1. **Decision Summary** — Core architectural decisions and rationale. Which configurable choices were made and why (including documentation depth).
-3. **Target Architecture** — Directory layout (annotated tree), responsibility split table, dependency graph, public API conventions, server/client file naming.
-4. **Import Boundary Matrix** — Top-level matrix, within-feature boundaries, cross-feature rules, SDK containment configuration.
-5. **Rule Selection** — Included rules table (rule + adaptation notes) and excluded rules table (rule + reason). See Phase 3 for the format.
-6. **Documentation Spec** — Which CLAUDE.md sections to generate and which docs/architecture/ files to create. Content checklist per [documentation-model.md](references/documentation-model.md).
-7. **Implementation Checklist** (greenfield) or **Migration Plan** (existing) — From Phase 4.
-8. **Current Violations** (migration only) — Prioritized from the audit, with specific file paths and fix descriptions.
+2. **Target Architecture** — Directory layout (annotated tree), responsibility split table, dependency graph, public API conventions, server/client file naming.
+3. **Import Boundary Matrix** — Top-level matrix, within-feature boundaries, cross-feature rules, SDK containment configuration.
+4. **Rule Selection** — Included rules table (rule + adaptation notes) and excluded rules table (rule + reason). See Phase 3 for the format.
+5. **Documentation Spec** — Which CLAUDE.md sections to generate and which docs/architecture/ files to create. Content checklist per [documentation-model.md](references/documentation-model.md).
+6. **Implementation Checklist** (greenfield) or **Migration Plan** (existing) — From Phase 4.
+7. **Current Violations** (migration only) — Prioritized from the audit, with specific file paths and fix descriptions.
 
 **Important:** The plan document lives in the project repo and will be read by agents in future sessions. Include this reference for rule implementation:
 
-> Rule templates are in the `enforced-architecture` skill (`~/.claude/skills/enforced-architecture/references/lint/`), split by tier: `lint/oxlint/<tag>/` and `lint/structural/<tag>/`. Each rule in this plan references its template by that path, so the path names the tier. The project mirrors the tree — copy into its own `lint/`. **oxlint rules:** read the template, adapt paths and patterns to this project's structure, and write the result to `lint/oxlint/<tag>/` with its spec, registered in `lint/oxlint/plugin.ts`. **Structural checks:** copy the module and the `lint/structural/` substrate unmodified, register it in `lint/structural/registry.ts`, and put every project-specific value in `lint/structural/arch.config.ts` — the rule's *Adapt* section names the keys. Do not reimplement one from its doc.
+> Rule templates are in the `enforced-architecture` skill (`~/.claude/skills/enforced-architecture/references/lint/`), split by tier: `lint/policy/`, `lint/oxlint/<tag>/` and `lint/structural/<tag>/`. Each rule in this plan references its template by that path, so the path names the tier. The project mirrors the tree — copy into its own `lint/`. **`lint/policy/` first, before either tier:** copy it whole, then repoint `lint/policy/layout.ts` at this project's directory names, alias prefix and feature layers. Both tiers import it, and a rule whose *Adapt* section says "nothing here" is a rule whose adaptation happens in `layout.ts`. **oxlint rules:** read the template, adapt paths and patterns to this project's structure, and write the result to `lint/oxlint/<tag>/` with its spec, registered in `lint/oxlint/plugin.ts`. **Structural checks:** copy the module and the `lint/structural/` substrate unmodified, register it in `lint/structural/registry.ts`, and put every project-specific value in `lint/structural/arch.config.ts` — the rule's *Adapt* section names the keys. Do not reimplement one from its doc.
 
 ## Tone
 

@@ -9,8 +9,9 @@
 // `types: ["bun"]` and once under `types: ["node"]` — but a `node:` builtin
 // resolves under both, so `import { resolve } from "node:path"` here compiles
 // clean. The dual typecheck catches a Bun global or a Node global, and nothing
-// else. If this directory ever grows past three modules, that is the moment to
-// make the rule real rather than to trust this paragraph.
+// else — a `node:` import or a reach into `../oxlint/` is caught by review or by
+// nothing. Make the rule mechanical the first time either of those lands in a
+// diff, rather than trusting this paragraph a second time.
 //
 // Everything here speaks ONE currency: a path from the source root, with no
 // leading slash and no extension needed — `features/billing/repo/invoice-rows`.

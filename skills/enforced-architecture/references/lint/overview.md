@@ -93,20 +93,27 @@ The consuming project mirrors this tree: a `lint/` directory at the repo root ho
 `oxlint/` and `structural/`. Copying a rule then means copying a path, and a rule's tier is as
 visible in the project as it is here.
 
-1. **oxlint rules** go into `lint/oxlint/<tag>/`, are registered in `lint/oxlint/plugin.ts`, and are
+1. **`lint/policy/` goes first, whole and before either tier.** It is three modules and a spec, and
+   the only one that changes is `layout.ts` — the source root, alias prefix, directory names and
+   feature layers, repointed once at this project. Both tiers import it, so a repoint that lands
+   here reaches every rule that reads it at the same moment. Copy the spec too: it is what proves
+   the tables still mean what they meant after the repoint.
+2. **oxlint rules** go into `lint/oxlint/<tag>/`, are registered in `lint/oxlint/plugin.ts`, and are
    switched on in `.oxlintrc.json`. Each rule's spec (`<name>.test.ts`) is copied beside it — it is
-   part of the rule, not an optional extra. These are the tier that needs **adapting**: path
-   patterns are written against one standard layout and have to be repointed.
-2. **Structural checks** go into `lint/structural/<tag>/`, along with the substrate that sits at
+   part of the rule, not an optional extra. Most are the tier that needs **adapting**: path
+   patterns are written against one standard layout and have to be repointed. The exceptions are
+   the rules whose *Adapt* section says "nothing here" — those read `lint/policy/`, and repointing
+   `layout.ts` is their adaptation.
+3. **Structural checks** go into `lint/structural/<tag>/`, along with the substrate that sits at
    `lint/structural/`: `check-substrate.ts`, `import-graph.ts`, `config.ts`, `registry.ts` and the orchestrator.
    Each exports a check that **returns findings**; the orchestrator owns reporting and the exit
    code. These are **copied, not adapted** — adopting one means writing config, not reimplementing
    an algorithm. See [structural/config.ts](structural/config.ts) for the shape and every rule's
    *Adapt* section for its keys.
-3. **Build [graph/import-graph](structural/graph/import-graph.md) before its consumers.** Most
+4. **Build [graph/import-graph](structural/graph/import-graph.md) before its consumers.** Most
    structural checks answer *where an import lands* rather than *how it is spelled*, and they are
    the ones that break silently when they don't.
-4. **Every rule ships with its specs**, including one adversarial case — see *Rule Specs* in
+5. **Every rule ships with its specs**, including one adversarial case — see *Rule Specs* in
    [enforcement-implementation.md](../enforcement-implementation.md).
 
 Each tier is its own tsconfig program, because they run under different runtimes. Copy
