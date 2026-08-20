@@ -49,6 +49,18 @@ describeRule("style/no-arbitrary-class-values", noArbitraryClassValuesRule, {
       ],
     },
     {
+      name: "a token name containing 'em' is still one finding, not the value arm's as well",
+      filename: COMPONENT,
+      code: `export const Card = () => <div className="bg-[var(--theme-surface)]" />;`,
+      errors: [{ messageId: "arbitraryVar" }],
+    },
+    {
+      name: "a var with a literal fallback has both defects, so it draws both arms rather than one",
+      filename: COMPONENT,
+      code: `export const Split = () => <div className="bg-[var(--surface,#0a0c10)]" />;`,
+      errors: [{ messageId: "arbitraryValue" }, { messageId: "arbitraryVar" }],
+    },
+    {
       name: "a template literal's static segment is class text a string scan never visits",
       filename: COMPONENT,
       code: "export const cls = (extra: string) => `p-m ${extra} text-[13px]`;",
@@ -78,6 +90,11 @@ describeRule("style/no-arbitrary-class-values", noArbitraryClassValuesRule, {
       name: "a bracket class with no unit and no hex is an arbitrary variant, not a raw value",
       filename: COMPONENT,
       code: `export const Peer = () => <div className="group-[.is-open]:block" />;`,
+    },
+    {
+      name: "an arbitrary VARIANT whose selector contains a unit's letters — 'item' ends in 'em'",
+      filename: COMPONENT,
+      code: `export const List = () => <div className="has-[.item]:block data-[theme=dark]:flex" />;`,
     },
     {
       name: "a semantic class that merely starts like a generic scale step",

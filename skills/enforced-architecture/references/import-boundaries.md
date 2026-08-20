@@ -40,7 +40,7 @@ The cells that carry real information are the qualified ones — where the answe
 | any → `features/` — *public API only* | `@/features/<name>` or `@/features/<name>/index.server`. Never a path into another feature's internals. | `boundary/import-policy` |
 | `features/*/ui/` → `infrastructure/*` — *client-safe allowlist* | A short allowlist (a browser auth client, a query client). Everything else is server-only. | `boundary/client-server-infra` |
 | `features/*/ui/` → `features/` — *own controllers, others' public API* | Relative imports within the feature; the client-safe barrel across features. Cross-feature `ui/*` is banned outright, and so is the feature's own barrel from inside it. | `boundary/import-policy`, `placement/layer-direction` |
-| `routes/*` → `features/` — *client-safe public API + `ui/*`* | Routes may deep-import `ui/`, and only `ui/`. Never `index.server`, controllers, service, or repo. | `boundary/import-policy`, `api/server-import-context` |
+| `routes/*` → `features/` — *public API + `ui/*`, `index.server` for a `.server.ts` route* | Routes may deep-import `ui/`, and only `ui/` — never controllers, service, or repo. Both barrels are permitted paths; which of the two a given route file may name is `api/server-import-context`'s answer, and it turns on the file's own name: `routes/api.users.server.ts` is a server context and may take `index.server`, `routes/invoices.tsx` is a client context and may not. | `boundary/import-policy`, `api/server-import-context` |
 | `domains/*` → `domains/` — *barrels, self, no cycles* | Domains import each other through barrels; a cycle between two is a hard failure, because domains are the floor. | `boundary/import-policy`, `graph/domain-cycles` |
 | `domains/*` → packages — *types only* | A type import is erased and cannot change what an answer depends on. A runtime one can, including a schema library — parsing is a boundary decision. | `boundary/import-policy` |
 
@@ -87,7 +87,7 @@ Features import other features ONLY through public API barrels. All other intern
 | `@/features/<name>/service/*` | NO | --- |
 | `@/features/<name>/repo/*` | NO | --- |
 
-Enforced by `boundary/import-policy`, whose feature column is a *surface* rather than a yes/no — the barrels for most rows, the barrels plus the `ui/` subtree for routes. `api/server-import-context` additionally denies `*/index.server` from client contexts (UI files, barrels, `shared/`).
+Enforced by `boundary/import-policy`, whose feature column is a *surface* rather than a yes/no — the barrels for most rows, the barrels plus the `ui/` subtree for routes. `api/server-import-context` additionally denies `*/index.server` from client contexts — UI files, barrels, `shared/`, and any route not named `*.server.ts` (see [Server Context Definition](#server-context-definition)).
 
 Cross-feature UI imports are banned even between features. If two features need the same UI component, it gets promoted to `shared/ui/` once three features need it (promotion threshold).
 
@@ -162,10 +162,11 @@ Server contexts are the directories/files allowed to import `*/index.server` pat
 - `features/*/service/`
 - `features/*/repo/`
 - `infrastructure/*`
-- `routes/*`
 - Any file named `*.server.ts` or `*.server.tsx`
 
-Client contexts (UI files, barrel `index.ts` files, `shared/*` files) must not import `*/index.server` paths.
+`routes/` is deliberately absent, and the omission is the whole point: a route is isomorphic, so the same file runs on the server and ships to the browser. A route becomes a server context by NAMING itself one — `routes/api.users.server.ts` matches the last entry above — and `routes/invoices.tsx` does not.
+
+Everything not on that list is a client context and must not import `*/index.server`: UI files, barrel `index.ts` files, `shared/*`, and any route not itself a `.server.ts` file.
 
 ### Client-Safe Infrastructure
 

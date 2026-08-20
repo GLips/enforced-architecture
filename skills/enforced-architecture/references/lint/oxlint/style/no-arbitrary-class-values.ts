@@ -82,7 +82,19 @@ import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
 // `p-[7px]`, `text-[13px]`, `bg-[#fff]` — the arbitrary-value bracket syntax carrying a literal
 // length, percentage, or color. A `md:` / `hover:` variant prefix sits before the match and does
 // not interfere.
-const ARBITRARY_VALUE_UTILITY = /\b[a-z-]+-\[[^\]]*(?:px|rem|em|%|#[0-9a-fA-F]{3,8})[^\]]*\]/;
+//
+// The `\d` in front of the unit alternation is what makes this a VALUE match rather than a letter
+// match, and it is the only thing keeping the arm off arbitraryVar's class. Drop it and `em` matches
+// those two letters wherever they land, which is inside ordinary words: `has-[.item]:block`,
+// `data-[theme=dark]:flex` and `input-[type=email]` are all real Tailwind and all report as raw
+// values, and `bg-[var(--theme-surface)]` reports twice — once here and once as arbitraryVar — for
+// one class with one fix. A unit with no number in front of it is not a value.
+//
+// A bracket holding BOTH a var and a literal — `bg-[var(--surface,#0a0c10)]`, a token with a raw
+// fallback — does draw both arms, and that is right rather than a leak: it has both defects, the two
+// messages name different halves of it, and doing what either one says leaves the other still true.
+const ARBITRARY_VALUE_UTILITY =
+  /\b[a-z-]+-\[[^\]]*(?:\d(?:px|rem|em|%)|#[0-9a-fA-F]{3,8})[^\]]*\]/;
 
 // `bg-[var(--background)]` — a token reached around the theme mapping.
 const ARBITRARY_VAR_UTILITY =
@@ -125,9 +137,19 @@ export const noArbitraryClassValuesRule = defineRule({
 
     return {
       // Every string in the file, not just `className=` — classes are routinely held in a const,
-      // an array, a `cn()` argument, or the branches of a ternary, and each of those is the same
-      // untyped surface. The patterns describe class SHAPES specific enough that prose does not
-      // trip them.
+      // an array, a `cn()` argument, a `cva`/`tv`/`clsx` table, or the branches of a ternary, and
+      // each of those is the same untyped surface. Scoping the visitor to `className` and `cn()`
+      // would reopen all of them, and would make two of this rule's own adversarial cases legal.
+      //
+      // NEGATIVE SPACE — what the recall costs, and it is not zero. A string that merely LOOKS like
+      // an off-token class is reported wherever it sits, prose included. Measured over this
+      // catalog's own `lint/` tree — ~13k lines of non-test TypeScript, comment-dense, the worst
+      // case for a shape match — the count is TWO, and both are in the `messages` block above,
+      // where this rule quotes `text-[13px]` and `bg-[var(--background)]` as the examples it tells
+      // people not to write. The rule reports on itself, and an adopter who copies it into a linted
+      // tree gets both on day one; suppress those two lines or exempt the rule's own file. Two
+      // findings in the most hostile input available is what catching the const, the array and the
+      // `cva` table costs, and it is the right trade.
       Literal(node) {
         if (typeof node.value !== "string") return;
         reportOffTokenClasses(node, node.value);
