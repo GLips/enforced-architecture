@@ -115,21 +115,22 @@ Read [enforcement-implementation.md](references/enforcement-implementation.md) f
 
 ```
 lint/
-  policy/       tables both tiers read
+  policy/       layout.ts import-policy.ts package-owners.ts — tables both tiers read
   oxlint/       plugin.ts, lib/, <tag>/ — rules and their specs
   structural/   config.ts check-substrate.ts import-graph.ts registry.ts run-structural-checks.ts,
                 arch.config.ts, <tag>/ — checks
 ```
 
 **Greenfield sequence:**
-1. `lint/oxlint/` — the selected rules and their specs under `<tag>/`, plus `lib/`, all registered in `lint/oxlint/plugin.ts`. Then `.oxlintrc.json` at the root from [references/setup/oxlintrc.json](references/setup/oxlintrc.json), and the dev dependencies, unversioned so the project gets current releases: `bun add -d oxlint oxlint-tsgolint eslint-plugin-sonarjs jscpd`
-2. `lint/structural/` — the substrate (`config.ts`, `check-substrate.ts`, `import-graph.ts`, `registry.ts`, `run-structural-checks.ts`) and each selected check, all taken unmodified. Write `arch.config.ts` on top of `defaultCheckConfigs`
-3. One tsconfig per tier — [references/setup/oxlint.tsconfig.json](references/setup/oxlint.tsconfig.json) and [references/setup/structural.tsconfig.json](references/setup/structural.tsconfig.json) — and add both to the typecheck script by path. They are separate programs because the tiers run under different runtimes
-4. Package.json scripts (`check:arch`, and `duplication` for the CI-only jscpd pass), plus `.jscpd.json` from [references/setup/jscpd.json](references/setup/jscpd.json)
-5. `lefthook.yml` from [references/setup/lefthook.yml](references/setup/lefthook.yml)
-6. Framework import protection (vite.config.ts)
-7. Directory structure with empty barrels
-8. Generate documentation per [documentation-model.md](references/documentation-model.md) — CLAUDE.md rules section, and docs/architecture/ files if chosen. Then, if `health/doc-budgets` was selected, write `docs/doc-budgets.manifest.json` from [references/setup/doc-budgets.manifest.json](references/setup/doc-budgets.manifest.json) — ceilings come from what the generated docs actually weigh, so this step follows them
+1. `lint/policy/` — copied whole, then adapted: `layout.ts` is where the directory names, alias prefix and feature layers are repointed at this project, and it is the only file in the tree that needs it. Both tiers read it, so it lands before either
+2. `lint/oxlint/` — the selected rules and their specs under `<tag>/`, plus `lib/`, all registered in `lint/oxlint/plugin.ts`. Then `.oxlintrc.json` at the root from [references/setup/oxlintrc.json](references/setup/oxlintrc.json), and the dev dependencies, unversioned so the project gets current releases: `bun add -d oxlint oxlint-tsgolint eslint-plugin-sonarjs jscpd`
+3. `lint/structural/` — the substrate (`config.ts`, `check-substrate.ts`, `import-graph.ts`, `registry.ts`, `run-structural-checks.ts`) and each selected check, all taken unmodified. Write `arch.config.ts` on top of `defaultCheckConfigs`
+4. One tsconfig per tier — [references/setup/oxlint.tsconfig.json](references/setup/oxlint.tsconfig.json) and [references/setup/structural.tsconfig.json](references/setup/structural.tsconfig.json) — and add both to the typecheck script by path. They are separate programs because the tiers run under different runtimes
+5. Package.json scripts (`check:arch`, and `duplication` for the CI-only jscpd pass), plus `.jscpd.json` from [references/setup/jscpd.json](references/setup/jscpd.json)
+6. `lefthook.yml` from [references/setup/lefthook.yml](references/setup/lefthook.yml)
+7. Framework import protection (vite.config.ts)
+8. Directory structure with empty barrels
+9. Generate documentation per [documentation-model.md](references/documentation-model.md) — CLAUDE.md rules section, and docs/architecture/ files if chosen. Then, if `health/doc-budgets` was selected, write `docs/doc-budgets.manifest.json` from [references/setup/doc-budgets.manifest.json](references/setup/doc-budgets.manifest.json) — ceilings come from what the generated docs actually weigh, so this step follows them
 9. Verify: `bun run check:arch && bun run dev`
 
 **Migration:** Decompose into atomic phases per [migration-patterns.md](references/migration-patterns.md). Each phase produces a clean repo.
@@ -147,12 +148,12 @@ Write the plan to `docs/plans/<date>-enforced-architecture-plan.md` (e.g., `docs
 Combine all phases into a single document:
 
 1. **Decision Summary** — Core architectural decisions and rationale. Which configurable choices were made and why (including documentation depth).
-2. **Target Architecture** — Directory layout (annotated tree), responsibility split table, dependency graph, public API conventions, server/client file naming.
-3. **Import Boundary Matrix** — Top-level matrix, within-feature boundaries, cross-feature rules, SDK containment configuration.
-4. **Rule Selection** — Included rules table (rule + adaptation notes) and excluded rules table (rule + reason). See Phase 3 for the format.
-5. **Documentation Spec** — Which CLAUDE.md sections to generate and which docs/architecture/ files to create. Content checklist per [documentation-model.md](references/documentation-model.md).
-6. **Implementation Checklist** (greenfield) or **Migration Plan** (existing) — From Phase 4.
-7. **Current Violations** (migration only) — Prioritized from the audit, with specific file paths and fix descriptions.
+3. **Target Architecture** — Directory layout (annotated tree), responsibility split table, dependency graph, public API conventions, server/client file naming.
+4. **Import Boundary Matrix** — Top-level matrix, within-feature boundaries, cross-feature rules, SDK containment configuration.
+5. **Rule Selection** — Included rules table (rule + adaptation notes) and excluded rules table (rule + reason). See Phase 3 for the format.
+6. **Documentation Spec** — Which CLAUDE.md sections to generate and which docs/architecture/ files to create. Content checklist per [documentation-model.md](references/documentation-model.md).
+7. **Implementation Checklist** (greenfield) or **Migration Plan** (existing) — From Phase 4.
+8. **Current Violations** (migration only) — Prioritized from the audit, with specific file paths and fix descriptions.
 
 **Important:** The plan document lives in the project repo and will be read by agents in future sessions. Include this reference for rule implementation:
 

@@ -18,7 +18,7 @@
 //
 // Self-contained by construction: it reads the RESOLVED ends of every edge, so
 // the aliased and relative spellings of the same import are one edge here. It
-// does not assume `boundary/cross-boundary-alias` has already banned the
+// does not assume `boundary/import-policy` has already banned the
 // relative one.
 //
 // See graph/domain-cycles.md for the intent and the negative space, and

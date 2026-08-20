@@ -1,7 +1,7 @@
 // ─── graph/import-graph — the resolved import graph ───────────────────
 //
 // Not a rule. This is the substrate six rules consume instead of each matching
-// import strings on its own: `boundary/cross-boundary-alias`,
+// import strings on its own: `boundary/import-policy`,
 // `placement/layer-direction`, `boundary/layer-occupancy`, `graph/feature-deps`,
 // `graph/domain-cycles`, and `api/feature-visibility`.
 //

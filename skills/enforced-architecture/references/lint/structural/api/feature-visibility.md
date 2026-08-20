@@ -8,7 +8,7 @@
 
 ## What it is
 
-A qualified export, JPMS `exports … to` style, at the feature boundary: feature B names each feature allowed to import it, in `src/features/B/visibility.json`, with a written justification per grant. Everything else denies. `api/feature-public-api` already says *import through the barrel* — this says *and only if the owner let you in*.
+A qualified export, JPMS `exports … to` style, at the feature boundary: feature B names each feature allowed to import it, in `src/features/B/visibility.json`, with a written justification per grant. Everything else denies. `boundary/import-policy` already says *import through the barrel* — this says *and only if the owner let you in*.
 
 The mechanism is the point, and it is smaller than it looks: **the friction sits on the importee's side, in a file, in the diff.** A central allowlist or a tag-based rule enforces the same edges and buys none of this, because an edit to a config the author already had open reads as part of the work. Making feature A's new dependency require an edit to feature B — a file the author had no reason to touch, whose one purpose is recording that B accepts a consumer — is what turns silent accretion into a decision someone has to write a sentence about. Assume the sentence is the deliverable; the JSON is bookkeeping.
 

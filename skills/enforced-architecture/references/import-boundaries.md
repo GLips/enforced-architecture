@@ -34,17 +34,17 @@ The cells that carry real information are the qualified ones — where the answe
 | `infrastructure/db/` → `env.server` — *`client.ts` only* | The client file reads connection config. No other DB file touches env. | `boundary/ambient-globals` |
 | `infrastructure/*` → `infrastructure/db/` — *designated files* | Auth reaches `db/client` and `db/schema` for its own tables; integrations generally reach neither. Each module imports only the DB files it needs. | `boundary/db-isolation` |
 | `features/*/controllers/` → `infrastructure/db/` — *via repo, if it exists* | A present layer may not be bypassed. With no `repo/`, controllers reach DB directly and that is correct. | `boundary/layer-occupancy` |
-| any → `features/` — *public API only* | `@/features/<name>` or `@/features/<name>/index.server`. Never a path into another feature's internals. | `api/feature-public-api` |
+| any → `features/` — *public API only* | `@/features/<name>` or `@/features/<name>/index.server`. Never a path into another feature's internals. | `boundary/import-policy` |
 | `features/*/ui/` → `infrastructure/*` — *client-safe allowlist* | A short allowlist (a browser auth client, a query client). Everything else is server-only. | `boundary/client-server-infra` |
-| `features/*/ui/` → `features/` — *own controllers, others' public API* | Relative imports within the feature; the client-safe barrel across features. Cross-feature `ui/*` is banned outright. | `api/feature-public-api` |
-| `routes/*` → `features/` — *client-safe public API + `ui/*`* | Routes may deep-import `ui/`, and only `ui/`. Never `index.server`, controllers, service, or repo. | `api/feature-public-api`, `api/server-import-context` |
+| `features/*/ui/` → `features/` — *own controllers, others' public API* | Relative imports within the feature; the client-safe barrel across features. Cross-feature `ui/*` is banned outright, and so is the feature's own barrel from inside it. | `boundary/import-policy`, `placement/layer-direction` |
+| `routes/*` → `features/` — *client-safe public API + `ui/*`* | Routes may deep-import `ui/`, and only `ui/`. Never `index.server`, controllers, service, or repo. | `boundary/import-policy`, `api/server-import-context` |
 | `domains/*` → `domains/` — *self, no cycles* | Domains import each other through barrels; a cycle between two is a hard failure, because domains are the floor. | `graph/domain-cycles` |
 
 Three cells look like ordinary NOs and are worth stating explicitly, because each is a purity claim rather than a direction claim:
 
 - **`features/*/service/` imports no infrastructure and no env.** Service holds use-case orchestration; anything external arrives as a parameter from the controller above.
 - **`features/*/repo/` imports no env.** Connection and key material arrive from the layers above, which keeps repo functions testable against any client.
-- **`domains/*` imports no env, ever.** Config is a function parameter. Enforced by `boundary/domain-purity`, and it is what makes domain code portable.
+- **`domains/*` imports no env, ever.** Config is a function parameter. Enforced by the `domain` row of `boundary/import-policy`, which additionally holds domains to *runtime* purity: a domain may name a type from anywhere it may import at all, and may execute code only from other domains and `shared/`. That is what makes domain code portable.
 
 ---
 
@@ -76,7 +76,7 @@ Features import other features ONLY through public API barrels. All other intern
 | `@/features/<name>/service/*` | NO | --- |
 | `@/features/<name>/repo/*` | NO | --- |
 
-Enforced by `api/feature-public-api`; `api/server-import-context` additionally denies `*/index.server` from client contexts (UI files, barrels, `shared/`).
+Enforced by `boundary/import-policy`, whose feature column is a *surface* rather than a yes/no — the barrels for most rows, the barrels plus the `ui/` subtree for routes. `api/server-import-context` additionally denies `*/index.server` from client contexts (UI files, barrels, `shared/`).
 
 Cross-feature UI imports are banned even between features. If two features need the same UI component, it gets promoted to `shared/ui/` once three features need it (promotion threshold).
 
@@ -102,7 +102,9 @@ Enforced by `api/domain-public-api`. `graph/domain-cycles` fails the build on a 
 
 ### The `@/` Alias Requirement
 
-All imports that cross a top-level directory boundary (`features/`, `domains/`, `infrastructure/`, `shared/`, `routes/`) MUST use the `@/` path alias. Relative imports (`../`) that cross boundaries bypass path-based rule checking and are denied by the `boundary/cross-boundary-alias` rule.
+All imports that leave the **unit** they are written in — a feature, a domain, `infrastructure/`, `shared/`, `shared/ui/`, `routes/` — MUST use the `@/` path alias. Relative imports (`../`) that leave a unit bypass path-based rule checking and are denied by the structural half of `boundary/import-policy`.
+
+A unit is finer than a top-level directory, and that is deliberate: `shared/ui/` and the rest of `shared/` are one *boundary* and two *units*, so a primitive reaching `../lib/tokens` is a crossing even though both ends sit under `shared/`. Reading "the first path segment" as the boundary is exactly what let that edge go ungoverned in the rules this replaced.
 
 ```typescript
 // CORRECT -- aliased cross-boundary import
@@ -166,7 +168,7 @@ External SDK packages are restricted from direct import outside designated modul
 
 ### Wrapped SDKs
 
-The raw package import is banned everywhere except the wrapper module, which configures the SDK and re-exports its interface. The goal is containment, not abstraction. Enforced by `boundary/sdk-containment`, which denies the package from any file outside `infrastructure/`. Wrap when the SDK carries configuration complexity (keys, client options, retries), security sensitivity (payments, auth, email), or an unstable API the wrapper can absorb.
+The raw package import is banned everywhere except the wrapper module, which configures the SDK and re-exports its interface. The goal is containment, not abstraction. Enforced by `boundary/sdk-containment`, which reads one row per package in `lint/policy/package-owners.ts`: the owners are named modules, so the rule can say *who* may import it rather than only *where*. Wrap when the SDK carries configuration complexity (keys, client options, retries), security sensitivity (payments, auth, email), or an unstable API the wrapper can absorb.
 
 ### Layer-Restricted SDKs
 
@@ -176,7 +178,7 @@ The raw import is allowed, from designated directories only, with no wrapper. Fi
 
 1. Create an adapter in `infrastructure/integrations/<service>.ts` (or `infrastructure/<concern>/` for cross-cutting concerns like auth or telemetry).
 2. The adapter imports the SDK, reads config from `env.server.ts`, and exports a configured client or helper functions.
-3. Add the SDK package to the `boundary/sdk-containment` rule.
+3. Add a row to `lint/policy/package-owners.ts` naming the adapter as the package's owner, with the `why`.
 4. Add the SDK to the `api/barrel-purity` server-only patterns list if it uses Node.js built-ins or server-only APIs.
 5. Features import the adapter, never the raw SDK.
 

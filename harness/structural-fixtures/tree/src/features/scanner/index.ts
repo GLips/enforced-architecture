@@ -7,7 +7,7 @@
 //
 // The re-export is named rather than `export *` and unrenamed, so
 // `naming/barrel-discoverability` stays quiet, and it reaches nothing outside
-// this feature, so `api/barrel-purity` and `boundary/cross-boundary-alias` do
+// this feature, so `api/barrel-purity` and `boundary/import-policy` do
 // too. The feature is deliberately edge-free: nothing here imports another
 // feature and nothing imports it.
 export { ScannerError } from "./errors.ts";

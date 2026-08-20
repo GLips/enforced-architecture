@@ -26,9 +26,9 @@ Non-negotiable properties of the architecture. Everything else is convention tha
 
 1. **Dependency direction is enforced.** Lower layers never import upper layers. No exceptions. — [layer model](#the-layer-model), [boundary rules](lint/oxlint/boundary/overview.md)
 2. **Database access is concentrated.** Only designated data access modules import the database. — [server functions as the DB boundary](#server-functions-as-the-db-boundary), [lint/oxlint/boundary/db-isolation.ts](lint/oxlint/boundary/db-isolation.ts)
-3. **Features expose public APIs.** External consumers import through barrels, never internal paths. A feature that reorganizes internally breaks no consumer. — [import-boundaries.md](import-boundaries.md#public-api-convention-table), [lint/oxlint/api/feature-public-api.ts](lint/oxlint/api/feature-public-api.ts)
+3. **Features expose public APIs.** External consumers import through barrels, never internal paths. A feature that reorganizes internally breaks no consumer. — [import-boundaries.md](import-boundaries.md#public-api-convention-table), [lint/policy/import-policy.ts](lint/policy/import-policy.ts)
 4. **SDKs are contained.** Every third-party SDK is either wrapped or layer-restricted. — [SDK containment](#sdk-containment)
-5. **Cross-boundary imports use aliases.** — [the cross-boundary alias rule](#the-cross-boundary-alias-rule)
+5. **Cross-unit imports use aliases.** — [the alias rule](#the-alias-rule)
 6. **Rules are blocking.** — [all rules blocking](#all-rules-blocking-from-day-one)
 7. **The filesystem is the source of truth.** Directory structure plus the import graph fully describe the architecture. No metadata layers, no configuration-driven topology. Nothing enforces this — it is the constraint on whoever designs the architecture, and it is what rules out a topology manifest as a solution to any problem below.
 8. **Tests are exempt; production is not.** Tests may cross boundaries for setup. Production code may never import test files. — [test placement](#test-placement)
@@ -186,13 +186,15 @@ Do not create error types speculatively. Start with one, and add per-layer types
 
 ---
 
-## The Cross-Boundary Alias Rule
+## The Alias Rule
 
-This is the rule that makes every other import-path rule work, and without it the enforcement system has a bypass vector.
+This is what makes every other import-path rule work, and without it the enforcement system has a bypass vector.
 
-Every import rule pattern-matches on the aliased path. "Files in `routes/` cannot import `@/infrastructure/db`" works because it can match that string — and `../../infrastructure/db` names the same module with a string the rule never sees. So all imports crossing a top-level boundary use the alias, and relative imports that traverse into another top-level directory are banned. Inside one boundary, relative imports are expected and correct: they cross nothing.
+Every import rule pattern-matches on the aliased path. "Files in `routes/` cannot import `@/infrastructure/db`" works because it can match that string — and `../../infrastructure/db` names the same module with a string the rule never sees. So all imports that leave the unit they are written in use the alias, and relative imports that land in another unit are banned. Inside one unit, relative imports are expected and correct: they cross nothing.
 
-Treat this as the load-bearing one when sequencing a migration. Details and the check itself: [lint/structural/boundary/cross-boundary-alias.md](lint/structural/boundary/cross-boundary-alias.md).
+The unit is finer than the top-level directory. `shared/ui/` and the rest of `shared/` are one boundary and two units, so a primitive reaching `../lib/tokens` is a crossing — and reading the first path segment as the boundary is precisely what let that edge go ungoverned before.
+
+Treat this as the load-bearing one when sequencing a migration. Both halves are one rule: [lint/structural/boundary/import-policy.md](lint/structural/boundary/import-policy.md) resolves relative edges, [lint/oxlint/boundary/import-policy.ts](lint/oxlint/boundary/import-policy.ts) reads aliased ones, and both ask [lint/policy/import-policy.ts](lint/policy/import-policy.ts).
 
 ---
 

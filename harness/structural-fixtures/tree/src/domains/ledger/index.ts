@@ -7,7 +7,7 @@
 //     domain end, so it is not a node in this graph and cannot sit in a cycle.
 //   - `./errors.ts` stays inside domains/ledger. Both ends are the same
 //     boundary, so it is a within-domain move — the relative spelling is the
-//     correct one here, and `boundary/cross-boundary-alias` leaves it alone for
+//     correct one here, and `boundary/import-policy` leaves it alone for
 //     the same reason this check does.
 //
 // The second carries the weight: a check that treats every resolved import from

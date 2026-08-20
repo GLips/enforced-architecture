@@ -1,4 +1,4 @@
-// FIRES cross-boundary-alias: the long climb out to another top-level
+// FIRES import-policy: the long climb out to another top-level
 // boundary. A specifier matcher does catch this one, so it is here as the
 // regression guard — resolving imports properly had to keep what a pattern
 // already got right, not just add the case it missed.

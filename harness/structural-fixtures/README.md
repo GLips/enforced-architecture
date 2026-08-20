@@ -96,7 +96,7 @@ Plus its fixtures in `tree/`. Two rules keep a shared tree workable:
 - **A fixture must be legal for every check but its own.** The tree is a
   conforming repo except where it deliberately is not, so a new file at an
   unlisted path or carrying a relative cross-boundary import trips
-  `placement/topology` or `boundary/cross-boundary-alias` on top of whatever it
+  `placement/topology` or `boundary/import-policy` on top of whatever it
   was written for.
 - **Never edit another check's expectations.** If a fixture makes another check
   fire, move or rename the fixture rather than widening someone else's contract.

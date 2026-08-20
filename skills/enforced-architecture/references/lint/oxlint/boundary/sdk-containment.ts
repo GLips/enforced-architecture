@@ -1,124 +1,112 @@
-// ─── boundary/sdk-containment ────────────────────────────────────────
+// ─── boundary/sdk-containment ─────────────────────────────────────────
 //
 // Tag:       boundary
 // Mechanism: oxlint JS plugin (per-file, real-time)
 // Blocking:  Yes
 //
-// Prevents: Direct imports of wrapped third-party SDK packages from
-//           anywhere outside infrastructure/. SDKs that require
-//           configuration (API keys, client options, retry policies)
-//           must be wrapped in an infrastructure adapter. Consumer code
-//           imports the adapter, never the raw package. This ensures
-//           API keys live in one place, SDK upgrades are absorbed in
-//           one place, and provider swaps affect one module.
+// Prevents: A third-party SDK being imported anywhere but the module that owns
+//           it. The rest of the app talks to the capability that module exposes.
 //
-// Applies:  All src/** files EXCEPT:
-//           - src/infrastructure/** (IS the wrapper layer)
-//           - Approved app entrypoints (router, root route, client)
-//           - Instrumentation files
-//           - Test files and scripts
+// The point is not tidiness: it is that "replace the payments vendor" or "stop
+// sending this field" should be one file to open, not a search whose completeness
+// nobody can vouch for. It also gives the capability somewhere to grow — when a
+// feature first needs to record an event, this rule sends it to the wrapper,
+// where what the app records, and what it deliberately does not, gets decided
+// once instead of at each call site.
 //
-// Error:    "Direct provider SDK imports are restricted to
-//            infrastructure/ modules (except approved app entrypoints).
-//            Import the configured adapter from @/infrastructure/...
-//            instead."
+// Applies:  All src/** files EXCEPT test files, scripts, and — per package — the
+//           modules that package's row names as its owners.
+//
+// The policy is `PACKAGE_OWNERS` in `lint/policy/package-owners.ts`, which is
+// also where the argument for what belongs on it lives. This file is the reader:
+// it decides which rows apply to the file being linted, and matches a specifier
+// to a package by canonical name so a subpath cannot step around a row.
+//
+// This rule stayed separate through the merge that folded four boundary rules
+// into `arch/import-policy`, and refusing that merge was deliberate. Its policy
+// is keyed by exact package and exact module, not by area; the ordering that
+// would have let one table express both forces `domain → package` to claim the
+// domain may import any package — a cell stating something untrue so machinery
+// could work.
+//
+// NEGATIVE SPACE: a package with no row is UNCONSTRAINED, and this rule cannot
+// detect that state. Whether a package reaches a network, a keychain or a
+// filesystem is a judgement, not something a check decides; the nearest
+// mechanical proxy would flag React while still missing the first bad import.
+// Adding an SDK means adding the row — nothing reminds you.
+//
+// NEGATIVE SPACE: there is no entrypoint exemption and no way to spell one. The
+// filename list this rule used to carry was a bypass vector by its own
+// documentation's admission. An entrypoint that genuinely has to set an SDK up
+// owns it, and says so by appearing on that package's `owners` list — a decision
+// one row records rather than a category of file that inherits a pass.
 //
 // ── Adapt ─────────────────────────────────────────────────────────────
 //
-// 1. Which packages belong on `WRAPPED_SDKS` — the criterion, not a catalog:
+// The rows, and the reasoning about what earns one, are in
+// `lint/policy/package-owners.ts`. Nothing in this file is configuration.
 //
-//    A package belongs here when a SECOND import site would have to
-//    repeat a decision. That is the whole test. Ask it of each candidate:
-//
-//    - Does it authenticate? A key, token, account id or signing secret
-//      means the answer to "which credential, from where" gets decided
-//      again at every call site that constructs a client.
-//    - Does it open a connection? An HTTP client, socket, or pool
-//      carries timeout, retry and cancellation policy with it.
-//    - Is it configured per environment? Base URL, region, sample rate.
-//      Two sites will drift, and the drift shows up in one environment.
-//    - Does its behaviour differ by platform or runtime? This is the
-//      sharp one on anything that might reach the browser: a package
-//      whose web implementation is an empty stub needs that difference
-//      handled in ONE place, not wherever it got imported. Storage,
-//      secure storage, filesystem and network all qualify.
-//    - Could you plausibly swap it for a competitor? Then the surface
-//      you depend on should be yours, not theirs.
-//
-//    Any one of those is enough. Platform and stdlib-shaped packages
-//    count as SDKs — the criterion is the decision, not the vendor.
-//
-//    What does NOT belong: a library with no credential, no IO and no
-//    per-environment config. Date maths, schema validation, immutable
-//    helpers. Wrapping those buys an indirection and nothing else, and a
-//    restricted list that grows past the packages meeting the criterion
-//    above teaches people the rule is arbitrary.
-//
-//    Write them as ONE alternation, not one regex per package. Pairing a
-//    bare package with its subpath form is then structural rather than a
-//    step you can forget — the trailing `(?:\/|$)` covers `stripe/lib/x`
-//    and `@sentry/node` with the same expression that covers `stripe`,
-//    and it is what stops `stripe-mock` and `@sentry-internal/scrub`
-//    from being read as the packages they merely resemble. Forgetting
-//    the pairing was the most common way an adaptation of this template
-//    came out weaker than the template; this shape removes the chance.
-//
-// 2. Which layer IS the wrapper — `WRAPPER_LAYER`:
-//    Adjust if the wrapper layer has a different name.
-//    Examples:
-//      /\/src\/infrastructure\//  — standard (this template)
-//      /\/src\/infra\//           — abbreviated naming
-//      /\/src\/adapters\//        — ports-and-adapters naming
-//
-// 3. App entrypoints that need raw SDK access — `APP_ENTRYPOINTS`:
-//    Some framework entrypoints have nowhere to put SDK setup (Sentry
-//    instrumentation, auth provider setup in a root layout). Add those
-//    files here. Keep the list minimal and match whole filenames —
-//    every entry is a potential bypass vector.
-//
-// 4. Layer-restricted vs. wrapped:
-//    This rule is for WRAPPED SDKs only (banned outside infra).
-//    Layer-restricted SDKs (like ORMs allowed in repo/ files)
-//    should use db-isolation or a separate layer-restriction rule.
-//
-// 5. Registration:
-//    Add the rule to the project's oxlint plugin
-//    (`rules: { "sdk-containment": sdkContainmentRule }`) and turn it on in
-//    `.oxlintrc.json` (`"<plugin>/sdk-containment": "error"`).
+// Registration: `rules: { "sdk-containment": sdkContainmentRule }` in
+// `lint/oxlint/plugin.ts`, and `"arch/sdk-containment": "error"` in `.oxlintrc.json`.
 //
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule } from "@oxlint/plugins";
+import { packageNameOf, SOURCE_ROOT } from "../../policy/layout.ts";
+import { PACKAGE_OWNERS } from "../../policy/package-owners.ts";
 import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
 import { visitModuleSources } from "../lib/module-source-visitor.ts";
 
-const WRAPPED_SDKS =
-  /^(?:stripe|better-auth|posthog-node|@sentry\/[^/]+|@loops-so\/[^/]+)(?:\/|$)/;
-
-const WRAPPER_LAYER = /\/src\/infrastructure\//;
-const APP_ENTRYPOINTS = [
-  /\/src\/router\.[tj]sx?$/,
-  /\/src\/routes\/__root\.[tj]sx?$/,
-  /\/src\/client\.[tj]sx?$/,
-  /\/instrument\.server\.mjs$/,
-];
+/**
+ * Anchored at both ends. The leading separator is what stops
+ * `stripe-legacy.ts` from inheriting `stripe.ts`'s exemption, and the source root
+ * is what stops a same-named file somewhere else in the repo from claiming it.
+ */
+function isOwner(filename: string, owner: string): boolean {
+  return filename.endsWith(`/${SOURCE_ROOT}/${owner}`);
+}
 
 export const sdkContainmentRule = defineRule({
   meta: {
     type: "problem",
     messages: {
-      rawSdkOutsideInfrastructure:
-        "Direct provider SDK imports are restricted to infrastructure/ modules (except approved app entrypoints). Import the configured adapter from @/infrastructure/... instead. If this is a new SDK, create its adapter in infrastructure/ and add the package to this rule's restricted list.",
+      // Names its owners and prescribes no import, deliberately. "Import the
+      // wrapper from infrastructure instead" is a fix `arch/import-policy` also
+      // forbids from a domain or a service, and a pair of diagnostics that each
+      // forbid the other's fix is an edit loop. Read with the purity message,
+      // this resolves to "the dependency has to be supplied from above".
+      rawSdkOutsideOwner: "{{package}} may only be imported by {{ownerNames}}. {{why}}",
     },
   },
   create(context) {
     const { filename } = context;
-    if (isArchitectureExemptPath(filename) || WRAPPER_LAYER.test(filename)) return {};
-    if (APP_ENTRYPOINTS.some((entrypoint) => entrypoint.test(filename))) return {};
+    if (isArchitectureExemptPath(filename)) return {};
+
+    // An owning module is exempt for its OWN package only, which is what keeps the
+    // wrapper layer from becoming one permission: the payments adapter has no
+    // business opening the analytics client.
+    const contained = PACKAGE_OWNERS.filter(
+      (row) => !row.owners.some((owner) => isOwner(filename, owner)),
+    );
+    if (contained.length === 0) return {};
 
     return visitModuleSources((source, specifier) => {
-      if (WRAPPED_SDKS.test(specifier)) {
-        context.report({ node: source, messageId: "rawSdkOutsideInfrastructure" });
+      // Only a bare specifier names a package. A relative path that happens to end
+      // in a package's name is a file in this repo.
+      if (specifier.startsWith(".") || specifier.startsWith("/")) return;
+      const name = packageNameOf(specifier);
+
+      for (const row of contained) {
+        if (row.package !== name) continue;
+        context.report({
+          node: source,
+          messageId: "rawSdkOutsideOwner",
+          data: {
+            package: specifier,
+            ownerNames: row.owners.map((owner) => `${SOURCE_ROOT}/${owner}`).join(" or "),
+            why: row.why,
+          },
+        });
       }
     });
   },

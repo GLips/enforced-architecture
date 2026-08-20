@@ -1,4 +1,4 @@
-// FIRES cross-boundary-alias: the sibling-feature crossing, the case a
+// FIRES import-policy: the sibling-feature crossing, the case a
 // specifier matcher cannot see.
 //
 // Such a matcher looks for a literal `features/` segment in the specifier. From

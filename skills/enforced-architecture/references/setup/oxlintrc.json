@@ -54,7 +54,21 @@
   // raised it: `error arch(db-isolation): …`
   "rules": {
     "arch/db-isolation": "error",
-    "arch/shared-ui-purity": "error",
+    "arch/import-policy": "error",
+
+    // NEGATIVE SPACE: `typescript/no-require-imports` is deliberately absent, and
+    // was looked at rather than overlooked. It bans the CommonJS *form* —
+    // `require(…)`, `require.resolve(…)`, `import x = require(…)` — everywhere,
+    // which is the cheaper half of the same fence: `arch/import-policy` already
+    // reads all three spellings and judges where each one LANDS. Turning the
+    // built-in on would make those visitor arms dead code and trade a verdict
+    // about architecture for a verdict about syntax, including on the files where
+    // a `require` is correct (a config read at load time, a script). A rule
+    // banning CJS outright was proposed and rejected on the same ground.
+    //
+    // A project that wants the form gone too should add it as a style decision
+    // and say so — not as a substitute for the policy, which would then be
+    // enforcing nothing about those specifiers.
 
     // The type-aware built-ins that earn the tsgolint dependency, and only those.
     // Naming them is not decoration: `typeAware` on its own runs some at warning

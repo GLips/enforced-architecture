@@ -1,8 +1,5 @@
 # policy — the tables both tiers read
 
-Empty on arrival. The directory and this contract exist first so the first table to land here has
-something to hold itself to.
-
 Runtime-neutral. A module here may import nothing but other modules here, and may reference:
 
 - **no Node APIs** — no `node:fs`, no `node:path`, nothing that assumes a filesystem
@@ -33,4 +30,17 @@ and the directory has bought nothing.
 
 ## What lives here
 
-Nothing yet. The first tables land with the policy engine that reads them.
+| Module | What it holds | Read by |
+|---|---|---|
+| [layout.ts](layout.ts) | The shape of the tree: source root, alias prefix, directory names, feature layers, barrel and env module names — and the two classifiers that turn a source-root-relative path into a `SourceProfile` or a `TargetArea`. **This is the whole adaptation surface for the import policy.** | Both `import-policy` adapters, `boundary/sdk-containment`, `placement/layer-direction` |
+| [import-policy.ts](import-policy.ts) | The `SourceProfile × TargetArea` table, the rationale each denial is rendered with, and `evaluateImportPolicy` | `oxlint/boundary/import-policy.ts`, `structural/boundary/import-policy.ts` |
+| [package-owners.ts](package-owners.ts) | One row per contained package: which modules may import it, and why | `oxlint/boundary/sdk-containment.ts` |
+| [import-policy.test.ts](import-policy.test.ts) | The engine's own specs — that each path reaches the cell its author intended, and that one edge spelled two ways reaches one verdict | The rule harness, under Node |
+
+The table is exhaustive by type: every `SourceProfile` must name every `TargetArea`, so adding
+either without deciding the new cells is a compile error rather than a silent `any`.
+
+The spec ships beside the tables for the same reason a rule's spec ships beside the rule — a project
+copying `policy/` gets the proof that it still means what it meant here. It runs under Node with the
+oxlint tier (`bun run check:rules`), because a table proved in one runtime and consumed in two is a
+table proved once.

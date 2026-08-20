@@ -1,4 +1,4 @@
-// FIRES cross-boundary-alias: a crossing between a backtick in a regex literal and
+// FIRES import-policy: a crossing between a backtick in a regex literal and
 // the next real template. Goes quiet the same way quoted-backtick-crossing.ts
 // does, from a syntax class a string-only fix leaves standing.
 const TICK = /`/;

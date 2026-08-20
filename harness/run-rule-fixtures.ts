@@ -14,6 +14,12 @@
  * Two things the specs cannot check about themselves, and this runner does:
  * a rule with no spec at all, and a spec that has been stubbed or aimed at the
  * wrong rule. Both leave a green run behind a rule nothing exercises.
+ *
+ * It also runs the specs beside `lint/policy/`. That directory holds no rules —
+ * it holds the tables both tiers read — so its specs get no three-kind
+ * attribution and no plugin registration check. They run here rather than under
+ * Bun because the tier that reads them from a Node process is this one, and a
+ * table proved in one runtime and consumed in two is a table proved once.
  */
 
 import { spawnSync } from "node:child_process";
@@ -31,6 +37,13 @@ const REPO_ROOT = resolve(HARNESS_DIR, "..");
  */
 const OXLINT_ROOT = join(REPO_ROOT, "skills/enforced-architecture/references/lint/oxlint");
 const PLUGIN_PATH = join(OXLINT_ROOT, "plugin.ts");
+/**
+ * The runtime-neutral tables below both tiers. Its specs are collected and run,
+ * and nothing else about it is asserted: it has no registry to compare against
+ * and no per-module spec requirement, because one spec covering the engine and
+ * the vocabulary it reads is the right shape rather than an omission.
+ */
+const POLICY_ROOT = join(REPO_ROOT, "skills/enforced-architecture/references/lint/policy");
 
 type RuleFailure = { rule: string; detail: string };
 
@@ -59,6 +72,19 @@ const rulePaths = tsFiles.filter((f) => !f.endsWith(".test.ts")).sort();
 
 if (rulePaths.length === 0) {
   console.error(`No rule templates found under ${OXLINT_ROOT}`);
+  process.exit(1);
+}
+
+const policySpecs = (await walkFiles(POLICY_ROOT)).filter((f) => f.endsWith(".test.ts")).sort();
+const policyModules = (await walkFiles(POLICY_ROOT)).filter(
+  (f) => f.endsWith(".ts") && !f.endsWith(".test.ts"),
+);
+// A policy module is read by BOTH tiers, so it going unexercised is worse than a
+// rule going unexercised, not better. There is no per-module requirement — the
+// engine and the vocabulary are proved through one entry point — but a policy
+// directory with modules and no specs at all is a hole with nothing to name it.
+if (policyModules.length > 0 && policySpecs.length === 0) {
+  console.error(`No specs found under ${POLICY_ROOT}, so nothing exercises the shared tables`);
   process.exit(1);
 }
 
@@ -116,7 +142,10 @@ async function checkRule(rulePath: string): Promise<RuleFailure[]> {
 const structural = await Promise.all(rulePaths.map(checkRule));
 
 // Run every spec in one Node process — `node --test` gives each file its own subprocess.
-const specList = rulePaths.map((p) => p.replace(/\.ts$/, ".test.ts")).filter((p) => specPaths.has(p));
+const specList = [
+  ...rulePaths.map((p) => p.replace(/\.ts$/, ".test.ts")).filter((p) => specPaths.has(p)),
+  ...policySpecs,
+];
 const run = spawnSync(process.execPath, ["--test", "--test-reporter=tap", ...specList], {
   cwd: REPO_ROOT,
   encoding: "utf8",
@@ -172,6 +201,7 @@ for (const orphan of orphans) {
 if (run.status !== 0) console.log(`\n${tap}`);
 
 console.log(
-  `\n${rulePaths.length - failedRules}/${rulePaths.length} oxlint rule templates proved against their obvious / adversarial / legal specs.`,
+  `\n${rulePaths.length - failedRules}/${rulePaths.length} oxlint rule templates proved against their obvious / adversarial / legal specs,` +
+    ` plus ${policySpecs.length} spec file(s) over the shared tables in lint/policy/.`,
 );
 process.exit(failedRules === 0 && orphans.length === 0 && run.status === 0 ? 0 : 1);

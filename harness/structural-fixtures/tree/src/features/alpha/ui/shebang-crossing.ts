@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-// FIRES cross-boundary-alias, and the shebang is the point.
+// FIRES import-policy, and the shebang is the point.
 //
 // A shebang is valid at the top of an executable source file and Bun's reader
 // REJECTS it. Nothing catches that, so without the blanking pass in

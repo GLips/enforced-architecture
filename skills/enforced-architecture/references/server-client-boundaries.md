@@ -184,7 +184,7 @@ tanstackStart({
 
 ### What Import Protection Does NOT Catch
 
-Everything that is an architectural question rather than a leakage one: feature encapsulation, layer direction, SDK containment, cross-boundary aliases. Those are the lint and structural tiers' half of the split below.
+Everything that is an architectural question rather than a leakage one: feature encapsulation, layer direction, SDK containment, cross-unit aliases. Those are the lint and structural tiers' half of the split below.
 
 ---
 

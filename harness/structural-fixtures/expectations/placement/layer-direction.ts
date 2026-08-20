@@ -7,6 +7,11 @@ export const layerDirectionFixtures: CheckFixtures = {
     // repo reaching one rung up into service, spelled `../service/…`. The only
     // upward edge a specifier pattern gets right, kept as the regression guard.
     "FAIL src/features/layers/repo/plain-upward.ts",
+    // A layer importing its own feature's BARREL. The sharpest upward edge a
+    // feature can contain — the barrel re-exports every layer, so the importer
+    // takes on all of them at once and the cycle runs through the file that
+    // describes the feature from outside.
+    "FAIL src/features/orders/ui/barrel-upward.ts",
   ],
 
   adversarial: [
@@ -17,6 +22,11 @@ export const layerDirectionFixtures: CheckFixtures = {
     // has nothing to key on, and this is the spelling a project's own
     // conventions encourage — so it is the form an upward edge survives in.
     "FAIL src/features/layers/repo/root.ts",
+    // The barrel edge in its aliased spelling, which is what auto-import writes.
+    // It is also the spelling `boundary/import-policy` never sees, because an
+    // aliased specifier belongs to the linter — so without this arm the edge is
+    // governed by nothing in either tier.
+    "FAIL src/features/orders/ui/barrel-alias-upward.ts",
   ],
 
   legal: [
@@ -34,5 +44,10 @@ export const layerDirectionFixtures: CheckFixtures = {
     // produces a half-layered edge, so its deletion would remove that coverage
     // silently rather than fail a comparison.
     "src/features/layers/errors.ts",
+    // ANOTHER feature's barrel, imported from a layer. That is the ordinary way
+    // one feature uses another, and the barrel arm has to tell it from a
+    // feature's own — an arm that compares the path shape rather than the
+    // feature name reports every cross-feature import in the repo.
+    "src/features/consumer/service/uses-provider.ts",
   ],
 };

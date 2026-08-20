@@ -3,12 +3,11 @@ import { ambientGlobalsRule } from "./boundary/ambient-globals.ts";
 import { barrelDirectionRule } from "./api/barrel-direction.ts";
 import { clientServerInfraRule } from "./boundary/client-server-infra.ts";
 import { dbIsolationRule } from "./boundary/db-isolation.ts";
+import { importPolicyRule } from "./boundary/import-policy.ts";
 import { deprecatedPathsRule } from "./placement/deprecated-paths.ts";
 import { derivedStateRule } from "./react/derived-state.ts";
 import { hookCountRule } from "./react/hook-count.ts";
 import { domainPublicApiRule } from "./api/domain-public-api.ts";
-import { domainPurityRule } from "./boundary/domain-purity.ts";
-import { featurePublicApiRule } from "./api/feature-public-api.ts";
 import { noArbitraryClassValuesRule } from "./style/no-arbitrary-class-values.ts";
 import { noAsyncEffectRule } from "./react/no-async-effect.ts";
 import { noDeprecatedInputValidatorRule } from "./placement/no-deprecated-input-validator.ts";
@@ -50,8 +49,6 @@ import { serverFnPlacementRule } from "./placement/server-fn-placement.ts";
 import { serverFnValidationRule } from "./placement/server-fn-validation.ts";
 import { serverImportContextRule } from "./api/server-import-context.ts";
 import { serverNoUpwardRule } from "./boundary/server-no-upward.ts";
-import { sharedPurityRule } from "./boundary/shared-purity.ts";
-import { sharedUiPurityRule } from "./boundary/shared-ui-purity.ts";
 import { vendorComponentContainmentRule } from "./style/vendor-component-containment.ts";
 
 // The catalog's rules, registered as one oxlint JS plugin. Copy this file into the project
@@ -74,18 +71,15 @@ export default definePlugin({
   rules: {
     "barrel-direction": barrelDirectionRule,
     "domain-public-api": domainPublicApiRule,
-    "feature-public-api": featurePublicApiRule,
     "server-import-context": serverImportContextRule,
     "ambient-globals": ambientGlobalsRule,
     "client-server-infra": clientServerInfraRule,
     "db-isolation": dbIsolationRule,
-    "domain-purity": domainPurityRule,
+    "import-policy": importPolicyRule,
     "no-test-imports": noTestImportsRule,
     "route-thinness": routeThinnessRule,
     "sdk-containment": sdkContainmentRule,
     "server-no-upward": serverNoUpwardRule,
-    "shared-purity": sharedPurityRule,
-    "shared-ui-purity": sharedUiPurityRule,
     "no-nested-ternary": noNestedTernaryRule,
     "no-opaque-record": noOpaqueRecordRule,
     "no-broad-parameters": noBroadParametersRule,

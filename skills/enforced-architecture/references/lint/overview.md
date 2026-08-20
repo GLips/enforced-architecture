@@ -1,6 +1,6 @@
 # Rule Catalog
 
-70 enforcement rules in one tree, split by **tier** first and **tag** second. Read this file to
+67 enforcement rules in one tree, split by **tier** first and **tag** second. Read this file to
 choose tags, a tier's tag `overview.md` to choose rules within it, then the rule itself to adapt it.
 
 Where the rule's documentation and its *Adapt* section live differs by tier, because the tiers are
@@ -8,7 +8,7 @@ copied differently: an oxlint rule carries both in its own file header, and a st
 carries them in the `<name>.md` beside the implementation.
 
 ```
-policy/       runtime-neutral tables both tiers read — empty on arrival
+policy/       runtime-neutral tables both tiers read
 oxlint/       the per-file tier
 structural/   the whole-tree tier
 ```
@@ -17,8 +17,9 @@ structural/   the whole-tree tier
 
 **`policy/`** is runtime-neutral: no Node APIs, no Bun APIs, no oxlint ESTree types, and no import
 from either tier. It sits below both so one edge cannot reach two verdicts depending on how it was
-spelled. It holds nothing yet — the directory exists so the first table to land there has a
-contract to violate. See [policy/overview.md](policy/overview.md).
+spelled. It holds the import policy — the layout vocabulary, the source × target table, and the
+package ownership rows — each read by an adapter on each side. See
+[policy/overview.md](policy/overview.md).
 
 **`oxlint/`** is handed one file at a time and sees its syntax. It catches what is visible in a
 single source text: a specifier, a JSX prop, a hook call. Its specs run under real Node — oxlint's
@@ -37,11 +38,11 @@ it says what the rule can see.
 
 | Tag | oxlint | structural | Governs |
 |---|---|---|---|
-| **boundary** | [10](oxlint/boundary/overview.md) | [2](structural/boundary/overview.md) | What may import what. The only constraint that holds when nobody is reading |
+| **boundary** | [8](oxlint/boundary/overview.md) | [2](structural/boundary/overview.md) | What may import what. The only constraint that holds when nobody is reading |
 | **types** | [12](oxlint/types/overview.md) | — | Whether a type declaration says anything — untyped bags, `unknown` contracts, unjustified `as` |
 | **placement** | [7](oxlint/placement/overview.md) | [2](structural/placement/overview.md) | Where code may *live*, so the paths other rules match are the paths code is in |
 | **style** | [6](oxlint/style/overview.md) | [3](structural/style/overview.md) | Design-system adherence — tokens, primitives, no raw values |
-| **api** | [4](oxlint/api/overview.md) | [2](structural/api/overview.md) | How deep a permitted import may reach. Barrels and public surface |
+| **api** | [3](oxlint/api/overview.md) | [2](structural/api/overview.md) | How deep a permitted import may reach. Barrels and public surface |
 | **react** | [6](oxlint/react/overview.md) | — | Component-level smells that survive review because each looks reasonable |
 | **effect** | [6](oxlint/effect/overview.md) | — | Effect-TS policy bans — the syntactic residue after @effect/language-service, which owns everything type-aware |
 | **health** | [1](oxlint/health/overview.md) | [3](structural/health/overview.md) | Size and shape signals. Nothing here is a correctness defect |
@@ -59,8 +60,8 @@ Not every project needs every rule. Use audit findings to guide selection.
 | If the project has... | Include these rules |
 |---|---|
 | Database layer | `boundary/db-isolation`, `placement/schema-placement`, `placement/no-raw-result` |
-| `domains/` directory | `boundary/domain-purity`, `api/domain-public-api`, `graph/domain-cycles` |
-| Multiple features | `api/feature-public-api`, `graph/feature-deps` |
+| `domains/` directory | `api/domain-public-api`, `graph/domain-cycles` — domain purity is a row in `boundary/import-policy`, not a rule to add |
+| Multiple features | `graph/feature-deps` — the public-API restriction is a row in `boundary/import-policy` |
 | Multiple features **and** agents writing most of the code | `api/feature-visibility` — pair-wise opt-in on top of the above |
 | SSR / bundle splitting | `api/barrel-direction`, `api/barrel-purity`, `api/server-import-context`, `boundary/client-server-infra` |
 | `createServerFn` or `createMiddleware` usage | `placement/server-fn-placement` and `placement/server-fn-validation` for server functions; `placement/no-deprecated-input-validator` and `placement/no-plain-export-in-server-fn-module` for both |
@@ -80,7 +81,7 @@ Not every project needs every rule. Use audit findings to guide selection.
 | Uses Effect | All `effect/` rules — but adopt `@effect/language-service` first; the `effect/` overview explains why it is step zero and these are only what it leaves on the table |
 | A boundary where external data enters (API, queue, file) | `types/no-broad-parameters`, `types/no-unknown-returns`, `types/no-unknown-type-aliases` — these push `unknown` back to the parse site instead of letting it spread inward |
 | TypeScript 4.9+ | `types/no-known-value-widening` — the fix it names (`satisfies`) does not exist before that |
-| Any TypeScript project | `graph/import-graph`, `boundary/cross-boundary-alias`, `boundary/ambient-globals`, `boundary/no-test-imports`, `boundary/shared-purity`, `placement/topology`, `health/file-size`, `health/no-nested-ternary`, `types/no-opaque-record`, `types/no-reflect-access` |
+| Any TypeScript project | `graph/import-graph`, `boundary/import-policy` — both tiers, they are two halves of one rule — `boundary/ambient-globals`, `boundary/no-test-imports`, `placement/topology`, `health/file-size`, `health/no-nested-ternary`, `types/no-opaque-record`, `types/no-reflect-access` |
 
 `types/no-runtime-typeof` and `types/no-conditional-empty-object-spread` appear in no row
 deliberately — both reject code that is often correct. See

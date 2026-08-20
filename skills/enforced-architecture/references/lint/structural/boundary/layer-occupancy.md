@@ -39,7 +39,7 @@ Filesystem presence decides **whether** to ask; the resolved import graph — se
 
 **Cross-feature repo access is not this rule's finding.** A controller importing *another* feature's `repo/` is a feature-boundary question that `graph/feature-deps` and `api/feature-visibility` already own. Two rules reporting one edge teaches people that one of them is noise.
 
-**Type-only edges are excluded.** `import type { … } from "@/features/<self>/repo/x"` compiles away and creates no runtime dependency, so routing it through a layer buys nothing. The graph marks these; the marking is dropped deliberately here, not lost. `boundary/cross-boundary-alias` ignores the same marking on purpose, and the difference is the subject: that rule is about a string no other rule can see, this one is about a runtime dependency.
+**Type-only edges are excluded.** `import type { … } from "@/features/<self>/repo/x"` compiles away and creates no runtime dependency, so routing it through a layer buys nothing. The graph marks these; the marking is dropped deliberately here, not lost. `boundary/import-policy` ignores the same marking on purpose, and the difference is the subject: that rule is about a string no other rule can see, this one is about a runtime dependency.
 
 **The DB client is legal, permanently.** See above. It is not an exception pending a better rule.
 

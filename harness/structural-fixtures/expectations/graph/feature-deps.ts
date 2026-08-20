@@ -30,7 +30,7 @@ export const featureDepsFixtures: CheckFixtures = {
     // case above. This entry is what decides whether the SCC pass is real.
     "FAIL src/features/ring-one",
     // Pair saturation, alpha -> beta across 8 files. Every one of those 8 is
-    // spelled RELATIVELY (they are `boundary/cross-boundary-alias`'s fixtures),
+    // spelled RELATIVELY (they are `boundary/import-policy`'s fixtures),
     // so a check that counts `@/features/<name>` specifiers finds zero files on
     // this pair and never warns. Reading the resolved graph is what makes the
     // two spellings one edge; nothing else here would catch the substitution.

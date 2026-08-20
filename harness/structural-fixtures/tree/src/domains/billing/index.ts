@@ -6,7 +6,7 @@
 // can see is out of place in either one.
 //
 // Written as an alias, which is the only legal spelling of a crossing once
-// `boundary/cross-boundary-alias` is on. This check must still be the one that
+// `boundary/import-policy` is on. This check must still be the one that
 // finds it: the alias is what a conforming project's code looks like, so a cycle
 // check that only worked on relative spellings would report clean forever.
 import { UsageError } from "@/domains/usage/errors.ts";

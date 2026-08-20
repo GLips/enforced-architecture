@@ -10,7 +10,7 @@ Implementation: [../import-graph.ts](../import-graph.ts) — at the tier root ra
 folder, because six rules across four tags consume it and it belongs to none of them. The doc sits
 under `graph/` because `graph/import-graph` is the id those rules cite.
 
-Not a rule. This is the resolved import graph six rules consume instead of each matching import strings on its own: `boundary/cross-boundary-alias`, `placement/layer-direction`, `boundary/layer-occupancy`, `graph/feature-deps`, `graph/domain-cycles`, and `api/feature-visibility`. Built once by `CheckContext.importGraph()` and shared; no rule scans files for imports itself.
+Not a rule. This is the resolved import graph six rules consume instead of each matching import strings on its own: `boundary/import-policy`, `placement/layer-direction`, `boundary/layer-occupancy`, `graph/feature-deps`, `graph/domain-cycles`, and `api/feature-visibility`. Built once by `CheckContext.importGraph()` and shared; no rule scans files for imports itself.
 
 `api/barrel-purity` is the one rule that reads imports and does **not** take the graph. Resolution discards bare package specifiers as "not a boundary question", and bare package names are that rule's entire subject. It shares the extraction instead — `scanDeclaredImports`, exported from the same module — because the union and the JSX filter are where the silent losses live, and two copies of those drift without either copy reporting that it has.
 
@@ -35,7 +35,7 @@ The failure is worse than a miss. Every other boundary rule matches the *aliased
 
 | Rule | The question | Fires when |
 |---|---|---|
-| `boundary/cross-boundary-alias` | Do both ends share a boundary? | They differ **and** the specifier was relative. Relative imports *within* one boundary cross nothing and stay unreported. |
+| `boundary/import-policy` | What does `lint/policy/import-policy.ts` say about this resolved edge? | The policy denies the direction, or permits it and the specifier was relative — a legal crossing named with a string no other rule sees. Edges that stay inside one **unit** return `internal` and are unreported. |
 | `placement/layer-direction` | Do both ends sit in the same feature, and does the edge run upward? | The target's layer is above the source's in the configured order. Covers relative and aliased spellings identically. |
 | `boundary/layer-occupancy` | Does a controller edge bypass an on-disk repo or service? | Controller→schema while `repo/` exists, or controller→repo while `service/` and `repo/` exist. |
 | `graph/feature-deps` | What is the feature-to-feature edge set? | Cycles (Tarjan's SCC) block; coupling counts warn. |
@@ -89,11 +89,11 @@ Everything lives in `config.source`, shared with every structural check:
 The substrate reports nothing; its consumers do.
 
 ```
-FAIL [boundary/cross-boundary-alias] src/features/alpha/ui/panel.tsx:4
-  "../../beta/service" leaves features/alpha and lands in features/beta.
-  Write it as "@/features/beta" instead. Every other boundary rule matches on the
-  aliased path, so the relative spelling of a cross-boundary import is a bypass that
-  no rule sees. Relative imports stay correct inside one boundary — they cross nothing.
+FAIL [boundary/import-policy] src/features/alpha/ui/panel.tsx:4
+  "../../beta" leaves features/alpha and lands in features/beta. Write it as
+  "@/features/beta" instead. The policy allows this edge; what it does not allow is
+  hiding it — the relative spelling of a crossing is the form the specifier-matching
+  tier cannot see. …
 
 FAIL [placement/layer-direction] src/features/alpha/repo/nested/deep.ts:2
   repo imports from service. Direction is ui -> controllers -> service -> repo, and
@@ -102,6 +102,6 @@ FAIL [placement/layer-direction] src/features/alpha/repo/nested/deep.ts:2
 
 ## Fixtures
 
-The substrate has no fixtures of its own — it is proved through its consumers, and `boundary/cross-boundary-alias` carries the extraction cases because every one of them shows up as a lost or invented crossing. Its nine adversarial fixtures are the extractor's test suite: a crossing between a backtick in a quoted string and the next real template, one after a regex literal containing a backtick, one inside a `${…}` interpolation, a code sample in a template literal that must stay **silent**, wrapped `import` / `require` / `from` / `export … from` spellings, a generic arrow in a plain `.ts` file, a shebang, and a specifier written with a `\u` escape.
+The substrate has no fixtures of its own — it is proved through its consumers, and `boundary/import-policy` carries the extraction cases because every one of them shows up as a lost or invented crossing. Nine of its adversarial fixtures are the extractor's test suite: a crossing between a backtick in a quoted string and the next real template, one after a regex literal containing a backtick, one inside a `${…}` interpolation, a code sample in a template literal that must stay **silent**, wrapped `import` / `require` / `from` / `export … from` spellings, a generic arrow in a plain `.ts` file, a shebang, and a specifier written with a `\u` escape.
 
 Each of those needs a **real violation** inside the affected span. Written with a legal import instead, the edge is lost just the same and the suite stays green.

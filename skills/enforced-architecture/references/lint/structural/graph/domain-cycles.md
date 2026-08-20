@@ -28,7 +28,7 @@ Every edge in the import graph whose two ends sit in *different* `domains/<name>
 
 ## Negative space
 
-**It is self-contained about spelling, deliberately.** Both the aliased and the relative form of a crossing are the same edge here, because the check reads the *resolved* ends and never the specifier. It does not assume `boundary/cross-boundary-alias` has already run and banned the relative one. Two checks are two chances for one to be off, disabled, or adopted later than the other, and a cycle check that only saw aliased imports would report clean on a codebase whose cycles were written relatively — silently, since a missing edge produces no finding.
+**It is self-contained about spelling, deliberately.** Both the aliased and the relative form of a crossing are the same edge here, because the check reads the *resolved* ends and never the specifier. It does not assume `boundary/import-policy` has already run and banned the relative one. Two checks are two chances for one to be off, disabled, or adopted later than the other, and a cycle check that only saw aliased imports would report clean on a codebase whose cycles were written relatively — silently, since a missing edge produces no finding.
 
 **It says nothing about whether an edge should exist.** `pricing -> catalog` is a normal domain graph and is never reported. The rule is against cycles, not against edges; a check that reports layered domains is one that forbids layering domains, and it gets switched off.
 
