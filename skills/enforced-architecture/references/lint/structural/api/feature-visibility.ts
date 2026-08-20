@@ -24,16 +24,36 @@
 //
 // The enumeration is every DIRECTORY under features/, and a symlink is not one.
 // A feature that exists only as a link out of the tree — vendored code, a
-// hoisted package — is therefore denied and cleared under the LINK name, by the
-// deny arm alone. The two arms that iterate the enumeration never reach it: a
-// grant written there is never reported stale, and a malformed visibility.json
-// there reports nothing and leaves every import of that feature unaudited.
+// hoisted package — is therefore audited by the deny arm alone, under the LINK
+// name. Three consequences, and only the first is covered:
+//
+//   - Its grant file is read, so the edge is denied, cleared by a grant written
+//     at the link, and reported when that file does not parse.
+//   - A grant there that has outlived its import is never reported stale. That
+//     arm walks the enumeration.
+//   - Nothing walks the target, so the feature's OWN imports are not in the
+//     graph. It is a feature as an importee and not as an importer, and an
+//     ungranted edge leading out of it is invisible to this rule.
+//
+// Two links to one target are two features here, and on a case-insensitive
+// filesystem so are two casings of one link: `realpathSync` collapses spellings
+// onto an enumerated directory, and there is none to collapse onto. Both
+// addresses reach the same physical file, so one grant clears both.
 //
 // Two importees this rule stays silent about, both because the finding would be
 // unclearable. A loose FILE at the features root classifies as a feature named
 // `orphan-module.ts`, and no `orphan-module.ts/visibility.json` can exist —
-// `placement/topology` reports the file itself. A link to a file outside the
-// root is the same shape with a longer path.
+// `placement/topology` reports the file itself, which is the half that can be
+// acted on. A link to a file outside the root is the same unaddressable name
+// with nobody holding the other half: `Bun.Glob.scanSync` does not list a
+// symlinked file, so the walkers never see it and topology does not report it
+// either. That one is silence, not coverage.
+//
+// A grant naming a link is a grant naming nothing, in both directions and for a
+// different reason than any of the above: an importER name comes from walking
+// the tree, and the walk yields the directory. No edge can ever carry the link
+// spelling, so the stale-grant arm is right to say the name is not a feature
+// even where the deny arm now treats it as one.
 // ──────────────────────────────────────────────────────────────────────
 
 import type { Finding, StructuralCheck } from "../check-substrate.ts";
@@ -75,15 +95,20 @@ export const featureVisibilityCheck: StructuralCheck = {
       subdirs(featuresDirName).map((feature) => [feature, readGrantsFor(feature)]),
     );
 
+    // One owner for this sentence: it is raised from two places — the walk over
+    // the enumeration below, and the deny arm, for the one feature the walk
+    // cannot see. Two copies would let the escaped case drift into wording that
+    // does not say what the enumerated case says.
+    const unreadable = (feature: string, reason: string): Finding => ({
+      severity: "error",
+      file: pathOf(feature),
+      message:
+        `${visibilityFilename} is unreadable: ${reason}\n` +
+        `Until it parses, every import of ${feature} is unaudited.`,
+    });
+
     for (const [feature, file] of visibility) {
-      if (file.kind !== "malformed") continue;
-      findings.push({
-        severity: "error",
-        file: pathOf(feature),
-        message:
-          `${visibilityFilename} is unreadable: ${file.reason}\n` +
-          `Until it parses, every import of ${feature} is unaudited.`,
-      });
+      if (file.kind === "malformed") findings.push(unreadable(feature, file.reason));
     }
 
     // Feature ends come from the classification, never from the specifier text:
@@ -124,6 +149,10 @@ export const featureVisibilityCheck: StructuralCheck = {
       importersByEdge.set(key, (importersByEdge.get(key) ?? new Set()).add(edge.file));
     }
 
+    // Reported after the loop, so a feature two importers reach is still one
+    // finding. Keyed by feature rather than by edge for that reason.
+    const unreadableEscapees = new Map<string, string>();
+
     for (const [key, files] of importersByEdge) {
       const [importer = "", importee = ""] = key.split("\0");
       // The map is keyed by the ENUMERATED directories, and one canonical
@@ -131,10 +160,17 @@ export const featureVisibilityCheck: StructuralCheck = {
       // which `subdirs` does not list and `realpathSync` cannot fold onto
       // anything it does. Read its grant file at the path the message is about
       // to name — that read is what makes such a finding clearable.
+      const escaped = !visibility.has(importee);
       const file = visibility.get(importee) ?? readGrantsFor(importee);
-      // A malformed file already reported itself. Deriving deny-all violations
-      // from it would bury that one real error under every edge into the feature.
-      if (file.kind === "malformed") continue;
+      // A malformed file already reported itself — unless the walk above could
+      // not see it, and then nothing has. Skipping there too would leave an
+      // unparseable grant file allowing every import of the feature in silence,
+      // which is one typo's worth of off-switch on the hole `canonicalFeature`
+      // exists to close.
+      if (file.kind === "malformed") {
+        if (escaped) unreadableEscapees.set(importee, file.reason);
+        continue;
+      }
       if (file.kind === "grants" && file.grants.has(importer)) continue;
 
       findings.push({
@@ -153,6 +189,8 @@ export const featureVisibilityCheck: StructuralCheck = {
       });
     }
 
+    for (const [feature, reason] of unreadableEscapees) findings.push(unreadable(feature, reason));
+
     for (const [feature, file] of visibility) {
       if (file.kind !== "grants") continue;
       for (const importer of file.grants.keys()) {
@@ -167,10 +205,16 @@ export const featureVisibilityCheck: StructuralCheck = {
           // occupancy walker instead it tells someone their valid grant names
           // nothing and sends them to fix a spelling that is already right: a
           // wording-only divergence, which is the class no count or path
-          // assertion can see. A grant is written by hand, so unlike an importee
-          // it has no resolved spelling to canonicalise — an entry naming a
-          // symlink rather than the directory reads as naming nothing, which is
-          // the safe direction and the one the message already describes.
+          // assertion can see.
+          //
+          // It is the same answer even though the deny arm now canonicalises a
+          // link out of the tree into a feature, because the subject here is the
+          // IMPORTER end. That name comes from walking the tree, and the walk
+          // yields directories, so no edge can ever carry a link spelling and a
+          // grant naming one denies the import it was written to allow. `map` is
+          // the right oracle for a name that has to match a walked one; the
+          // canonicaliser is the right one for a name that has to match a
+          // resolved one.
           message: visibility.has(importer)
             ? `Grants "${importer}", which imports nothing from ${feature}. Drop the entry —\n` +
               `a grant outliving its import lets the coupling return with no diff, which is\n` +
@@ -201,7 +245,9 @@ export const featureVisibilityCheck: StructuralCheck = {
  * contain, and answering "not a feature" there is deny-by-default with a hole in
  * it. It is its own feature, under the LINK name: that is the one spelling whose
  * `visibility.json` an author can create, and a finding nobody can clear is
- * worth no more than the silence it replaces.
+ * worth no more than the silence it replaces. Where a project links features/
+ * straight into `node_modules`, the grant the message asks for lands somewhere
+ * an install overwrites — link a checked-in directory instead.
  *
  * Undefined is the two ways a name resolves to no feature, and both are about
  * that same clearability. A loose file at the features root classifies as a
@@ -210,9 +256,11 @@ export const featureVisibilityCheck: StructuralCheck = {
  * `orphan-module.ts/visibility.json`, a path nobody can create —
  * `placement/topology` reports the file itself, which is the half that can be
  * acted on. So the test is the directory, not "does it leave the root": a link
- * to a file outside it is still a file, and still unaddressable. And a name
- * resolving to nothing at all is an import that does not load; whatever is wrong
- * with it, it is not a visibility question.
+ * to a file outside it is still an unaddressable name. Nobody reports THAT one,
+ * as the walkers do not list symlinked files either, and the header says so
+ * rather than leaving it to read as covered. And a name resolving to nothing at
+ * all is an import that does not load; whatever is wrong with it, it is not a
+ * visibility question.
  */
 function featureCanonicaliser(
   featuresRoot: string,

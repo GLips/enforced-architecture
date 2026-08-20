@@ -28,13 +28,17 @@ export const featureVisibilityFixtures: CheckFixtures = {
     // runtime crossing in the tree. The miss is invisible from the check's own
     // output; only the graph's reveal pass puts the edge back.
     "FAIL src/features/shapes/visibility.json",
-    // courier imports `hidden`, a feature made entirely of `.mts`. The grant-file
-    // enumeration globs `**/*.{ts,tsx}` and the import graph globs
-    // `**/*.{ts,tsx,mts,cts}`, so the graph hands over an edge into a feature the
-    // enumeration has never heard of. Every other firing case here reaches an
-    // enumerated importee and passes whether the unknown case denies or is
-    // skipped; this one separates them, and the skipped reading is
-    // allow-by-default for exactly the features nobody listed.
+    // courier imports `hidden`, a feature made entirely of `.mts` — invisible to
+    // the occupancy walker, which globs `**/*.{ts,tsx}`, and visible to the
+    // enumeration, which lists directories.
+    //
+    // Written as the case that separated "deny an importee nobody enumerated"
+    // from "skip it", back when the enumeration was that same `.ts` glob. It no
+    // longer is: `subdirs` lists any directory, and the deny arm reads a grant
+    // file for any importee the map lacks, so this denial now survives either
+    // walker. `escaping-link` below is where that separation lives. What is left
+    // here is end-to-end cover for a feature shape the walkers disagree about,
+    // and it is cheap; `remote` is its cleared twin.
     "FAIL src/features/hidden/visibility.json",
     // bribed grants briber with an EMPTY justification, and briber imports
     // bribed. Honour the entry and the edge is granted and the check falls
@@ -75,6 +79,17 @@ export const featureVisibilityFixtures: CheckFixtures = {
     // more than the silence it replaces. `granted-escaping-link` below is the
     // same pair with the grant written, and the two only pass together.
     "FAIL src/features/escaping-link/visibility.json",
+    // The same escaping link with an UNPARSEABLE grant file. `broken` above is
+    // this case for an enumerated feature, and it passes with this one wide
+    // open: the arm that reports a malformed file walks the enumeration, so for
+    // a link out of the tree the file is unparseable AND unreported, and the
+    // deny arm's "it already reported itself" skip then allows every import of
+    // the feature in silence. One typo, and the hole `escaping-link` closes is
+    // back — an off-switch an adopter reaches by accident.
+    //
+    // ONE finding for the same reason `broken` is one: the denial is suppressed
+    // in favour of the error the author has to fix first. See `messages`.
+    "FAIL src/features/unreadable-escaping-link/visibility.json",
     // listed/visibility.json is a JSON ARRAY. It parses and it IS an object, so
     // it reaches the rejection through neither of the arms above, and dropping
     // just that disjunct is neither a crash nor a wording change:
@@ -134,11 +149,11 @@ export const featureVisibilityFixtures: CheckFixtures = {
     // correct, declared architecture, and no firing fixture can tell.
     "src/features/dispatch/visibility.json",
     // `hidden`'s twin: the same `.mts`-only shape, but it grants its importer.
-    // `hidden` proves an unenumerated feature is DENIED; only this proves the
-    // deny can be CLEARED. A rule that hard-codes absence for features its
-    // enumeration missed passes `hidden` and fails here — and the gap between
-    // those two is an author who writes exactly the grant the message asks for
-    // and watches nothing change.
+    // The pair says a feature the occupancy walker cannot see is denied and
+    // clearable, end to end. The narrower claim it was written for — that a
+    // deny for an importee outside the enumeration can be cleared at all — moved
+    // to `granted-escaping-link` below when the enumeration stopped being a
+    // `.ts` glob; that is now the only importee the map does not hold.
     "src/features/remote/visibility.json",
     // The cleared half of the symlink pair, and the step `aliased-target` above
     // stops short of. renderer imports `granted-target` through `granted-link`
@@ -217,6 +232,17 @@ export const featureVisibilityFixtures: CheckFixtures = {
     // too, inside the one finding: same path, same severity, same count, and a
     // reader handed an argument they cannot act on until the JSON parses.
     { path: "src/features/broken/visibility.json", absent: "has not granted it" },
+    // The escaped feature's unreadable file, which the enumeration cannot see.
+    // Path and severity here are exactly the denial `escaping-link` produces one
+    // link over, so nothing but the wording says which of the two things went
+    // wrong — and a check that reported the parse failure at the enumerated
+    // address, or reported it as an ungranted edge, satisfies every count in
+    // this file.
+    { path: "src/features/unreadable-escaping-link/visibility.json", contains: "is unreadable" },
+    // ...and the denial stays suppressed, as it is for `broken`. Adding a grant
+    // to a file that does not parse changes nothing, so a message asking for one
+    // sends the reader to an edit that cannot work.
+    { path: "src/features/unreadable-escaping-link/visibility.json", absent: "has not granted it" },
     // The parse branch is not one branch. `bribed` reaches the rejection through
     // the entry-level check rather than JSON.parse, and a check that dropped that
     // arm reports nothing at all here rather than a differently-worded finding.
