@@ -156,8 +156,16 @@ export const noVacantSymbolNamesRule = defineRule({
       });
     };
 
-    const reportNamedDeclaration = (node: { id?: ESTree.Node & { name: string } }) => {
-      if (node.id !== undefined && node.id !== null) report(node.id);
+    // Named by the three node types rather than by a structural `{ id }`, because a visitor
+    // handler has to accept the AST's node union: a shape that only some nodes satisfy is not
+    // assignable to the visitor slot, whichever three nodes actually reach it.
+    const reportNamedDeclaration = (
+      node:
+        | ESTree.TSTypeAliasDeclaration
+        | ESTree.TSInterfaceDeclaration
+        | ESTree.TSEnumDeclaration,
+    ) => {
+      report(node.id);
     };
 
     // Types report wherever they are declared: a type name is an address even inside a namespace,

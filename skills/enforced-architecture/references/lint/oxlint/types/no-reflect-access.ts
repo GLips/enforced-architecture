@@ -65,10 +65,13 @@
 import { defineRule, type ESTree, type Scope, type SourceCode } from "@oxlint/plugins";
 import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
 
-const BANNED_REFLECT_METHODS = new Map([
+// Keyed by `string` on purpose: every lookup is a member name read off the AST, so a map narrowed
+// to its own two keys would refuse the only argument it is ever given. The VALUE side stays a
+// literal union, which is what ties each entry to a `meta.messages` key.
+const BANNED_REFLECT_METHODS = new Map<string, "reflectGet" | "reflectApply">([
   ["get", "reflectGet"],
   ["apply", "reflectApply"],
-] as const);
+]);
 
 // Both spellings of the member access. `Reflect["get"](…)` is the one a rule reading only
 // `property.name` misses, and it is a single keystroke from the plain form.

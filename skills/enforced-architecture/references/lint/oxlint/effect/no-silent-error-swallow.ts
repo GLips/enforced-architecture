@@ -137,8 +137,11 @@ function returnsEmptyEffect(node: ESTree.Node | undefined): boolean {
     return isEmptyEffect(node.body);
   }
   if (node.type !== "ArrowFunctionExpression" && node.type !== "FunctionExpression") return false;
+  // An overload signature (`function handler(e: E): Effect<void>;`) is a FunctionExpression-shaped
+  // node with no body at all. It declares a handler rather than being one, so there is nothing to
+  // read and nothing to report.
   const body = node.body;
-  if (body.type !== "BlockStatement") return false;
+  if (body === null || body.type !== "BlockStatement") return false;
   return body.body.some(
     (statement) => statement.type === "ReturnStatement" && isEmptyEffect(statement.argument),
   );

@@ -111,8 +111,20 @@ function staticPropertyName(node: ESTree.MemberExpression): string | null {
     : null;
 }
 
-/** The key, whether written bare, quoted, or computed from a string literal. */
-function propertyKeyName(property: ESTree.Property): string | null {
+/**
+ * The key, whether written bare, quoted, or computed from a string literal.
+ *
+ * The parameter is the full `Property` visitor union, not just the object-literal member: oxlint
+ * fires that visitor for destructuring and assignment-target properties too, and all four kinds
+ * carry the same `key`/`computed` pair. The ones that are not object literals are dropped by the
+ * caller, on the parent, where the reason for dropping them can be written down.
+ */
+function propertyKeyName(
+  property:
+    | ESTree.ObjectProperty
+    | ESTree.AssignmentTargetProperty
+    | ESTree.BindingProperty,
+): string | null {
   const { key } = property;
   if (!property.computed && key.type === "Identifier") return key.name;
   return key.type === "Literal" && typeof key.value === "string" ? key.value : null;

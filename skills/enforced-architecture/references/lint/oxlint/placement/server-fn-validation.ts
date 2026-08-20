@@ -109,7 +109,7 @@ function readBuilderChain(handlerCall: ESTree.CallExpression): {
  * Under a visitor the annotation is a sibling field of `params`, so it is simply not read.
  */
 function handlerConsumesClientPayload(
-  handler: ESTree.ArrowFunctionExpression | ESTree.FunctionExpression,
+  handler: ESTree.ArrowFunctionExpression | ESTree.Function,
 ): boolean {
   const [param] = handler.params;
   if (param === undefined) return false;
@@ -119,7 +119,7 @@ function handlerConsumesClientPayload(
     // An identifier or rest binding takes the whole options object, `data` included.
     return true;
   }
-  return binding.properties.some((property) => {
+  return binding.properties.some((property: ESTree.BindingProperty | ESTree.BindingRestElement) => {
     // `({ ...rest })` sweeps up `data` along with everything else.
     if (property.type === "RestElement") return true;
     if (property.computed) return false;

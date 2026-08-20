@@ -66,10 +66,13 @@
 import { defineRule, type ESTree } from "@oxlint/plugins";
 import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
 
-const CAUSE_CATCH_METHODS = new Map([
+// Keyed by `string` on purpose: every lookup is a member name read off the AST, so a map narrowed
+// to its own two keys would refuse the only argument it is ever given. The VALUE side stays a
+// literal union, which is what ties each entry to a `meta.messages` key.
+const CAUSE_CATCH_METHODS = new Map<string, "causeCaught" | "defectCaught">([
   ["catchAllCause", "causeCaught"],
   ["catchAllDefect", "defectCaught"],
-] as const);
+]);
 
 /** The property name when it is statically known — `x.name` or `x["name"]`, never `x[expr]`. */
 function staticPropertyName(node: ESTree.MemberExpression): string | null {

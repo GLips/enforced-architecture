@@ -76,7 +76,7 @@
 //
 // ──────────────────────────────────────────────────────────────────────
 
-import { defineRule } from "@oxlint/plugins";
+import { defineRule, type ESTree } from "@oxlint/plugins";
 import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
 
 // `p-[7px]`, `text-[13px]`, `bg-[#fff]` — the arbitrary-value bracket syntax carrying a literal
@@ -117,7 +117,7 @@ export const noArbitraryClassValuesRule = defineRule({
     const { filename } = context;
     if (isArchitectureExemptPath(filename) || TOKEN_SOURCE.test(filename)) return {};
 
-    const reportOffTokenClasses = (node: { type: string }, text: string) => {
+    const reportOffTokenClasses = (node: ESTree.Node, text: string) => {
       for (const { pattern, messageId } of OFF_TOKEN_PATTERNS) {
         if (pattern.test(text)) context.report({ node, messageId });
       }

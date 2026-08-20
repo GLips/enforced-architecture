@@ -88,8 +88,17 @@ const NON_UI_LAYER = /\/src\/domains\//;
  * `{ "fontSize": 13 }` is the same property as `{ fontSize: 13 }` — the quotes are a spelling, not
  * a different key — so both spellings resolve here. A computed key (`{ [prop]: 13 }`) has no
  * static name at all, and returning null is how the rule says so rather than guessing.
+ *
+ * The parameter is the full `Property` visitor union, not just the object-literal member: oxlint
+ * fires that visitor for destructuring and assignment-target properties too, and all four kinds
+ * carry the same `key`/`computed` pair this reads.
  */
-function staticPropertyKeyName(property: ESTree.ObjectProperty): string | null {
+function staticPropertyKeyName(
+  property:
+    | ESTree.ObjectProperty
+    | ESTree.AssignmentTargetProperty
+    | ESTree.BindingProperty,
+): string | null {
   if (property.computed) return null;
   const { key } = property;
   if (key.type === "Identifier") return key.name;

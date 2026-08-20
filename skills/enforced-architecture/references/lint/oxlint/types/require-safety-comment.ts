@@ -134,8 +134,12 @@ export const requireSafetyCommentRule = defineRule({
         if (comments.some((comment) => comment.end <= node.start && SAFETY_COMMENT.test(comment.value))) {
           return true;
         }
-        if (STATEMENT_LIST_PARENTS.has(current.parent.type)) return false;
-        current = current.parent;
+        const parent: ESTree.Node | null = current.parent;
+        // `Program` is the one node with no parent, and it is in the set above — so the walk always
+        // stops at an enclosing statement list before it can reach it. The null branch is how that
+        // is stated to the compiler, not a case that runs.
+        if (parent === null || STATEMENT_LIST_PARENTS.has(parent.type)) return false;
+        current = parent;
       }
     }
 
