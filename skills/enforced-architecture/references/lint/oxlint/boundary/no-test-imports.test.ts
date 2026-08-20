@@ -81,6 +81,16 @@ describeRule("boundary/no-test-imports", noTestImportsRule, {
       code: `import { seedDb } from "@/test/seed";`,
     },
     {
+      // The file `charge.test.helpers.ts` is production code — the exemption
+      // predicate reads the whole suffix, and `.test.helpers` is not `.test`. A
+      // specifier matcher looking for `.test.` ANYWHERE called the same module a
+      // test, so one module was inside the architecture contract and outside it
+      // depending on which rule asked.
+      name: "a module whose name contains the suffix without ending in it is production code",
+      filename: SERVICE,
+      code: `import { chargeFixture } from "./charge.test.helpers";`,
+    },
+    {
       name: "a module whose name merely ends in the word",
       filename: SERVICE,
       code: `import { latestRate } from "@/shared/rates/latest";`,

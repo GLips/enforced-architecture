@@ -15,10 +15,13 @@
 // the work in the middle of the change. If the hard limit reports a warning,
 // an agent continues past it and the file keeps its size.
 //
-// There is no per-file pragma. A comment in the file puts the exemption in the
-// file that grew, where nobody reads it again. The exclusion list is central,
-// thus every exemption is in one place and each new one is visible in the
-// config diff.
+// There is no per-file pragma and no exclusion list. A comment in the file puts
+// the exemption in the file that grew, where nobody reads it again — and a
+// central list is the same thing spread over a config: it grows by one entry per
+// commit that would otherwise have failed, each with a TODO nobody returns to,
+// until the threshold describes the files nobody had a reason to exempt. The
+// thresholds are the knob. A project whose files are legitimately longer raises
+// them, in one place, visibly.
 //
 // Do not make an exclusion match a directory. A directory that produces large
 // files again and again is the result you want to see.
@@ -58,9 +61,10 @@ export const fileSizeCheck: StructuralCheck = {
             message:
               `${lines} lines (limit: ${failThreshold}).\n` +
               `Split this file before committing — move a cohesive group of functions or\n` +
-              `components to a sibling module in the same directory. If it genuinely cannot\n` +
-              `be split yet, add it to the exclusion list in the project's architecture\n` +
-              `config with a TODO naming how it gets back under the limit.`,
+              `components to a sibling module in the same directory. There is no exemption\n` +
+              `for a single file: if this length is right for this project, raise\n` +
+              `\`failThreshold\` in its architecture config, where the decision is one line and\n` +
+              `applies to everything.`,
           });
         } else if (lines > warnThreshold) {
           findings.push({

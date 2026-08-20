@@ -10,8 +10,10 @@
 // that judgement. Extend it there. A second definition of a test file here is a
 // second answer to one question.
 //
-// Anchor each alternative in `namesTestModule` on a separator or a dot. A bare
-// `test` alternative also matches `@/shared/latest` and `../ui/protest`.
+// `namesTestModule` compares whole segments and a whole suffix, never a
+// substring: a bare `test` match also claims `@/shared/latest` and
+// `../ui/protest`, and `.test.` anywhere claims `foo.test.helpers`, which is
+// production code the exemption predicate governs.
 //
 // A relative path to the shared test directory, `../../test/setup`, resolves to
 // no path this rule can read — a linter cannot resolve a relative specifier —

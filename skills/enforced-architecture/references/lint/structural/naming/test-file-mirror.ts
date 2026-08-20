@@ -7,9 +7,14 @@
 // connects to its source.
 //
 // This is the one check whose subject is a file that every other check skips,
-// thus it is the one caller of `collectTreeFiles` with `includeExempt`. A person
+// thus it is the one caller of `collectTreeFiles` with `includeTests`. A person
 // who makes this walk the same as the other walks deletes that option. The
 // check then reads no test files and stays green.
+//
+// That option waives the TEST exemption and no other. A generated directory, an
+// ambient declaration and a script stay invisible here, because a test inside
+// one of them is still a file nobody wrote — a rename this check asks for is an
+// edit to a generator's output that the next run undoes.
 //
 // The check never asks if a source file has a test. Tests must earn their
 // place, and many modules correctly have none. A rule that demands a test here
@@ -57,7 +62,7 @@ export const testFileMirrorCheck: StructuralCheck = {
     const { config } = context;
     const findings: Finding[] = [];
 
-    for (const absolute of collectTreeFiles(context, SOURCE_FILE_GLOB, { includeExempt: true })) {
+    for (const absolute of collectTreeFiles(context, SOURCE_FILE_GLOB, { includeTests: true })) {
       const sourcePath = toSourcePath(context, absolute);
       const file = toProjectPath(config, absolute);
       // Extension gone before either branch reads the name. Which extension a
@@ -97,8 +102,14 @@ export const testFileMirrorCheck: StructuralCheck = {
       // the suffix is part of the convention, not part of the module name. A
       // configured list of compound suffixes said the same thing in a form an
       // adopter could extend until every orphan was spelled legal.
-      const qualified = base.slice(0, base.lastIndexOf("."));
-      if (qualified.includes("/") && hasSiblingModule(qualified)) continue;
+      //
+      // The dot has to be in the FILENAME. `base` is an absolute path, so a
+      // directory called `app.v2` supplies a dot of its own — and stripping that
+      // one hunts for a module named after half an ancestor directory, which
+      // exists nowhere, so the report lands on a correctly named test.
+      const lastDot = base.lastIndexOf(".");
+      const qualified = base.slice(0, lastDot);
+      if (lastDot > base.lastIndexOf("/") && hasSiblingModule(qualified)) continue;
 
       const name = basename(base);
       findings.push({

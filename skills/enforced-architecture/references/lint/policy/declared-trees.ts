@@ -6,8 +6,9 @@
 // `arch.config.ts` binds the same list to a project root.
 //
 // NEGATIVE SPACE, and it has to be in the setup docs as well as here: a tree you
-// did not declare is a tree you did not adopt for. Every rule in this catalog is
-// SILENT outside every declared tree — no findings, no warnings, no "unclassified"
+// did not declare is a tree you did not adopt for. Every TREE-SCOPED rule in this
+// catalog — which is every rule but `testing/no-module-mocking`, whose subject is
+// a test file — is SILENT outside every declared tree — no findings, no warnings, no "unclassified"
 // diagnostic — and that silence is not coverage. An undeclared package reads
 // exactly like a clean one, so a repo that adds `packages/reporting/` and forgets
 // this file has added an unpoliced tree and nothing will say so.
@@ -141,15 +142,61 @@ export function assertDistinctDeclaredRoots(trees: readonly DeclaredTree[]): voi
  * oxlint tier came to ignore `src/gen/` while the structural tier reported findings in it.
  */
 function isExemptByFileName(path: string): boolean {
-  // The extension is STRIPPED before the conventions are matched, never listed
-  // alongside them. A regex spelling `[tj]sx?` covers four of the eight
-  // extensions the walkers accept, so `a.test.mts`, `a.gen.mts` and `a.d.cts`
-  // read as ordinary application source — a generated ES module drawing findings
-  // nobody can act on, and a test drawing every boundary rule in the catalog.
+  return isTestPath(path) || isUnauthoredOrOutOfGraphPath(path);
+}
+
+/**
+ * True when the file at `path` is a TEST — by name or by the directory it sits in.
+ *
+ * Split from the rest of the exemption because exactly one check has tests as its SUBJECT.
+ * `naming/test-file-mirror` audits what tests are called, so it must see the files everything else
+ * skips — and a single include-everything switch handed it the generated, ambient and script
+ * exemptions along with the test one, which is how a generated `gen/orphan.test.ts` drew a
+ * finding naming a rename nobody can perform.
+ */
+export function isTestPath(path: string): boolean {
+  // The extension is STRIPPED before the convention is matched, never listed alongside it. A
+  // regex spelling `[tj]sx?` covers four of the eight extensions the walkers accept, so
+  // `a.test.mts` reads as ordinary application source and draws every boundary rule in the
+  // catalog.
   const bare = withoutSourceExtension(path);
-  if (bare !== path && EXEMPT_MODULE_SUFFIXES.some((suffix) => bare.endsWith(suffix))) return true;
-  if (hasTestDirectorySegment(path)) return true;
+  if (bare !== path && bare.endsWith(TEST_MODULE_SUFFIX)) return true;
+  return hasTestDirectorySegment(path);
+}
+
+/**
+ * True when nobody wrote the file, or when what they wrote is not part of the shipped module
+ * graph: a generated or ambient module by name, or a one-off script by position.
+ *
+ * The half of the exemption that NO check may opt out of. A finding against a generated file
+ * names no edit anyone can make, and a `.d.ts` emits no runtime edge at all — so unlike the test
+ * half, there is no check whose subject these could be.
+ */
+function isUnauthoredOrOutOfGraphPath(path: string): boolean {
+  const bare = withoutSourceExtension(path);
+  if (bare !== path && UNAUTHORED_MODULE_SUFFIXES.some((suffix) => bare.endsWith(suffix))) {
+    return true;
+  }
   return path.split("/").some((segment) => segment === "scripts");
+}
+
+/**
+ * True when a file is exempt for a reason that is NOT "it is a test", in the frame of one tree.
+ *
+ * What `naming/test-file-mirror` walks. Generated directories are in here rather than in the
+ * name-only predicate because they are per-tree vocabulary.
+ */
+export function isUnauthoredSourcePath(
+  vocabulary: TreeVocabulary,
+  pathFromSourceRoot: string,
+): boolean {
+  if (isUnauthoredOrOutOfGraphPath(pathFromSourceRoot)) return true;
+  return namesGeneratedDir(vocabulary, pathFromSourceRoot);
+}
+
+/** True when `pathFromSourceRoot` sits in one of this tree's declared generated directories. */
+function namesGeneratedDir(vocabulary: TreeVocabulary, pathFromSourceRoot: string): boolean {
+  return vocabulary.generatedDirs.some((dir) => isUnderPath(pathFromSourceRoot, dir));
 }
 
 /**
@@ -165,7 +212,7 @@ export function isArchitectureExemptSourcePath(
   pathFromSourceRoot: string,
 ): boolean {
   if (isExemptByFileName(pathFromSourceRoot)) return true;
-  return vocabulary.generatedDirs.some((dir) => isUnderPath(pathFromSourceRoot, dir));
+  return namesGeneratedDir(vocabulary, pathFromSourceRoot);
 }
 
 /**
@@ -205,13 +252,16 @@ export const TEST_MODULE_SUFFIX = ".test";
 
 /**
  * What a file's name says about who wrote it, with the extension already gone:
- * `.test` is a test, `.gen` is generated, `.d` is an ambient declaration.
+ * `.gen` is generated, `.d` is an ambient declaration.
  *
  * A closed list of conventions, not an adopter's exemption list — each entry is
  * a naming fact the whole ecosystem already agrees on, and adding to it is a
  * change to this catalog rather than a knob a project turns.
+ *
+ * `TEST_MODULE_SUFFIX` is deliberately not here: it is the one exemption a check
+ * can be the subject of, so it is asked separately.
  */
-const EXEMPT_MODULE_SUFFIXES = [TEST_MODULE_SUFFIX, ".gen", ".d"];
+const UNAUTHORED_MODULE_SUFFIXES = [".gen", ".d"];
 
 /**
  * True when a path sits in a test directory: `__tests__` anywhere, or the
@@ -233,18 +283,20 @@ export function hasTestDirectorySegment(path: string): boolean {
 /**
  * True when a SPECIFIER names a test module.
  *
- * Separate from `isArchitectureExemptSourcePath` on purpose, and the split is not a
- * second answer to one question: that predicate reads a file on disk, where an
- * extension is always present and `foo.test.helpers.ts` is production code. A
- * specifier carries no extension — `./invoices.test` is the ordinary spelling —
- * so the suffix arm here has to be looser, and applying the looser one to files
- * would silently widen the exemption every rule in the catalog inherits.
+ * Both halves are the shared owners: `TEST_MODULE_SUFFIX` and the directory
+ * predicate, asked of a specifier instead of a file on disk. The only difference
+ * is that a specifier usually carries no extension — `./invoices.test` is the
+ * ordinary spelling — so the extension is stripped when there is one and the
+ * suffix test is the same either way.
  *
- * The DIRECTORY half is shared, which is the half that is genuinely one
- * question.
+ * That sameness is load-bearing. A looser suffix arm here (`\.test\.` anywhere)
+ * made `foo.test.helpers` a test import while the identical file on disk was
+ * production code, so one module was inside the architecture contract and
+ * outside it depending on which rule was asking.
  */
 export function namesTestModule(specifierPath: string): boolean {
-  return /\.test$|\.test\./.test(specifierPath) || hasTestDirectorySegment(specifierPath);
+  const bare = withoutSourceExtension(specifierPath);
+  return bare.endsWith(TEST_MODULE_SUFFIX) || hasTestDirectorySegment(specifierPath);
 }
 
 /** Rules that only make sense against rendered UI gate on this rather than on being in a tree. */

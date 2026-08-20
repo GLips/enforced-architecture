@@ -7,7 +7,7 @@
 // direction stays legal, so `index.server.ts` re-exports `./index` and one
 // import in a server context gives the whole feature API.
 //
-// Do not narrow `SERVER_BARREL_SPECIFIER` to the barrel's own sibling
+// Do not narrow `namesServerBarrel` to the barrel's own sibling
 // (`./index.server`). That one pair of files looks like the whole subject. A
 // client barrel that re-exports `../audit/index.server` puts a server-only
 // module in the client bundle, the same as its own sibling does.

@@ -20,6 +20,11 @@ export const testFileMirrorFixtures: CheckFixtures = {
     // The same off-convention `.spec` name as `pricing.spec.ts`, in an extension
     // an extension-listing pattern does not name.
     "WARN src/features/mirror/service/ledgers.spec.mts",
+    // An orphan under a directory whose name carries a dot. The qualifier rule
+    // reads the last dot of an absolute path, so an ancestor can supply one —
+    // and a stripped ancestor sends the sibling lookup somewhere that never
+    // exists, which silently clears the orphan.
+    "WARN src/features/mirror/service/legacy.v2/rates.test.ts",
   ],
 
   // This check fails loudest in the over-matching direction — it warns on files
@@ -36,5 +41,9 @@ export const testFileMirrorFixtures: CheckFixtures = {
     // The only thing that keeps it quiet is the shared directory convention —
     // which replaced a config list of allowed orphan directories.
     "src/features/mirror/__tests__/checkout-flow.test.ts",
+    // An orphan test in a generated DIRECTORY. This check waives the test
+    // exemption to see its subject; waiving the generated one along with it
+    // produces a finding whose fix the next codegen run undoes.
+    "src/gen/orphan-generated.test.ts",
   ],
 };

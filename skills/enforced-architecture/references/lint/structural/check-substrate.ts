@@ -21,6 +21,7 @@ import {
   DECLARED_TREES,
   isArchitectureExemptProjectPath,
   isArchitectureExemptSourcePath,
+  isUnauthoredSourcePath,
 } from "../policy/declared-trees.ts";
 import { SOURCE_FILE_GLOB, type TreeVocabulary } from "../policy/layout.ts";
 import type { ArchitectureConfig } from "./config.ts";
@@ -227,21 +228,24 @@ export function toSourcePath(context: TreeContext, absolute: string): string {
 export function collectTreeFiles(
   context: TreeContext,
   pattern: string,
-  options: { under?: string; includeExempt?: boolean } = {},
+  options: { under?: string; includeTests?: boolean } = {},
 ): string[] {
   const under = options.under ?? "";
   const glob = under === "" ? pattern : `${under}/${pattern}`;
   const found: string[] = [];
   for (const absolute of new Bun.Glob(glob).scanSync({ cwd: context.sourceRoot, absolute: true })) {
-    // `includeExempt` is for the one check whose SUBJECT is an exempt file:
+    // `includeTests` is for the one check whose SUBJECT is an exempt file:
     // `naming/test-file-mirror` audits the names of tests, which every other
-    // check skips. Nothing else should reach for it.
-    if (
-      options.includeExempt === true ||
-      !isArchitectureExemptSourcePath(context.vocabulary, toSourcePath(context, absolute))
-    ) {
-      found.push(absolute);
-    }
+    // check skips. It waives THAT exemption and no other — a single "include
+    // everything exempt" switch handed the same check the generated, ambient and
+    // script exemptions too, and a generated `gen/orphan.test.ts` then drew a
+    // finding naming a rename nobody can perform.
+    const sourcePath = toSourcePath(context, absolute);
+    const exempt =
+      options.includeTests === true
+        ? isUnauthoredSourcePath(context.vocabulary, sourcePath)
+        : isArchitectureExemptSourcePath(context.vocabulary, sourcePath);
+    if (!exempt) found.push(absolute);
   }
   return found.sort();
 }
