@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | **Tag** | react |
-| **Mechanism** | Structural script (counts across a file set, pre-commit + CI) |
+| **Mechanism** | oxlint JS plugin (per-file, real-time) |
 | **Blocking** | No (warning only) |
 
 ## What it prevents
@@ -19,11 +19,13 @@ The fix depends on which of those it is:
 - **Context** — lift the ones being threaded through, when the intermediary does not read them.
 - **Composition** — take `children` or a render prop, when the parent should own a rendering decision the props are currently encoding.
 
-## Why this is a script and not a lint rule
+## Why a rule and not a script
 
-The answer is a count against a **threshold**, and a threshold is project calibration rather than a fact about the code. A design-system package and an application want different numbers, and that number belongs in the one config object beside the other counting checks.
+It is a count against a **threshold**, but a threshold is a rule option and always was. What kept these three in the script tier was the rule tier being GritQL: a declarative matcher cannot accumulate a count and compare it to a number. A JS plugin is a stateful visitor, so it can.
 
-"What is a component" is also a question three checks ask. This one, `react/hook-count` and `react/single-component-export` resolve it through the shared classifier in `scripts/component-declarations.ts`, so they govern the same set of declarations instead of holding three private opinions about it. A declaration form one of them fails to recognise is a component all three skip in silence.
+The move is worth more than tier tidiness. Everything these rules ask — is this a component, what are its parameters, what does its props type declare — is a question about syntax, and a script tier answers it by re-implementing a TypeScript parser out of regexes and brace counting. Every silent failure in these three rules' history came from that parser, not from the counting.
+
+"What is a component" is still one question for all three, answered once in [`lib/component-declarations.ts`](../lib/component-declarations.ts). A declaration form one of them fails to recognise is a component all three skip in silence.
 
 ## Why two strategies
 
@@ -53,69 +55,58 @@ Cross-file resolution would shrink that blind spot but not close it, since the c
 
 ## Where it applies
 
-Every `.tsx` file under the configured component roots, walked from the **source root**: `features/*/ui`, `shared/ui`, `routes` by default. Every exported component declaration in those files is its own subject, so a file with two components is two counts and not one sum.
+Every `.tsx` file except tests and scripts. Every exported component declaration is its own subject, so a file with two components is two counts and not one sum.
 
 ## Negative space
 
 **`children` and `...rest` are not props.** `children` is a structural convention rather than a data dependency, and `...rest` is explicit forwarding — the component is passing those through, not consuming them. Both are excluded in both strategies.
 
-**The destructure region ends at the destructure's OWN closing brace, never the last brace in the signature.** A component annotated with an inline type literal — `({ a, b }: { a: string; b: string })`, which is how most of them are written — puts a second brace pair immediately after the first, and the type repeats every name the pattern already counted. Reading to the last brace doubles the count and carries a seven-prop component over an eight-prop threshold. Over-counting is invisible to every firing fixture and is the defect that teaches people to scroll past a check, which is why the legal neighbours sit one prop under the line rather than comfortably below it.
+**The annotation wins over the destructure, and they are never summed.** `({ a, b }: { a: string; b: string })` declares two props twice, and counting both halves doubles every name — enough to carry a seven-prop component over an eight-prop threshold. The destructure is read only when there is no annotation to read. Over-counting is invisible to every firing case and is the defect that teaches people to scroll past a rule, which is why the legal neighbours sit one prop under the line rather than comfortably below it.
 
-**A depth counter must not treat the `>` of an arrow as a closing bracket.** `onDone: (id: string) => void` is an ordinary member type, and a naive counter drops below zero at the first one, then splits everything after it in the wrong places — the remaining members merge into one token and a nine-prop interface scores three. Under the threshold, silent. `splitTopLevel` in `scripts/lib.ts` holds that guard, which is most of the reason this check does not write its own splitter.
+**Only BASES expand; member types do not.** `result: ScanResultViewModel` is one prop whose type happens to be named, and expanding it would report the very shape this rule asks for — grouping props that travel together into one object — as a violation. A rule that argues against its own advice is one nobody follows.
 
-**A `<Name>Props` declaration may carry a type-parameter list.** `interface OptionListProps<T> {` is the ordinary generic spelling, and a pattern demanding `{` or `=` immediately after the name does not see it. The declaration is then missed, the check falls through to the destructure strategy, and a component taking `props` whole reports nothing at all.
+**A member declared on both sides of an intersection is one prop.** `Model & { tone?: Tone }` narrowing a member `Model` already declares is one prop in TypeScript. Names merge as a set for that reason.
 
-**A signature the check cannot read is reported, not skipped.** When the parameter list has no closing paren within the classifier's line budget the finding is a blocking **error** naming the component — because a component the check cannot read is a component it never reports on, and silence there is indistinguishable from a pass. The usual cause is an unbalanced paren in a template literal further up the file.
+**Nested members are one prop.** `layout: { columns: number; dense: boolean }` is a single property signature, whatever its own type contains.
 
-**Only BASES expand; member types do not.** `result: ScanResultViewModel` is one prop whose type happens to be named, and expanding it would report the very shape this check asks for — grouping props that travel together into one object — as a violation. A check that argues against its own advice is one nobody follows.
+**A method signature is a prop.** `onDone(): void` and `onDone: () => void` declare the same surface and are indistinguishable to a caller.
 
-**A union of prop shapes is a floor, not a count.** `type XProps = A | B` has members this walk never reaches. The count stops at the `|` and is reported as a floor rather than as a total.
+**A union of prop shapes is a floor, not a count.** `type XProps = A | B` has members this walk never reaches, and so does a mapped or utility type. Each is reported as a floor rather than as a total.
 
-**Nested members are one prop.** `layout: { columns: number; dense: boolean }` is a single property signature; counting every `name:` inside the type body instead of every top-level member inflates it by the size of its own type.
-
-**A `memo`/`forwardRef` binding is skipped as a subject.** What the classifier captures there is the wrapper call's arguments, not props. The wrapped function is found on its own line and counted there.
-
-**A configured root that does not exist reports nothing.** That tolerance is deliberate and it is also how a root goes unexercised for months while looking fine, which is why the fixture tree carries a firing case outside `features/*/ui`.
+**A `memo`/`forwardRef` binding is unwrapped, not skipped.** The props belong to the function inside the wrapper. `memo(CardImpl)`, handed a reference rather than a function literal, has its surface declared elsewhere and is not counted here.
 
 ## Adapt
 
-Both knobs are `config.checks["react/prop-count"]`:
+One knob, in `.oxlintrc.json`:
 
-- **`threshold`** — the prop count at which a component is reported, inclusive. Raise it for a design-system package, where `Button`, `Input` and `Table` are configurable by intent and a low threshold reports the whole library. Lower it for an application with strict composition patterns. Calibrate against the current tree and set it just above, so it signals growth rather than firing on day one.
-- **`targetDirs`** — globs naming where components live, **relative to the source root**, not the project root. Globbed rather than listed because `features/*/ui` is a set that grows. A mistyped entry is silence, not an error.
+```json
+"arch/prop-count": ["warn", { "threshold": 8 }]
+```
 
-Test files, generated files and declaration files come out of `source.exclude`, which every check shares — never restate them here.
+The prop count at which a component is reported, inclusive. Raise it for a design-system package, where `Button`, `Input` and `Table` are configurable by intent and a low threshold reports the whole library. Lower it for an application with strict composition patterns. Calibrate against the current tree and set it just above, so it signals growth rather than firing on day one.
 
-A project whose convention is `ComponentAttrs` or `ComponentConfig` rather than `ComponentProps` changes the suffix in the implementation, not in config: the name is one string in `propsFromType`, and making it a knob would invite a list of suffixes where the point is that a codebase has one.
+Which files are read is `isArchitectureExemptPath`, shared with every rule in the catalog — never restated here.
+
+The props type is reached through the parameter's **annotation**, so there is no naming convention to configure. A project that spells it `ComponentAttrs`, or annotates with a type whose name has nothing to do with the component's, is read the same way.
 
 ## Implementation
 
-[`react/prop-count.ts`](prop-count.ts), behind the structural orchestrator. It returns findings and never prints or exits; reporting, warning suppression for files a commit did not touch, and the exit code all belong to `scripts/run-structural-checks.ts`.
+[`react/prop-count.ts`](prop-count.ts), registered in [`plugin.ts`](../plugin.ts). Registration and activation are separate: a rule the plugin exports but `.oxlintrc.json` never names is loaded and never run.
 
 ## Example output
 
 ```
-WARN [react/prop-count] src/features/billing/ui/plan-selector.tsx:18
-  PlanSelector has 12 props (threshold: 8).
-  Decompose into smaller components, group props that always travel together
-  into one object, or lift shared data into context. If the wide surface is
-  deliberate — a design-system primitive, or a wrapper forwarding to a third
-  party — raise the threshold in the project's architecture config.
+src/features/billing/ui/plan-selector.tsx:18:8: warning arch(prop-count): PlanSelector has 12
+props (threshold: 8). Decompose into smaller components, group props that always travel together
+into one object, or lift shared data into context. If the wide surface is deliberate — a
+design-system primitive, or a wrapper forwarding to a third party — raise the threshold in the
+project's oxlint config.
 
-WARN [react/prop-count] src/shared/ui/box.tsx:50
-  Box has at least 9 props (threshold: 8).
-  That is a floor: prop-count could not read BoxBehaviourProps out of this file, and it
-  resolves a base type by name within one file, so the real surface is wider.
-  Decompose into smaller components, group props that always travel together
-  into one object, or lift shared data into context. If the wide surface is
-  deliberate — a design-system primitive, or a wrapper forwarding to a third
-  party — raise the threshold in the project's architecture config.
-
-FAIL [react/prop-count] src/shared/ui/data-table.tsx:32
-  Could not read DataTable's parameter list: the paren never closes.
-  prop-count is blind to this component until that is resolved, and a component
-  the check cannot read is one it never reports on — look for an unbalanced paren
-  in a template literal above the declaration.
+src/shared/ui/box.tsx:50:17: warning arch(prop-count): Box has at least 9 props (threshold: 8).
+That is a floor: this rule could not read BoxBehaviourProps out of this file, and it resolves a
+base type by name within one file, so the real surface is wider. Decompose into smaller
+components, group props that always travel together into one object, or lift shared data into
+context.
 ```
 
 ## Why non-blocking
@@ -123,5 +114,3 @@ FAIL [react/prop-count] src/shared/ui/data-table.tsx:32
 The false positives are real ones. Design-system primitives expose many configuration props on purpose. A wrapper around a third-party component has to forward what that component takes. Some components genuinely have eight independent props, and grouping them would invent an object that models nothing.
 
 So the count surfaces the pattern and the developer decides. Blocking on a heuristic this soft buys a suppression comment and loses the signal.
-
-The one blocking finding is the unreadable signature above, and it is a different claim: not "this component is too wide" but "this check cannot see this component."

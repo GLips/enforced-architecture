@@ -1,92 +1,93 @@
 // ─── react/hook-count ─────────────────────────────────────────────────
 //
 // Tag:       react
-// Mechanism: structural script (counts across a file set)
-// Blocking:  No — warning only
+// Mechanism: oxlint JS plugin (per-file, real-time)
+// Blocking:  No — a warning. A crowded component is sometimes a genuine
+//            orchestrator, and the author decides which.
 //
 // Prevents:  Components that have quietly accumulated responsibilities. Data
 //            fetching, form state, subscriptions, and animation in one render
 //            body is a set of custom hooks that was never extracted.
 //
-// See react/hook-count.md for why the count is per component rather than per
-// file, and for the two matcher blind spots this is built around.
+// The count is per COMPONENT, not per file: a file holding a component and the
+// custom hook extracted out of it is the shape this rule asks for, and summing
+// the file reports the fix as the problem.
+//
+// See react/hook-count.md for the rest.
+//
+// ── Adapt ──
+// `threshold` is a rule option — `["warn", { "threshold": 7 }]`. Raise it for a
+// codebase whose components legitimately orchestrate; calibrate against the
+// current tree and set it just above, so it signals growth rather than firing on
+// day one.
 //
 // ──────────────────────────────────────────────────────────────────────
 
-import {
-  findComponentDeclarations,
-  readComponentBody,
-} from "../scripts/component-declarations.ts";
-import {
-  collectFiles,
-  readFile,
-  stripCommentsAndStrings,
-  toProjectPath,
-  type Finding,
-  type StructuralCheck,
-} from "../scripts/lib.ts";
+import { defineRule, type ESTree, type Range } from "@oxlint/plugins";
+import { isArchitectureExemptPath, isComponentFile } from "../lib/architecture-exempt-paths.ts";
+import { exportedComponents } from "../lib/component-declarations.ts";
 
-/**
- * `useX(`, tolerating a generic type ARGUMENT between the name and the call —
- * `useState<string | null>(…)`, `useRef<HTMLDivElement>(null)`. Without the
- * `<…>` clause every generic-annotated hook is skipped, which in TS React is
- * most of them, and the components undercounted furthest are the crowded ones
- * this exists to find.
- */
-const HOOK_CALL = /\buse[A-Z]\w*\s*(?:<[^(;]*>)?\s*\(/g;
+/** React's convention, and what `use` in a call position means without a type checker. */
+const HOOK_NAME = /^use[A-Z]/;
 
-export const hookCountCheck: StructuralCheck = {
-  id: "react/hook-count",
+const DEFAULT_THRESHOLD = 7;
 
-  run({ config }) {
-    const { targetDirs, threshold } = config.checks["react/hook-count"];
-    const findings: Finding[] = [];
+export const hookCountRule = defineRule({
+  meta: {
+    type: "suggestion",
+    schema: [
+      {
+        type: "object",
+        properties: { threshold: { type: "integer", minimum: 1 } },
+        additionalProperties: false,
+      },
+    ],
+    defaultOptions: [{ threshold: DEFAULT_THRESHOLD }],
+    messages: {
+      tooManyHooks:
+        "{{name}} calls {{hooks}} hooks (threshold: {{threshold}}). Group the related ones into a purpose-named custom hook — the hooks that move together, not the ones that share a type — and put it in a sibling use*.ts file. If the component is genuinely an orchestrator gathering independent hooks, leave it: this is a warning for that reason.",
+    },
+  },
+  create(context) {
+    if (isArchitectureExemptPath(context.filename) || !isComponentFile(context.filename)) return {};
 
-    for (const dir of targetDirs) {
-      for (const absolute of collectFiles(config, dir, "**/*.tsx", { fromSourceRoot: true })) {
-        // Blanked per line before anything looks at it: the declaration
-        // classifier walks parens and braces, and a `)` inside a string or a
-        // trailing comment moves the component boundary.
-        const code = readFile(absolute).split("\n").map(stripCommentsAndStrings);
+    const threshold = context.options[0]?.threshold ?? DEFAULT_THRESHOLD;
+    // Recorded on the way past and attributed at the end: a visitor reaches a component's function
+    // before the hook calls inside it, so "how many hooks are in this subtree" cannot be answered
+    // when the component is visited.
+    const hookCalls: Range[] = [];
 
-        for (const component of findComponentDeclarations(code)) {
-          const { body } = readComponentBody(code, component.index);
-          const hooks = countHookCalls(body);
+    return {
+      CallExpression(node) {
+        if (isHookCallee(node.callee)) hookCalls.push(node.range);
+      },
+
+      "Program:exit"(program) {
+        for (const component of exportedComponents(program)) {
+          if (component.fn === null) continue;
+
+          const [start, end] = component.fn.range;
+          const hooks = hookCalls.filter(([at]) => at >= start && at < end).length;
           if (hooks < threshold) continue;
 
-          findings.push({
-            severity: "warning",
-            file: toProjectPath(config, absolute),
-            line: component.line,
-            message:
-              `${component.name} calls ${hooks} hooks (threshold: ${threshold}).\n` +
-              `Group the related ones into a purpose-named custom hook — the hooks that\n` +
-              `move together, not the ones that share a type — and put it in a sibling\n` +
-              `use*.ts file. If the component is genuinely an orchestrator gathering\n` +
-              `independent hooks, leave it: this is a warning for that reason.`,
+          context.report({
+            node: component.node,
+            messageId: "tooManyHooks",
+            data: { name: component.name, hooks, threshold },
           });
         }
-      }
-    }
-
-    return findings;
+      },
+    };
   },
-};
+});
 
-/**
- * Hook calls in a component body, whose lines must already be comment- and
- * string-blanked.
- *
- * Every match on a line, not the first: `const a = useA(), b = useB()` is two
- * hooks, and one-per-line understates exactly the crowded components this rule
- * looks for. `matchAll` rather than a loop over `.test()`, because HOOK_CALL is
- * `/g` and a shared `/g` regex carries a `lastIndex` from call to call that
- * skips every other match.
- */
-function countHookCalls(body: string[]): number {
-  let count = 0;
-  for (const line of body) {
-    for (const _ of line.matchAll(HOOK_CALL)) count++;
-  }
-  return count;
+/** `useThing(…)` and the namespaced spelling `React.useThing(…)`. */
+function isHookCallee(callee: ESTree.CallExpression["callee"]): boolean {
+  if (callee.type === "Identifier") return HOOK_NAME.test(callee.name);
+  return (
+    callee.type === "MemberExpression" &&
+    !callee.computed &&
+    callee.property.type === "Identifier" &&
+    HOOK_NAME.test(callee.property.name)
+  );
 }

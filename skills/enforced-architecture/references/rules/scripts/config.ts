@@ -244,17 +244,6 @@ export type TestFileMirrorConfig = {
   orphanAllowedDirs: string[];
 };
 
-export type ComponentScanConfig = {
-  /**
-   * Globs, relative to the source root, naming where components live. Globbed
-   * rather than listed because `features/*` /ui is a set that grows.
-   */
-  targetDirs: string[];
-};
-
-export type HookCountConfig = ComponentScanConfig & { threshold: number };
-export type PropCountConfig = ComponentScanConfig & { threshold: number };
-
 /**
  * The path grammar inside ONE subdivided directory. It is per-directory because
  * `features/` and `domains/` are genuinely different shapes, and the difference
@@ -344,9 +333,6 @@ export type CheckConfigs = {
   "health/trampolines": TrampolinesConfig;
   "naming/barrel-discoverability": BarrelDiscoverabilityConfig;
   "naming/test-file-mirror": TestFileMirrorConfig;
-  "react/hook-count": HookCountConfig;
-  "react/prop-count": PropCountConfig;
-  "react/single-component-export": ComponentScanConfig;
   "structure/topology": TopologyConfig;
   "style/css-tokens": CssTokensConfig;
   "style/shadow-source": ShadowSourceConfig;
@@ -425,20 +411,6 @@ export const defaultCheckConfigs: CheckConfigs = {
     ],
     nonconforming: [/\.spec\.[tj]sx?$/, /(^|\/)test_[^/]+\.[tj]sx?$/],
     orphanAllowedDirs: [],
-  },
-
-  "react/hook-count": {
-    targetDirs: ["features/*/ui", "shared/ui", "routes"],
-    threshold: 7,
-  },
-
-  "react/prop-count": {
-    targetDirs: ["features/*/ui", "shared/ui", "routes"],
-    threshold: 8,
-  },
-
-  "react/single-component-export": {
-    targetDirs: ["features/*/ui", "shared/ui", "routes"],
   },
 
   "structure/topology": {

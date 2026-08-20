@@ -30,10 +30,11 @@ it reports nothing, and a clean run is indistinguishable from a working one.
 Reading the check does not catch it either: the reader shares the author's blind
 spot.
 
-`react/prop-count` is the worked example. It matched its parameter list as
-`\(([^)]*)\)`, needing the whole signature on one line, so it saw 32 of one
-repo's 121 components — precisely the small ones, the only ones that could never
-breach an 8-prop threshold. It was green the entire time.
+`style/css-tokens` is the worked example. Its unit of matching is the CSS
+declaration, and it once matched a line — so a value wrapped onto the line after
+its property was invisible, read as a property with no unit followed by a unit
+with no property. Every hand-formatted stylesheet in the repo went unchecked, and
+the run was green the entire time.
 
 ## The three kinds
 

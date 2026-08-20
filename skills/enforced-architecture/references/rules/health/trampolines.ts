@@ -17,8 +17,8 @@
 //
 // ──────────────────────────────────────────────────────────────────────
 
-import { matchingBrace } from "../scripts/component-declarations.ts";
 import {
+  matchingBrace,
   blankComments,
   collectFiles,
   lineNumberAt,

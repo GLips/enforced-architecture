@@ -55,7 +55,7 @@ Structural checks ship with the modules they share, and the sharing is the point
 
 Centralising the *same* patterns into a shared file reduces duplication and fixes no correctness. Reach for the reader at the same time, or the shared library is only tidier, not better.
 
-**`Bun.Transpiler` answers questions about imports and exports, and nothing else.** It exposes import paths and kinds, export names, and transformed JavaScript — not component boundaries, call expressions, parameter structure, or TypeScript property signatures, and `transform()` erases the very annotations `prop-count` needs. So it retires the extraction patterns and no others. The counting checks legitimately stay on patterns, guarded by adversarial cases: what they need is a *count per component or per file*, which the reader does not aggregate. If their heuristics ever get too expensive to maintain, the precise alternative is the TypeScript compiler AST — not another `Bun.Transpiler` method.
+**`Bun.Transpiler` answers questions about imports and exports, and nothing else.** It exposes import paths and kinds, export names, and transformed JavaScript — not component boundaries, call expressions, parameter structure, or TypeScript property signatures, and `transform()` erases the very annotations a props reader needs. So it retires the extraction patterns and no others. The three counting checks that used to live here on patterns — `react/prop-count`, `react/hook-count`, `react/single-component-export` — are oxlint rules now, which is where a question about syntax belongs: the plugin tier hands them a real AST, and every silent failure those three ever had came from parsing rather than from counting.
 
 ### Staged-scoped warnings
 

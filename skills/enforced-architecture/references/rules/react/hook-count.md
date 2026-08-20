@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | **Tag** | react |
-| **Mechanism** | Structural script (counts across a file set, pre-commit + CI) |
+| **Mechanism** | oxlint JS plugin (per-file, real-time) |
 | **Blocking** | No (warning only) |
 
 ## What it prevents
@@ -14,27 +14,27 @@ The count is a proxy, and a good one, for the things that are hard to measure di
 
 The fix is never to suppress a hook. It is to group the hooks that *move together* — not the ones that share a type — into a purpose-named custom hook (`useChatMessages`, `useToolbarState`) in a sibling `use*.ts` file. The count going down is a side effect; the named concept is the point.
 
-## Why this is a script and not a lint rule
+## Why a rule and not a script
 
-Two reasons, and the second is the stronger one.
+It is a count against a **threshold**, but a threshold is a rule option and always was. What kept these three in the script tier was the rule tier being GritQL: a declarative matcher cannot accumulate a count and compare it to a number. A JS plugin is a stateful visitor, so it can.
 
-The answer is a count against a **threshold**, and a threshold is project calibration rather than a fact about the code. A dashboard-heavy product and a strict-composition design system want different numbers, and that number belongs in the one config object beside the other counting checks — not inside a rule body where nobody can enumerate it.
+The move is worth more than tier tidiness. Everything these rules ask — is this a component, what are its parameters, what does its props type declare — is a question about syntax, and a script tier answers it by re-implementing a TypeScript parser out of regexes and brace counting. Every silent failure in these three rules' history came from that parser, not from the counting.
 
-And "what is a component" is a question three checks ask. This one, `react/prop-count` and `react/single-component-export` all resolve it through the shared classifier in `scripts/component-declarations.ts`, so they govern the same set of declarations instead of holding three private opinions about it. A declaration form one of them fails to recognise is a component all three skip in silence — which is exactly the failure that classifier exists to have exactly once.
+"What is a component" is still one question for all three, answered once in [`lib/component-declarations.ts`](../lib/component-declarations.ts). A declaration form one of them fails to recognise is a component all three skip in silence.
 
 ## Where it applies
 
-Every `.tsx` file under the configured component roots, walked from the **source root**: `features/*/ui`, `shared/ui`, `routes` by default.
+Every `.tsx` file except tests and scripts.
 
-Every exported component declaration in those files is a subject — `export function Name()`, `export default function`, a generic `export function Name<T>()`, an arrow bound to a `const`, and `memo`/`forwardRef` wrappers. Hooks are counted inside each component's brace-tracked body, so a file holding two components is two independent counts and not one sum.
+Every exported component declaration is a subject — `export function Name()`, `export default function`, a generic `export function Name<T>()`, an arrow bound to a `const`, and `memo`/`forwardRef` wrappers, which are unwrapped to the function inside them. Hooks are counted inside each component's own subtree, so a file holding two components is two independent counts and not one sum.
 
 ## Negative space
 
 **Custom hook definitions are not subjects, ever.** They are the extraction target, not the problem — reporting one says the extraction was pointless, and that is the fastest way to teach people the warning is noise. It falls out of the classifier keying on the capital letter rather than the name: `usePanelState` is not PascalCase and is never a component. A `use*.ts` module is out of scope twice over, since only `.tsx` is walked.
 
-**The hook matcher tolerates a generic type ARGUMENT between the name and the paren.** `useState<string | null>(…)`, `useRef<HTMLDivElement>(null)`. Without that clause every generic-annotated hook is skipped, which in TS React is most of them, and the components undercounted furthest are precisely the crowded ones this rule exists to find. The same gap one level up — a generic component putting its type *parameters* between the name and the paren — is the classifier's to close, and it does.
+**A hook is a call, not a line.** `const a = useA(), b = useB()` is two, and `useState<string | null>(…)` is one whatever sits between the name and the paren. Both were live defects when the count was a regex over lines, and both keep adversarial cases: they are free on an AST, and a case that is free to pass is still the case that fails loudly if the rule is ever reimplemented.
 
-**Every hook on a line counts, not the first.** `const a = useA(), b = useB()` is two. A per-line count understates crowding exactly where crowding is worst, and the implementation uses `matchAll` rather than a loop over `.test()` because a shared `/g` regex carries a `lastIndex` from call to call that skips every other match. Both spellings were live defects; both have adversarial fixtures.
+**`React.useThing(…)` is the same hook as `useThing(…)`.** A namespaced call is a call.
 
 **It does not care which hooks.** Seven `useState` calls and seven different hooks are the same finding. Weighting them would be a judgement the rule cannot make and the reader can.
 
@@ -42,30 +42,32 @@ Every exported component declaration in those files is a subject — `export fun
 
 **Two components in one file is not this rule's business.** That is `react/single-component-export`.
 
-**A configured root that does not exist reports nothing.** That tolerance is deliberate and it is also how a root goes unexercised for months while looking fine, which is why the fixture tree carries a firing case under *each* of the three defaults.
+**A `memo`/`forwardRef` binding is unwrapped, not skipped.** The hooks belong to the function inside the wrapper.
 
 ## Adapt
 
-Both knobs are `config.checks["react/hook-count"]`:
+One knob, in `.oxlintrc.json`:
 
-- **`threshold`** — the count at which a component is reported, inclusive. Raise it for products whose components are genuinely orchestrators (dashboards, editors) where a high count is structural rather than accidental; lower it where strict composition makes even a moderate count a decomposition smell. Calibrate against the current tree and set it just above, so it signals growth instead of firing on day one.
-- **`targetDirs`** — globs naming where components live, **relative to the source root**, not the project root. Globbed rather than listed because `features/*/ui` is a set that grows. A mistyped entry is silence, not an error.
+```json
+"arch/hook-count": ["warn", { "threshold": 7 }]
+```
 
-Test files, generated files and declaration files come out of `source.exclude`, which every check shares — never restate them here.
+The count at which a component is reported, inclusive. Raise it for products whose components are genuinely orchestrators (dashboards, editors) where a high count is structural rather than accidental; lower it where strict composition makes even a moderate count a decomposition smell. Calibrate against the current tree and set it just above, so it signals growth instead of firing on day one.
+
+Which files are read is `isArchitectureExemptPath`, shared with every rule in the catalog — never restated here.
 
 ## Implementation
 
-[`react/hook-count.ts`](hook-count.ts), behind the structural orchestrator. It returns findings and never prints or exits; reporting, warning suppression for files a commit did not touch, and the exit code all belong to `scripts/run-structural-checks.ts`.
+[`react/hook-count.ts`](hook-count.ts), registered in [`plugin.ts`](../plugin.ts). Registration and activation are separate: a rule the plugin exports but `.oxlintrc.json` never names is loaded and never run.
 
 ## Example output
 
 ```
-WARN [react/hook-count] src/features/chat/ui/chat-panel.tsx:24
-  ChatPanel calls 9 hooks (threshold: 7).
-  Group the related ones into a purpose-named custom hook — the hooks that
-  move together, not the ones that share a type — and put it in a sibling
-  use*.ts file. If the component is genuinely an orchestrator gathering
-  independent hooks, leave it: this is a warning for that reason.
+src/features/chat/ui/chat-panel.tsx:24:17: warning arch(hook-count): ChatPanel calls 9 hooks
+(threshold: 7). Group the related ones into a purpose-named custom hook — the hooks that move
+together, not the ones that share a type — and put it in a sibling use*.ts file. If the component
+is genuinely an orchestrator gathering independent hooks, leave it: this is a warning for that
+reason.
 ```
 
 ## Why non-blocking

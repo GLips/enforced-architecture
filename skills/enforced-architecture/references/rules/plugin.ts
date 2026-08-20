@@ -5,6 +5,7 @@ import { clientServerInfraRule } from "./boundary/client-server-infra.ts";
 import { dbIsolationRule } from "./boundary/db-isolation.ts";
 import { deprecatedPathsRule } from "./structure/deprecated-paths.ts";
 import { derivedStateRule } from "./react/derived-state.ts";
+import { hookCountRule } from "./react/hook-count.ts";
 import { domainPublicApiRule } from "./api/domain-public-api.ts";
 import { domainPurityRule } from "./boundary/domain-purity.ts";
 import { featurePublicApiRule } from "./api/feature-public-api.ts";
@@ -12,6 +13,8 @@ import { noArbitraryClassValuesRule } from "./style/no-arbitrary-class-values.ts
 import { noAsyncEffectRule } from "./react/no-async-effect.ts";
 import { noDeprecatedInputValidatorRule } from "./structure/no-deprecated-input-validator.ts";
 import { noDirectFetchRule } from "./react/no-direct-fetch.ts";
+import { propCountRule } from "./react/prop-count.ts";
+import { singleComponentExportRule } from "./react/single-component-export.ts";
 import { noDisableValidationRule } from "./effect/no-disable-validation.ts";
 import { noEffectCatchAllCauseRule } from "./effect/no-effect-catchallcause.ts";
 import { noNestedLayerProvideRule } from "./effect/no-nested-layer-provide.ts";
@@ -99,8 +102,11 @@ export default definePlugin({
     "no-widen-then-assert": noWidenThenAssertRule,
     "require-safety-comment": requireSafetyCommentRule,
     "derived-state": derivedStateRule,
+    "hook-count": hookCountRule,
     "no-async-effect": noAsyncEffectRule,
     "no-direct-fetch": noDirectFetchRule,
+    "prop-count": propCountRule,
+    "single-component-export": singleComponentExportRule,
     "no-disable-validation": noDisableValidationRule,
     "no-effect-catchallcause": noEffectCatchAllCauseRule,
     "no-nested-layer-provide": noNestedLayerProvideRule,

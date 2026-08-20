@@ -203,6 +203,16 @@ export function stripCommentsAndStrings(line: string): string {
     .replace(/`(?:[^`\\]|\\.)*`/g, "``");
 }
 
+/** Index of the `}` closing the `{` at `open`, or -1 if it is never closed. */
+export function matchingBrace(code: string, open: number): number {
+  let depth = 0;
+  for (let i = open; i < code.length; i++) {
+    if (code[i] === "{") depth++;
+    else if (code[i] === "}" && --depth === 0) return i;
+  }
+  return -1;
+}
+
 /**
  * Split on any of `separators`, but only at bracket depth zero — commas and
  * semicolons inside `{}`, `[]`, `()`, or `<>` stay with their member. Used to

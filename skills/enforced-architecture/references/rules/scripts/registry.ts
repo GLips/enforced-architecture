@@ -23,12 +23,9 @@ import { domainCyclesCheck } from "../graph/domain-cycles.ts";
 import { featureDepsCheck } from "../graph/feature-deps.ts";
 import { featureVisibilityCheck } from "../api/feature-visibility.ts";
 import { fileSizeCheck } from "../health/file-size.ts";
-import { hookCountCheck } from "../react/hook-count.ts";
 import { layerDirectionCheck } from "../structure/layer-direction.ts";
 import { layerOccupancyCheck } from "../boundary/layer-occupancy.ts";
-import { propCountCheck } from "../react/prop-count.ts";
 import { shadowSourceCheck } from "../style/shadow-source.ts";
-import { singleComponentExportCheck } from "../react/single-component-export.ts";
 import { testFileMirrorCheck } from "../naming/test-file-mirror.ts";
 import { tokenEqualityCheck } from "../style/token-equality.ts";
 import { topologyCheck } from "../structure/topology.ts";
@@ -47,9 +44,6 @@ export const structuralChecks: StructuralCheck[] = [
   trampolinesCheck,
   barrelDiscoverabilityCheck,
   testFileMirrorCheck,
-  hookCountCheck,
-  propCountCheck,
-  singleComponentExportCheck,
   layerDirectionCheck,
   topologyCheck,
   cssTokensCheck,

@@ -8,10 +8,11 @@
  * either, because the reader shares the author's blind spot: the same reasoning
  * that produced the gap reads straight past it.
  *
- * `react/prop-count` is the worked example. It matched its parameter list as
- * `\(([^)]*)\)`, needing the whole signature on one line, so it saw 32 of one
- * repo's 121 components — precisely the small ones, the only ones that could
- * never breach an 8-prop threshold. It was green the entire time.
+ * `style/css-tokens` is the worked example. Its unit of matching is the CSS
+ * declaration, and it once matched a LINE — so a value wrapped onto the line
+ * after its property was invisible, read as a property with no unit followed by
+ * a unit with no property. Every hand-formatted stylesheet went unchecked, and
+ * the run was green the entire time.
  *
  * Unlike the oxlint tier, these checks scan declared roots rather than being
  * handed a file, and several scan more than one. So the cases are real files in
