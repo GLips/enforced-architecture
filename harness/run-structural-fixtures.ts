@@ -281,9 +281,18 @@ if (misreadFindings.length === 0) {
   );
 }
 
-// Declaring a second tree must not change the first tree's verdicts. Without
-// this, a probe that silenced the app tree entirely would still look like it
-// passed the two assertions above.
+// Declaring a second tree must not change the first tree's verdicts.
+//
+// What this can actually catch is SHARED MUTABLE STATE between tree contexts —
+// a memo, a cache, or a set hoisted to module scope that one tree's walk fills
+// and the next tree's walk reads. The contexts are built per call and each
+// carries its own memos, so this passes today for a real reason rather than by
+// construction; it is here because the failure it names is silent, tempting
+// (memoising the import graph across trees is an obvious optimisation), and
+// would show up as one tree's findings appearing under another's.
+//
+// It is NOT what catches a tree going silent. `runs` feeds the whole 16-check
+// comparison below, so a silenced app tree fails there sixteen times over.
 const appFindings = (source: CheckRun[]): string[] =>
   source
     .flatMap(({ id, findings }) => findings.map((f) => `[${id}] ${f.severity} ${f.file}`))

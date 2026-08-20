@@ -29,9 +29,9 @@
 
 import { defineRule, type ESTree } from "@oxlint/plugins";
 import { classifyFileRole } from "../../policy/declared-trees.ts";
+import { isServerModule } from "../../policy/layout.ts";
 
 const COMPILER_BRIDGE_FACTORIES = new Set(["createServerFn", "createMiddleware"]);
-const SERVER_ONLY_PATH = /\.server\.[tj]sx?$/;
 const TYPE_ONLY_DECLARATIONS = new Set([
   "TSTypeAliasDeclaration",
   "TSInterfaceDeclaration",
@@ -78,7 +78,7 @@ export const noPlainExportInServerFnModuleRule = defineRule({
   },
   create(context) {
     const role = classifyFileRole(context.filename);
-    if (role === undefined || SERVER_ONLY_PATH.test(role.sourcePath)) return {};
+    if (role === undefined || isServerModule(role.tree.vocabulary, role.sourcePath)) return {};
 
     // Nothing can be judged during the walk. Whether this is a bridge module at all is only settled
     // once the whole file has been seen — the first export is visited long before a bridge call

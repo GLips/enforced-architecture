@@ -21,7 +21,18 @@
   // reach for that only to scope a plugin to a subtree.
   "jsPlugins": ["./lint/oxlint/plugin.ts", "eslint-plugin-sonarjs"],
 
-  "ignorePatterns": ["src/gen/**"],
+  // NO `ignorePatterns` for the architecture tier, deliberately. Generated and
+  // ambient files are exempt from every `arch/` rule already, by
+  // `isArchitectureExemptPath` — a `.gen.ts` or a `.d.ts` is a structural FACT
+  // about the file, and both tiers read the one answer. A directory glob here
+  // would be a second answer to the same question, spelled as a path this config
+  // is otherwise forbidden to name, and an array an adopter grows one entry at a
+  // time until the tier is off. If a code generator writes to a directory, name
+  // its output `*.gen.ts` and it is exempt everywhere at once.
+  //
+  // A project that needs the BUILT-IN rules off somewhere — `typescript/`,
+  // `sonarjs/` — adds the key back for those and should say which rules and why;
+  // it does not reach the `arch/` block, which is scoped by tree.
 
   // `typeAware` needs the `oxlint-tsgolint` dev dependency. Without it oxlint
   // aborts — "Failed to find tsgolint executable", exit 1, nothing linted — so a

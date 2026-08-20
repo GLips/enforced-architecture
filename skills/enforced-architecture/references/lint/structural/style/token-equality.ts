@@ -25,12 +25,7 @@
 // reason to change the scale, not a reason to make the check quiet.
 // ──────────────────────────────────────────────────────────────────────
 
-import {
-  carriesPresentation,
-  classifySourcePath,
-  SOURCE_FILE_GLOB,
-  withoutSourceExtension,
-} from "../../policy/layout.ts";
+import { isStyleSubject, SOURCE_FILE_GLOB } from "../../policy/layout.ts";
 import {
   blankComments,
   collectTreeFiles,
@@ -111,14 +106,10 @@ export const tokenEqualityCheck: StructuralCheck = {
 
     for (const absolute of collectTreeFiles(context, SOURCE_FILE_GLOB)) {
       const sourcePath = toSourcePath(context, absolute);
-      // The same two gates the oxlint style rules use, from the same owner: a
-      // position that carries no presentation has no styling to get wrong, and
-      // the token module DEFINES the values every other file must name. This was
-      // a `[/^domains\//]` regex in the config — a predicate an adopter could
-      // widen into an off-switch, and one that went quiet on a rename.
-      const place = classifySourcePath(vocabulary, sourcePath);
-      if (place !== undefined && !carriesPresentation(place.profile)) continue;
-      if (withoutSourceExtension(sourcePath) === vocabulary.themeModule) continue;
+      // The same gate the three oxlint style rules use, from the same owner.
+      // This was a `[/^domains\//]` regex in the config — a predicate an adopter
+      // could widen into an off-switch, and one that went quiet on a rename.
+      if (!isStyleSubject(vocabulary, sourcePath)) continue;
 
       // Blanked rather than stripped so every reported line stays the line on
       // disk, and so a token-equal number quoted in prose cannot false-positive.

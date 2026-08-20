@@ -23,8 +23,16 @@
 // Keep the severity at error. With a warning, the number of violations
 // increases, and the file that people still name as the complete list is not
 // complete.
+//
+// NEGATIVE SPACE: `scannedExtensions` is what is READ, and it is deliberately
+// NOT the source-extension list. It ships as `css`, `ts`, `tsx`, so a shadow
+// written in an `.mts` or a `.js` file is not scanned and reports nothing — the
+// three extensions are the ones a design system writes in, and widening the
+// scan means reading every module in the tree for two regexes. A project that
+// writes components in another extension adds it there.
 // ──────────────────────────────────────────────────────────────────────
 
+import { SOURCE_EXTENSIONS } from "../../policy/layout.ts";
 import {
   blankComments,
   collectTreeFiles,
@@ -35,14 +43,15 @@ import {
   type StructuralCheck,
 } from "../check-substrate.ts";
 
-/**
- * Extensions the JS spelling applies to; everything else scanned is a
- * stylesheet. This is a fact about the languages rather than about a project —
- * a stylesheet has no `boxShadow` key and a module has no `box-shadow`
- * property — so it is not a knob. `scannedExtensions` decides what is read;
- * this decides which of the two spellings is looked for.
- */
-const SCRIPT_EXTENSIONS = ["ts", "tsx", "mts", "cts", "js", "jsx", "mjs", "cjs"];
+// Which of the two spellings to look for is decided by `SOURCE_EXTENSIONS`:
+// anything it names is a module and gets `boxShadow`, everything else scanned is
+// a stylesheet and gets `box-shadow`. That is a fact about the languages rather
+// than about a project — a stylesheet has no `boxShadow` key — so it is not a
+// knob, and it is read from the shared list rather than restated: a second copy
+// here drifts SILENTLY and in one direction, classifying newly-added source
+// extensions as stylesheets and reporting them clean.
+//
+// `scannedExtensions` decides what is READ; this decides what is looked for.
 
 export const shadowSourceCheck: StructuralCheck = {
   id: "style/shadow-source",
@@ -61,7 +70,7 @@ export const shadowSourceCheck: StructuralCheck = {
       if (toSourcePath(context, absolute) === allowedFile) continue;
 
       const extension = absolute.slice(absolute.lastIndexOf(".") + 1);
-      const pattern = SCRIPT_EXTENSIONS.includes(extension) ? scriptPattern : stylesheetPattern;
+      const pattern = SOURCE_EXTENSIONS.includes(extension) ? scriptPattern : stylesheetPattern;
 
       // Blanked rather than stripped: the reported line is an index into this
       // array, so it is only true while the blanked copy has the same shape as

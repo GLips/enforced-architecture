@@ -44,10 +44,12 @@ export const importPolicyRule = defineRule({
 
   create(context) {
     // Outside every declared tree this rule is silent, `unclassifiedSource`
-    // included — which is the whole point of the declaration. The loud
-    // unclassified diagnostic used to fire on the `Program` node of every file
-    // the substring `/src/` reached, so a correct monorepo package with its own
-    // layout drew a blocking error on 100% of its files, imports or not.
+    // included — which is the whole point of the declaration. This is the one
+    // rule whose no-match answer is a BLOCKING error rather than nothing, so
+    // widening its reach past the declared trees is uniquely expensive: a
+    // correct package with its own layout draws that error on 100% of its
+    // files, imports or not, and the only way to clear it is to stop using the
+    // linter.
     const role = classifyFileRole(context.filename);
     if (role === undefined) return {};
 

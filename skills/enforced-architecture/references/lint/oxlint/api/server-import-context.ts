@@ -7,7 +7,7 @@
 // places. To find them you read those directories, not the whole `ui/` and
 // `routes/` trees.
 //
-// Do not add `/src/routes/` to `SERVER_CONTEXTS`. A loader runs on the server
+// Do not add the routes profile to `runsOnServer`. A loader runs on the server
 // for the first request, thus the directory looks like a server context. The
 // same load path runs in the browser on a client-side navigation
 // (`@tanstack/router-core/src/load-matches.ts` calls `route.options.loader`),
@@ -26,24 +26,9 @@
 // ─────────────────────────────────────────────────────────────────────
 
 import { defineRule } from "@oxlint/plugins";
-import { classifyFileRole, isAtProfile } from "../../policy/declared-trees.ts";
-import { type SourceProfile, withoutSourceExtension } from "../../policy/layout.ts";
+import { classifyFileRole, isServerContext } from "../../policy/declared-trees.ts";
+import { withoutSourceExtension } from "../../policy/layout.ts";
 import { visitModuleSources } from "../lib/module-source-visitor.ts";
-
-/**
- * The positions that run on the server. Profiles rather than path regexes, so
- * `features/billing/legacy-service/` is still a client context — a directory
- * that merely ends in a server layer's name is not that layer — and a tree that
- * renames a layer keeps the same answer.
- */
-const SERVER_PROFILES: SourceProfile[] = [
-  "infrastructure",
-  "feature-controllers",
-  "feature-repo",
-  "feature-service",
-];
-
-const SERVER_MODULE = /\.server\.[tj]sx?$/;
 
 export const serverImportContextRule = defineRule({
   meta: {
@@ -56,7 +41,7 @@ export const serverImportContextRule = defineRule({
   create(context) {
     const role = classifyFileRole(context.filename);
     if (role === undefined) return {};
-    if (SERVER_MODULE.test(role.sourcePath) || isAtProfile(role, ...SERVER_PROFILES)) return {};
+    if (isServerContext(role)) return {};
 
     const { serverBarrelModule } = role.tree.vocabulary;
 

@@ -24,8 +24,8 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { statSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { subdividedDirs, type TreeVocabulary } from "../../policy/layout.ts";
+import { dirname, extname, resolve } from "node:path";
+import { SOURCE_EXTENSIONS, subdividedDirs, type TreeVocabulary } from "../../policy/layout.ts";
 import { scanDeclaredImports } from "../import-graph.ts";
 import {
   blankComments,
@@ -70,7 +70,11 @@ function runtimeSpecifiers(absolute: string, source: string, jsxImportSource: st
  */
 function resolutionSuffixes(vocabulary: TreeVocabulary): string[] {
   const barrel = vocabulary.clientBarrelModule;
-  return ["", ".ts", ".tsx", `/${barrel}.ts`, `/${barrel}.tsx`];
+  return [
+    "",
+    ...SOURCE_EXTENSIONS.map((extension) => `.${extension}`),
+    ...SOURCE_EXTENSIONS.map((extension) => `/${barrel}.${extension}`),
+  ];
 }
 
 /**
@@ -104,10 +108,10 @@ function resolveTracedImport(
 }
 
 const RESOLUTION_NOTE =
-  `Resolution here tries the exact path, then .ts, .tsx, then the directory barrel. It\n` +
-  `does not handle .mts/.cts, and it does not substitute extensions the way\n` +
-  `TypeScript does (./target.js → target.ts), so a hop spelled either way ends the\n` +
-  `trace without a word.`;
+  `Resolution here tries the exact path, then every source extension, then the\n` +
+  `directory barrel under each. It does not SUBSTITUTE extensions the way TypeScript\n` +
+  `does (./target.js → target.ts), so a hop spelled that way ends the trace without\n` +
+  `a word.`;
 
 export const barrelPurityCheck: StructuralCheck = {
   id: "api/barrel-purity",
@@ -133,12 +137,16 @@ export const barrelPurityCheck: StructuralCheck = {
 
       // The CLIENT barrel only. The server barrel is server-only by
       // construction, so a server-only import through it is the file working.
-      for (const barrelFilename of [".ts", ".tsx"].map(
-        (extension) => `${vocabulary.clientBarrelModule}${extension}`,
+      for (const barrelFilename of SOURCE_EXTENSIONS.map(
+        (extension) => `${vocabulary.clientBarrelModule}.${extension}`,
       )) {
         for (const barrel of collectTreeFiles(context, `*/${barrelFilename}`, { under: barrelDir })) {
           const file = toProjectPath(config, barrel);
-          const serverBarrel = barrelFilename.replace(/\.tsx?$/, (ext) => `.server${ext}`);
+          // The tree's own server barrel, not the client one with `.server`
+          // spliced in. Mangling the string means a tree that renames either
+          // barrel gets a message prescribing a file it does not have, which is
+          // an ownership message naming a module nobody can create.
+          const serverBarrel = `${vocabulary.serverBarrelModule}${extname(barrelFilename)}`;
 
           const report = (line: number | undefined, message: string) =>
             findings.push({ severity: "error", file, line, message });

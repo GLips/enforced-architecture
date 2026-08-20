@@ -11,12 +11,13 @@
 // project that moves it INSIDE a declared tree has to name it in that tree's
 // `themeModule`, which is the exemption this rule reads.
 //
-// The domain layer is skipped because it carries no presentation — that is
-// `carriesPresentation` in lint/policy/layout.ts. This rule had no such gate
-// while style/no-inline-color and style/no-inline-font-size did, and the
-// asymmetry was an omission rather than a decision: a domain cannot import a
-// primitive at all, so a utility class in one is a placement problem and not a
-// styling one.
+// The domain layer is skipped because it carries no presentation, and the token
+// source is skipped because it defines what everything else names. Both are
+// `isStyleSubject` in lint/policy/layout.ts, which the whole style tier calls —
+// these three rules and style/token-equality. A domain cannot import a
+// primitive at all, so a utility class in one is a placement problem that
+// placement/topology and boundary/import-policy report; a styling diagnostic on
+// top of theirs would prescribe a token where the fix is to move the file.
 //
 // Add GENERIC_SCALE_UTILITY only after the semantic type classes exist
 // (`text-body`, `text-caption`). Before that, an agent has a banned class and
@@ -32,8 +33,8 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree } from "@oxlint/plugins";
-import { classifyFileRole, isModule } from "../../policy/declared-trees.ts";
-import { carriesPresentation } from "../../policy/layout.ts";
+import { classifyFileRole } from "../../policy/declared-trees.ts";
+import { isStyleSubject } from "../../policy/layout.ts";
 
 // `p-[7px]`, `text-[13px]`, `bg-[#fff]` — the arbitrary-value bracket syntax carrying a literal
 // length, percentage, or color. A `md:` / `hover:` variant prefix sits before the match and does
@@ -86,18 +87,15 @@ export const noArbitraryClassValuesRule = defineRule({
     },
   },
   create(context) {
-    // Three gates, one owner each. `carriesPresentation` is the shared answer to
-    // "does the style tier have a subject at this position" — it used to be a
-    // private `/\/src\/domains\//` in this rule and in
-    // style/no-inline-font-size, and absent from
-    // style/no-arbitrary-class-values, and nothing recorded whether the
-    // asymmetry was a decision. The token source is a named module in the tree's
-    // vocabulary rather than a path suffix, so a `legacy-theme.ts` beside it
-    // does not inherit the exemption.
+    // Two gates, one owner. `isStyleSubject` is what the whole style tier —
+    // these three rules and style/token-equality — asks before reading a line,
+    // and it is one function rather than four copies because the copies
+    // disagreed: two of these rules had the domain gate, one did not. The token
+    // source is a named MODULE in the tree's vocabulary rather than a path
+    // suffix, so a `legacy-theme.ts` beside it does not inherit the exemption.
     const role = classifyFileRole(context.filename);
     if (role === undefined) return {};
-    if (role.place !== undefined && !carriesPresentation(role.place.profile)) return {};
-    if (isModule(role, role.tree.vocabulary.themeModule)) return {};
+    if (!isStyleSubject(role.tree.vocabulary, role.sourcePath)) return {};
 
     const reportOffTokenClasses = (node: ESTree.Node, text: string) => {
       for (const { pattern, messageId } of OFF_TOKEN_PATTERNS) {

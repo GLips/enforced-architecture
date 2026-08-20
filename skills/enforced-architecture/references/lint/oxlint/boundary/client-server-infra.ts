@@ -26,12 +26,8 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule } from "@oxlint/plugins";
-import { classifyFileRole, isAtProfile } from "../../policy/declared-trees.ts";
-import {
-  classifySpecifier,
-  classifyTargetPath,
-  type SourceProfile,
-} from "../../policy/layout.ts";
+import { classifyFileRole, isServerContext } from "../../policy/declared-trees.ts";
+import { classifySpecifier, classifyTargetPath } from "../../policy/layout.ts";
 import { visitModuleSources } from "../lib/module-source-visitor.ts";
 
 /**
@@ -50,14 +46,6 @@ const CLIENT_SAFE_INFRASTRUCTURE = ["auth/client", "providers/query-client"];
  * regexes, so a tree that renames a layer keeps the same exemption instead of
  * quietly losing it.
  */
-const SERVER_PROFILES: SourceProfile[] = [
-  "infrastructure",
-  "feature-controllers",
-  "feature-repo",
-  "feature-service",
-];
-
-const SERVER_MODULE = /\.server\.[tj]sx?$/;
 
 export const clientServerInfraRule = defineRule({
   meta: {
@@ -70,7 +58,7 @@ export const clientServerInfraRule = defineRule({
   create(context) {
     const role = classifyFileRole(context.filename);
     if (role === undefined) return {};
-    if (SERVER_MODULE.test(role.sourcePath) || isAtProfile(role, ...SERVER_PROFILES)) return {};
+    if (isServerContext(role)) return {};
 
     const { vocabulary } = role.tree;
     const clientSafe = CLIENT_SAFE_INFRASTRUCTURE.map(

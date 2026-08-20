@@ -48,8 +48,6 @@ const PLATFORM_RENDERING_PRIMITIVES = new Set([
   "View", "Text", "Pressable", "TouchableOpacity", "ScrollView", "TextInput", "Image",
 ]);
 
-
-
 export const noRawPrimitivesRule = defineRule({
   meta: {
     type: "problem",

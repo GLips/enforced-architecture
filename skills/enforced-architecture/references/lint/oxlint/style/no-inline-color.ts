@@ -18,18 +18,19 @@
 // canvas theme or a Skia paint takes a literal by contract. Derive it from the
 // token there.
 //
-// The domain layer is skipped because it carries no presentation — that is
-// `carriesPresentation` in lint/policy/layout.ts, shared with the other two
-// style rules that ask the same question. A project whose domains DO style edit
-// it there, once, rather than in three rules that can drift apart.
+// The domain layer is skipped because it carries no presentation, and the token
+// source is skipped because it defines what everything else names. Both are
+// `isStyleSubject` in lint/policy/layout.ts, which the whole style tier calls —
+// these three rules and style/token-equality. A project whose domains DO style
+// edits it there, once, rather than in four places that can drift apart.
 //
 // The rule does not check that a `var(--x)` reference names a real token. That
 // needs the token source, which a per-file linter cannot import.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree } from "@oxlint/plugins";
-import { classifyFileRole, isModule } from "../../policy/declared-trees.ts";
-import { carriesPresentation } from "../../policy/layout.ts";
+import { classifyFileRole } from "../../policy/declared-trees.ts";
+import { isStyleSubject } from "../../policy/layout.ts";
 
 const RAW_COLOR = /#[0-9a-fA-F]{3,8}\b|(?:rgb|rgba|hsl|hsla)\([^)]*[0-9]/;
 const COLOR_PROPS = new Set(["c", "bg", "color"]);
@@ -59,18 +60,15 @@ export const noInlineColorRule = defineRule({
     },
   },
   create(context) {
-    // Three gates, one owner each. `carriesPresentation` is the shared answer to
-    // "does the style tier have a subject at this position" — it used to be a
-    // private `/\/src\/domains\//` in this rule and in
-    // style/no-inline-font-size, and absent from
-    // style/no-arbitrary-class-values, and nothing recorded whether the
-    // asymmetry was a decision. The token source is a named module in the tree's
-    // vocabulary rather than a path suffix, so a `legacy-theme.ts` beside it
-    // does not inherit the exemption.
+    // Two gates, one owner. `isStyleSubject` is what the whole style tier —
+    // these three rules and style/token-equality — asks before reading a line,
+    // and it is one function rather than four copies because the copies
+    // disagreed: two of these rules had the domain gate, one did not. The token
+    // source is a named MODULE in the tree's vocabulary rather than a path
+    // suffix, so a `legacy-theme.ts` beside it does not inherit the exemption.
     const role = classifyFileRole(context.filename);
     if (role === undefined) return {};
-    if (role.place !== undefined && !carriesPresentation(role.place.profile)) return {};
-    if (isModule(role, role.tree.vocabulary.themeModule)) return {};
+    if (!isStyleSubject(role.tree.vocabulary, role.sourcePath)) return {};
 
     return {
       // Style-object values: `{ color: "#fff" }`, `{ backgroundColor: "rgb(0,0,0)" }`. Inline

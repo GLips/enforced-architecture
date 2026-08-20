@@ -45,8 +45,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import {
+  barrelModules,
   classifySourcePath,
+  isServerModule,
   RECOMMENDED_VOCABULARY,
+  runsOnServer,
   type SourcePlace,
   type TreeVocabulary,
   withoutSourceExtension,
@@ -85,10 +88,9 @@ export const DECLARED_TREES: DeclaredTree[] = [
  * against one names no edit anyone can make. A `.d.ts` in particular declares types and emits no
  * runtime edge at all.
  *
- * ONE definition, read by both tiers. It used to be two — a regex trio in the oxlint tier and a
- * `source.exclude` list in the structural config — with a comment in the first instructing the
- * reader to keep the second in step by hand. A file one tier governs and the other does not is one
- * edge with two answers.
+ * ONE definition, read by both tiers, and it must stay one: a file the oxlint tier governs and the
+ * structural tier does not is one edge with two answers, and the tier that skips it reports clean.
+ * Two lists kept in step by a comment is the shape that fails, because nothing checks the comment.
  *
  * Every case here is a STRUCTURAL FACT about the file: how it is named, or which directory it sits
  * in. There is no list an adopting project extends, deliberately — an extensible exemption list is
@@ -230,11 +232,42 @@ export function isAtProfile(role: FileRole, ...profiles: SourcePlace["profile"][
  * True when the file at `role` is the module named by `moduleName` — a path from
  * the tree's source root, without an extension.
  *
- * Compared as a whole path rather than a suffix, which is what the `/src/`-anchored
- * regexes it replaces were reaching for: a sibling that merely ends in the same
- * word (`legacy-theme.ts`, `shared/ui-legacy/`) is a different module and must
- * not inherit the exemption.
+ * Compared as a whole path, never as a suffix: a sibling that merely ends in the
+ * same word (`legacy-theme.ts`, `shared/ui-legacy/`) is a different module and
+ * must not inherit the exemption.
  */
+/**
+ * True when the file at `role` runs on the SERVER — by position, or by being a
+ * server-only module.
+ *
+ * The whole question, in one place, because three rules each held a copy of it
+ * and each copy paired a profile list with its own `/\.server\.[tj]sx?$/`.
+ * Position and suffix are separately meaningful (`policy/layout.ts` owns each
+ * half), and a caller that wants only one half calls that half directly — but a
+ * rule asking "is this a client context" wants both, and asking for both is what
+ * kept drifting.
+ */
+export function isServerContext(role: FileRole): boolean {
+  return (
+    isServerModule(role.tree.vocabulary, role.sourcePath) ||
+    (role.place !== undefined && runsOnServer(role.place.profile))
+  );
+}
+
+/**
+ * True when the file at `role` IS one of its tree's barrels — the client one or
+ * the server one, in any directory.
+ *
+ * A barrel's name is vocabulary, so this reads it rather than testing a literal
+ * `/index.tsx`. Unlike `isModule`, the comparison is on the last segment: a
+ * barrel is a barrel wherever it sits, and every directory has its own.
+ */
+export function namesBarrel(role: FileRole): boolean {
+  const bare = withoutSourceExtension(role.sourcePath);
+  const filename = bare.slice(bare.lastIndexOf("/") + 1);
+  return barrelModules(role.tree.vocabulary).includes(filename);
+}
+
 export function isModule(role: FileRole, moduleName: string): boolean {
   return withoutSourceExtension(role.sourcePath) === moduleName;
 }

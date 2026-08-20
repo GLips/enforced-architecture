@@ -21,7 +21,7 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree } from "@oxlint/plugins";
-import { classifyFileRole, isComponentFile } from "../../policy/declared-trees.ts";
+import { classifyFileRole, isComponentFile, namesBarrel } from "../../policy/declared-trees.ts";
 import { exportedComponents } from "../lib/component-declarations.ts";
 
 export const singleComponentExportRule = defineRule({
@@ -33,9 +33,13 @@ export const singleComponentExportRule = defineRule({
     },
   },
   create(context) {
-    if (classifyFileRole(context.filename) === undefined || !isComponentFile(context.filename)) return {};
+    const role = classifyFileRole(context.filename);
+    if (role === undefined || !isComponentFile(context.filename)) return {};
     // A barrel re-exports by design: every name in one is defined elsewhere.
-    if (context.filename.endsWith("/index.tsx")) return {};
+    // The barrel's NAME comes from the tree, not from a literal — a tree that
+    // renames its barrel would otherwise lose the exemption and get every
+    // barrel reported.
+    if (namesBarrel(role)) return {};
 
     // A compound component namespaced under one export is the sanctioned shape, and it is what
     // this rule's own message recommends — so the exemption has to hold, or the rule tells people

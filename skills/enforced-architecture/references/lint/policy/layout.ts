@@ -45,9 +45,11 @@
 // `featureLayerDirs` and every classifier, every rank comparison and every
 // message follows.
 //
-// Those two used to be one `layerOrder: string[]`, and the conflation is why a
-// project could repoint the structural tier's layers without the oxlint tier's
-// profiles noticing.
+// Do not collapse the two into a single ordered list of directory names. The
+// ORDER is a shared fact about the architecture and the NAMES are a tree's own,
+// so one list makes a rename look like a reordering: the structural tier follows
+// the new names while the oxlint tier's profiles, which key on role, do not
+// notice — and both tiers report clean about different trees.
 //
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -116,6 +118,18 @@ export type TreeVocabulary = {
    */
   clientBarrelModule: string;
   serverBarrelModule: string;
+
+  /**
+   * The suffix that marks a MODULE as server-only, without an extension:
+   * `.server`, so `charge.server.ts` is one and `charge.ts` is not.
+   *
+   * A name rather than a regex, and read by every rule that asks "does this file
+   * run on the server" — three of them once spelled `/\.server\.[tj]sx?$/`
+   * privately, which both forked the answer and hardcoded four extensions while
+   * the walkers had eight. A tree that marks server modules `.node` sets this and
+   * all three follow.
+   */
+  serverModuleSuffix: string;
 
   /**
    * Env modules, and which exposure each one carries. The split is not cosmetic:
@@ -238,6 +252,7 @@ export const RECOMMENDED_VOCABULARY: TreeVocabulary = {
 
   clientBarrelModule: "index",
   serverBarrelModule: "index.server",
+  serverModuleSuffix: ".server",
 
   envModules: {
     "env.server": "env-server",
@@ -349,6 +364,67 @@ export function carriesPresentation(profile: SourceProfile): boolean {
 }
 
 /**
+ * True when the style tier has a subject at this position and in this module.
+ *
+ * The whole question the three style rules and `style/token-equality` ask before
+ * they read a line: a position that carries no presentation has no styling to
+ * get wrong, and the token SOURCE has to write the literals every other file is
+ * told to name instead.
+ *
+ * Both halves in one owner because both were copied. `carriesPresentation` was a
+ * private `/\/src\/domains\//` in two of the three rules and absent from the
+ * third, with nothing recording whether the asymmetry was a decision; the token
+ * source was a config regex an adopter could widen into an off-switch. Taking a
+ * PATH rather than a role keeps the structural check on the same owner as the
+ * three linter rules — it has no role to hand in.
+ *
+ * NEGATIVE SPACE: this asks about position and module only. Whether the file is
+ * in a declared tree at all, and whether it is architecture-exempt, are answered
+ * before this is called — a caller that skips those checks gets a style verdict
+ * on a script.
+ */
+export function isStyleSubject(vocabulary: TreeVocabulary, pathFromSourceRoot: string): boolean {
+  const place = classifySourcePath(vocabulary, pathFromSourceRoot);
+  if (place !== undefined && !carriesPresentation(place.profile)) return false;
+  return withoutSourceExtension(pathFromSourceRoot) !== vocabulary.themeModule;
+}
+
+/**
+ * The positions that run on the SERVER, as the one answer three rules used to
+ * hold a copy of each.
+ *
+ * `features/billing/legacy-service/` is still a client context — a directory that
+ * merely ends in a server layer's name is not that layer — and a tree that
+ * renames a layer keeps the same answer, because this reads a profile and not a
+ * directory.
+ *
+ * NEGATIVE SPACE: position only. The other half of "does this run on the server"
+ * is the module SUFFIX, which is a name in the tree's vocabulary rather than a
+ * position — `isServerModule` answers that half, and a caller asking the whole
+ * question asks both.
+ */
+export function runsOnServer(profile: SourceProfile): boolean {
+  return (
+    profile === "infrastructure" ||
+    profile === "feature-controllers" ||
+    profile === "feature-repo" ||
+    profile === "feature-service"
+  );
+}
+
+/**
+ * True when a path names a server-only MODULE by its suffix, in the tree's own
+ * spelling: `charge.server.ts`, and `charge.server.mts` too.
+ *
+ * Compared after the extension is stripped rather than by a regex that lists
+ * extensions, so this covers every extension `SOURCE_EXTENSIONS` does. The three
+ * private regexes it replaces listed four of the eight.
+ */
+export function isServerModule(vocabulary: TreeVocabulary, pathFromSourceRoot: string): boolean {
+  return withoutSourceExtension(pathFromSourceRoot).endsWith(vocabulary.serverModuleSuffix);
+}
+
+/**
  * Where an import LANDS. Coarser than a profile on purpose: policy is stated
  * against an area, and the exposure a row grants (`barrel`, a module allowlist)
  * is what narrows it to a path. `package` is a real area with its own column, not
@@ -440,6 +516,17 @@ export function topLevelDirs(vocabulary: TreeVocabulary): string[] {
     vocabulary.sharedDir,
   ];
 }
+// ORDERING DEPENDENCY, and it is not extractable: adding a sixth top-level
+// directory means adding it BOTH here and as an arm in `classifySourcePath`
+// below. The two cannot be one list — this one answers "may a directory sit
+// here", while each arm there decides what the directory's INSIDE means, and
+// `features/` has layers where `domains/` does not.
+//
+// Adding it to one only is silent and reads as working: with just this list,
+// `placement/topology` permits the directory while `classifySourcePath` returns
+// undefined for everything in it, so `boundary/import-policy` reports every file
+// under it as an unclassified source. With just the arm, topology reports the
+// directory itself. Either way the run is loud in the WRONG place.
 
 /** The path with a source extension removed, so `env.server.ts` and `env.server` compare equal. */
 export function withoutSourceExtension(path: string): string {

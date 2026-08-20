@@ -51,10 +51,9 @@ export const sdkContainmentRule = defineRule({
     // wrapper layer from becoming one permission: the payments adapter has no
     // business opening the analytics client.
     //
-    // Compared as a WHOLE path from the tree's source root, which is what the
-    // `/src/`-anchored suffix match it replaces was reaching for: `stripe-legacy.ts`
-    // must not inherit `stripe.ts`'s exemption, and neither must a same-named file
-    // somewhere else in the repo.
+    // Compared as a WHOLE path from the tree's source root, never as a suffix:
+    // `stripe-legacy.ts` must not inherit `stripe.ts`'s exemption, and neither
+    // must a same-named file somewhere else in the repo.
     const contained = PACKAGE_OWNERS.filter(
       (row) => !row.owners.includes(role.sourcePath),
     );

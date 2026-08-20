@@ -13,8 +13,10 @@
 // Adopt boundary/import-policy in the structural tier with this rule.
 //
 // A bare `@/features` names no unit, so there is no area to compare and this
-// rule is silent. boundary/import-policy reports that specifier as an
-// unclassified target in both tiers, which is the finding that edge gets.
+// rule is silent. `arch/import-policy` reports that specifier as an unclassified
+// target, which is the finding that edge gets — in the OXLINT tier only. The
+// structural check skips aliased specifiers by design, because the linter sees
+// them without resolving anything.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule } from "@oxlint/plugins";

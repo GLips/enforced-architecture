@@ -23,7 +23,7 @@
 
 import { existsSync } from "node:fs";
 import { basename } from "node:path";
-import { SOURCE_FILE_GLOB } from "../../policy/layout.ts";
+import { SOURCE_EXTENSIONS, SOURCE_FILE_GLOB } from "../../policy/layout.ts";
 import {
   collectTreeFiles,
   toProjectPath,
@@ -37,8 +37,6 @@ import {
  * lookup for `<base>.ts` alone reports every component test in the project as an
  * orphan, and that flood is what gets a warning-level check switched off.
  */
-const SIBLING_SOURCE_EXTENSIONS = [".ts", ".tsx"];
-
 export const testFileMirrorCheck: StructuralCheck = {
   id: "naming/test-file-mirror",
   scope: "tree",
@@ -74,7 +72,10 @@ export const testFileMirrorCheck: StructuralCheck = {
       if (orphanAllowedDirs.some((dir) => sourcePath.startsWith(`${dir}/`))) continue;
 
       const base = absolute.slice(0, -suffix.length);
-      if (SIBLING_SOURCE_EXTENSIONS.some((extension) => existsSync(base + extension))) continue;
+      // Every source extension, from the one list. Two of them here meant a
+      // `foo.test.mts` beside a `foo.mts` could not find its sibling and got
+      // reported as an orphan test.
+      if (SOURCE_EXTENSIONS.some((extension) => existsSync(`${base}.${extension}`))) continue;
 
       const name = basename(base);
       findings.push({

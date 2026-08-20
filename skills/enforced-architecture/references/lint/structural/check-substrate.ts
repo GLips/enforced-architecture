@@ -46,9 +46,10 @@ export type Finding = {
  *
  * One context per declared tree, and the check runs once against each. That is
  * what makes a monorepo's second source root a first-class subject rather than
- * something the first root's graph happens to reach — `source.roots[0]` was the
- * graph root and every other root was walked by name only, so a second tree got
- * file-level checks and no graph at all.
+ * something the first root's graph happens to reach. A design with ONE graph
+ * root and a list of other directories walked by name gives every root past the
+ * first its file-level checks and no graph at all — silently, because the
+ * file-level checks still report and the run still looks complete.
  */
 export type TreeContext = {
   config: ArchitectureConfig;
@@ -214,8 +215,8 @@ export function toSourcePath(context: TreeContext, absolute: string): string {
  * grows and listing it by hand goes stale in silence.
  *
  * The exemptions come from `isArchitectureExemptPath`, which BOTH tiers read.
- * They were once a regex list in this file and a second one in the oxlint tier,
- * with a comment asking the reader to keep them in step by hand.
+ * Do not add a second test here: a file one tier governs and the other does not
+ * is one edge with two answers, and the tier that skips it reports clean.
  *
  * A tree whose root does not exist is not an error — a declared tree that is not
  * checked out simply has nothing to say. That tolerance is also why an

@@ -24,6 +24,11 @@ export const barrelPurityFixtures: CheckFixtures = {
     // Domains are traced without the short-circuit, so a check that applies it
     // everywhere goes silent here while every feature fixture stays green.
     "FAIL src/domains/encryption/index.ts",
+    // The chain's middle hop is an `.mts` file. This check spelled its own
+    // two-extension resolution list while every walker had eight, so the trace
+    // stopped at the hop and the barrel read clean — a hole its own header
+    // named and did not close.
+    "FAIL src/features/ledger/index.ts",
   ],
 
   legal: [

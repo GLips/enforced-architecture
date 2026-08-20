@@ -10,7 +10,7 @@
 // that judgement. Extend it there. A second definition of a test file here is a
 // second answer to one question.
 //
-// Anchor each alternative in `TEST_SPECIFIER` on a separator or a dot. A bare
+// Anchor each alternative in `namesTestModule` on a separator or a dot. A bare
 // `test` alternative also matches `@/shared/latest` and `../ui/protest`.
 //
 // A relative path to the shared test directory, `../../test/setup`, resolves to
