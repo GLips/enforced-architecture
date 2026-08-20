@@ -35,6 +35,11 @@ export const featureDepsFixtures: CheckFixtures = {
     // this pair and never warns. Reading the resolved graph is what makes the
     // two spellings one edge; nothing else here would catch the substitution.
     "WARN src/features/alpha",
+    // Fan-out from a feature whose only source file is `.mts`. Fan-out is
+    // reported by walking the node set, so a feature the occupancy walk cannot
+    // see has no fan-out however wide it is. Every importee grants `spool`, so
+    // `api/feature-visibility` stays silent and this entry proves one thing.
+    "WARN src/features/spool",
   ],
 
   legal: [

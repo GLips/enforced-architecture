@@ -32,9 +32,10 @@ type DomainDependency = { from: string; to: string; witness: ImportEdge };
 
 export const domainCyclesCheck: StructuralCheck = {
   id: "graph/domain-cycles",
+  scope: "tree",
 
-  run({ config, importGraph, occupiedDirs }) {
-    const { domainsDirName, roots } = config.source;
+  run({ tree, vocabulary, importGraph, occupiedDirs }) {
+    const { domainsDir: domainsDirName } = vocabulary;
 
     // Occupancy rather than directory presence. An empty leftover directory
     // otherwise manufactures a domain, and this check then reports a passing
@@ -68,7 +69,7 @@ export const domainCyclesCheck: StructuralCheck = {
       }
     }
 
-    const domainsPath = `${roots[0]}/${domainsDirName}`;
+    const domainsPath = `${tree.root}/${domainsDirName}`;
     const findings: Finding[] = [];
 
     for (const cycle of stronglyConnectedDomains(dependencies)) {

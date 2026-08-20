@@ -19,14 +19,14 @@
 
 import { readFileSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
-import type { ArchitectureConfig } from "./config.ts";
+import { featureLayerRole, SOURCE_FILE_GLOB, type TreeVocabulary } from "../policy/layout.ts";
 import {
   blankComments,
-  collectFiles,
+  collectTreeFiles,
   lineNumberAt,
   lineStartOffsets,
-  sourceRoot,
   toProjectPath,
+  type TreeContext,
 } from "./check-substrate.ts";
 
 /**
@@ -45,11 +45,11 @@ import {
  * this says reads `edge.target`, which is the resolved path — see the note on
  * that field.
  *
- * A project that gave `featuresDirName` and `domainsDirName` the same spelling
- * gets `feature`, because features are tested first. That is one directory
- * claiming to be two subdivisions, and nothing here rejects it: `graph/domain-cycles`
- * and every other domain rule would simply go quiet, which is silence rather
- * than coverage.
+ * A tree that gave `featuresDir` and `domainsDir` the same spelling gets
+ * `feature`, because features are tested first. That is one directory claiming
+ * to be two subdivisions, and nothing here rejects it: `graph/domain-cycles` and
+ * every other domain rule would simply go quiet, which is silence rather than
+ * coverage.
  */
 export type Classification =
   | {
@@ -319,8 +319,11 @@ export function describeEdgeLine(edge: { line: number | undefined }): string {
   return edge.line === undefined ? "" : ` (line ${edge.line})`;
 }
 
-export function classify(config: ArchitectureConfig, pathFromSourceRoot: string): Classification {
-  const { subdividedDirs, featuresDirName, domainsDirName, layerOrder } = config.source;
+export function classify(
+  vocabulary: TreeVocabulary,
+  pathFromSourceRoot: string,
+): Classification {
+  const { featuresDir, domainsDir } = vocabulary;
   const [top, second, third] = pathFromSourceRoot.split("/");
 
   // No directory component means a file sitting directly in the source root — an
@@ -330,29 +333,20 @@ export function classify(config: ArchitectureConfig, pathFromSourceRoot: string)
   // crossing. Reading them one at a time is where that false positive comes from.
   if (top === undefined || second === undefined) return { kind: "neither" };
 
-  // A top-level directory the project has not declared subdivided is one
+  // A top-level directory that is not one of the two subdivided ones is one
   // position whole — `infrastructure`, `shared`, `routes`. Nothing inside it
   // ranks or grants.
-  if (!subdividedDirs.includes(top)) return { kind: "neither" };
-
-  if (top === featuresDirName) {
+  if (top === featuresDir) {
     return {
       kind: "feature",
       feature: second,
-      layer: third !== undefined && layerOrder.includes(third) ? third : undefined,
+      layer:
+        third !== undefined && featureLayerRole(vocabulary, third) !== undefined ? third : undefined,
     };
   }
 
-  if (top === domainsDirName) return { kind: "domain", domain: second };
+  if (top === domainsDir) return { kind: "domain", domain: second };
 
-  // A subdivided directory that is neither the features nor the domains one —
-  // `packages/`, `modules/`, whatever else a project lists. Subdivision alone
-  // buys a rule nothing here asks for: layers are a feature idea and grants are
-  // a feature idea, so `packages/pdf` and `infrastructure` answer the same.
-  //
-  // Reachable, and no fixture reaches it: the harness config subdivides exactly
-  // features and domains. An adopter who subdivides a third directory runs a
-  // branch this catalog never has.
   return { kind: "neither" };
 }
 
@@ -362,20 +356,21 @@ export function classify(config: ArchitectureConfig, pathFromSourceRoot: string)
  * name, an asset, or a relative path climbing out of the source root entirely.
  */
 function resolveWithinSource(
-  config: ArchitectureConfig,
+  context: TreeContext,
   fromFile: string,
   specifier: string,
 ): string | undefined {
+  const { vocabulary } = context;
   const withoutQuery = specifier.replace(/\?.*$/, "");
-  if (config.source.assetExtensions.some((ext) => withoutQuery.endsWith(`.${ext}`))) {
+  if (vocabulary.assetExtensions.some((ext) => withoutQuery.endsWith(`.${ext}`))) {
     return undefined;
   }
 
-  const { aliasPrefix } = config.source;
+  const { aliasPrefix } = vocabulary;
   const aliased = specifier.startsWith(aliasPrefix);
   if (!aliased && !specifier.startsWith(".")) return undefined;
 
-  const root = sourceRoot(config);
+  const root = context.sourceRoot;
   const absolute = aliased
     ? resolve(root, specifier.slice(aliasPrefix.length))
     : resolve(dirname(fromFile), specifier);
@@ -385,18 +380,17 @@ function resolveWithinSource(
 }
 
 /**
- * Every resolved import edge under the source root.
+ * Every resolved import edge inside ONE declared tree.
  *
- * Callers should reach this through `CheckContext.importGraph()`, which builds
- * it once and shares it. Calling this directly rescans the tree.
+ * Callers should reach this through `TreeContext.importGraph()`, which builds it
+ * once per tree and shares it. Calling this directly rescans the tree.
  */
-export function buildImportGraph(config: ArchitectureConfig): ImportEdge[] {
-  const root = sourceRoot(config);
+export function buildImportGraph(context: TreeContext): ImportEdge[] {
+  const { config, vocabulary } = context;
+  const root = context.sourceRoot;
   const edges: ImportEdge[] = [];
 
-  for (const absolute of collectFiles(config, "", "**/*.{ts,tsx,mts,cts}", {
-    fromSourceRoot: true,
-  })) {
+  for (const absolute of collectTreeFiles(context, SOURCE_FILE_GLOB)) {
     const file = toProjectPath(config, absolute);
     const raw = blankShebang(readFileSync(absolute, "utf8"));
 
@@ -404,7 +398,7 @@ export function buildImportGraph(config: ArchitectureConfig): ImportEdge[] {
       scanDeclaredImports({
         path: file,
         source: text,
-        jsxImportSource: config.source.jsxImportSource,
+        jsxImportSource: config.jsxImportSource,
       });
 
     const runtime = tally(scan(raw));
@@ -423,11 +417,11 @@ export function buildImportGraph(config: ArchitectureConfig): ImportEdge[] {
     const source = blankComments(raw);
     const lineStarts = lineStartOffsets(source);
     const sourcePath = relative(root, absolute);
-    const from = classify(config, sourcePath);
+    const from = classify(vocabulary, sourcePath);
 
     const fileEdges: ImportEdge[] = [];
     for (const specifier of new Set([...revealed.keys(), ...runtime.keys()])) {
-      const target = resolveWithinSource(config, absolute, specifier);
+      const target = resolveWithinSource(context, absolute, specifier);
       if (target === undefined) continue;
 
       const runtimeCount = runtime.get(specifier) ?? 0;
@@ -445,7 +439,7 @@ export function buildImportGraph(config: ArchitectureConfig): ImportEdge[] {
           // direction for consumers that skip erased coupling.
           typeOnly: runtimeCount === 0,
           from,
-          to: classify(config, target),
+          to: classify(vocabulary, target),
         });
       }
     }

@@ -1,6 +1,6 @@
 // ─── placement/topology ───────────────────────────────────────────────
 //
-// Makes sure: Each .ts and .tsx file under the source root is at a path that a
+// Makes sure: Each source file under a declared tree's root is at a path that a
 // rule in this catalog matches. You can add a file and know that the layer
 // rules read it. You do not have to look for the files that no pattern reaches
 // before you trust a clean report.
@@ -27,46 +27,83 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import {
-  collectFiles,
+  orderedLayerDirs,
+  SOURCE_FILE_GLOB,
+  topLevelDirs,
+  type TreeVocabulary,
+  withoutSourceExtension,
+} from "../../policy/layout.ts";
+import {
+  collectTreeFiles,
   toProjectPath,
   toSourcePath,
   type Finding,
   type StructuralCheck,
 } from "../check-substrate.ts";
 
+/**
+ * The path grammar inside ONE subdivided directory. It is per-directory because
+ * `features/` and `domains/` are genuinely different shapes, and the difference
+ * is not stylistic — it follows from what the other rules key on.
+ *
+ * Feature-scoped rules key on `features/<name>/<layer>/`, so a directory inside
+ * a feature that is not a layer is reached by nothing and has to be rejected.
+ * Domain-scoped rules key on `domains/<name>/` and reach the entire subtree, so
+ * a module at a domain root is fully governed and there is nothing for a path to
+ * escape into. Applying the feature grammar to domains rejects the layout
+ * `directory-model.md` recommends — internal modules at the domain root — which
+ * is this rule's own named failure mode.
+ *
+ * DERIVED from the tree's vocabulary rather than configured. It used to be a map
+ * an adopting project filled in, which meant a subdivided directory could be
+ * missing an entry and this check would pass everything under it — a hole that
+ * needed its own finding to report. There is no hole to report now: the two
+ * subdivided directories are the two the vocabulary names, and each has exactly
+ * one grammar.
+ */
+type BoundaryGrammar =
+  | { kind: "layered"; rootFiles: string[]; layers: string[] }
+  | { kind: "unlayered" };
+
+function grammarFor(vocabulary: TreeVocabulary, top: string): BoundaryGrammar | undefined {
+  if (top === vocabulary.featuresDir) {
+    return {
+      kind: "layered",
+      rootFiles: vocabulary.featureRootFiles,
+      layers: orderedLayerDirs(vocabulary),
+    };
+  }
+  if (top === vocabulary.domainsDir) return { kind: "unlayered" };
+  return undefined;
+}
+
 export const topologyCheck: StructuralCheck = {
   id: "placement/topology",
+  scope: "tree",
 
-  run({ config }) {
-    const { allowedRoots, allowedRootFiles, boundaries } = config.checks["placement/topology"];
-    const { subdividedDirs, featuresDirName, domainsDirName } = config.source;
-    const sourceRootName = config.source.roots[0];
+  run(context) {
+    const { config, tree, vocabulary } = context;
+    const allowedRoots = topLevelDirs(vocabulary);
+    const allowedRootFiles = vocabulary.sourceRootFiles;
+    const { featuresDir, domainsDir } = vocabulary;
+    const sourceRootName = tree.root;
 
     const layers = allowedRoots.join(", ");
     const findings: Finding[] = [];
 
-    // A subdivided directory with no grammar is a hole in the whitelist, and a
-    // whitelist with a hole in it reports clean over exactly the paths it cannot
-    // describe. Said once, against the config, rather than per file.
-    for (const dir of subdividedDirs) {
-      if (boundaries[dir] !== undefined) continue;
-      findings.push({
-        severity: "error",
-        file: `${sourceRootName}/${dir}`,
-        message:
-          `${dir}/ subdivides into boundaries but has no entry in \`boundaries\`, so this\n` +
-          `check cannot say what belongs inside one and passes everything under it.\n` +
-          `Add a grammar for ${dir} to \`placement/topology\` in the architecture config —\n` +
-          `\`layered\` when rules key on ${dir}/<name>/<layer>/, \`unlayered\` when they key\n` +
-          `on ${dir}/<name>/ and reach the whole subtree.`,
-      });
-    }
+    // Compared without extensions, on both sides. The permitted names are
+    // MODULES — a barrel is a barrel whether it is spelled `index.ts` or
+    // `index.mts` — and `classifyTargetPath` reads `sourceRootFiles` the same
+    // way, so a file this check permitted and the import policy called an
+    // unpoliced area was the shape the two lists disagreed in.
+    const namesModule = (permitted: string[], filename: string): boolean =>
+      permitted.some((file) => withoutSourceExtension(file) === withoutSourceExtension(filename));
 
     // Stylesheets are not modules and are not this rule's subject — where a
     // `.css` file may live is `style/css-tokens`' business, not the path
     // grammar's.
-    for (const absolute of collectFiles(config, "", "**/*.{ts,tsx}", { fromSourceRoot: true })) {
-      const segments = toSourcePath(config, absolute).split("/");
+    for (const absolute of collectTreeFiles(context, SOURCE_FILE_GLOB)) {
+      const segments = toSourcePath(context, absolute).split("/");
       const file = toProjectPath(config, absolute);
       const report = (message: string) => findings.push({ severity: "error", file, message });
 
@@ -76,13 +113,14 @@ export const topologyCheck: StructuralCheck = {
         // Entrypoints and env modules sit directly in the source root and are
         // not layers, so a whitelist of directory names alone rejects them —
         // which is the first thing this rule gets wrong.
-        if (allowedRootFiles.includes(root)) continue;
+        if (namesModule(allowedRootFiles, root)) continue;
         report(
           `\`${root}\` sits directly in ${sourceRootName}/, which holds no layer.\n` +
             `The files that belong there are: ${allowedRootFiles.join(", ")}.\n` +
             `Move this under one of the layers — ${layers} — into whichever one's job it\n` +
             `is doing. If it genuinely is an entrypoint or an env module, add its name to\n` +
-            `\`allowedRootFiles\` in the project's architecture config.`,
+            `this tree's \`sourceRootFiles\` in lint/policy/declared-trees.ts — where the\n` +
+            `import policy reads the same list.`,
         );
         continue;
       }
@@ -91,17 +129,17 @@ export const topologyCheck: StructuralCheck = {
         report(
           `${sourceRootName}/${root} is not a layer, so nothing under it is governed by any\n` +
             `rule in this catalog. The layers are: ${layers}.\n` +
-            `Logic that encodes a business rule goes in ${domainsDirName}/; anything only one\n` +
-            `feature uses belongs inside that feature, under ${featuresDirName}/<name>/<layer>/.\n` +
-            `If ${root}/ really is a new layer, adding it to \`allowedRoots\` is a decision\n` +
-            `rather than a file move, and framework-generated output belongs in the global\n` +
-            `exclusions instead.`,
+            `Logic that encodes a business rule goes in ${domainsDir}/; anything only one\n` +
+            `feature uses belongs inside that feature, under ${featuresDir}/<name>/<layer>/.\n` +
+            `If ${root}/ really is a new layer, adding it to this tree's vocabulary is a\n` +
+            `decision rather than a file move, and framework-generated output is exempt by\n` +
+            `its name.`,
         );
         continue;
       }
 
-      const grammar = boundaries[root];
-      if (!subdividedDirs.includes(root) || grammar === undefined) continue;
+      const grammar = grammarFor(vocabulary, root);
+      if (grammar === undefined) continue;
 
       const [name = "", ...withinBoundary] = withinRoot;
 
@@ -127,13 +165,13 @@ export const topologyCheck: StructuralCheck = {
       const next = withinBoundary[0] ?? "";
 
       if (withinBoundary.length === 1) {
-        if (grammar.rootFiles.includes(next)) continue;
+        if (namesModule(grammar.rootFiles, next)) continue;
         report(
           `A file at a ${root} root is outside every layer, so no layer rule governs it.\n` +
             `${root}/${name}/ holds ${grammar.rootFiles.join(", ")} and nothing else.\n` +
             `Move this into ${boundaryLayers} — whichever layer's job it is doing.\n` +
-            `If every ${root} boundary needs a file by this name, it goes in the \`rootFiles\`\n` +
-            `of that boundary's grammar.`,
+            `If every ${root} boundary needs a file by this name, it goes in this tree's\n` +
+            `\`featureRootFiles\` in lint/policy/declared-trees.ts.`,
         );
         continue;
       }

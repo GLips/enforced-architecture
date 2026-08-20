@@ -79,23 +79,23 @@ type VisibilityFile =
 
 export const featureVisibilityCheck: StructuralCheck = {
   id: "api/feature-visibility",
+  scope: "tree",
 
-  run({ config, importGraph, subdirs }) {
+  run({ config, tree, vocabulary, importGraph, subdirs }) {
     const { visibilityFilename } = config.checks["api/feature-visibility"];
-    const { featuresDirName } = config.source;
+    const { featuresDir: featuresDirName } = vocabulary;
     const findings: Finding[] = [];
 
-    const featuresDir = `${config.source.roots[0]}/${featuresDirName}`;
+    const featuresDir = `${tree.root}/${featuresDirName}`;
     const pathOf = (feature: string) => `${featuresDir}/${feature}/${visibilityFilename}`;
     const readGrantsFor = (feature: string) =>
       readVisibilityFile(join(config.projectRoot, pathOf(feature)));
 
     // `subdirs`, not `occupiedDirs`: a feature here is a DIRECTORY, occupied or
-    // not. Both of the occupancy filter's exclusions are wrong for this rule.
-    // `occupiedDirs` globs `**/*.{ts,tsx}` while the import graph collects
-    // `**/*.{ts,tsx,mts,cts}`, and it drops whatever `source.exclude` matches, so
-    // the graph routes edges into features that enumeration cannot see. And the
-    // occupancy test itself argues the other way here: an empty directory
+    // not. The occupancy filter drops whatever `isArchitectureExemptPath` matches,
+    // so a feature holding only tests and generated files disappears from the
+    // enumeration while the graph still routes edges into it. And the occupancy
+    // test itself argues the other way here: an empty directory
     // manufactures a feature for `graph/feature-deps`, which needs two to have a
     // subject, whereas a leftover directory holding nothing but a visibility.json
     // full of grants is precisely what this rule exists to audit.

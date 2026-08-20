@@ -31,9 +31,19 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { FIXTURE_TREE, fixtureConfig } from "./structural-fixtures/config.ts";
+import {
+  BOTH_FIXTURE_TREES,
+  DECLARED_FIXTURE_TREES,
+  FIXTURE_TREE,
+  fixtureConfig,
+  PDF_TREE,
+} from "./structural-fixtures/config.ts";
 import type { CheckFixtures, GeneratedFixture } from "./structural-fixtures/expectations.ts";
-import { runStructuralChecks } from "../skills/enforced-architecture/references/lint/structural/run-structural-checks.ts";
+import type { Finding } from "../skills/enforced-architecture/references/lint/structural/check-substrate.ts";
+import {
+  runStructuralChecks,
+  type CheckRun,
+} from "../skills/enforced-architecture/references/lint/structural/run-structural-checks.ts";
 import { structuralChecks } from "../skills/enforced-architecture/references/lint/structural/registry.ts";
 
 const HARNESS_DIR = dirname(fileURLToPath(import.meta.url));
@@ -146,9 +156,14 @@ function removeGeneratedFixtures(): void {
 }
 
 writeGeneratedFixtures();
-let runs;
+let runs: CheckRun[];
+let bothTrees: CheckRun[];
 try {
-  runs = runStructuralChecks(structuralChecks, fixtureConfig);
+  runs = runStructuralChecks(structuralChecks, fixtureConfig, DECLARED_FIXTURE_TREES);
+  // The probe reuses the same registry and config and varies ONLY the tree list,
+  // because that is the claim: declaring a tree is the whole of what turns the
+  // catalog on over it.
+  bothTrees = runStructuralChecks(structuralChecks, fixtureConfig, BOTH_FIXTURE_TREES);
 } finally {
   // Removed whether the run passed, failed, or threw, so by the first assertion
   // below the tree is back to its committed fixtures and nothing surprising is
@@ -172,9 +187,93 @@ function multisetDifference(a: string[], b: string[]): string[] {
   return out;
 }
 
+/**
+ * Findings and crashes gathered per check id, across every tree it ran on.
+ *
+ * A tree-scoped check produces one run PER declared tree, and the expectations
+ * are written against the whole fixture project rather than against one tree —
+ * so they are compared against the union. What the union must NOT hide is a run
+ * that never happened, which is why the caller asserts the run count separately.
+ */
+function byCheckId(source: CheckRun[]): Map<string, { findings: Finding[]; crashed: Error | undefined }> {
+  const merged = new Map<string, { findings: Finding[]; crashed: Error | undefined }>();
+  for (const run of source) {
+    const entry = merged.get(run.id) ?? { findings: [], crashed: undefined };
+    entry.findings.push(...run.findings);
+    entry.crashed ??= run.crashed;
+    merged.set(run.id, entry);
+  }
+  return merged;
+}
+
+// ── The two-tree probe ───────────────────────────────────────────────────────
+//
+// The claim the declared-tree design rests on, as a test rather than as prose:
+// an undeclared tree produces NOTHING, declaring it turns every tree-scoped
+// check on over it, and the tree is read with its own vocabulary rather than the
+// first tree's. A catalog that reports the same either way has a scope nobody
+// can rely on; one that reports nothing either way has a scope that never
+// engaged.
+
+const PROBE_ROOT = `${PDF_TREE.root}/`;
+const findingsUnder = (source: CheckRun[], prefix: string): string[] =>
+  source.flatMap(({ id, findings }) =>
+    findings.filter((finding) => finding.file.startsWith(prefix)).map((f) => `[${id}] ${f.file}`),
+  );
+
+const silentWhileUndeclared = findingsUnder(runs, PROBE_ROOT);
+if (silentWhileUndeclared.length > 0) {
+  fail(
+    "<declared-trees>",
+    `an UNDECLARED tree produced findings, so rules are not scoped to declared trees:\n` +
+      `        ${silentWhileUndeclared.join("\n        ")}`,
+  );
+}
+
+const firesOnceDeclared = findingsUnder(bothTrees, PROBE_ROOT);
+const expectedProbeFinding = `[placement/topology] ${PDF_TREE.root}/lib/stray.ts`;
+if (!firesOnceDeclared.includes(expectedProbeFinding)) {
+  fail(
+    "<declared-trees>",
+    `declaring ${PDF_TREE.root} did not turn the checks on over it — expected ` +
+      `${expectedProbeFinding}, got ${firesOnceDeclared.length === 0 ? "nothing" : firesOnceDeclared.join(", ")}`,
+  );
+}
+
+// Read with the app tree's vocabulary, `capabilities/` is not a top-level
+// directory and topology reports every file under it. Read with its own, it is
+// the features directory.
+const wrongVocabulary = firesOnceDeclared.filter((entry) =>
+  entry.includes(`${PDF_TREE.root}/capabilities/`),
+);
+if (wrongVocabulary.length > 0) {
+  fail(
+    "<declared-trees>",
+    `a declared tree was read with another tree's vocabulary:\n` +
+      `        ${wrongVocabulary.join("\n        ")}`,
+  );
+}
+
+// Declaring a second tree must not change the first tree's verdicts. Without
+// this, a probe that silenced the app tree entirely would still look like it
+// passed the two assertions above.
+const appFindings = (source: CheckRun[]): string[] =>
+  source
+    .flatMap(({ id, findings }) => findings.map((f) => `[${id}] ${f.severity} ${f.file}`))
+    .filter((entry) => !entry.includes(PROBE_ROOT))
+    .sort();
+if (appFindings(runs).join("\n") !== appFindings(bothTrees).join("\n")) {
+  fail(
+    "<declared-trees>",
+    "declaring a second tree changed what the first tree reports — trees are not independent",
+  );
+}
+
+// ── Compare ──────────────────────────────────────────────────────────────────
+
 let proved = 0;
 
-for (const { id, findings, crashed } of runs) {
+for (const [id, { findings, crashed }] of byCheckId(runs)) {
   const before = failures.length;
 
   if (crashed !== undefined) {

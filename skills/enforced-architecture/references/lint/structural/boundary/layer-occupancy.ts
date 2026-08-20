@@ -22,15 +22,21 @@
 // An import that goes up is placement/layer-direction's finding, not this one's.
 // ──────────────────────────────────────────────────────────────────────
 
+import { orderedLayerDirs } from "../../policy/layout.ts";
 import type { Finding, StructuralCheck } from "../check-substrate.ts";
 import type { ImportEdge } from "../import-graph.ts";
 
 export const layerOccupancyCheck: StructuralCheck = {
   id: "boundary/layer-occupancy",
+  scope: "tree",
 
-  run({ config, importGraph, occupiedDirs }) {
-    const { schemaTarget } = config.checks["boundary/layer-occupancy"];
-    const { featuresDirName, layerOrder } = config.source;
+  run({ vocabulary, importGraph, occupiedDirs }) {
+    // Every name here is the tree's, and none of them is a knob of this check's
+    // own. A schema path or a layer name configured beside this rule is the
+    // vocabulary written twice, and the copy that drifts goes quiet rather than
+    // red.
+    const { dbSchemaPath: schemaTarget, featuresDir: featuresDirName } = vocabulary;
+    const layerOrder = orderedLayerDirs(vocabulary);
     const dataLayer = layerOrder[layerOrder.length - 1];
     const findings: Finding[] = [];
 

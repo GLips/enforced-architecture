@@ -7,7 +7,7 @@
 // connects to its source.
 //
 // This is the one check whose subject is a file that every other check skips,
-// thus it is the one caller of `collectFiles` with `includeExcluded`. A person
+// thus it is the one caller of `collectTreeFiles` with `includeExempt`. A person
 // who makes this walk the same as the other walks deletes that option. The
 // check then reads no test files and stays green.
 //
@@ -23,8 +23,9 @@
 
 import { existsSync } from "node:fs";
 import { basename } from "node:path";
+import { SOURCE_FILE_GLOB } from "../../policy/layout.ts";
 import {
-  collectFiles,
+  collectTreeFiles,
   toProjectPath,
   toSourcePath,
   type Finding,
@@ -40,17 +41,16 @@ const SIBLING_SOURCE_EXTENSIONS = [".ts", ".tsx"];
 
 export const testFileMirrorCheck: StructuralCheck = {
   id: "naming/test-file-mirror",
+  scope: "tree",
 
-  run({ config }) {
+  run(context) {
+    const { config } = context;
     const { testSuffixes, nonconforming, orphanAllowedDirs } =
       config.checks["naming/test-file-mirror"];
     const findings: Finding[] = [];
 
-    for (const absolute of collectFiles(config, "", "**/*.{ts,tsx,js,jsx}", {
-      fromSourceRoot: true,
-      includeExcluded: true,
-    })) {
-      const sourcePath = toSourcePath(config, absolute);
+    for (const absolute of collectTreeFiles(context, SOURCE_FILE_GLOB, { includeExempt: true })) {
+      const sourcePath = toSourcePath(context, absolute);
       const file = toProjectPath(config, absolute);
 
       // Off-convention names are answered first because a `.spec.` file

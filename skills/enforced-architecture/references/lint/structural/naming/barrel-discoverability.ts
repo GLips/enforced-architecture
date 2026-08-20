@@ -20,9 +20,10 @@
 // not this one's.
 // ──────────────────────────────────────────────────────────────────────
 
+import { barrelModules, subdividedDirs } from "../../policy/layout.ts";
 import {
   blankComments,
-  collectFiles,
+  collectTreeFiles,
   lineNumberAt,
   lineStartOffsets,
   readFile,
@@ -55,15 +56,26 @@ const LIST_MEMBER = /^(type\s+)?([A-Za-z_$][\w$]*)(?:\s+as\s+([A-Za-z_$][\w$]*))
 
 export const barrelDiscoverabilityCheck: StructuralCheck = {
   id: "naming/barrel-discoverability",
+  scope: "tree",
 
-  run({ config }) {
-    const { barrelGlobs, flagTypeAliases } = config.checks["naming/barrel-discoverability"];
+  run(context) {
+    const { config, vocabulary } = context;
+    const { flagTypeAliases } = config.checks["naming/barrel-discoverability"];
     const findings: Finding[] = [];
 
+    // Where the barrels are is the tree's vocabulary, not this check's glob
+    // list: one barrel module per subdivided unit, spelled the way this tree
+    // spells barrels. A glob configured beside this rule is the same fact
+    // written twice, and the copy that goes stale reports clean over the barrels
+    // it no longer matches.
+    const barrelGlobs = subdividedDirs(vocabulary).flatMap((dir) =>
+      barrelModules(vocabulary).map((barrel) => `${dir}/*/${barrel}.ts`),
+    );
+
     for (const glob of barrelGlobs) {
-      // The glob carries its own path, so the root is empty and the whole
-      // pattern is source-root-relative — barrels are named by where they sit.
-      for (const absolute of collectFiles(config, "", glob, { fromSourceRoot: true })) {
+      // The glob carries its own path, so it is matched from the tree's source
+      // root — barrels are named by where they sit.
+      for (const absolute of collectTreeFiles(context, glob)) {
         const file = toProjectPath(config, absolute);
         // Blanked, never stripped: the reported line is the only thing that
         // sends a reader to the statement, and a commented-out `export *` in a

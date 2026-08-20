@@ -1,6 +1,6 @@
 // ─── health/file-size ─────────────────────────────────────────────────
 //
-// Makes sure: Every .ts and .tsx file in the configured roots is shorter than
+// Makes sure: Every source file in the configured roots is shorter than
 // failThreshold lines. You can read a complete file before you change one
 // function in it. No file grows so large that you must plan the split as
 // separate work.
@@ -24,17 +24,29 @@
 // files again and again is the result you want to see.
 // ──────────────────────────────────────────────────────────────────────
 
-import { collectFiles, readFile, toProjectPath, type Finding, type StructuralCheck } from "../check-substrate.ts";
+import { SOURCE_FILE_GLOB } from "../../policy/layout.ts";
+import {
+  collectProjectFiles,
+  readFile,
+  toProjectPath,
+  type Finding,
+  type StructuralCheck,
+} from "../check-substrate.ts";
 
 export const fileSizeCheck: StructuralCheck = {
   id: "health/file-size",
+  // Project-scoped, and the only file-walking check that is. Size is a question
+  // about a file a human maintains, not about a position in an architecture, so
+  // its roots are the config's own list and may name a tree this catalog governs
+  // nothing else in.
+  scope: "project",
 
   run({ config }) {
     const { roots, warnThreshold, failThreshold, exclusions } = config.checks["health/file-size"];
     const findings: Finding[] = [];
 
     for (const root of roots) {
-      for (const absolute of collectFiles(config, root, "**/*.{ts,tsx}")) {
+      for (const absolute of collectProjectFiles(config, root, SOURCE_FILE_GLOB)) {
         const file = toProjectPath(config, absolute);
         // Suffix match, so an entry works regardless of which root prefix the
         // file was found under.

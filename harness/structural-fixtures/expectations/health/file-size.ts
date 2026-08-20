@@ -16,6 +16,10 @@ export const fileSizeFixtures: CheckFixtures = {
     // check pointed at a path that does not exist returns cleanly by design, so
     // an unexercised root is indistinguishable from a working one.
     "FAIL packages/core/src/oversized-core.ts",
+    // The same overrun in `.mts`. This check spelled its own `**/*.{ts,tsx}`
+    // glob, so an ES-module-only file could grow without limit and the run
+    // stayed green.
+    "FAIL src/features/alpha/service/oversized-modern.mts",
   ],
 
   // Under both thresholds and read by other checks, so it also proves the walk
@@ -29,5 +33,6 @@ export const fileSizeFixtures: CheckFixtures = {
     { path: "src/features/alpha/service/oversized.ts", lines: 616, symbol: "bulkAlpha" },
     { path: "src/features/alpha/service/large-neighbour.ts", lines: 525, symbol: "warnAlpha" },
     { path: "packages/core/src/oversized-core.ts", lines: 612, symbol: "coreBulk" },
+    { path: "src/features/alpha/service/oversized-modern.mts", lines: 618, symbol: "modernBulk" },
   ],
 };

@@ -17,8 +17,11 @@
 // `internal`. Such a filter does not see `import { theme } from "../lib/tokens"`
 // in src/shared/ui/.
 //
-// There is no exclusion list and no per-directory scope. A path that you exclude
-// here leaves the whole import policy, and no message says so.
+// There is no exclusion list and no per-directory scope INSIDE a tree. A path
+// that you exclude leaves the whole import policy, and no message says so. The
+// one scope that exists is the declared tree itself: this runs once per tree,
+// over that tree's graph, and an edge leaving the tree is not in that graph —
+// cross-tree coupling is real and nothing in this tier reports it.
 //
 // Do not drop a type-only edge. The policy reads the type mark in one row only:
 // a domain's runtime imports are narrower than its type imports. A forbidden
@@ -38,8 +41,9 @@ import type { Finding, StructuralCheck } from "../check-substrate.ts";
 
 export const importPolicyCheck: StructuralCheck = {
   id: "boundary/import-policy",
+  scope: "tree",
 
-  run({ importGraph }) {
+  run({ vocabulary, importGraph }) {
     const findings: Finding[] = [];
     // An unclassified file is a fact about the FILE, not about each of its
     // imports, and the linter already reports it once per file — including for a
@@ -56,6 +60,7 @@ export const importPolicyCheck: StructuralCheck = {
 
       const { sourcePath } = edge;
       const verdict = evaluateImportPolicy({
+        vocabulary,
         sourcePath,
         target: { kind: "module", path: edge.target },
         specifier: edge.specifier,
@@ -65,7 +70,7 @@ export const importPolicyCheck: StructuralCheck = {
       if (verdict.kind === "internal") continue;
 
       if (verdict.kind === "allow-crossing") {
-        const from = classifySourcePath(sourcePath);
+        const from = classifySourcePath(vocabulary, sourcePath);
         findings.push({
           severity: "error",
           file: edge.file,
@@ -77,7 +82,7 @@ export const importPolicyCheck: StructuralCheck = {
           message: renderPolicyMessage("crossingSpelledRelatively", {
             specifier: edge.specifier,
             fromUnit: from?.unit ?? sourcePath,
-            toUnit: classifyTargetPath(edge.target)?.unit ?? edge.target,
+            toUnit: classifyTargetPath(vocabulary, edge.target)?.unit ?? edge.target,
             canonical: verdict.canonicalSpecifier,
           }),
         });

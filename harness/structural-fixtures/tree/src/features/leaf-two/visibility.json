@@ -1,3 +1,4 @@
 {
-  "hub": "Secondary totals for the aggregate view. Read-only, like the other leaf."
+  "hub": "Secondary totals for the aggregate view. Read-only, like the other leaf.",
+  "spool": "Secondary totals for the spool's width probe. Read-only."
 }

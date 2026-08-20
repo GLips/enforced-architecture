@@ -27,7 +27,7 @@
 
 import {
   blankComments,
-  collectSourceFiles,
+  collectTreeFiles,
   readFile,
   toProjectPath,
   toSourcePath,
@@ -46,17 +46,19 @@ const SCRIPT_EXTENSIONS = ["ts", "tsx", "mts", "cts", "js", "jsx", "mjs", "cjs"]
 
 export const shadowSourceCheck: StructuralCheck = {
   id: "style/shadow-source",
+  scope: "tree",
 
-  run({ config }) {
+  run(context) {
+    const { config } = context;
     const { allowedFile, scannedExtensions, stylesheetPattern, scriptPattern } =
       config.checks["style/shadow-source"];
     const findings: Finding[] = [];
 
-    for (const absolute of collectSourceFiles(config, `**/*.{${scannedExtensions.join(",")}}`)) {
+    for (const absolute of collectTreeFiles(context, `**/*.{${scannedExtensions.join(",")}}`)) {
       // The curated home is the one file permitted to hold a shadow. Without
       // this skip the rule fires on its own inventory and has nowhere left to
       // send people.
-      if (toSourcePath(config, absolute) === allowedFile) continue;
+      if (toSourcePath(context, absolute) === allowedFile) continue;
 
       const extension = absolute.slice(absolute.lastIndexOf(".") + 1);
       const pattern = SCRIPT_EXTENSIONS.includes(extension) ? scriptPattern : stylesheetPattern;

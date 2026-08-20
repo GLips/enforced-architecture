@@ -25,7 +25,7 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import {
-  collectSourceFiles,
+  collectTreeFiles,
   lineNumberAt,
   lineStartOffsets,
   readFile,
@@ -55,14 +55,16 @@ const CUSTOM_PROP_DEF = /^\s*--[\w-]+\s*:/;
 
 export const cssTokensCheck: StructuralCheck = {
   id: "style/css-tokens",
+  scope: "tree",
 
-  run({ config }) {
+  run(context) {
+    const { config } = context;
     const { stylesheetExtensions, exemptFiles } = config.checks["style/css-tokens"];
     const findings: Finding[] = [];
 
     const stylesheets = new Set<string>();
     for (const extension of stylesheetExtensions) {
-      for (const absolute of collectSourceFiles(config, `**/*.${extension}`)) {
+      for (const absolute of collectTreeFiles(context, `**/*.${extension}`)) {
         stylesheets.add(absolute);
       }
     }
@@ -71,7 +73,7 @@ export const cssTokensCheck: StructuralCheck = {
       // The token sources DEFINE the raw values, which is what a token is. They
       // are exempt whole, because a global stylesheet also carries base rules
       // (`body { color: … }`) that the by-shape skip above does not cover.
-      if (exemptFiles.includes(toSourcePath(config, absolute))) continue;
+      if (exemptFiles.includes(toSourcePath(context, absolute))) continue;
 
       const file = toProjectPath(config, absolute);
       const source = blankCssComments(readFile(absolute));

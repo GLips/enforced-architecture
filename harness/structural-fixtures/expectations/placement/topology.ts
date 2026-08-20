@@ -20,6 +20,12 @@ export const topologyFixtures: CheckFixtures = {
     // the wrong thing or — if it requires a layer to exist before it looks —
     // nothing. Position 3 of the grammar, and the easiest one to leave out.
     "FAIL src/features/orphan-module.ts",
+    // The same ungoverned position, in `.mts`. Four walkers in this tier each
+    // spelled their own source glob and stopped at `.ts`/`.tsx`, so this file
+    // was outside the path grammar while the import graph routed edges through
+    // it. One shared `SOURCE_FILE_GLOB` closes that, and this entry is what
+    // keeps it closed.
+    "FAIL src/features/scanner/helpers.mts",
   ],
 
   // These carry more weight than the violations. This rule's failure mode is

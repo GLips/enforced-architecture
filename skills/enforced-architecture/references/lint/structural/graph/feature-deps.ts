@@ -31,12 +31,13 @@ import type { Finding, StructuralCheck } from "../check-substrate.ts";
 
 export const featureDepsCheck: StructuralCheck = {
   id: "graph/feature-deps",
+  scope: "tree",
 
-  run({ config, importGraph, occupiedDirs }) {
+  run({ config, tree, vocabulary, importGraph, occupiedDirs }) {
     const { totalEdgeThreshold, pairSaturationThreshold, fanOutThreshold } =
       config.checks["graph/feature-deps"];
-    const { featuresDirName } = config.source;
-    const featuresPath = `${config.source.roots[0]}/${featuresDirName}`;
+    const { featuresDir: featuresDirName } = vocabulary;
+    const featuresPath = `${tree.root}/${featuresDirName}`;
 
     // Directories holding at least one source file. An empty leftover directory
     // otherwise manufactures a subject, and the check reports a passing result

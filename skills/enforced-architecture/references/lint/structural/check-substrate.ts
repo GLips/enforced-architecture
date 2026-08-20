@@ -16,6 +16,12 @@
 
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { relative, resolve } from "node:path";
+import {
+  type DeclaredTree,
+  DECLARED_TREES,
+  isArchitectureExemptPath,
+} from "../policy/declared-trees.ts";
+import { SOURCE_FILE_GLOB, type TreeVocabulary } from "../policy/layout.ts";
 import type { ArchitectureConfig } from "./config.ts";
 import { buildImportGraph, type ImportEdge } from "./import-graph.ts";
 
@@ -35,15 +41,31 @@ export type Finding = {
 };
 
 /**
- * What a check is handed. Deliberately small: the config, plus the two derived
- * things expensive enough that every consumer must share one copy.
+ * What a TREE-SCOPED check is handed: one declared tree, and the derived things
+ * expensive enough that every consumer must share one copy.
+ *
+ * One context per declared tree, and the check runs once against each. That is
+ * what makes a monorepo's second source root a first-class subject rather than
+ * something the first root's graph happens to reach — `source.roots[0]` was the
+ * graph root and every other root was walked by name only, so a second tree got
+ * file-level checks and no graph at all.
  */
-export type CheckContext = {
+export type TreeContext = {
   config: ArchitectureConfig;
+  tree: DeclaredTree;
+  /** `tree.vocabulary`, which every check reads and none of them may fork. */
+  vocabulary: TreeVocabulary;
+  /** Absolute path of this tree's source root. */
+  sourceRoot: string;
   /**
-   * Every import edge under the source root, resolved and classified. Built on
-   * first call and shared from then on, so a project adopting only `health/
-   * file-size` never pays for a graph nothing reads.
+   * Every import edge inside THIS tree, resolved and classified. Built on first
+   * call and shared from then on, so a project adopting only `health/file-size`
+   * never pays for a graph nothing reads.
+   *
+   * Per tree, and an edge LEAVING the tree is not in it: a specifier resolving
+   * outside this source root is not a boundary question this tier can answer,
+   * exactly as a bare package specifier is not. Cross-tree coupling is real and
+   * nothing here reports it — see the negative space in the tier's overview.
    */
   importGraph(): ImportEdge[];
   /**
@@ -59,8 +81,8 @@ export type CheckContext = {
    * than the one that matches its question, is how the two arms of one rule end
    * up disagreeing about what a feature is.
    *
-   * A symlink to a directory is NOT one, and deliberately: `collectFiles` runs
-   * `Bun.Glob.scanSync`, which does not traverse symlinks, so a symlinked
+   * A symlink to a directory is NOT one, and deliberately: `collectTreeFiles`
+   * runs `Bun.Glob.scanSync`, which does not traverse symlinks, so a symlinked
    * directory could never satisfy the occupancy filter anyway and listing it
    * here would only make the two disagree. A check that has to treat an aliased
    * directory and its target as one boundary resolves the name itself — see
@@ -82,26 +104,57 @@ export type CheckContext = {
 };
 
 /**
- * A check, and its catalog rule id. The id is declared here rather than derived
- * from the filename so the fixture harness can prove the registry, the file, and
- * the doc all name the same rule — a check reporting under a label no
- * expectation matches reads as a renamed check rather than a mistake.
+ * What a PROJECT-SCOPED check is handed: the config, and nothing about any tree.
+ *
+ * Two checks are in this scope and the list is closed by argument, not by
+ * accident. `health/file-size` and `health/doc-budgets` both ask a question about
+ * artefacts a human maintains — how long is this file, how long is this document
+ * — and neither reads a position in an architecture to answer it. Running them
+ * per tree would report a file in two trees twice and miss every file in none.
+ *
+ * NEGATIVE SPACE: every other check in this tier is tree-scoped, so nothing here
+ * reports on a cross-tree edge or on a file outside every declared tree.
  */
-export type StructuralCheck = {
-  id: string;
-  run(context: CheckContext): Finding[];
+export type ProjectContext = {
+  config: ArchitectureConfig;
 };
 
-export function createCheckContext(config: ArchitectureConfig): CheckContext {
+/**
+ * A check, its catalog rule id, and which scope it runs in. The id is declared
+ * here rather than derived from the filename so the fixture harness can prove the
+ * registry, the file, and the doc all name the same rule — a check reporting
+ * under a label no expectation matches reads as a renamed check rather than a
+ * mistake.
+ *
+ * A discriminated union rather than an optional context field: the scope decides
+ * what the runner hands the check, and a check that could receive either would
+ * have to guard at runtime for a combination the registry can never produce.
+ */
+export type StructuralCheck =
+  | { id: string; scope: "tree"; run(context: TreeContext): Finding[] }
+  | { id: string; scope: "project"; run(context: ProjectContext): Finding[] };
+
+/** One context per declared tree, in declaration order. */
+export function createTreeContexts(
+  config: ArchitectureConfig,
+  trees: readonly DeclaredTree[] = DECLARED_TREES,
+): TreeContext[] {
+  return trees.map((tree) => createTreeContext(config, tree));
+}
+
+export function createTreeContext(config: ArchitectureConfig, tree: DeclaredTree): TreeContext {
   let graph: ImportEdge[] | undefined;
   const subdirectories = new Map<string, string[]>();
   const occupied = new Map<string, string[]>();
 
-  const context: CheckContext = {
+  const context: TreeContext = {
     config,
+    tree,
+    vocabulary: tree.vocabulary,
+    sourceRoot: resolve(config.projectRoot, tree.root),
 
     importGraph() {
-      graph ??= buildImportGraph(config);
+      graph ??= buildImportGraph(context);
       return graph;
     },
 
@@ -109,7 +162,7 @@ export function createCheckContext(config: ArchitectureConfig): CheckContext {
       const memo = subdirectories.get(sourceRelativeDir);
       if (memo !== undefined) return memo;
 
-      const absolute = resolve(sourceRoot(config), sourceRelativeDir);
+      const absolute = resolve(context.sourceRoot, sourceRelativeDir);
       const names = existsSync(absolute)
         ? readdirSync(absolute, { withFileTypes: true })
             .filter((entry) => entry.isDirectory())
@@ -129,9 +182,8 @@ export function createCheckContext(config: ArchitectureConfig): CheckContext {
         .subdirs(sourceRelativeDir)
         .filter(
           (name) =>
-            collectFiles(config, `${sourceRelativeDir}/${name}`, "**/*.{ts,tsx}", {
-              fromSourceRoot: true,
-            }).length > 0,
+            collectTreeFiles(context, SOURCE_FILE_GLOB, { under: `${sourceRelativeDir}/${name}` })
+              .length > 0,
         );
 
       occupied.set(sourceRelativeDir, names);
@@ -142,68 +194,73 @@ export function createCheckContext(config: ArchitectureConfig): CheckContext {
   return context;
 }
 
-/** Absolute path of the import graph's source root — the first configured root. */
-export function sourceRoot(config: ArchitectureConfig): string {
-  const first = config.source.roots[0];
-  if (first === undefined) {
-    throw new Error("source.roots is empty: there is no tree to check.");
-  }
-  return resolve(config.projectRoot, first);
-}
-
-export function isExcluded(config: ArchitectureConfig, path: string): boolean {
-  return config.source.exclude.some((pattern) => pattern.test(path));
-}
-
 /** Project-relative path, for findings a human has to act on. */
 export function toProjectPath(config: ArchitectureConfig, absolute: string): string {
   const rel = relative(config.projectRoot, absolute);
   return rel.startsWith("..") ? absolute : rel;
 }
 
-/** Path from the import graph's source root, which is what boundaries are relative to. */
-export function toSourcePath(config: ArchitectureConfig, absolute: string): string {
-  return relative(sourceRoot(config), absolute);
+/** Path from the tree's source root, which is what this tree's positions are relative to. */
+export function toSourcePath(context: TreeContext, absolute: string): string {
+  return relative(context.sourceRoot, absolute);
 }
 
 /**
- * Absolute paths matching `pattern` under `root`, minus the global exclusions.
+ * Absolute paths matching `pattern` inside one declared tree, minus the files no
+ * rule in the catalog governs.
  *
- * `root` is project-relative by default, or source-root-relative with
- * `fromSourceRoot`. It may itself contain glob segments (`features/*` /ui),
- * because "where components live" is a set that grows and listing it by hand
- * goes stale in silence.
+ * `under` narrows to a source-root-relative directory, and may itself contain
+ * glob segments (`features/*` /ui), because "where components live" is a set that
+ * grows and listing it by hand goes stale in silence.
  *
- * A configured root that does not exist is not an error — a check whose root is
- * absent simply has nothing to say. That tolerance is also why an unexercised
- * root is indistinguishable from a working one, which is what the fixture tree's
- * second root exists to catch.
+ * The exemptions come from `isArchitectureExemptPath`, which BOTH tiers read.
+ * They were once a regex list in this file and a second one in the oxlint tier,
+ * with a comment asking the reader to keep them in step by hand.
+ *
+ * A tree whose root does not exist is not an error — a declared tree that is not
+ * checked out simply has nothing to say. That tolerance is also why an
+ * unexercised tree is indistinguishable from a working one, which is what the
+ * fixture tree's second tree exists to catch.
  */
-export function collectFiles(
-  config: ArchitectureConfig,
-  root: string,
+export function collectTreeFiles(
+  context: TreeContext,
   pattern: string,
-  options: { fromSourceRoot?: boolean; includeExcluded?: boolean } = {},
+  options: { under?: string; includeExempt?: boolean } = {},
 ): string[] {
-  const base = options.fromSourceRoot === true ? sourceRoot(config) : config.projectRoot;
-  const glob = root === "" ? pattern : `${root}/${pattern}`;
+  const under = options.under ?? "";
+  const glob = under === "" ? pattern : `${under}/${pattern}`;
   const found: string[] = [];
-  for (const absolute of new Bun.Glob(glob).scanSync({ cwd: base, absolute: true })) {
-    // `includeExcluded` is for the one check whose SUBJECT is an excluded file:
+  for (const absolute of new Bun.Glob(glob).scanSync({ cwd: context.sourceRoot, absolute: true })) {
+    // `includeExempt` is for the one check whose SUBJECT is an exempt file:
     // `naming/test-file-mirror` audits the names of tests, which every other
     // check skips. Nothing else should reach for it.
-    if (options.includeExcluded === true || !isExcluded(config, absolute)) found.push(absolute);
+    if (options.includeExempt === true || !isArchitectureExemptPath(toSourcePath(context, absolute))) {
+      found.push(absolute);
+    }
   }
   return found.sort();
 }
 
-/** `collectFiles` over every configured source root, deduplicated. */
-export function collectSourceFiles(config: ArchitectureConfig, pattern: string): string[] {
-  const seen = new Set<string>();
-  for (const root of config.source.roots) {
-    for (const path of collectFiles(config, root, pattern)) seen.add(path);
+/**
+ * Absolute paths matching `pattern` under a PROJECT-relative root, for the two
+ * checks that are not scoped to a tree.
+ *
+ * Exemptions are measured from the project root here rather than from a source
+ * root, which is the frame `isArchitectureExemptPath` documents as the caller's
+ * choice: `test/` at the top of the repo is the cross-cutting suite in this
+ * frame, exactly as `test/` at the top of a tree is in the other.
+ */
+export function collectProjectFiles(
+  config: ArchitectureConfig,
+  root: string,
+  pattern: string,
+): string[] {
+  const glob = root === "" ? pattern : `${root}/${pattern}`;
+  const found: string[] = [];
+  for (const absolute of new Bun.Glob(glob).scanSync({ cwd: config.projectRoot, absolute: true })) {
+    if (!isArchitectureExemptPath(toProjectPath(config, absolute))) found.push(absolute);
   }
-  return [...seen].sort();
+  return found.sort();
 }
 
 export function readFile(absolute: string): string {

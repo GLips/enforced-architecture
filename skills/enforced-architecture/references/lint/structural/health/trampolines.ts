@@ -20,10 +20,11 @@
 // file is correct.
 // ──────────────────────────────────────────────────────────────────────
 
+import { SOURCE_FILE_GLOB } from "../../policy/layout.ts";
 import {
   matchingBrace,
   blankComments,
-  collectFiles,
+  collectTreeFiles,
   lineNumberAt,
   lineStartOffsets,
   readFile,
@@ -54,14 +55,17 @@ type ExportedFunction = { name: string; line: number; body: string };
 
 export const trampolinesCheck: StructuralCheck = {
   id: "health/trampolines",
+  scope: "tree",
 
-  run({ config }) {
-    const { targetLayers, behaviorKeywords } = config.checks["health/trampolines"];
+  run(context) {
+    const { config, vocabulary } = context;
+    const { targetLayerRoles, behaviorKeywords } = config.checks["health/trampolines"];
     const findings: Finding[] = [];
 
-    for (const layer of targetLayers) {
-      const root = `${config.source.featuresDirName}/*/${layer}`;
-      for (const absolute of collectFiles(config, root, "**/*.ts", { fromSourceRoot: true })) {
+    for (const role of targetLayerRoles) {
+      const layer = vocabulary.featureLayerDirs[role];
+      const under = `${vocabulary.featuresDir}/*/${layer}`;
+      for (const absolute of collectTreeFiles(context, SOURCE_FILE_GLOB, { under })) {
         // Block comments go first so prose cannot spell a keyword the body does
         // not have; the per-line pass then empties strings, which is what the
         // brace and paren walks below need.

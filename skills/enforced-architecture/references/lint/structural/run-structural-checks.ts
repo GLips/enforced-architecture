@@ -30,37 +30,70 @@
 //
 // ──────────────────────────────────────────────────────────────────────
 
+import { DECLARED_TREES, type DeclaredTree } from "../policy/declared-trees.ts";
 import type { ArchitectureConfig } from "./config.ts";
-import { createCheckContext, type Finding, type StructuralCheck } from "./check-substrate.ts";
+import {
+  createTreeContexts,
+  type Finding,
+  type StructuralCheck,
+} from "./check-substrate.ts";
 
 export type CheckRun = {
   id: string;
+  /**
+   * Which declared tree this run covered, or undefined for a project-scoped
+   * check. Part of the record rather than folded into the id because a
+   * tree-scoped check produces one run PER TREE, and a tree whose run is missing
+   * is the failure the whole declared-tree design exists to make visible.
+   */
+  tree: string | undefined;
   findings: Finding[];
   /** The error a check threw, if it did. Reported as a blocking finding. */
   crashed: Error | undefined;
 };
 
 /**
- * Runs every check and returns one record per check, in registration order.
+ * Runs every check and returns one record per run, in registration order: once
+ * per declared tree for a tree-scoped check, once for a project-scoped one.
  *
- * One record per REGISTERED check, always — including for a check that returned
+ * One record per REGISTERED run, always — including for a run that returned
  * nothing. That is what makes "this check found nothing" distinguishable from
  * "this check never ran", which findings alone cannot say and which is how a
  * deleted or stubbed check leaves a suite reporting clean.
+ *
+ * `trees` defaults to the project's declared list and is a parameter for exactly
+ * one caller: the fixture harness, which proves that a tree produces findings
+ * when declared and none when not. An adopting project never passes it — the
+ * config cannot name a tree, which is what stops the two tiers from disagreeing
+ * about which trees exist.
  */
 export function runStructuralChecks(
   checks: StructuralCheck[],
   config: ArchitectureConfig,
+  trees: readonly DeclaredTree[] = DECLARED_TREES,
 ): CheckRun[] {
-  const context = createCheckContext(config);
+  const treeContexts = createTreeContexts(config, trees);
+  const runs: CheckRun[] = [];
 
-  return checks.map((check) => {
-    try {
-      return { id: check.id, findings: check.run(context), crashed: undefined };
-    } catch (error) {
-      return { id: check.id, findings: [], crashed: error as Error };
+  for (const check of checks) {
+    if (check.scope === "project") {
+      runs.push(attempt(check.id, undefined, () => check.run({ config })));
+      continue;
     }
-  });
+    for (const context of treeContexts) {
+      runs.push(attempt(check.id, context.tree.root, () => check.run(context)));
+    }
+  }
+
+  return runs;
+}
+
+function attempt(id: string, tree: string | undefined, run: () => Finding[]): CheckRun {
+  try {
+    return { id, tree, findings: run(), crashed: undefined };
+  } catch (error) {
+    return { id, tree, findings: [], crashed: error as Error };
+  }
 }
 
 /**
@@ -97,11 +130,12 @@ export function reportStructuralChecks(
   let errors = 0;
   let warnings = 0;
 
-  for (const { id, findings, crashed } of runStructuralChecks(checks, config)) {
+  for (const { id, tree, findings, crashed } of runStructuralChecks(checks, config)) {
     if (crashed !== undefined) {
       errors += 1;
+      const where = tree === undefined ? "" : ` on ${tree}`;
       console.error(
-        `FAIL [${id}] this check threw and reported nothing, so its subject is unchecked:\n` +
+        `FAIL [${id}] this check threw${where} and reported nothing, so its subject is unchecked:\n` +
           `  ${(crashed.stack ?? crashed.message).replace(/\n/g, "\n  ")}`,
       );
       continue;

@@ -1,33 +1,67 @@
-// The fixture tree's `arch.config.ts`.
+// The fixture tree's `arch.config.ts`, and its declared-tree list.
 //
 // It is also the worked example of item 3 of the tier's contract: adopting these
 // checks in a new codebase is writing a file like this one, not editing a
 // constant inside a check body. Everything the tree needs that differs from the
 // catalog defaults is visible here, as a whole value replacing a whole value.
 //
-// Two overrides are worth reading before the rest:
+// Three things are worth reading before the rest:
 //
-//   - `health/file-size` scans a SECOND root, `packages/core/src`. A check
-//     pointed at a root that does not exist returns cleanly by design, so an
-//     unexercised root is indistinguishable from a working one. The tree carries
-//     a fixture in that root for exactly that reason.
+//   - `health/file-size` scans a SECOND root, `packages/core/src`. It is one of
+//     the two project-scoped checks, so its roots are its own and are NOT
+//     declared trees — file size is a question about a file a human maintains.
+//     A check pointed at a root that does not exist returns cleanly by design,
+//     so an unexercised root is indistinguishable from a working one; the tree
+//     carries a generated fixture in that root for exactly that reason.
 //   - `style/token-equality` imports its scales from the tree's own theme module
 //     rather than restating them. That import IS the seam the rule exists for:
 //     the enforcer cannot drift from the scale it guards if it reads it.
+//   - the tree list below is TWO lists, and the difference between them is the
+//     whole of what declaring a tree buys. `run-structural-fixtures.ts` runs the
+//     suite under `DECLARED_FIXTURE_TREES` and probes the second list; see the
+//     probe there.
 
 import { resolve } from "node:path";
+import type { DeclaredTree } from "../../skills/enforced-architecture/references/lint/policy/declared-trees.ts";
+import {
+  RECOMMENDED_VOCABULARY,
+  type TreeVocabulary,
+} from "../../skills/enforced-architecture/references/lint/policy/layout.ts";
 import {
   type ArchitectureConfig,
   defaultCheckConfigs,
-  defaultSourceConfig,
 } from "../../skills/enforced-architecture/references/lint/structural/config.ts";
 import { radius, spacing } from "./tree/src/shared/ui/theme.ts";
 
 export const FIXTURE_TREE = resolve(import.meta.dir, "tree");
 
+/** The tree every fixture in `tree/src` belongs to. */
+export const APP_TREE: DeclaredTree = { root: "src", vocabulary: RECOMMENDED_VOCABULARY };
+
+/**
+ * A second tree that renames one directory, which is the whole of what a
+ * fork-free config may vary. Nothing about it is declared by default: the files
+ * under `tree/packages/pdf/src` are the undeclared-sibling half of the probe,
+ * and the rename is what proves a declared tree is read with ITS OWN vocabulary
+ * rather than the first tree's — `capabilities/` is a feature directory here and
+ * a topology violation under the app tree's spelling.
+ */
+export const PDF_VOCABULARY: TreeVocabulary = {
+  ...RECOMMENDED_VOCABULARY,
+  featuresDir: "capabilities",
+};
+
+export const PDF_TREE: DeclaredTree = { root: "packages/pdf/src", vocabulary: PDF_VOCABULARY };
+
+/** What the suite runs against: one tree, exactly as a single-app project declares. */
+export const DECLARED_FIXTURE_TREES: DeclaredTree[] = [APP_TREE];
+
+/** The same project after it adopts the catalog for its second package. */
+export const BOTH_FIXTURE_TREES: DeclaredTree[] = [APP_TREE, PDF_TREE];
+
 export const fixtureConfig: ArchitectureConfig = {
   projectRoot: FIXTURE_TREE,
-  source: defaultSourceConfig,
+  jsxImportSource: "react",
   checks: {
     ...defaultCheckConfigs,
 
@@ -40,11 +74,6 @@ export const fixtureConfig: ArchitectureConfig = {
       ...defaultCheckConfigs["style/token-equality"],
       spacingScale: spacing,
       radiusScale: radius,
-      exemptPaths: [
-        ...defaultCheckConfigs["style/token-equality"].exemptPaths,
-        // The scale's own home defines the raw values, which is what a token is.
-        /^shared\/ui\/theme\.ts$/,
-      ],
     },
   },
 };

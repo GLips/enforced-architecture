@@ -24,14 +24,15 @@
 // question about imports between units and wrong for direction inside a feature.
 // ──────────────────────────────────────────────────────────────────────
 
-import { isUnitBarrel } from "../../policy/layout.ts";
+import { isUnitBarrel, orderedLayerDirs } from "../../policy/layout.ts";
 import type { Finding, StructuralCheck } from "../check-substrate.ts";
 
 export const layerDirectionCheck: StructuralCheck = {
   id: "placement/layer-direction",
+  scope: "tree",
 
-  run({ config, importGraph }) {
-    const { layerOrder } = config.source;
+  run({ vocabulary, importGraph }) {
+    const layerOrder = orderedLayerDirs(vocabulary);
 
     const findings: Finding[] = [];
 
@@ -55,8 +56,8 @@ export const layerDirectionCheck: StructuralCheck = {
       // guard has to exclude is a barrel importing a barrel: `index.server.ts`
       // re-exporting `index.ts` is explicitly legal, and is the one edge into
       // this barrel that comes from inside the unit and should stay silent.
-      const unit = `${config.source.featuresDirName}/${feature}`;
-      if (!isUnitBarrel(unit, edge.sourcePath) && isUnitBarrel(unit, edge.target)) {
+      const unit = `${vocabulary.featuresDir}/${feature}`;
+      if (!isUnitBarrel(vocabulary, unit, edge.sourcePath) && isUnitBarrel(vocabulary, unit, edge.target)) {
         const inside = from.layer ?? `${feature}'s root`;
         findings.push({
           severity: "error",
@@ -82,7 +83,7 @@ export const layerDirectionCheck: StructuralCheck = {
       if (fromLayer === undefined || toLayer === undefined) continue;
 
       // Both are in `layerOrder` by construction: the graph assigns a layer only
-      // when the segment names one.
+      // when the segment names one of this tree's layer directories.
       if (layerOrder.indexOf(toLayer) >= layerOrder.indexOf(fromLayer)) continue;
 
       findings.push({

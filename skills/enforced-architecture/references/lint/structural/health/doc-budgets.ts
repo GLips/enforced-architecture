@@ -109,6 +109,9 @@ function statusOf(ceiling: unknown, words: number | undefined): DocBudgetStatus 
 
 export const docBudgetsCheck: StructuralCheck = {
   id: "health/doc-budgets",
+  // Project-scoped: a doc is not in a tree, and counting it once per declared
+  // tree would report the same overrun twice in a monorepo.
+  scope: "project",
 
   run({ config }) {
     const { manifestPath } = config.checks["health/doc-budgets"];

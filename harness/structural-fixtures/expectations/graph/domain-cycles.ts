@@ -18,6 +18,12 @@ export const domainCyclesFixtures: CheckFixtures = {
     // reports nothing at all while passing the direct billing/usage case. This
     // is the entry that decides whether the SCC pass works.
     "FAIL src/domains/alerts",
+    // mirrored <-> relaying, where `relaying` holds nothing but `.mts`. This
+    // check reads its nodes off the graph, so what the entry pins is the GRAPH's
+    // file walk: narrow it to `.ts`/`.tsx` and the edge out of `relaying` is
+    // never scanned, the component collapses to one member, and a two-domain
+    // ring reports clean with no diagnostic anywhere saying a file went unread.
+    "FAIL src/domains/mirrored",
   ],
 
   legal: [

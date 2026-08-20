@@ -1,3 +1,4 @@
 {
-  "courier": "Reads the dispatch plan version to decide whether a route needs re-quoting. Server-side only; courier never writes back."
+  "courier": "Reads the dispatch plan version to decide whether a route needs re-quoting. Server-side only; courier never writes back.",
+  "spool": "Plan version, read to size the spool. Server-side only; spool never writes back."
 }

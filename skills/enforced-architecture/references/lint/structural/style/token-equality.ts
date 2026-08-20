@@ -26,8 +26,14 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import {
+  carriesPresentation,
+  classifySourcePath,
+  SOURCE_FILE_GLOB,
+  withoutSourceExtension,
+} from "../../policy/layout.ts";
+import {
   blankComments,
-  collectFiles,
+  collectTreeFiles,
   readFile,
   toProjectPath,
   toSourcePath,
@@ -51,9 +57,11 @@ const JSX_VALUE = String.raw`\{(\d+)\}|"(\d+)(?:px)?"`;
 
 export const tokenEqualityCheck: StructuralCheck = {
   id: "style/token-equality",
+  scope: "tree",
 
-  run({ config }) {
-    const { spacingScale, radiusScale, spacingProps, radiusProps, spacingKeys, radiusKeys, exemptPaths } =
+  run(context) {
+    const { config, vocabulary } = context;
+    const { spacingScale, radiusScale, spacingProps, radiusProps, spacingKeys, radiusKeys } =
       config.checks["style/token-equality"];
 
     const spacingByPx = toPxTokens(spacingScale);
@@ -101,9 +109,16 @@ export const tokenEqualityCheck: StructuralCheck = {
 
     const findings: Finding[] = [];
 
-    for (const absolute of collectFiles(config, "", "**/*.{ts,tsx}", { fromSourceRoot: true })) {
-      const sourcePath = toSourcePath(config, absolute);
-      if (exemptPaths.some((pattern) => pattern.test(sourcePath))) continue;
+    for (const absolute of collectTreeFiles(context, SOURCE_FILE_GLOB)) {
+      const sourcePath = toSourcePath(context, absolute);
+      // The same two gates the oxlint style rules use, from the same owner: a
+      // position that carries no presentation has no styling to get wrong, and
+      // the token module DEFINES the values every other file must name. This was
+      // a `[/^domains\//]` regex in the config — a predicate an adopter could
+      // widen into an off-switch, and one that went quiet on a rename.
+      const place = classifySourcePath(vocabulary, sourcePath);
+      if (place !== undefined && !carriesPresentation(place.profile)) continue;
+      if (withoutSourceExtension(sourcePath) === vocabulary.themeModule) continue;
 
       // Blanked rather than stripped so every reported line stays the line on
       // disk, and so a token-equal number quoted in prose cannot false-positive.

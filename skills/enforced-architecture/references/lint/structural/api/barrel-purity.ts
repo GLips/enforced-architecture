@@ -25,18 +25,18 @@
 
 import { statSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import type { ArchitectureConfig } from "../config.ts";
+import { subdividedDirs, type TreeVocabulary } from "../../policy/layout.ts";
 import { scanDeclaredImports } from "../import-graph.ts";
 import {
   blankComments,
-  collectFiles,
+  collectTreeFiles,
   lineNumberAt,
   lineStartOffsets,
   readFile,
-  sourceRoot,
   toProjectPath,
   type Finding,
   type StructuralCheck,
+  type TreeContext,
 } from "../check-substrate.ts";
 
 /**
@@ -64,8 +64,14 @@ function runtimeSpecifiers(absolute: string, source: string, jsxImportSource: st
  * the extensions, then the directory barrel. This stands in for TypeScript's
  * module resolution without the compiler API, and its gaps are named in every
  * message this check emits — a specifier it cannot resolve ends a trace silently.
+ *
+ * The directory-barrel forms are spelled from the tree's own barrel module, so a
+ * tree calling its barrel something other than `index` still resolves the hop.
  */
-const RESOLUTION_SUFFIXES = ["", ".ts", ".tsx", "/index.ts", "/index.tsx"];
+function resolutionSuffixes(vocabulary: TreeVocabulary): string[] {
+  const barrel = vocabulary.clientBarrelModule;
+  return ["", ".ts", ".tsx", `/${barrel}.ts`, `/${barrel}.tsx`];
+}
 
 /**
  * Where an internal specifier lands, or undefined when it is not internal.
@@ -75,20 +81,20 @@ const RESOLUTION_SUFFIXES = ["", ".ts", ".tsx", "/index.ts", "/index.tsx"];
  * the first `@/shared/…` hop and reports the barrel clean.
  */
 function resolveTracedImport(
-  config: ArchitectureConfig,
+  context: TreeContext,
   fromFile: string,
   specifier: string,
 ): string | undefined {
-  const { aliasPrefix } = config.source;
+  const { aliasPrefix } = context.vocabulary;
   const base = specifier.startsWith(aliasPrefix)
-    ? resolve(sourceRoot(config), specifier.slice(aliasPrefix.length))
+    ? resolve(context.sourceRoot, specifier.slice(aliasPrefix.length))
     : specifier.startsWith(".")
       ? resolve(dirname(fromFile), specifier)
       : undefined;
 
   if (base === undefined) return undefined;
 
-  for (const suffix of RESOLUTION_SUFFIXES) {
+  for (const suffix of resolutionSuffixes(context.vocabulary)) {
     const candidate = `${base}${suffix}`;
     // `isFile` matters for the empty suffix: a specifier naming a directory
     // exists on disk and is not a module.
@@ -98,37 +104,39 @@ function resolveTracedImport(
 }
 
 const RESOLUTION_NOTE =
-  `Resolution here tries the exact path, then .ts, .tsx, /index.ts, /index.tsx. It\n` +
+  `Resolution here tries the exact path, then .ts, .tsx, then the directory barrel. It\n` +
   `does not handle .mts/.cts, and it does not substitute extensions the way\n` +
   `TypeScript does (./target.js → target.ts), so a hop spelled either way ends the\n` +
   `trace without a word.`;
 
 export const barrelPurityCheck: StructuralCheck = {
   id: "api/barrel-purity",
+  scope: "tree",
 
-  run({ config }) {
-    const {
-      barrelDirs,
-      barrelFilenames,
-      serverOnlyPatterns,
-      maxTraceDepth,
-      serverFnMarkers,
-      serverFnBoundaryDirs,
-    } = config.checks["api/barrel-purity"];
-    const { jsxImportSource } = config.source;
+  run(context) {
+    const { config, vocabulary } = context;
+    const { serverOnlyPatterns, maxTraceDepth, serverFnMarkers } =
+      config.checks["api/barrel-purity"];
+    const { jsxImportSource } = config;
     const findings: Finding[] = [];
 
-    for (const barrelDir of barrelDirs) {
+    // Which directories hold barrels, and what a barrel is called, are the
+    // tree's vocabulary rather than this check's config: a barrel list beside
+    // the rule is the same fact twice, and the stale copy traces nothing while
+    // reporting clean.
+    for (const barrelDir of subdividedDirs(vocabulary)) {
       // Features re-export server-function references from their controllers, so
       // the short-circuit is what keeps this check usable there. Domains never
       // define server functions, so tracing a domain barrel must not stop at a
       // module that merely mentions the marker.
-      const shortCircuitApplies = serverFnBoundaryDirs.includes(barrelDir);
+      const shortCircuitApplies = barrelDir === vocabulary.featuresDir;
 
-      for (const barrelFilename of barrelFilenames) {
-        for (const barrel of collectFiles(config, barrelDir, `*/${barrelFilename}`, {
-          fromSourceRoot: true,
-        })) {
+      // The CLIENT barrel only. The server barrel is server-only by
+      // construction, so a server-only import through it is the file working.
+      for (const barrelFilename of [".ts", ".tsx"].map(
+        (extension) => `${vocabulary.clientBarrelModule}${extension}`,
+      )) {
+        for (const barrel of collectTreeFiles(context, `*/${barrelFilename}`, { under: barrelDir })) {
           const file = toProjectPath(config, barrel);
           const serverBarrel = barrelFilename.replace(/\.tsx?$/, (ext) => `.server${ext}`);
 
@@ -182,7 +190,7 @@ export const barrelPurityCheck: StructuralCheck = {
                 continue;
               }
 
-              const target = resolveTracedImport(config, absolute, specifier);
+              const target = resolveTracedImport(context, absolute, specifier);
               if (target === undefined || visited.has(target)) continue;
 
               if (depth + 1 > maxTraceDepth) {

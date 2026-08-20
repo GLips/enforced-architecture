@@ -12,6 +12,21 @@
 // nobody could tell by reading either one. A knob in a shared object is a knob
 // a reader can enumerate; a knob in a function body is a fact about one repo.
 //
+// ── What is NOT here ──────────────────────────────────────────────────
+//
+// Where the trees are and what their directories are called. That is
+// `lint/policy/declared-trees.ts`, which both tiers read, and it is deliberately
+// not reachable from this object: a config field naming a source root or a layer
+// is a second answer to a question the oxlint tier answers from the policy
+// module, and the two tiers then police two different trees while both report
+// clean. That was the state this file was in, and the config could express it.
+//
+// What remains here is what has no bearing on WHERE the architecture is: the
+// project root every relative path resolves against, the build fact of which
+// package injects JSX runtime imports, and per-check thresholds, manifests,
+// trace limits and allowlists. Every one of those is a number or a name that
+// says nothing about the shape of the tree.
+//
 // ── Adapt ─────────────────────────────────────────────────────────────
 //
 // Write this beside the checks and pass it to `runStructuralChecks`:
@@ -19,15 +34,11 @@
 //   // lint/structural/arch.config.ts
 //   import { resolve } from "node:path";
 //   import { radius, spacing } from "../../src/shared/ui/theme.ts";
-//   import {
-//     type ArchitectureConfig,
-//     defaultCheckConfigs,
-//     defaultSourceConfig,
-//   } from "./config.ts";
+//   import { type ArchitectureConfig, defaultCheckConfigs } from "./config.ts";
 //
 //   export const architectureConfig: ArchitectureConfig = {
 //     projectRoot: resolve(import.meta.dir, "../.."),
-//     source: { ...defaultSourceConfig, roots: ["apps/web/src"] },
+//     jsxImportSource: "react",
 //     checks: {
 //       ...defaultCheckConfigs,
 //       "style/token-equality": {
@@ -44,128 +55,9 @@
 //
 // ──────────────────────────────────────────────────────────────────────
 
-import {
-  ALIAS_PREFIX,
-  ASSET_EXTENSIONS,
-  BARREL_MODULES,
-  DB_SCHEMA_PATH,
-  DOMAINS_DIR,
-  FEATURE_LAYERS,
-  FEATURES_DIR,
-  INFRASTRUCTURE_DIR,
-  ROUTES_DIR,
-  SERVICE_LAYER,
-  SHARED_DIR,
-  SOURCE_ROOT,
-  SOURCE_ROOT_FILES,
-} from "../policy/layout.ts";
-
-/**
- * Facts about the source tree that more than one check needs. Getting one of
- * these wrong makes several checks quietly wrong together, which is the argument
- * for stating them once.
- */
-export type SourceConfig = {
-  /**
-   * Project-relative roots the checks walk. The FIRST root is the import
-   * graph's source root: the alias prefix resolves against it and boundary
-   * classification is relative to it. Extra roots are walked by the checks that
-   * take a root list but do not participate in the graph.
-   */
-  roots: string[];
-
-  /** How the source root is spelled in a specifier. `@/features/x` → `<root>/features/x`. */
-  aliasPrefix: string;
-
-  /**
-   * Top-level directories whose CHILDREN are the boundary rather than
-   * themselves — `features/board` is a boundary, `features` is not. Not always
-   * these two: a source root that subdivides `packages/` or `modules/` names
-   * those instead.
-   */
-  subdividedDirs: string[];
-
-  /**
-   * Which subdivided directory holds features, and which holds domains. The
-   * rules that speak about one or the other by name (`graph/feature-deps`,
-   * `graph/domain-cycles`, `api/feature-visibility`) read these rather than
-   * assuming a spelling, so a project that calls them `modules/` and `core/`
-   * renames in one place.
-   */
-  featuresDirName: string;
-  domainsDirName: string;
-
-  /**
-   * Intra-feature layers, highest to lowest. `placement/layer-direction` reads
-   * the order; a project inserting a layer adds it here in position and every
-   * consumer follows. That single point of change is most of the argument for
-   * building the import graph once.
-   */
-  layerOrder: string[];
-
-  /**
-   * Paths no check reads: tests, generated output, declaration files, and the
-   * check tooling itself. Stated once so a rule cannot restate them slightly
-   * differently and govern a different set of files than its neighbour.
-   */
-  exclude: RegExp[];
-
-  /**
-   * Specifier suffixes that resolve inside the source root but are not module
-   * edges. Load-bearing, not defensive: `../styles.css?url` from a route
-   * resolves to a real file and otherwise surfaces as a boundary crossing with
-   * a filename where a boundary name should be.
-   */
-  assetExtensions: string[];
-
-  /**
-   * `compilerOptions.jsxImportSource` from the project's tsconfig. Under a JSX
-   * loader Bun's reader reports runtime imports it injected rather than ones the
-   * file wrote; this names the package whose surplus `require-call` entries get
-   * filtered. See the extraction notes in `import-graph.ts`.
-   */
-  jsxImportSource: string;
-};
-
-// Every field that describes the SHAPE of the tree is derived from
-// `lint/policy/layout.ts` rather than restated here, and that is load-bearing
-// rather than tidy. The oxlint tier reads those constants directly; this tier
-// reads them through this object. A second literal `"features"` in this file is
-// a second place the answer lives, and the failure mode is the one the policy
-// engine exists to remove: the two tiers police two different trees while both
-// report clean, because neither can see the other's copy.
-//
-// What stays a literal below is what layout.ts has no opinion about — which
-// files are not source at all, and which package injects JSX runtime imports.
-// Those are facts about the build, not about the architecture.
-export const defaultSourceConfig: SourceConfig = {
-  roots: [SOURCE_ROOT],
-  aliasPrefix: ALIAS_PREFIX,
-  subdividedDirs: [FEATURES_DIR, DOMAINS_DIR],
-  featuresDirName: FEATURES_DIR,
-  domainsDirName: DOMAINS_DIR,
-  layerOrder: [...FEATURE_LAYERS],
-  exclude: [
-    /\.test\.[tj]sx?$/,
-    /\.integration\.test\.[tj]sx?$/,
-    /\/__tests__\//,
-    /\/src\/test\//,
-    /\/scripts\//,
-    /\.gen\.[tj]sx?$/,
-    /\.d\.ts$/,
-  ],
-  assetExtensions: [...ASSET_EXTENSIONS],
-  jsxImportSource: "react",
-};
+import type { FeatureLayerRole } from "../policy/layout.ts";
 
 export type BarrelPurityConfig = {
-  /**
-   * Project-relative directories whose immediate children hold a public barrel.
-   * Relative to the source root, not the project root.
-   */
-  barrelDirs: string[];
-  /** Barrel filenames traced. `index.server.ts` is server-only by construction and excluded. */
-  barrelFilenames: string[];
   /** Packages that break a client bundle. Regexes: `^name$` exact, `^name/` for subpaths. */
   serverOnlyPatterns: RegExp[];
   /** Bounds cost only — cycle detection is what stops infinite recursion. Report when hit. */
@@ -175,32 +67,11 @@ export type BarrelPurityConfig = {
    * replaces those bodies with RPC stubs, so the trace stops there.
    */
   serverFnMarkers: string[];
-  /**
-   * Subdivided directories where the server-function short-circuit applies.
-   * Features re-export server functions from controllers; domains never define
-   * them, so tracing a domain barrel must not stop at a false marker.
-   */
-  serverFnBoundaryDirs: string[];
 };
 
 export type FeatureVisibilityConfig = {
   /** The grant file at each feature's root: importing feature name → justification. */
   visibilityFilename: string;
-};
-
-export type LayerOccupancyConfig = {
-  /**
-   * Resolved path (from the source root) of the DB schema modules. Compared as a
-   * resolved path, so `../../infrastructure/db/schema/x` and the aliased
-   * spelling are one edge. Prefix match: anything under it counts.
-   *
-   * The only knob the check has. Which layers exist, how they rank, and which of
-   * them is the lowest all come from `source.layerOrder` and the tree — naming a
-   * layer here would be the layer vocabulary written a second time, and a name
-   * that drifts out of step with `layerOrder` is a rule that goes quiet rather
-   * than one that errors.
-   */
-  schemaTarget: string;
 };
 
 export type FeatureDepsConfig = {
@@ -223,7 +94,12 @@ export type DocBudgetsConfig = {
 };
 
 export type FileSizeConfig = {
-  /** Roots walked for size. Often wider than `source.roots` — a shared package counts too. */
+  /**
+   * Project-relative roots walked for size, and the one root list that is NOT a
+   * declared tree. File size is a health signal about anything a human maintains
+   * — a config package, a scripts directory, a workspace this catalog does not
+   * govern architecturally — so this check is project-scoped and says so.
+   */
   roots: string[];
   warnThreshold: number;
   failThreshold: number;
@@ -235,15 +111,18 @@ export type FileSizeConfig = {
 };
 
 export type TrampolinesConfig = {
-  /** Layer directory names scanned. Never add the repo layer — thin DB wrappers are its job. */
-  targetLayers: string[];
+  /**
+   * Feature layers scanned, named by ROLE rather than by directory. The tree's
+   * vocabulary spells each role, so a project renaming `service/` renames it
+   * once and this follows. Never add the repo role — thin DB wrappers are its
+   * job, and a check that reports them reports the layer working.
+   */
+  targetLayerRoles: FeatureLayerRole[];
   /** Any of these in a function body means it does something beyond forwarding. */
   behaviorKeywords: RegExp;
 };
 
 export type BarrelDiscoverabilityConfig = {
-  /** Globs, relative to the source root, naming the public barrels. */
-  barrelGlobs: string[];
   /** Whether `export type { X as Y }` is flagged too. Types are reverse-looked-up less often. */
   flagTypeAliases: boolean;
 };
@@ -258,42 +137,6 @@ export type TestFileMirrorConfig = {
    * legitimate — cross-cutting suites that map to no single module.
    */
   orphanAllowedDirs: string[];
-};
-
-/**
- * The path grammar inside ONE subdivided directory. It is per-directory because
- * `features/` and `domains/` are genuinely different shapes, and the difference
- * is not stylistic — it follows from what the other rules key on.
- *
- * Feature-scoped rules key on `features/<name>/<layer>/`, so a directory inside
- * a feature that is not a layer is reached by nothing and has to be rejected.
- * Domain-scoped rules key on `domains/<name>/` and reach the entire subtree, so
- * a module at a domain root is fully governed and there is nothing for a path to
- * escape into. Applying the feature grammar to domains rejects the layout
- * `directory-model.md` recommends — internal modules at the domain root — which
- * is this rule's own named failure mode.
- */
-export type BoundaryGrammar =
-  | {
-      kind: "layered";
-      /** Files at a boundary root: its public surface, plus its error types. */
-      rootFiles: string[];
-      /** The closed set of directory names one level inside a boundary. */
-      layers: string[];
-    }
-  | { kind: "unlayered" };
-
-export type TopologyConfig = {
-  /** The closed set of first path segments under the source root. */
-  allowedRoots: string[];
-  /**
-   * Files sitting directly in the source root. Entrypoints and env modules are
-   * not layers, and a directory-only whitelist rejects them — which is the first
-   * thing this rule gets wrong.
-   */
-  allowedRootFiles: string[];
-  /** Keyed by directory name, and every entry of `source.subdividedDirs` needs one. */
-  boundaries: Record<string, BoundaryGrammar>;
 };
 
 export type CssTokensConfig = {
@@ -330,26 +173,22 @@ export type TokenEqualityConfig = {
   radiusProps: string[];
   spacingKeys: string[];
   radiusKeys: string[];
-  /** Paths carrying no styling, or defining the scale itself. Source-root-relative regexes. */
-  exemptPaths: RegExp[];
 };
 
 /**
  * Per-check knobs, keyed by the catalog rule id so a config entry and the rule
  * it configures are one grep apart. Checks with nothing to configure have no
- * entry — their behaviour comes entirely from `SourceConfig`.
+ * entry — their behaviour comes entirely from the tree they are run against.
  */
 export type CheckConfigs = {
   "api/barrel-purity": BarrelPurityConfig;
   "api/feature-visibility": FeatureVisibilityConfig;
-  "boundary/layer-occupancy": LayerOccupancyConfig;
   "graph/feature-deps": FeatureDepsConfig;
   "health/doc-budgets": DocBudgetsConfig;
   "health/file-size": FileSizeConfig;
   "health/trampolines": TrampolinesConfig;
   "naming/barrel-discoverability": BarrelDiscoverabilityConfig;
   "naming/test-file-mirror": TestFileMirrorConfig;
-  "placement/topology": TopologyConfig;
   "style/css-tokens": CssTokensConfig;
   "style/shadow-source": ShadowSourceConfig;
   "style/token-equality": TokenEqualityConfig;
@@ -357,8 +196,6 @@ export type CheckConfigs = {
 
 export const defaultCheckConfigs: CheckConfigs = {
   "api/barrel-purity": {
-    barrelDirs: [DOMAINS_DIR, FEATURES_DIR],
-    barrelFilenames: ["index.ts", "index.tsx"],
     serverOnlyPatterns: [
       /^node:/,
       /^drizzle-orm/,
@@ -369,15 +206,10 @@ export const defaultCheckConfigs: CheckConfigs = {
     ],
     maxTraceDepth: 6,
     serverFnMarkers: ["createServerFn"],
-    serverFnBoundaryDirs: [FEATURES_DIR],
   },
 
   "api/feature-visibility": {
     visibilityFilename: "visibility.json",
-  },
-
-  "boundary/layer-occupancy": {
-    schemaTarget: DB_SCHEMA_PATH,
   },
 
   // Starting points, not invariants. A project with 15 features naturally has
@@ -394,9 +226,6 @@ export const defaultCheckConfigs: CheckConfigs = {
   },
 
   "health/file-size": {
-    // NOT derived from SOURCE_ROOT, deliberately: file size is a health signal
-    // about anything a human maintains, and a shared package outside the source
-    // root counts. See the field's own doc above.
     roots: ["src"],
     warnThreshold: 500,
     failThreshold: 600,
@@ -404,16 +233,11 @@ export const defaultCheckConfigs: CheckConfigs = {
   },
 
   "health/trampolines": {
-    targetLayers: [SERVICE_LAYER],
+    targetLayerRoles: ["service"],
     behaviorKeywords: /\b(const|let|var|if|for|while|switch|try|throw|catch)\b/,
   },
 
   "naming/barrel-discoverability": {
-    barrelGlobs: [
-      ...[DOMAINS_DIR, FEATURES_DIR].flatMap((dir) =>
-        BARREL_MODULES.map((barrel) => `${dir}/*/${barrel}.ts`),
-      ),
-    ],
     flagTypeAliases: true,
   },
 
@@ -426,25 +250,6 @@ export const defaultCheckConfigs: CheckConfigs = {
     ],
     nonconforming: [/\.spec\.[tj]sx?$/, /(^|\/)test_[^/]+\.[tj]sx?$/],
     orphanAllowedDirs: [],
-  },
-
-  "placement/topology": {
-    allowedRoots: [ROUTES_DIR, FEATURES_DIR, DOMAINS_DIR, INFRASTRUCTURE_DIR, SHARED_DIR],
-    // The same list `classifyTargetPath` gates its source-root arm on, so a
-    // project declaring a new entrypoint declares it once. Two lists here means
-    // a file this check permits that the import policy calls an unpoliced area,
-    // or the reverse — and neither tier can see the other's copy.
-    allowedRootFiles: [...SOURCE_ROOT_FILES],
-    // Keyed by the same names `subdividedDirs` above carries, so renaming a
-    // directory in layout.ts cannot leave this map pointing at the old one.
-    boundaries: {
-      [FEATURES_DIR]: {
-        kind: "layered",
-        rootFiles: [...BARREL_MODULES.map((barrel) => `${barrel}.ts`), "errors.ts"],
-        layers: [...FEATURE_LAYERS],
-      },
-      [DOMAINS_DIR]: { kind: "unlayered" },
-    },
   },
 
   "style/css-tokens": {
@@ -508,13 +313,21 @@ export const defaultCheckConfigs: CheckConfigs = {
       "borderBottomLeftRadius",
       "borderBottomRightRadius",
     ],
-    exemptPaths: [/^domains\//],
   },
 };
 
 export type ArchitectureConfig = {
   /** Absolute path every project-relative path in this object resolves against. */
   projectRoot: string;
-  source: SourceConfig;
+  /**
+   * `compilerOptions.jsxImportSource` from the project's tsconfig. Under a JSX
+   * loader Bun's reader reports runtime imports it injected rather than ones the
+   * file wrote; this names the package whose surplus `require-call` entries get
+   * filtered. See the extraction notes in `import-graph.ts`.
+   *
+   * A build fact, not an architectural one, which is why it survived the move of
+   * everything else in `source` to the declared-tree list.
+   */
+  jsxImportSource: string;
   checks: CheckConfigs;
 };
