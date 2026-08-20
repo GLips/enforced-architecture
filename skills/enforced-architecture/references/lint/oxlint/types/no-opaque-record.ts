@@ -14,15 +14,17 @@
 // A test for `TSStringKeyword` looks more precise and creates a bypass.
 //
 // A schema or serialization layer that needs the type gets a path test beside
-// `isArchitectureExemptPath`, such as `/\/schemas?\//`. Do not loosen the type
+// `isArchitectureExemptSourcePath`, such as `/\/schemas?\//`. Do not loosen the type
 // match instead: an exemption that names a directory stays greppable.
 //
 // `Record` is matched by name, not resolved. A project-local type also called
 // `Record` reports. There is no type checker in this tier.
 //
-// SCOPE, and it is the same for every rule in this catalog: this rule is silent
-// outside the declared trees, and silent on the files `isArchitectureExemptPath`
-// names inside them — tests, scripts, generated and ambient modules. Neither
+// SCOPE, and it is the same for every TREE-SCOPED rule in this catalog — which
+// is every rule but `testing/no-module-mocking`, whose subject is a test file and
+// which is therefore enabled globally. This rule is silent outside the declared
+// trees, and silent on the files `isArchitectureExemptSourcePath` names inside
+// them — tests, scripts, generated and ambient modules. Neither
 // silence is coverage. `lib/define-tree-rule.ts` owns both, which is why no rule
 // body checks either one.
 // ──────────────────────────────────────────────────────────────────────

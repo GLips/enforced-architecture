@@ -87,11 +87,6 @@ export type TreeVocabulary = {
   infrastructureDir: string;
   sharedDir: string;
   /**
-   * The shared primitives, as a path from the source root. A full path rather
-   * than a child name, because `shared/ui` is one unit with one spelling and
-   * every rule that names it wants the whole thing.
-   */
-  /**
    * The UI subdirectory INSIDE `sharedDir`, as a single segment. `sharedUiDir()`
    * joins the two. Stored as a segment rather than as `shared/ui`, because a
    * project renaming `shared/` to `common/` would otherwise have to remember to
@@ -108,17 +103,15 @@ export type TreeVocabulary = {
   featureLayerDirs: Record<FeatureLayerRole, string>;
 
   /**
-   * Files permitted directly at a feature's root, with extensions.
-   * `placement/topology` reads this; `classifySourcePath` deliberately does not
-   * — see its `feature-root` arm for why a root file this list rejects still
-   * gets an import policy.
-   */
-  /**
    * Modules permitted at a feature's ROOT beyond its two barrels, without
    * extensions. `featureRootModules()` adds the barrels, which are already named
    * by `clientBarrelModule`/`serverBarrelModule` — spelling them here too meant a
    * renamed barrel was still permitted under its old name by topology while
    * every other rule had followed the rename.
+   *
+   * `placement/topology` reads it; `classifySourcePath` deliberately does not —
+   * see its `feature-root` arm for why a root file this list rejects still gets
+   * an import policy.
    */
   extraFeatureRootModules: string[];
 
@@ -160,27 +153,23 @@ export type TreeVocabulary = {
   envModules: Record<string, "env-server" | "env-client">;
 
   /**
-   * Every FILE that may sit directly in the source root, with its extension.
+   * Modules permitted directly in the source root beyond the env modules and the
+   * token stylesheet, without extensions. `sourceRootModules()` adds those,
+   * which are already named elsewhere in this vocabulary.
    *
-   * This list is what stops the last arm of `classifyTargetPath` from being
-   * "anything left over". One path segment is ambiguous by construction — the
-   * classifier cannot tell the file `src/lib.ts` from the directory `src/lib/` —
-   * so without a declared list, `@/lib` reads as a source-root file and reaches
-   * `source-root`'s permissive row, while `@/lib/format-date` correctly reports
-   * `unclassifiedTarget`. Add `src/lib/index.ts` and every route can reach an
-   * unpoliced tree through the bare spelling, which is the exact state the
-   * unclassified messages exist to make loud.
+   * A DECLARED list is what stops the last arm of `classifyTargetPath` from
+   * being "anything left over". One path segment is ambiguous by construction —
+   * the classifier cannot tell the file `src/lib.ts` from the directory
+   * `src/lib/` — so with nothing declared, `@/lib` reads as a source-root file
+   * and reaches `source-root`'s permissive row while `@/lib/format-date`
+   * correctly reports `unclassifiedTarget`. Add `src/lib/index.ts` and every
+   * route can reach an unpoliced tree through the bare spelling.
    *
-   * `placement/topology` reads this same list as the files permitted at the
-   * root, so a project adding an entrypoint declares it once. A project that
+   * `placement/topology` reads the same list as the files permitted at the root,
+   * so a project adding an entrypoint declares it once — and a project that
    * adopted only the oxlint tier has no topology check at all, which is the
-   * other half of the argument for the list living in the vocabulary rather than
-   * in that check's config.
-   */
-  /**
-   * Modules permitted directly in the source root beyond the env modules,
-   * without extensions. `sourceRootModules()` adds the keys of `envModules`,
-   * which already name them.
+   * other half of the argument for the list living here rather than in that
+   * check's config.
    */
   extraSourceRootModules: string[];
 
@@ -265,34 +254,28 @@ export type TreeVocabulary = {
   generatedDirs: string[];
 
   /**
-   * The database module inside `infrastructure/`, and the schema directory
-   * within it. Two rules read these: `boundary/db-isolation` builds its
-   * specifier test from `dbDir`, and `boundary/layer-occupancy` gates a schema
-   * import from any layer above the lowest one on `dbSchemaPath`. A project with
-   * a flat `@/db` moves it here once instead of editing a regex in one rule and
-   * a config key in another, which is how the two end up fencing different paths
-   * while both report clean.
-   */
-  /**
    * The database directory inside `infrastructureDir`, and the schema directory
    * inside that — single segments, joined by `dbDir()` and `dbSchemaPath()`.
+   *
+   * Two rules read the joins: `boundary/db-isolation` builds its specifier test
+   * from `dbDir()`, and `boundary/layer-occupancy` gates a schema import from any
+   * layer above the lowest one on `dbSchemaPath()`. A project with a flat `@/db`
+   * moves it here once instead of editing a regex in one rule and a config key in
+   * another, which is how the two end up fencing different paths while both
+   * report clean.
    */
   dbSubdir: string;
   dbSchemaSubdir: string;
 
   /**
-   * The modules that own a capability no import can fence, read by
-   * `boundary/ambient-globals`: it reports `fetch` outside the API client and
-   * `localStorage` outside the storage wrapper. Paths from the source root,
-   * without extensions.
-   *
-   * Vocabulary rather than a rule-local constant because they are positions in
-   * THIS tree — a project whose adapters sit in `infrastructure/` renames the
-   * directory once and both entries follow.
-   */
-  /**
    * The two capability owners inside `infrastructureDir`, as single segments.
    * `apiClientModule()` and `browserStorageModule()` join them.
+   *
+   * They own a capability no import can fence, which is what
+   * `boundary/ambient-globals` reads them for: it reports `fetch` outside the API
+   * client and `localStorage` outside the storage wrapper. Vocabulary rather than
+   * a rule-local constant because they are positions in THIS tree — a project
+   * whose adapters sit elsewhere renames the parent once and both follow.
    */
   apiClientName: string;
   browserStorageName: string;
@@ -456,26 +439,6 @@ export function carriesPresentation(profile: SourceProfile): boolean {
   return profile !== "domain";
 }
 
-/**
- * True when the style tier has a subject at this position and in this module.
- *
- * The whole question the three style rules and `style/token-equality` ask before
- * they read a line: a position that carries no presentation has no styling to
- * get wrong, and the token SOURCE has to write the literals every other file is
- * told to name instead.
- *
- * Both halves in one owner because both were copied. `carriesPresentation` was a
- * private `/\/src\/domains\//` in two of the three rules and absent from the
- * third, with nothing recording whether the asymmetry was a decision; the token
- * source was a config regex an adopter could widen into an off-switch. Taking a
- * PATH rather than a role keeps the structural check on the same owner as the
- * three linter rules — it has no role to hand in.
- *
- * NEGATIVE SPACE: this asks about position and module only. Whether the file is
- * in a declared tree at all, and whether it is architecture-exempt, are answered
- * before this is called — a caller that skips those checks gets a style verdict
- * on a script.
- */
 /**
  * Rejects a vocabulary whose `nonSourceAliases` would silence the tree it
  * belongs to. Throws, and throwing is the point.
@@ -669,6 +632,24 @@ function isSafeDirectorySegment(segment: string): boolean {
   return !/[*?/\\]/.test(segment);
 }
 
+/**
+ * True when the style tier has a subject at this position and in this module.
+ *
+ * The whole question the three style rules and `style/token-equality` ask before
+ * they read a line: a position that carries no presentation has no styling to
+ * get wrong, and the token SOURCE has to write the literals every other file is
+ * told to name instead.
+ *
+ * Both halves live here because both are one question asked by four rules, and
+ * each half had drifted while it was spelled privately. Taking a PATH rather
+ * than a role is what keeps the structural check on this owner too — it has no
+ * role to hand in.
+ *
+ * NEGATIVE SPACE: this asks about position and module only. Whether the file is
+ * in a declared tree at all, and whether it is architecture-exempt, are answered
+ * before this is called — a caller that skips those checks gets a style verdict
+ * on a script.
+ */
 export function isStyleSubject(vocabulary: TreeVocabulary, pathFromSourceRoot: string): boolean {
   const place = classifySourcePath(vocabulary, pathFromSourceRoot);
   if (place !== undefined && !carriesPresentation(place.profile)) return false;

@@ -92,7 +92,7 @@ export const featureVisibilityCheck: StructuralCheck = {
       readVisibilityFile(join(config.projectRoot, pathOf(feature)));
 
     // `subdirs`, not `occupiedDirs`: a feature here is a DIRECTORY, occupied or
-    // not. The occupancy filter drops whatever `isArchitectureExemptPath` matches,
+    // not. The occupancy filter drops whatever `isArchitectureExemptSourcePath` matches,
     // so a feature holding only tests and generated files disappears from the
     // enumeration while the graph still routes edges into it. And the occupancy
     // test itself argues the other way here: an empty directory

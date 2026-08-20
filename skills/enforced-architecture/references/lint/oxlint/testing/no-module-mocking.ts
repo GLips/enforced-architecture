@@ -7,7 +7,7 @@
 // the tests that named the old path.
 //
 // This rule reports in test files. Every other rule in this catalog calls
-// `isArchitectureExemptPath` and skips them. A person who makes this rule match
+// `isArchitectureExemptSourcePath` and skips them. A person who makes this rule match
 // the others takes away its only subject, and the rule then reports nothing at
 // all.
 //
@@ -84,7 +84,7 @@ export const noModuleMockingRule = defineRule({
         "Module mocking couples this test to import paths rather than behaviour, and it keeps passing when the real module changes. Inject the dependency, or depend on an interface a real test implementation can satisfy.",
     },
   },
-  // No `isArchitectureExemptPath` call, deliberately. Module mocks live only in
+  // No `isArchitectureExemptSourcePath` call, deliberately. Module mocks live only in
   // test files, so the catalog's usual test exemption would silence this rule everywhere.
   create(context) {
     return {

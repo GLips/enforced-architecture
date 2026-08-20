@@ -29,7 +29,7 @@
   //
   // This is here for the BUILT-IN rules. Every `arch/` rule already skips
   // generated output by the `.gen` naming convention — a structural fact about
-  // the file, in `isArchitectureExemptPath`, read by both tiers — but
+  // the file, in `isArchitectureExemptSourcePath`, read by both tiers — but
   // `typescript/` and `sonarjs/` know nothing about that predicate, so without
   // this an adopting project lints its own code generator's output on day one.
   //
@@ -165,7 +165,7 @@
   // A project turning one `arch/` rule off for a subtree of a declared tree is
   // the menu this catalog exists to refuse. Where an exception is an
   // architectural FACT — a generated file, a test — it belongs in
-  // `isArchitectureExemptPath`, which both tiers read.
+  // `isArchitectureExemptSourcePath`, which both tiers read.
   "overrides": [
     {
       "files": ["src/**"],

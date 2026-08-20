@@ -249,7 +249,7 @@ FAIL [rule-name] path/to/file.ts
 
 `WARN` is the same shape, non-blocking.
 
-**One global exemption, stated twice and never per rule.** Every rule but `boundary/no-test-imports` skips test files (`*.test.*`, `*.integration.test.*`, `__tests__/`, `src/test/`) and one-off scripts (`scripts/`) — tests need cross-boundary imports to exercise a seam, and a script is not part of the shipped module graph. It lives in `isArchitectureExemptPath` in `lint/oxlint/lib/` and in the structural tier's file collection. Per-rule copies drift, and they drift identically: each one over-matches the same way and each has to be found separately.
+**One global exemption, in one place and never per rule.** Every rule but `boundary/no-test-imports` skips test files (`*.test.*`, `__tests__/`, `test/`), one-off scripts (`scripts/`), generated and ambient modules (`*.gen.*`, `*.d.*`), and every directory a tree declares as generated output. It lives in `isArchitectureExemptSourcePath` in `lint/policy/declared-trees.ts`, which both tiers read — the oxlint tier through `defineTreeRule`, the structural tier through its file collection. Per-rule copies drift, and they drift identically: each one over-matches the same way and each has to be found separately.
 
 ---
 

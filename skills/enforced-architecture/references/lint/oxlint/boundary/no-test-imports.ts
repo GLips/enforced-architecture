@@ -6,7 +6,7 @@
 // every other rule in this tag, and production code that imports one then
 // reaches any module with no finding.
 //
-// A file that is ITSELF a test is exempt, and `isArchitectureExemptPath` makes
+// A file that is ITSELF a test is exempt, and `isArchitectureExemptSourcePath` makes
 // that judgement. Extend it there. A second definition of a test file here is a
 // second answer to one question.
 //
@@ -18,9 +18,11 @@
 // so this rule does not match it. boundary/import-policy in the structural tier
 // is the tier that sees those.
 //
-// SCOPE, and it is the same for every rule in this catalog: this rule is silent
-// outside the declared trees, and silent on the files `isArchitectureExemptPath`
-// names inside them — tests, scripts, generated and ambient modules. Neither
+// SCOPE, and it is the same for every TREE-SCOPED rule in this catalog — which
+// is every rule but `testing/no-module-mocking`, whose subject is a test file and
+// which is therefore enabled globally. This rule is silent outside the declared
+// trees, and silent on the files `isArchitectureExemptSourcePath` names inside
+// them — tests, scripts, generated and ambient modules. Neither
 // silence is coverage. `lib/define-tree-rule.ts` owns both, which is why no rule
 // body checks either one.
 // ──────────────────────────────────────────────────────────────────────

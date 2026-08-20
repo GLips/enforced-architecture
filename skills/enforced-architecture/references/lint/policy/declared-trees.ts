@@ -233,7 +233,7 @@ export function hasTestDirectorySegment(path: string): boolean {
 /**
  * True when a SPECIFIER names a test module.
  *
- * Separate from `isArchitectureExemptPath` on purpose, and the split is not a
+ * Separate from `isArchitectureExemptSourcePath` on purpose, and the split is not a
  * second answer to one question: that predicate reads a file on disk, where an
  * extension is always present and `foo.test.helpers.ts` is production code. A
  * specifier carries no extension — `./invoices.test` is the ordinary spelling —
