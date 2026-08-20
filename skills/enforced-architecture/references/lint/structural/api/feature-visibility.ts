@@ -23,17 +23,25 @@
 // grant makes a cycle legal.
 //
 // The enumeration is every DIRECTORY under features/, and a symlink is not one.
-// A feature that exists only as a link out of the tree — vendored code, a
-// hoisted package — is therefore audited by the deny arm alone, under the LINK
-// name. Three consequences, and only the first is covered:
+// So a name that resolves to a directory no enumerated feature is — a link to
+// vendored code, to a hoisted package, or to a directory inside another feature
+// — is a feature the deny arm audits alone, under the LINK name. Three
+// consequences, and only the first is covered:
 //
 //   - Its grant file is read, so the edge is denied, cleared by a grant written
-//     at the link, and reported when that file does not parse.
+//     at the link, and reported when that file does not parse. All three come
+//     from the edge, so an unparseable grant file is reported only while
+//     something still imports the feature. `broken`'s equivalent is reported
+//     whether or not anything does, and that asymmetry is not worth a second
+//     walk: the sentence says every import of the feature is unaudited, and with
+//     no importer there is nothing to say.
 //   - A grant there that has outlived its import is never reported stale. That
 //     arm walks the enumeration.
-//   - Nothing walks the target, so the feature's OWN imports are not in the
-//     graph. It is a feature as an importee and not as an importer, and an
-//     ungranted edge leading out of it is invisible to this rule.
+//   - The link name never appears as an importER, so an ungranted edge leading
+//     OUT of the feature is not this rule's to see. Both walkers yield real
+//     paths: a target outside the source root is not walked at all, and one
+//     inside it is walked under whatever it classifies as — a link to
+//     `alpha/service` denies as `innerlink` and imports as `alpha`.
 //
 // Two links to one target are two features here, and on a case-insensitive
 // filesystem so are two casings of one link: `realpathSync` collapses spellings
@@ -156,10 +164,10 @@ export const featureVisibilityCheck: StructuralCheck = {
     for (const [key, files] of importersByEdge) {
       const [importer = "", importee = ""] = key.split("\0");
       // The map is keyed by the ENUMERATED directories, and one canonical
-      // feature is not among them: a link whose target leaves the features root,
-      // which `subdirs` does not list and `realpathSync` cannot fold onto
-      // anything it does. Read its grant file at the path the message is about
-      // to name — that read is what makes such a finding clearable.
+      // feature is not among them: a link that `realpathSync` cannot fold onto
+      // any of them, which `subdirs` does not list either. Read its grant file at
+      // the path the message is about to name — that read is what makes such a
+      // finding clearable.
       const escaped = !visibility.has(importee);
       const file = visibility.get(importee) ?? readGrantsFor(importee);
       // A malformed file already reported itself — unless the walk above could
@@ -240,10 +248,10 @@ export const featureVisibilityCheck: StructuralCheck = {
  * uses, which is the only one that governs the same tree the imports do.
  *
  * A name resolving to a DIRECTORY is a feature even when no enumerated one is
- * it. A link out of the features root — vendored code, a hoisted monorepo
- * package — is the resolver loading real code under a name the listing does not
- * contain, and answering "not a feature" there is deny-by-default with a hole in
- * it. It is its own feature, under the LINK name: that is the one spelling whose
+ * it. Usually that means a link out of the features root — vendored code, a
+ * hoisted monorepo package — and always it means the resolver loading real code
+ * under a name the listing does not contain, so answering "not a feature" there
+ * is deny-by-default with a hole in it. It is its own feature, under the LINK name: that is the one spelling whose
  * `visibility.json` an author can create, and a finding nobody can clear is
  * worth no more than the silence it replaces. Where a project links features/
  * straight into `node_modules`, the grant the message asks for lands somewhere
@@ -284,9 +292,10 @@ function featureCanonicaliser(
     }
     const enumerated = byRealPath.get(real);
     if (enumerated !== undefined) return enumerated;
-    // Resolves outside the features root, so no enumerated directory can be it.
-    // A directory there is loadable code and gets denied under the link name; a
-    // file there is as unaddressable as the loose file at the root.
+    // Resolves to something no enumerated directory is — usually a link out of
+    // the features root, and equally a link to a directory INSIDE another
+    // feature. Either way it is loadable code, so it is denied under the link
+    // name; a file there is as unaddressable as the loose file at the root.
     return statSync(real).isDirectory() ? name : undefined;
   };
 }

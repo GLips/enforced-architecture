@@ -153,7 +153,8 @@ export const featureVisibilityFixtures: CheckFixtures = {
     // clearable, end to end. The narrower claim it was written for — that a
     // deny for an importee outside the enumeration can be cleared at all — moved
     // to `granted-escaping-link` below when the enumeration stopped being a
-    // `.ts` glob; that is now the only importee the map does not hold.
+    // `.ts` glob. Three importees are outside it now, all of them links, and
+    // that one is the only one that proves the CLEARING.
     "src/features/remote/visibility.json",
     // The cleared half of the symlink pair, and the step `aliased-target` above
     // stops short of. renderer imports `granted-target` through `granted-link`
