@@ -715,6 +715,31 @@ describeSuite("a vocabulary cannot declare its own tree out of existence", () =>
     const silenced: TreeVocabulary = { ...RECOMMENDED_VOCABULARY, nonSourceAliases: ["@/features/"] };
     assert.throws(() => assertGoverningVocabulary(silenced, "src"), /overlaps its own aliasPrefix/);
   });
+
+  // The three below are what lets `import-graph.ts` NOT consult this field: a
+  // relative or absolute entry names paths the structural tier resolves by
+  // walking the filesystem, so it would drop edges the linter — which resolves
+  // no relative specifier at all — goes on policing. Loosen this and the
+  // deliberate asymmetry between the tiers becomes a silent disagreement.
+  testCase("a relative prefix is not an alias", () => {
+    const notAnAlias: TreeVocabulary = { ...RECOMMENDED_VOCABULARY, nonSourceAliases: ["./vendor/"] };
+    assert.throws(() => assertGoverningVocabulary(notAnAlias, "src"), /is not an alias/);
+  });
+
+  testCase("a parent-relative prefix is not an alias either", () => {
+    const notAnAlias: TreeVocabulary = { ...RECOMMENDED_VOCABULARY, nonSourceAliases: ["../"] };
+    assert.throws(() => assertGoverningVocabulary(notAnAlias, "src"), /is not an alias/);
+  });
+
+  testCase("an absolute prefix is not an alias either", () => {
+    const notAnAlias: TreeVocabulary = { ...RECOMMENDED_VOCABULARY, nonSourceAliases: ["/opt/"] };
+    assert.throws(() => assertGoverningVocabulary(notAnAlias, "src"), /is not an alias/);
+  });
+
+  testCase("an empty entry matches every specifier, so it is the widest silence of all", () => {
+    const silenced: TreeVocabulary = { ...RECOMMENDED_VOCABULARY, nonSourceAliases: [""] };
+    assert.throws(() => assertGoverningVocabulary(silenced, "src"), /is not an alias/);
+  });
 });
 
 describeSuite("a renamed parent directory moves every path derived from it", () => {

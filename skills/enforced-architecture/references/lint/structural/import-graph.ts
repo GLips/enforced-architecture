@@ -366,14 +366,18 @@ function resolveWithinSource(
   specifier: string,
 ): string | undefined {
   const { vocabulary } = context;
-  // Both predicates come from `policy/layout.ts`, which is also what the oxlint
-  // tier reads. A private asset test here drifted from that one silently, and
-  // `nonSourceAliases` was not consulted at all — so an alias a project declared
-  // as pointing OUTSIDE the tree was "not a boundary question" to the linter and
-  // an ordinary in-tree module to the graph. One configured edge, two verdicts,
-  // and the tier that resolved it reported findings the other never would.
+  // The asset test comes from `policy/layout.ts`, which is what the oxlint tier
+  // reads too. A private copy here drifted from that one silently: one
+  // configured edge, two verdicts, and the tier that resolved it reported
+  // findings the other never would.
+  //
+  // `nonSourceAliases` is deliberately NOT consulted, and the deliberateness is
+  // load-bearing. `assertGoverningVocabulary` refuses an entry overlapping this
+  // tree's alias prefix and refuses a relative or absolute one, so a specifier
+  // an entry matches is neither aliased into the tree nor relative — and the two
+  // gates below already decline it. A call here would answer the same question
+  // twice, which is how the two spellings drift into disagreeing.
   if (isAssetSpecifier(vocabulary, specifier)) return undefined;
-  if (vocabulary.nonSourceAliases.some((prefix) => specifier.startsWith(prefix))) return undefined;
 
   const { aliasPrefix } = vocabulary;
   const aliased = specifier.startsWith(aliasPrefix);

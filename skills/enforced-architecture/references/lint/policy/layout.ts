@@ -452,9 +452,24 @@ export function carriesPresentation(profile: SourceProfile): boolean {
  * (`@/` under `@/`, `@` under `@/`) and an entry that starts with it are both
  * ways of writing the same silence. An alias that merely shares a prefix
  * character with a DIFFERENT root is untouched.
+ *
+ * An entry must also BE an alias — bare, and neither relative nor absolute. That
+ * is not tidiness: `./` or `/` here would match specifiers the structural tier
+ * resolves by walking the filesystem, and a relative import inside a governed
+ * directory would leave the import graph while the linter, which never resolves
+ * relative paths, went on policing it. The two tiers agree about non-source
+ * aliases only because this field cannot name anything but an alias.
  */
 export function assertGoverningVocabulary(vocabulary: TreeVocabulary, treeRoot: string): void {
   for (const alias of vocabulary.nonSourceAliases) {
+    if (alias === "" || alias.startsWith(".") || alias.startsWith("/")) {
+      throw new Error(
+        `The tree at "${treeRoot}" declares nonSourceAliases entry "${alias}", which is not an ` +
+          `alias. Entries name ALIAS prefixes that resolve outside this tree — a relative or ` +
+          `absolute prefix names paths inside it, and the two tiers would answer such a ` +
+          `specifier differently: the graph would drop the edge, the linter would police it.`,
+      );
+    }
     if (!alias.startsWith(vocabulary.aliasPrefix) && !vocabulary.aliasPrefix.startsWith(alias)) {
       continue;
     }
@@ -736,7 +751,7 @@ export function classifySpecifier(
 ): { kind: "module"; path: string } | { kind: "package"; name: string } | undefined {
   if (isAssetSpecifier(vocabulary, specifier)) return undefined;
   if (specifier.startsWith(".") || specifier.startsWith("/")) return undefined;
-  if (vocabulary.nonSourceAliases.some((prefix) => specifier.startsWith(prefix))) return undefined;
+  if (namesNonSourceAlias(vocabulary, specifier)) return undefined;
   if (specifier.startsWith(vocabulary.aliasPrefix)) {
     const path = normalizeSourcePath(specifier.slice(vocabulary.aliasPrefix.length));
     // A path that climbed out of the source root is not an application module. Undefined here
@@ -744,6 +759,23 @@ export function classifySpecifier(
     return path === undefined || path === "" ? undefined : { kind: "module", path };
   }
   return { kind: "package", name: packageNameOf(specifier) };
+}
+
+/**
+ * True when `specifier` is reached through an alias this tree declares as
+ * pointing OUTSIDE it.
+ *
+ * The only spelling of this test, and the only caller is `classifySpecifier` —
+ * which is deliberate rather than an accident waiting to be shared. The
+ * structural tier does not ask: `assertGoverningVocabulary` refuses any entry
+ * that overlaps the tree's own alias prefix or that is relative, so a specifier
+ * matching an entry here is neither aliased into the tree nor a relative path,
+ * and the graph's resolver already declines it as a bare package name. A second
+ * call there would be a second owner of a question with one answer — and the
+ * copy that was there consulted a DIFFERENT field list than this one.
+ */
+export function namesNonSourceAlias(vocabulary: TreeVocabulary, specifier: string): boolean {
+  return vocabulary.nonSourceAliases.some((prefix) => specifier.startsWith(prefix));
 }
 
 /**
