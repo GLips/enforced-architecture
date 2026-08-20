@@ -1,10 +1,11 @@
 // LEGAL: an ordinary public surface, in a feature made ENTIRELY of `.mts`.
 //
-// The extension is the whole fixture. `CheckContext.occupiedDirs` globs
-// `**/*.{ts,tsx}` and the import graph collects `**/*.{ts,tsx,mts,cts}`, so this
-// directory is a feature to the graph and is invisible to the enumeration every
-// grant file is read through. A rule that decides deny-by-default by looking up
-// the importee in that enumeration flips to ALLOW-by-default for exactly the
-// features nobody enumerated — silently, and only for the importees no fixture
-// happened to name.
+// The extension is the whole fixture, and this is the DENY half of a pair.
+// `occupiedDirs` globs `**/*.{ts,tsx}` and the import graph collects
+// `**/*.{ts,tsx,mts,cts}`, so a rule that enumerates features through the
+// occupancy walker cannot see this directory while the graph routes edges into
+// it. `hidden` grants nobody, so the edge into it must be denied; `remote` next
+// door is the same shape WITH a grant, and proves the deny can be cleared. It
+// took both to pin this: the first attempt at the fix passed `hidden` and made
+// `remote`'s finding unclearable.
 export const hiddenValue = "hidden";

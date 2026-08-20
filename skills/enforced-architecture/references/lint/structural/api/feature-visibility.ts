@@ -24,7 +24,7 @@
 
 import type { Finding, StructuralCheck } from "../check-substrate.ts";
 import { readFile } from "../check-substrate.ts";
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 /** Importing feature name → why the importee accepts that consumer. */
@@ -38,47 +38,27 @@ type VisibilityFile =
 export const featureVisibilityCheck: StructuralCheck = {
   id: "api/feature-visibility",
 
-  run({ config, importGraph }) {
+  run({ config, importGraph, subdirs }) {
     const { visibilityFilename } = config.checks["api/feature-visibility"];
     const { featuresDirName } = config.source;
     const findings: Finding[] = [];
 
     const featuresDir = `${config.source.roots[0]}/${featuresDirName}`;
     const pathOf = (feature: string) => `${featuresDir}/${feature}/${visibilityFilename}`;
+    const readGrantsFor = (feature: string) =>
+      readVisibilityFile(join(config.projectRoot, pathOf(feature)));
 
-    // A feature is a DIRECTORY under features/, and this rule takes that answer
-    // straight from the tree rather than through `occupiedDirs`.
-    //
-    // Not a shortcut around the substrate — a different question. `occupiedDirs`
-    // answers "which directories hold source this tier walks", which is narrower
-    // than "which directories are features" in two ways that both break this
-    // rule specifically. It globs `**/*.{ts,tsx}` while the import graph collects
-    // `**/*.{ts,tsx,mts,cts}`, and it drops anything `source.exclude` matches. So
-    // the graph routes edges into features that enumeration cannot see, and this
-    // is the one rule where a feature it cannot see is a feature nobody can
-    // grant FROM: the deny is correct, and then the grant file written to clear
-    // it is never read, because the feature was never in the map to look up.
-    // An unclearable blocking finding is worse than the silent allow it replaced.
-    //
-    // The occupancy test that justifies `occupiedDirs` elsewhere argues the
-    // other way here too. An empty leftover directory manufactures a feature for
-    // `graph/feature-deps`, which needs two to have a subject at all; for this
-    // rule a leftover directory still holding a visibility.json full of grants
-    // is precisely something to audit.
-    const features = existsSync(join(config.projectRoot, featuresDir))
-      ? readdirSync(join(config.projectRoot, featuresDir), { withFileTypes: true })
-          .filter((entry) => entry.isDirectory())
-          .map((entry) => entry.name)
-          .sort()
-      : [];
-
-    // Read every feature's file, not only the ones with incoming edges, so a
-    // feature whose grants have all gone stale still gets them audited.
+    // `subdirs`, not `occupiedDirs`: a feature here is a DIRECTORY, occupied or
+    // not. Both of the occupancy filter's exclusions are wrong for this rule.
+    // `occupiedDirs` globs `**/*.{ts,tsx}` while the import graph collects
+    // `**/*.{ts,tsx,mts,cts}`, and it drops whatever `source.exclude` matches, so
+    // the graph routes edges into features that enumeration cannot see. And the
+    // occupancy test itself argues the other way here: an empty directory
+    // manufactures a feature for `graph/feature-deps`, which needs two to have a
+    // subject, whereas a leftover directory holding nothing but a visibility.json
+    // full of grants is precisely what this rule exists to audit.
     const visibility = new Map(
-      features.map((feature) => [
-        feature,
-        readVisibilityFile(join(config.projectRoot, pathOf(feature))),
-      ]),
+      subdirs(featuresDirName).map((feature) => [feature, readGrantsFor(feature)]),
     );
 
     for (const [feature, file] of visibility) {
@@ -112,15 +92,26 @@ export const featureVisibilityCheck: StructuralCheck = {
 
     for (const [key, files] of importersByEdge) {
       const [importer = "", importee = ""] = key.split("\0");
-      const file = visibility.get(importee);
-      // Missing from the map means the importee is not a directory, and the only
-      // way to be classified a feature without being one is a loose file at the
-      // features root: `classify` reads `features/orphan-module.ts` as a feature
-      // named `orphan-module.ts`. Denying it would file at
-      // `features/orphan-module.ts/visibility.json`, a path that cannot be
-      // created, so the finding could never be cleared. `placement/topology`
-      // already reports the loose file, and one unactionable finding beside its
-      // actionable one is how a reader learns to skim both.
+      // Missing from the map is not the same question as missing from the tree,
+      // and conflating them is how this rule has been wrong twice. The map is
+      // keyed by directory names as the filesystem SPELLS them; `classify`
+      // derives the importee from the resolved path TEXT. Every name where those
+      // disagree — a case-mismatched specifier that a case-insensitive
+      // filesystem happily loads, a symlinked feature — is an importee the map
+      // has no key for while the module resolver reaches real code. Skipping
+      // those is deny-by-default with a hole in it, written as ordinary code.
+      //
+      // So ask the tree, and skip only for a name that is genuinely not a
+      // directory. That is the loose-file case and nothing else: `classify`
+      // reads `features/orphan-module.ts` as a feature named `orphan-module.ts`,
+      // and denying it would file at `orphan-module.ts/visibility.json`, a path
+      // nobody can create and a finding nobody can clear. `placement/topology`
+      // already reports the loose file, which is the actionable half.
+      const file =
+        visibility.get(importee) ??
+        (isFeatureDirectory(join(config.projectRoot, featuresDir), importee)
+          ? readGrantsFor(importee)
+          : undefined);
       if (file === undefined) continue;
       // A malformed file already reported itself. Deriving deny-all violations
       // from it would bury that one real error under every edge into the feature.
@@ -170,6 +161,15 @@ export const featureVisibilityCheck: StructuralCheck = {
     return findings;
   },
 };
+
+/**
+ * Whether `name` is a directory under the features root, asked of the tree
+ * rather than of a listing. A listing answers in the filesystem's spelling; this
+ * answers in the importer's, which is what the module resolver used.
+ */
+function isFeatureDirectory(featuresRoot: string, name: string): boolean {
+  return statSync(join(featuresRoot, name), { throwIfNoEntry: false })?.isDirectory() === true;
+}
 
 function readVisibilityFile(absolute: string): VisibilityFile {
   if (!existsSync(absolute)) return { kind: "absent" };

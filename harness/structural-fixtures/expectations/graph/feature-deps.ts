@@ -29,7 +29,7 @@ export const featureDepsFixtures: CheckFixtures = {
     // B import A — reports it clean while still passing the cycle-a/cycle-b
     // case above. This entry is what decides whether the SCC pass is real.
     "FAIL src/features/ring-one",
-    // Pair saturation, alpha -> beta across 8 files. Every one of those 8 is
+    // Pair saturation, alpha -> beta across 9 files. Every one of those 9 is
     // spelled RELATIVELY (they are `boundary/import-policy`'s fixtures),
     // so a check that counts `@/features/<name>` specifiers finds zero files on
     // this pair and never warns. Reading the resolved graph is what makes the

@@ -13,14 +13,14 @@ export const featureVisibilityFixtures: CheckFixtures = {
   ],
 
   adversarial: [
-    // alpha imports beta across 8 files, every one of them spelled RELATIVELY
+    // alpha imports beta across 9 files, every one of them spelled RELATIVELY
     // (`../../beta/service/beta-thing.ts`). An implementation that pattern-matches
-    // `@/features/<name>` in the specifier text passes all 8 in silence while
-    // still catching the `closed` case above. Feature ends have to come from the
-    // resolved classification; this entry is what proves they do.
+    // `@/features/<name>` in the specifier text passes all of them in silence
+    // while still catching the `closed` case above. Feature ends have to come
+    // from the resolved classification; this entry is what proves they do.
     //
-    // One finding, not eight: the edge is the subject, and the 8 importing files
-    // are listed inside the message.
+    // ONE finding, not nine: the edge is the subject, and the importing files are
+    // listed inside the message.
     "FAIL src/features/beta/visibility.json",
     // renderer imports shapes with a TYPE-ONLY import, which emits no runtime
     // code — both of Bun's scans drop it, so a graph built from the reader alone
@@ -43,12 +43,42 @@ export const featureVisibilityFixtures: CheckFixtures = {
     // either way, as malformed or as stale, and prove nothing.
     "FAIL src/features/bribed/visibility.json",
     // nulled/visibility.json is the literal `null`. It parses, and it is not an
-    // object — the third malformed arm, and the only one whose deletion is not a
-    // wording change: `Object.entries(null)` throws, the check crashes, and the
-    // orchestrator reports the whole check as having run and found nothing,
-    // which is this tier's stated worst failure mode. `broken` (unparseable) and
-    // `bribed` (empty justification) both leave this arm untouched.
+    // object. `broken` (unparseable) and `bribed` (empty justification) both
+    // leave this disjunct untouched, and without a `null` file in the tree it can
+    // be deleted with nothing happening at all. With one, deleting it makes
+    // `Object.entries(null)` throw — and the orchestrator catches that and says
+    // the check threw and reported nothing, which is the loud failure it exists
+    // to produce. The fixture is what turns a silent deletion into that noise.
     "FAIL src/features/nulled/visibility.json",
+    // stray imports `aliased-target` through `aliased-link`, a symlink beside it.
+    // The grant-file map is keyed by directory names as the filesystem SPELLS
+    // them; `classify` derives the importee from the resolved specifier text, so
+    // the resolver reaches real code under a name the listing does not contain.
+    // A check that looks the importee up and skips on a miss is deny-by-default
+    // with a hole in it. This is the portable half of that case — the other,
+    // a case-mismatched specifier, passes on macOS and fails on the Linux runner,
+    // so it is stated in the rule's negative space instead of fixtured.
+    "FAIL src/features/aliased-link/visibility.json",
+    // listed/visibility.json is a JSON ARRAY. It parses and it is an object, so
+    // it reaches the rejection through neither of the arms above — and dropping
+    // just this disjunct is not a crash and not a wording change:
+    // `Object.entries([])` returns `[]`, so the file quietly becomes an empty
+    // grant map and every edge into the feature is denied with the ORDINARY
+    // ungranted-edge message. That sends the author to add a grant to a file
+    // whose shape is the actual problem.
+    "FAIL src/features/listed/visibility.json",
+    // A feature directory holding no source at all, only a grant file. It is
+    // invisible to `occupiedDirs` — whose occupancy test exists so an empty
+    // directory cannot manufacture a feature for `graph/feature-deps` — and it
+    // is exactly what this rule audits, because a leftover directory is where a
+    // grant outlives not just its import but its whole feature.
+    "WARN src/features/leftover/visibility.json",
+    // registrar grants `leftover`, which IS a real feature directory and holds
+    // no source. Nothing but the wording separates the two stale-grant branches
+    // here, and `leftover` is the only name in this tree that one walker calls a
+    // feature and the other does not — so this is the single case that proves
+    // the branch oracle asks the same question the deny arm asks.
+    "WARN src/features/registrar/visibility.json",
     // broken/visibility.json does not parse. ONE finding — the file itself.
     // trespasser imports broken, and treating an unreadable file as deny-all
     // would add a second finding that buries the only one worth reading under a
@@ -87,7 +117,7 @@ export const featureVisibilityFixtures: CheckFixtures = {
     "src/features/leaf/visibility.json",
   ],
 
-  // Four branches whose only distinguishing output is their wording. Every path
+  // The branches whose only distinguishing output is their wording. Every path
   // assertion above is satisfied by a check that reports the right number of
   // findings at the right addresses saying the wrong thing.
   messages: [
@@ -112,6 +142,13 @@ export const featureVisibilityFixtures: CheckFixtures = {
     // rejected file from another, and these are the sentences that say which
     // edit clears it.
     { path: "src/features/nulled/visibility.json", contains: "must be a JSON object" },
+    { path: "src/features/listed/visibility.json", contains: "must be a JSON object" },
+    // The load-bearing half of the branch-oracle case. `leftover` is a real
+    // feature, so this grant is stale rather than misspelled, and the reader
+    // belongs at "drop the entry" rather than at "fix the name". An oracle keyed
+    // off the narrower walker sends them to correct a spelling that is already
+    // right — same path, same severity, same count, and only the sentence moves.
+    { path: "src/features/registrar/visibility.json", absent: "is not a feature" },
     // The two stale-grant branches, which differ in wording and nothing else.
     // Both entries have to hold, so a check that collapsed them to one sentence
     // fails one of them while the WARN count stays at two.

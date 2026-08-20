@@ -14,7 +14,7 @@
 //
 // ──────────────────────────────────────────────────────────────────────
 
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { relative, resolve } from "node:path";
 import type { ArchitectureConfig } from "./config.ts";
 import { buildImportGraph, type ImportEdge } from "./import-graph.ts";
@@ -47,6 +47,24 @@ export type CheckContext = {
    */
   importGraph(): ImportEdge[];
   /**
+   * Names of the immediate subdirectories of a source-root-relative directory,
+   * whether or not they hold source this tier walks.
+   *
+   * This is "which directories are there", and `occupiedDirs` below is that
+   * answer filtered. Both exist because checks genuinely want different ones:
+   * `api/feature-visibility` audits a per-directory grant file, so a leftover
+   * directory holding nothing but a stale `visibility.json` is exactly its
+   * subject, while `graph/feature-deps` needs occupancy or an empty directory
+   * manufactures a feature. A check reaching for whichever is nearer, rather
+   * than the one that matches its question, is how the two arms of one rule end
+   * up disagreeing about what a feature is.
+   *
+   * A symlink to a directory counts. It resolves to real, loadable code, so a
+   * check treating it as a non-directory governs a smaller tree than the module
+   * resolver does — which is a bypass written as ordinary code.
+   */
+  subdirs(sourceRelativeDir: string): string[];
+  /**
    * Names of the immediate subdirectories of a source-root-relative directory
    * that hold at least one source file.
    *
@@ -69,11 +87,23 @@ export type StructuralCheck = {
   run(context: CheckContext): Finding[];
 };
 
+/**
+ * Whether a path IS a directory, following symlinks. `Dirent.isDirectory()` is
+ * false for a symlink entry, and a symlinked boundary resolves to real code the
+ * module resolver loads — so classifying it as a non-directory governs a smaller
+ * tree than the imports do. `throwIfNoEntry: false` is for a broken symlink,
+ * which is an entry whose target is not there.
+ */
+function isDirectory(absolute: string): boolean {
+  return statSync(absolute, { throwIfNoEntry: false })?.isDirectory() === true;
+}
+
 export function createCheckContext(config: ArchitectureConfig): CheckContext {
   let graph: ImportEdge[] | undefined;
+  const subdirectories = new Map<string, string[]>();
   const occupied = new Map<string, string[]>();
 
-  return {
+  const context: CheckContext = {
     config,
 
     importGraph() {
@@ -81,28 +111,41 @@ export function createCheckContext(config: ArchitectureConfig): CheckContext {
       return graph;
     },
 
-    occupiedDirs(sourceRelativeDir) {
-      const memo = occupied.get(sourceRelativeDir);
+    subdirs(sourceRelativeDir) {
+      const memo = subdirectories.get(sourceRelativeDir);
       if (memo !== undefined) return memo;
 
       const absolute = resolve(sourceRoot(config), sourceRelativeDir);
       const names = existsSync(absolute)
         ? readdirSync(absolute, { withFileTypes: true })
-            .filter((entry) => entry.isDirectory())
             .map((entry) => entry.name)
-            .filter(
-              (name) =>
-                collectFiles(config, `${sourceRelativeDir}/${name}`, "**/*.{ts,tsx}", {
-                  fromSourceRoot: true,
-                }).length > 0,
-            )
+            .filter((name) => isDirectory(resolve(absolute, name)))
             .sort()
         : [];
+
+      subdirectories.set(sourceRelativeDir, names);
+      return names;
+    },
+
+    occupiedDirs(sourceRelativeDir) {
+      const memo = occupied.get(sourceRelativeDir);
+      if (memo !== undefined) return memo;
+
+      const names = context
+        .subdirs(sourceRelativeDir)
+        .filter(
+          (name) =>
+            collectFiles(config, `${sourceRelativeDir}/${name}`, "**/*.{ts,tsx}", {
+              fromSourceRoot: true,
+            }).length > 0,
+        );
 
       occupied.set(sourceRelativeDir, names);
       return names;
     },
   };
+
+  return context;
 }
 
 /** Absolute path of the import graph's source root — the first configured root. */
