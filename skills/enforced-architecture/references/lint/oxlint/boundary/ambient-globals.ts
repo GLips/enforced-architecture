@@ -42,10 +42,10 @@
 // that field is for — every spelling that reaches it is one read: a named,
 // default or namespace import, `import x = require()`, `require()` and
 // `await import()`, bound, destructured, or read straight off the load
-// expression. On a bare `globalPath` the field is half-supported: the spellings
-// that NAME the export are caught, and every spelling that hands over the module
-// OBJECT is not — a bare global has no segment above it for the module to stand
-// in for. What is NOT followed is the capability passed on as a
+// expression. A bare `globalPath` gets no `alsoImportedFrom` at all, and the
+// policy type refuses the pairing rather than half-honouring it: the module
+// object stands in for the segment above the capability, and a bare path has no
+// segment above it. What is NOT followed is the capability passed on as a
 // value (`f(process)`), a module bound by assignment rather than declaration,
 // and `import("node:process").then(({ env }) => …)`, where the name is a
 // callback parameter and following it means following the promise. The module
@@ -94,7 +94,11 @@ type AmbientGlobalPolicyBase = {
 type AmbientGlobalPolicy = AmbientGlobalPolicyBase &
   (
     | {
-        /** The read as it is spelled in source, host-free: `fetch`, `localStorage`. */
+        /**
+         * The read as it is spelled in source, host-free: `fetch`, `import.meta.env`. Dotted or
+         * not — the branches split on whether a module also hands the capability out, not on the
+         * shape of the path.
+         */
         globalPath: string;
         alsoImportedFrom?: never;
       }
@@ -231,10 +235,12 @@ export const ambientGlobalsRule = defineRule({
       if (policy.alsoImportedFrom === undefined || !policy.alsoImportedFrom.test(specifier)) {
         return undefined;
       }
-      const segments = policy.globalPath.split(".");
+      // No fallback on either end. The type admits `alsoImportedFrom` only beside a dotted path,
+      // so both sides of the first `.` are non-empty, and a `?? ""` here would be a branch no
+      // input reaches dressed up as a decision.
       return {
         moduleStandsFor: policy.globalPath.slice(0, policy.globalPath.indexOf(".")),
-        capabilityExport: segments[segments.length - 1] ?? "",
+        capabilityExport: policy.globalPath.slice(policy.globalPath.lastIndexOf(".") + 1),
       };
     };
 
@@ -271,9 +277,9 @@ export const ambientGlobalsRule = defineRule({
      * Reports the properties of a destructure whose keys complete a restricted path.
      *
      * `basePath` is what the destructured object IS: the host's empty path for `const { fetch } =
-     * window`, the first segment for `const { env } = require("node:process")`, and — for a bare
-     * global whose module exports it by name — empty again, because the module namespace is not the
-     * global's parent, its property is the global.
+     * window`, and the segment the module stands in for — `process` — for
+     * `const { env } = require("node:process")`. Both callers pass one of those two; there is no
+     * third case, because a bare `globalPath` cannot carry `alsoImportedFrom`.
      */
     const reportDestructuredMembers = (pattern: ESTree.Node, basePath: string) => {
       if (pattern.type !== "ObjectPattern") return;

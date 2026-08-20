@@ -203,9 +203,11 @@ export function visitUnboundModuleObjects(
  * that sees ALL of a rule's diagnostics — a sort here would order the imported names among
  * themselves and still emit them after every diagnostic the rule's other arms raise.
  *
- * The sweep runs at `Program` rather than `Program:exit` for the same reason. Scope analysis is
- * complete before traversal starts, so the answer is the same either way, and leaving `Program:exit`
- * free is what lets a consuming rule spread the ordered reporter over this without a collision.
+ * THE VISITOR RETURNED CARRIES NO `Program:exit`, and must not grow one. The sweep runs at
+ * `Program` instead — scope analysis is complete before traversal starts, so the answer is the
+ * same either way. A consuming rule owns `Program:exit` for its ordered flush, and a spread key
+ * and an owned key cannot share: whichever is second in the object literal wins silently, and
+ * either loss takes a whole arm of the rule with it.
  */
 export function visitImportedNames(
   sourceCode: SourceCode,
@@ -222,6 +224,8 @@ export function visitImportedNames(
    */
   const takeUnboundMemberRead = (specifier: string, moduleObject: ESTree.Node) => {
     if (!moduleSpecifiers.includes(specifier)) return;
+    // Narrowing only, not a decision: `visitUnboundModuleObjects` has already established that
+    // this parent is a MemberExpression reading off `moduleObject`. There is no other caller.
     const read = moduleObject.parent;
     if (read === null || read === undefined || read.type !== "MemberExpression") return;
     const key = staticKeyName(read.property, read.computed);

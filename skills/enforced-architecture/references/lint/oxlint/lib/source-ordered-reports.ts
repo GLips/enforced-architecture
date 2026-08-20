@@ -1,4 +1,4 @@
-import type { Context, ESTree, Visitor } from "@oxlint/plugins";
+import type { Context, ESTree } from "@oxlint/plugins";
 
 /** A diagnostic to be held until the file is walked. `node` is required — it is what gets sorted. */
 type OrderedDiagnostic = {
@@ -44,20 +44,15 @@ export function sourceOrderedReports(context: Context) {
     },
 
     /**
-     * For a rule that owns a `Program:exit` of its own: call this LAST inside it, once every arm
-     * has had its say.
+     * Call this LAST inside the rule's own `Program:exit`, once every arm has had its say.
+     *
+     * There is deliberately no visitor to spread. A spread `Program:exit` and the rule's own one
+     * cannot coexist — whichever comes second in the object literal wins and the other is lost
+     * with no error, and it is a coin toss which loss you get: lose the flush and the rule goes
+     * silent, lose the other and its whole arm does. Every rule owning the key outright is the
+     * only shape where that cannot happen. `visitImportedNames` has no `Program:exit` for the same
+     * reason.
      */
     flushInSourceOrder,
-
-    /**
-     * For a rule that does not. Spread it into the rule's visitor LAST, so its `Program:exit` is
-     * the one that survives — a rule that also spreads a visitor carrying a `Program:exit`
-     * (`visitImportedNames` deliberately has none) would otherwise lose one of the two silently.
-     */
-    visitor(): Visitor {
-      return {
-        "Program:exit": flushInSourceOrder,
-      };
-    },
   };
 }

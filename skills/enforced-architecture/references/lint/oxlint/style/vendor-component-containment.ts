@@ -109,8 +109,11 @@ export const vendorComponentContainmentRule = defineRule({
         });
       },
 
-      // Last, so its `Program:exit` is the surviving one. `visitImportedNames` has none.
-      ...ordered.visitor(),
+      // This rule owns `Program:exit` outright — see lib/source-ordered-reports.ts for why a
+      // spread one cannot be allowed to share the key.
+      "Program:exit"() {
+        ordered.flushInSourceOrder();
+      },
     };
   },
 });
