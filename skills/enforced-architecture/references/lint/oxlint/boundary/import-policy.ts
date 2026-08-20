@@ -1,46 +1,25 @@
 // ─── boundary/import-policy ───────────────────────────────────────────
 //
-// Tag:       boundary
-// Mechanism: oxlint JS plugin (per-file, real-time)
-// Blocking:  Yes
+// Makes sure: One table decides every aliased specifier and every bare package
+// name under src/. A feature and a domain are reached at their barrel, so you
+// move a file inside one and no file outside it changes. `@/env.server` reaches
+// no client file, and a domain takes no runtime package.
 //
-// Prevents: Every forbidden import direction and every reach past a unit's
-//           public surface, for the half of the import graph a linter can see:
-//           aliased specifiers and bare package names.
+// This rule holds no policy of its own — no path regexes, no allowlists, no
+// direction rules. It classifies the file and hands each specifier to
+// lint/policy/import-policy.ts, which the structural tier reads too. A change to
+// enforcement belongs in that table; a change that does not fit the table is a
+// question the table was not built to answer.
 //
-// The specifier-reading half of one policy. It classifies the file it is given,
-// reads every ALIASED specifier and every BARE PACKAGE in it, and hands each to
-// `lint/policy/import-policy.ts`. It holds no policy of its own — no path
-// regexes, no allowlists, no direction rules — and that is the point: this rule
-// and the structural check below it read the same table, so the two spellings of
-// one edge cannot reach different verdicts.
+// RELATIVE SPECIFIERS are not visible here. A linter cannot resolve one — where
+// `../../beta/service` lands depends on the depth of the file that names it — so
+// they belong to boundary/import-policy in the structural tier. Neither adapter
+// needs to know what the other reported: a package has no relative spelling, and
+// a relative path has no meaning without the tree.
 //
-// Applies:  All src/** files EXCEPT test files and scripts.
-//
-// ── What this rule deliberately does not see ──────────────────────────
-//
-// RELATIVE SPECIFIERS. A linter cannot resolve one — where `../../beta/service`
-// lands is a function of how deep the importing file sits — so they belong to
-// `boundary/import-policy` in the structural tier, which has the resolved graph.
-// That split needs no coordination: a package has no relative spelling and a
-// relative path has no meaning without the tree, so neither adapter needs to know
-// whether the other reported anything.
-//
-// ── Adapt ─────────────────────────────────────────────────────────────
-//
-// Nothing here. Every knob is in `lint/policy/`: the directory names and the
-// classifiers in `layout.ts`, the cells in `import-policy.ts`. If a change to
-// enforcement feels like it belongs in this file, it belongs in the table
-// instead — and if it does not fit the table, the table is being asked a question
-// it was not built to answer.
-//
-// Suppression is per line and never per file: `// oxlint-disable-next-line
-// arch/import-policy`. A file-level disable of a merged rule switches off every
-// invariant at once, which is far broader than any single case can justify.
-//
-// Registration: `rules: { "import-policy": importPolicyRule }` in
-// `lint/oxlint/plugin.ts`, and `"arch/import-policy": "error"` in `.oxlintrc.json`.
-//
+// Suppress per line and never per file: `// oxlint-disable-next-line
+// arch/import-policy`. A file-level disable of a merged rule removes every
+// invariant at once, which no single case justifies.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule } from "@oxlint/plugins";

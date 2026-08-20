@@ -1,51 +1,25 @@
 // ─── api/barrel-direction ────────────────────────────────────────────
 //
-// Tag:      api
-// Mechanism: oxlint JS plugin (per-file, real-time)
-// Blocking: Yes
+// Makes sure: A client barrel — `index.ts` in `src/domains/<name>/` or
+// `src/features/<name>/` — names no `index.server` module, its own or another
+// unit's. You add an export to `index.server.ts`, and you do not then open
+// `index.ts` to check what a client component now gets from it. The other
+// direction stays legal, so `index.server.ts` re-exports `./index` and one
+// import in a server context gives the whole feature API.
 //
-// Prevents: Client-safe barrel files (index.ts) importing from the
-//           server-only barrel (index.server.ts). The server barrel
-//           extends the client-safe API; the reverse pulls server-only
-//           code into client bundles through the barrel, causing bundler
-//           errors in SSR frameworks with server/client splitting.
+// Do not narrow `SERVER_BARREL_SPECIFIER` to the barrel's own sibling
+// (`./index.server`). That one pair of files looks like the whole subject. A
+// client barrel that re-exports `../audit/index.server` puts a server-only
+// module in the client bundle, the same as its own sibling does.
 //
-//           This is a one-directional rule:
-//           - index.server.ts MAY re-export from index.ts (superset pattern)
-//           - index.ts MUST NOT import from index.server.ts
+// Do not exempt type-only imports with `isTypeOnlyDeclaration`. A type is
+// erased at build time, thus the exemption looks free. A client barrel that
+// re-exports a type from `index.server.ts` binds its public API to that file:
+// rename the type there and the client barrel breaks.
 //
-// Applies:  Barrel index.ts files in domains/ and features/ only.
-//           Matched by path pattern: src/(domains|features)/<name>/index.ts
-//
-// Error:    "Barrel index.ts must not import from index.server.ts — this
-//            pulls server-only code into client bundles. If the export is
-//            client-safe (types, createServerFn references), re-export it
-//            from controllers/ instead. If it is server-only, it belongs
-//            in index.server.ts only."
-//
-// ── Adapt ────────────────────────────────────────────────────────────
-//
-// 1. Barrel file location — `CLIENT_BARREL_FILE`:
-//    Adjust to match where the project places barrel files.
-//    Examples:
-//      /src/(?:domains|features)/[^/]+/index\.[tj]sx?$  — standard (this template)
-//      /src/features/[^/]+/index\.[tj]sx?$              — no domains layer
-//      /src/modules/[^/]+/index\.[tj]sx?$               — modules instead of features
-//    Add other top-level directories here if they use the same two-barrel
-//    pattern (a shared/ layer with its own server barrel, say).
-//
-// 2. Server barrel name — `SERVER_BARREL_SPECIFIER`:
-//    If the project names the server-only barrel differently, adjust.
-//    Examples:
-//      index\.server  — standard (this template)
-//      server         — alternative naming (requires explicit vite config)
-//      server-only    — alternative naming
-//
-// 3. Registration:
-//    Add the rule to the project's oxlint plugin
-//    (`rules: { "barrel-direction": barrelDirectionRule }`) and turn it on
-//    in `.oxlintrc.json` (`"<plugin>/barrel-direction": "error"`).
-//
+// This rule reads the specifiers of one file, and follows nothing below them.
+// A client barrel that reaches a server-only package through a client module
+// is `api/barrel-purity`'s finding, so green here is not a clean bundle.
 // ─────────────────────────────────────────────────────────────────────
 
 import { defineRule } from "@oxlint/plugins";

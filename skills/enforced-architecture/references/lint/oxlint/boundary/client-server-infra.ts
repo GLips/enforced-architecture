@@ -1,74 +1,28 @@
 // ─── boundary/client-server-infra ────────────────────────────────────
 //
-// Tag:      boundary
-// Mechanism: oxlint JS plugin (per-file, real-time)
-// Blocking: Yes
+// Makes sure: A client file imports only the infrastructure modules on
+// `CLIENT_SAFE_INFRASTRUCTURE`. The build puts no database client, no server
+// auth module, no SDK wrapper and no telemetry key in a browser chunk. To learn
+// what the browser takes from src/infrastructure/, you read that list.
 //
-// Prevents: Client contexts (UI files, barrel files, shared modules)
-//           importing server-only infrastructure modules. Most
-//           infrastructure is server-only (DB, auth, SDK wrappers,
-//           telemetry). Only explicitly allowlisted infrastructure
-//           modules are client-safe. Importing server-only infra from
-//           client contexts leaks secrets into client bundles and causes
-//           hydration failures in SSR frameworks.
+// A route loader is a client context: @tanstack/router-core calls
+// route.options.loader from the shared load path, which the browser runs too. Do
+// not exempt a loader.
 //
-// Applies:  All src/** files that are NOT server contexts:
-//           - Excludes: infrastructure/**, scripts
-//           - Excludes: features/*/controllers/**, features/*/repo/**,
-//                       features/*/service/** (server layers)
-//           - Excludes: any file named server.{ts,tsx}
-//           - Excludes: test files
+// A file named `*.server.ts` is a server context wherever it sits, so this rule
+// does not check it. That exemption is about the BUNDLE — the file is never in a
+// client chunk — and it is not a permission to import infrastructure. Inside a
+// feature it usually is not one: `index.server.ts` classifies as the feature
+// barrel and `notify.server.ts` as a feature-root file, and
+// boundary/import-policy denies infrastructure to both. The rename removes this
+// finding and creates that one.
 //
-// Source: @tanstack/router-core/src/load-matches.ts
-//         (the shared load path invokes route.options.loader).
+// Each entry in `CLIENT_SAFE_INFRASTRUCTURE` matches the specifier EXACTLY. An
+// entry that ends with `(?:\/|$)` instead of `$` admits a whole subtree, and the
+// browser then gets every module in it.
 //
-// Error:    "Client contexts may only import client-safe infrastructure
-//            modules. From inside a feature the placements that may take
-//            this import are controllers/ and repo/ — see the message for
-//            why the .server.ts suffix is not one of them."
-//
-// ── Adapt ─────────────────────────────────────────────────────────────
-//
-// 1. Who is a server context — `SERVER_LAYERS`:
-//    The layers that may import infrastructure freely. The default is
-//    infrastructure itself plus the three server-side feature layers
-//    (controllers, repo, service). Add a project's extra server layers
-//    here; every pattern is anchored on `/src/` and closed with `/` so a
-//    directory that merely ends in the same word (`legacy-service/`)
-//    does not inherit the exemption.
-//
-// 2. The server-module filename convention — `SERVER_MODULE`:
-//    A file named `*.server.ts` is a server context wherever it sits,
-//    so this rule stops looking at it. That exemption is about BUNDLING
-//    — the file is never in a client chunk — and it is not a permission
-//    to import infrastructure. Inside a feature it usually is not one:
-//    `index.server.ts` classifies as the feature's barrel and
-//    `notify.server.ts` as a feature-root file, and `boundary/import-policy`
-//    denies infrastructure to both. The suffix silences THIS rule and
-//    lights up that one. Change the pattern if the project marks
-//    server-only modules some other way.
-//
-// 3. What counts as infrastructure — `INFRASTRUCTURE_SPECIFIER`:
-//    Adjust to the project's alias for the infrastructure directory
-//    (`@/infrastructure` here, `@/infra` or `@/adapters` elsewhere).
-//
-// 4. The client-safe allowlist — `CLIENT_SAFE_INFRASTRUCTURE`:
-//    The infrastructure modules that are safe to import from client
-//    contexts. Keep this list MINIMAL — every entry is a module that
-//    will be included in client bundles. Entries match the specifier
-//    EXACTLY, so `@/infrastructure/auth/client-legacy` is still a
-//    violation; to allow a whole subtree, end the pattern with
-//    `(?:\/|$)` instead of `$`. Examples:
-//      @/infrastructure/auth/client            — browser-side auth
-//      @/infrastructure/providers/query-client — TanStack Query setup
-//      @/infrastructure/analytics/client       — client-side analytics
-//
-// 5. Registration:
-//    Add the rule to the project's oxlint plugin
-//    (`rules: { "client-server-infra": clientServerInfraRule }`) and
-//    turn it on in `.oxlintrc.json`
-//    (`"<plugin>/client-server-infra": "error"`).
-//
+// A relative specifier reaches the same module and no pattern here sees it.
+// Adopt boundary/import-policy in the structural tier with this rule.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule } from "@oxlint/plugins";

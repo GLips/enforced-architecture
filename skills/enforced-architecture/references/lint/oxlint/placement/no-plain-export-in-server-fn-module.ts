@@ -1,73 +1,30 @@
 // ─── placement/no-plain-export-in-server-fn-module ────────────────────
 //
-// Tag:      placement
-// Mechanism: oxlint JS plugin (per-file, real-time)
-// Blocking: Yes
+// Makes sure: A module that defines createServerFn or createMiddleware exports
+// the bridges and the types only, and each bridge has a name. The client
+// compiler replaces the handler body but leaves a sibling runtime export in
+// place, thus that export and every module it imports reach the browser. You
+// import such a module from a client component and you do not first read what
+// else the file exports.
 //
-// Prevents: Runtime exports other than compiler bridges in a non-server
-//           module that defines createServerFn or createMiddleware.
-//           Client compilation replaces server-function handlers and strips
-//           middleware .server() and .validator() calls; it does not
-//           erase sibling runtime exports.
+// The bridge exemption reads the initializer's call chain. Do not test for the
+// factory name anywhere inside the initializer:
+// `export const helper = () => createServerFn()` then passes, and it puts a
+// real function on the client.
 //
-// Allows:   Type-only exports, exported createServerFn/createMiddleware
-//           bridges, and module-private helpers.
+// A bridge counts in the inline `export const name = createServerFn(…)`
+// spelling alone. A later `export { name }` clause gives the rule no
+// initializer to read, so it reports. The compiler needs the inline spelling
+// too: it resolves a server fn through its variable declarator and throws
+// "createServerFn must be assigned to a variable!" otherwise. That is why
+// `export default createServerFn(…)` has a message of its own.
 //
-// Fix:      Move server-only runtime exports to a .server.ts sibling. Move
-//           client-safe exports to their own module.
+// `enum` and `namespace` are absent from TYPE_ONLY_DECLARATIONS on purpose:
+// both emit a runtime object, so both reach the browser.
 //
-// Source:   @tanstack/start-plugin-core/src/start-compiler/
-//           handleCreateServerFn.ts, handleCreateMiddleware.ts
-//
-// Applies:  Non-.server source files containing createServerFn or
-//           createMiddleware calls. Excludes tests and scripts.
-//
-// Negative space: This rule does not detect top-level side effects or prove
-//                 client reachability. Cross-file safety belongs to the
-//                 client-boundary graph checks.
-//
-//                 The bridge exemption reads the initializer's call chain, so
-//                 an annotated, parenthesized, `satisfies`-suffixed or
-//                 non-null-asserted bridge is exempt while
-//                 `export const helper = () => createServerFn()` — which
-//                 leaks a real function to the client — is not.
-//
-//                 A bridge is only recognized in the inline
-//                 `export const name = createServerFn(…)` spelling. Routed
-//                 through a later `export { name }` clause it is reported,
-//                 because the clause gives the rule no binding to inspect
-//                 without cross-statement resolution. Inline is the spelling
-//                 the compiler needs anyway: it resolves a server fn through
-//                 its variable declarator and throws
-//                 "createServerFn must be assigned to a variable!" otherwise,
-//                 which is why `export default createServerFn(…)` gets its
-//                 own diagnostic rather than the move-it-elsewhere one.
-//
-// ── Adapt ─────────────────────────────────────────────────────────────
-//
-// 1. Compiler bridge factories — `COMPILER_BRIDGE_FACTORIES`:
-//    The factory names whose exported chains are the sanctioned bridges.
-//    Replace them for a framework with equivalent compiler bridges. This
-//    set is also the gate: a module that calls none of them is not this
-//    rule's business.
-//
-// 2. The hard server-only fence — `SERVER_ONLY_PATH`:
-//    Files matching it are exempt because the suffix already blocks client
-//    imports. Update it when the project fences server-only modules some
-//    other way.
-//
-// 3. Declarations that emit no runtime — `TYPE_ONLY_DECLARATIONS`:
-//    Erased at compile time, so they may be exported freely. Rarely needs
-//    changing; note that `enum` and `namespace` are deliberately absent
-//    because both emit a runtime object.
-//
-// 4. Registration:
-//    Add the rule to the project's oxlint plugin
-//    (`rules: { "no-plain-export-in-server-fn-module":
-//    noPlainExportInServerFnModuleRule }`) and turn it on in
-//    `.oxlintrc.json`
-//    (`"<plugin>/no-plain-export-in-server-fn-module": "error"`).
-//
+// The rule reads one file. It does not prove that the client reaches this
+// module; the boundary/ graph checks answer that. The compiler behaviour is in
+// @tanstack/start-plugin-core/src/start-compiler/handleCreateServerFn.ts.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree } from "@oxlint/plugins";

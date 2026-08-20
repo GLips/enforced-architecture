@@ -1,65 +1,21 @@
 // ─── types/no-reflect-access ─────────────────────────────────────────
 //
-// Tag:      types
-// Mechanism: oxlint JS plugin (per-file, real-time)
-// Blocking: Yes
+// Makes sure: Property reads and calls keep their type checks. `Reflect.get`
+// and `Reflect.apply` do not appear, in the dot or the bracket spelling. So a
+// property rename reports at each read, and a call with the wrong number of
+// arguments fails to compile rather than at run time.
 //
-// Prevents: `Reflect.get` and `Reflect.apply` — the two ways of doing
-//           ordinary work while stepping outside the type system.
+// Only `get` and `apply` are in `BANNED_REFLECT_METHODS`. `Reflect.ownKeys`,
+// `Reflect.has` and `Reflect.getPrototypeOf` return honest types and have no
+// plain-syntax equivalent. Add `set` if the project has the same problem with
+// property writes.
 //
-//             const value = Reflect.get(owner, key);
-//             const result = Reflect.apply(operation, owner, args);
+// A `Proxy` handler legitimately calls `Reflect.get` — that is the documented
+// way to write a trap that forwards to the target. If the project has one,
+// exempt its directory here rather than a disable comment in each trap.
 //
-//           `Reflect.get` returns `any` whatever the receiver was, so a
-//           typed object goes in and an untyped value comes out.
-//           `Reflect.apply` does the same to a call: the argument list
-//           is an array, so arity and parameter types stop being
-//           checked. Neither is doing anything ordinary syntax cannot,
-//           which is what makes them a tell — they appear when a model
-//           cannot get a property access or a call to type-check and
-//           reaches for the form the compiler will not argue with.
-//
-//           Both rules are one file because they are one decision: they
-//           share the global-resolution logic and a project that wants
-//           one almost always wants the other.
-//
-// Excludes: The rest of `Reflect`. `Reflect.ownKeys`, `Reflect.has`,
-//           and `Reflect.getPrototypeOf` have no plain-syntax
-//           equivalent and return honest types.
-//
-// Applies:  All .ts and .tsx files EXCEPT:
-//           - Test files and scripts
-//
-// Error:    get   — "`Reflect.get` returns `any` whatever the receiver
-//            was. Use typed property access, or parse the dynamic input
-//            into a named type before reading it."
-//           apply — "`Reflect.apply` drops arity and parameter
-//            checking. Call the function directly, or spread a typed
-//            tuple if the arguments really are dynamic."
-//
-// ── Adapt ─────────────────────────────────────────────────────────────
-//
-// 1. Which methods — `BANNED_REFLECT_METHODS`:
-//    Only `get` and `apply` are listed. Add `set` if the project has
-//    the same problem writing properties; leave `ownKeys` and `has`
-//    alone, since they return real types and have no plain equivalent.
-//
-// 2. Genuine metaprogramming needs a home:
-//    A `Proxy` handler legitimately uses `Reflect.get` — that is the
-//    documented way to write a forwarding trap. If the project has one,
-//    exempt its directory here rather than teaching everyone to disable
-//    the rule inline.
-//
-// 3. `Reflect` is resolved, not matched by name:
-//    A local binding called `Reflect` does not report. This is what
-//    separates the rule from a text search, and the spec pins it.
-//
-// 4. Registration:
-//    Add the rule to the project's oxlint plugin
-//    (`rules: { "no-reflect-access": noReflectAccessRule }`) and turn
-//    it on in `.oxlintrc.json`
-//    (`"<plugin>/no-reflect-access": "error"`).
-//
+// `Reflect` is resolved through the scope chain, not matched by name, so a
+// local binding called `Reflect` does not report. The spec pins that.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree, type Scope, type SourceCode } from "@oxlint/plugins";

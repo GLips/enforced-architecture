@@ -1,117 +1,42 @@
 // ─── boundary/ambient-globals ────────────────────────────────────────
 //
-// Tag:       boundary
-// Mechanism: oxlint JS plugin (per-file, real-time)
-// Blocking:  Yes
+// Makes sure: `process.env`, `import.meta.env`, `fetch` and `localStorage` are
+// read in one module each: @/env, the API client, and the browser storage
+// wrapper. To give every request a timeout, or every stored key one name and one
+// format, you edit one file. A missing variable fails at boot in @/env, and not
+// as an undefined deep inside a request.
 //
-// Prevents: Any module but the one designated to own it reading a
-//           runtime capability that arrives as an ambient global —
-//           `process.env`, `fetch`, `localStorage`, `location`,
-//           `crypto`, `navigator`. Every other rule in this tag matches
-//           an import specifier. A global is never imported, so an
-//           import rule cannot see one: this is the rule that fences a
-//           capability nothing in the module graph mentions.
+// A global is never imported, so no rule that reads specifiers can fence one.
+// This is the rule for a capability that the module graph does not mention.
 //
-//           The reasoning is `sdk-containment`'s, one level down. A
-//           capability with configuration attached — a base URL, a key
-//           namespace, a serialization format, a platform that throws —
-//           wants ONE door, so the guards and the encoding are decided
-//           once instead of at each call site.
+// Write `globalPath` HOST-FREE: `localStorage`, not `window.localStorage`. The
+// rule strips `window`, `globalThis`, `self` and `global` before it matches, so
+// one entry covers every host spelling and the computed forms. A dotted path
+// (`process.env`) matches that prefix and everything under it.
 //
-//           Overlaps `react/no-direct-fetch` deliberately, and they are
-//           not interchangeable. That rule is a component-level smell
-//           for a project with no typed client — it bans `fetch` in
-//           `.tsx` and leaves every `.ts` file alone. This rule's
-//           `fetch` entry is the repo-wide version for a project that
-//           HAS a client module to point at. Adopt one. Adopting both
-//           means every component violation draws two diagnostics
-//           saying different things.
+// `alsoImportedFrom` covers a capability that a module also exports, where the
+// module spelling avoids every check that matches a global. The re-export is the
+// one to understand: `export { env } from "node:process"` gives the capability
+// to every importer of this module, and the file that writes it reads nothing.
 //
-// Applies:  All src/** files EXCEPT each global's own owning module and
-//           tests/scripts.
+// A global that is not on the list is unrestricted. Keep the list to the
+// capabilities with a real owner; a longer one teaches people the rule is
+// arbitrary, and that is what gets it disabled.
 //
-// Error:    "Only @/env reads `process.env`. <why> Import it from there
-//            instead of reading the global here."
+// Adopt this entry for `fetch` or `react/no-direct-fetch`, and not both. That
+// rule bans `fetch` in `.tsx` and leaves every `.ts` file alone, for a project
+// with no typed client. Both together report two diagnostics that say different
+// things about one violation.
 //
-// ── Adapt ─────────────────────────────────────────────────────────────
+// Scope is `/src/`, so vite.config.ts and next.config.js are unaffected. What
+// the BUILD reads is a different question from what value the app reads at
+// runtime, and one exemption for both gets reused for runtime code.
 //
-// 1. `RESTRICTED_AMBIENT_GLOBALS` — the entire policy. The rule takes no
-//    stance on any particular global; a global absent from this list is
-//    unrestricted, and the shipped entries are the catalog's standard
-//    layout, not a claim about yours. Each entry takes one of three
-//    stances:
-//
-//    - CONTAIN (`allowedIn: [ONE_MODULE]`) — the stance most entries
-//      want. The capability is legitimate and needs exactly one door:
-//      `fetch` behind the API client so auth headers, timeouts and
-//      error decoding are decided once; `localStorage` behind a storage
-//      wrapper so key names and serialization are, and so the SSR and
-//      private-mode cases where the API throws are handled in the one
-//      place that can.
-//    - BAN (`allowedIn: []`) — no module owns it, so the diagnostic
-//      points at nothing and says so. For a capability the project has
-//      decided against outright: `document.cookie` under a cookie
-//      library, `alert`, `localStorage` in a codebase that must run
-//      server-side.
-//    - LEAVE UNLISTED — the default for everything else. A list that
-//      grows past the capabilities with a real owner teaches people the
-//      rule is arbitrary, which is what gets it switched off.
-//
-// 2. `globalPath` — how a path is spelled. Write it HOST-FREE, as the
-//    shortest read: `localStorage`, not `window.localStorage`. The rule
-//    strips `window` / `globalThis` / `self` / `global` before matching,
-//    so one entry covers every host spelling plus the computed forms.
-//    A dotted path (`process.env`) matches that prefix and everything
-//    under it; `process.version` is a different read and is not matched.
-//
-// 3. `alsoImportedFrom` — for a capability that is ALSO a module export,
-//    where a module spelling would otherwise walk around every
-//    global-shaped check above. `process.env` is the one in the
-//    defaults, and it arrives five ways with the word `process` never
-//    appearing as a global: a named import, a namespace import, a
-//    default import (including `{ default as proc }`), a `require`, and
-//    a re-export. The last is the one worth understanding — `export
-//    { env } from "node:process"` hands the capability to every
-//    downstream importer while the file doing it never reads anything,
-//    so it is the one spelling that defeats a per-file rule everywhere
-//    except here.
-//
-// 4. `owner` and `why` land in the diagnostic. `why` is what makes the
-//    rule teachable: the reader needs the reason the capability has one
-//    door, not a restatement that it does.
-//
-// 5. Scope is `/src/`, so build-time config (vite.config.ts,
-//    next.config.js) is unaffected. Deliberate, and inherited from the
-//    rule this one absorbed: what the BUILD reads is a different
-//    question from what a RUNNING app believes, and conflating them
-//    forces an exemption that then gets reused for runtime code.
-//
-// 6. What this rule deliberately does NOT catch, so a reader does not
-//    mistake silence for absence:
-//    - A local binding that shadows the name. `const fetch = mine;
-//      fetch()` is not the ambient global and is left alone — the rule
-//      resolves references rather than matching names, which is also
-//      what keeps `client.fetch()` and `{ fetch: 1 }` out.
-//    - One hop through a local alias of the global OBJECT:
-//      `const g = globalThis; g.localStorage`. The direct destructure
-//      (`const { localStorage } = window`) IS caught; a rebound host is
-//      not, and nothing per-file can follow it in general.
-//    - A computed key that is not a string literal:
-//      ``globalThis[`local${"Storage"}`]``. Unfenceable, same as a
-//      templated import specifier.
-//    - A namespace, default or `require` binding for a BARE global
-//      path. Those bind the path's FIRST segment, and a bare global has
-//      no segment above it to rebind, so `import * as u from "undici"`
-//      is left alone while `import { fetch } from "undici"` and
-//      `const { fetch } = require("undici")` are both matched.
-//    - Type-only imports and re-exports. `import type { env } from
-//      "node:process"` is erased and reads nothing.
-//
-// 7. Registration:
-//    Add the rule to the project's oxlint plugin
-//    (`rules: { "ambient-globals": ambientGlobalsRule }`) and turn it on
-//    in `.oxlintrc.json` (`"<plugin>/ambient-globals": "error"`).
-//
+// The rule resolves references, so a local binding that shadows the name,
+// `client.fetch()` and `{ fetch: 1 }` are not reads. A rebound host
+// (`const g = globalThis; g.localStorage`) and a computed key that is not a
+// string literal are not matched: nothing per-file can follow either one. A
+// type-only import is erased and reads nothing.
 // ──────────────────────────────────────────────────────────────────────
 
 import {

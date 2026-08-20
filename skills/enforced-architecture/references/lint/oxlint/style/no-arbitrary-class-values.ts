@@ -1,79 +1,24 @@
 // ─── style/no-arbitrary-class-values ──────────────────────────────────
 //
-// Tag:       style
-// Mechanism: oxlint JS plugin (per-file, real-time)
-// Blocking:  Yes
+// Makes sure: A utility class names a semantic token. No `text-[13px]`, no
+// `bg-[#0a0c10]`, no `bg-[var(--background)]`, and no step of the framework's
+// own scale such as `text-sm`. To change the body size or the surface color,
+// you edit the theme config once, and every class that names the token follows.
 //
-// Prevents: Utility-class strings that carry a raw value or a raw scale
-//           step instead of a semantic token — `text-[13px]`,
-//           `bg-[#0a0c10]`, `bg-[var(--background)]`, `text-sm`.
+// TOKEN_SOURCE must stay exempt. The theme config writes the raw values the
+// tokens resolve to, so the rule reports the very lines that define the scale.
 //
-//           This is the rule for projects on Tailwind or another
-//           utility-CSS framework, and it exists because a class string
-//           is untyped. Everything else the type system can hold shut,
-//           `className` reopens: arbitrary-value syntax (`p-[7px]`) is a
-//           blank cheque, and the framework's own generic scale
-//           (`text-sm`, `text-2xl`) is a second vocabulary competing
-//           with the project's semantic one. Both give a model infinite
-//           room to be slightly wrong, in a surface no compiler reads.
+// Add GENERIC_SCALE_UTILITY only after the semantic type classes exist
+// (`text-body`, `text-caption`). Before that, an agent has a banned class and
+// no allowed one, and it writes `text-[13px]` instead.
 //
-// Applies:  All source files EXCEPT:
-//           - The token / theme configuration
-//           - Test files and scripts
+// A class built at run time (`` cn(`text-${size}`) ``) has no static text, and
+// this rule passes it. Fix that at the type tier: a helper that takes a
+// closed union of size names cannot produce an off-scale class.
 //
-// Error:    "Off-token utility class. Use the semantic token class."
-//
-// ── Adapt ─────────────────────────────────────────────────────────────
-//
-// 1. Three independent patterns, each with its own messageId. Keep the
-//    ones that match your setup; delete a pattern and its `messageId`
-//    together.
-//
-//    - `ARBITRARY_VALUE_UTILITY` — `text-[13px]`, `p-[7px]`, `bg-[#fff]`.
-//      Always keep this one; the bracket syntax has no legitimate use in
-//      a tokenised project.
-//
-//    - `ARBITRARY_VAR_UTILITY` — `bg-[var(--background)]`. Reaching a CSS
-//      variable through bracket syntax works, which is exactly why it is
-//      worth banning: it bypasses the theme mapping, so the token exists
-//      in two places and only one of them is checked. Keep this if your
-//      tokens are registered in the framework theme (they should be) —
-//      then `bg-background` is the supported spelling. The prefix
-//      alternation inside it is the list of properties your tokens cover.
-//
-//    - `GENERIC_SCALE_UTILITY` — `text-sm`, `text-2xl`. Keep this only
-//      once semantic type classes exist to replace them (`text-body`,
-//      `text-caption`, `text-section-title`). Turning it on before the
-//      semantic scale is defined leaves agents with a banned class and no
-//      allowed one, and they will reach for the bracket syntax instead.
-//      Define the scale first, then close the generic one.
-//
-//    All three report on the same string in one pass, so
-//    `className="text-[13px] text-sm"` surfaces both violations now
-//    rather than one per run.
-//
-// 2. Extending the utility prefixes: `ARBITRARY_VALUE_UTILITY` matches
-//    any `<prefix>-[…]`. If the project has a sanctioned bracket use (a
-//    grid template, an animation keyframe reference), narrow the pattern
-//    to the prefixes you care about rather than adding a suppression
-//    convention.
-//
-// 3. `TOKEN_SOURCE` — the framework config that DEFINES the scale and the
-//    theme mapping. It has to name the raw values, so it MUST be exempt.
-//    Point it at the project's `tailwind.config.ts` (or the equivalent
-//    theme module).
-//
-// 4. Where this rule cannot see: a class assembled at runtime
-//    (`` cn(`text-${size}`) ``) has no static text to read, so it passes.
-//    Constrain those at the source: a helper taking a closed union of
-//    size names cannot produce an off-scale class in the first place.
-//    That is the type tier doing what the lint tier structurally cannot.
-//
-// 5. Registration: add the rule to the project's oxlint plugin
-//    (`rules: { "no-arbitrary-class-values": noArbitraryClassValuesRule }`)
-//    and turn it on in `.oxlintrc.json`
-//    (`"<plugin>/no-arbitrary-class-values": "error"`).
-//
+// If the project has one sanctioned bracket use — a grid template, an animation
+// keyframe — narrow ARBITRARY_VALUE_UTILITY to the prefixes you mean. Do not
+// add a suppression convention: it exempts every prefix at once.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree } from "@oxlint/plugins";

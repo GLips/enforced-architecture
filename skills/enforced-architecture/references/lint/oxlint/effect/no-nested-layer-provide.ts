@@ -1,62 +1,25 @@
 // ─── effect/no-nested-layer-provide ───────────────────────────────────
 //
-// Tag:       effect
-// Mechanism: oxlint JS plugin (per-file, real-time)
-// Blocking:  Yes
+// Makes sure: Every composed layer has a name, and each `Layer.provide`
+// edge is one line. You read a runtime's layer graph as a list of names,
+// and not as one expression that nests `Layer.provide` inside another
+// through a `.pipe(…)` chain. To use the same composition in a test
+// runtime, you import the name.
 //
-// Prevents: A `Layer.provide` call sitting anywhere inside another
-//           `Layer.provide` call's arguments —
+// Containment is by source range, not by argument position. The inner call
+// is a finding wherever it sits in the outer call's arguments: one level
+// down, inside a `.pipe(…)`, or inside a `Layer.merge(…)` between them. A
+// rule that reads the direct arguments only passes every pipe-spelled
+// nest, which is the spelling most Effect code uses.
 //
-//             Layer.provide(App, Layer.provide(Repo, Sql))
-//             App.pipe(Layer.provide(Repo.pipe(Layer.provide(Sql))))
+// `provide` is far too common a method name to match alone, so the
+// receiver must be one of the listed namespaces. Add the project's alias
+// for `import * as L from "effect/Layer"`. Drop the namespace test and the
+// rule reports every unrelated `provide` in the tree.
 //
-//           Nested inline, the tree stops being readable in the one
-//           dimension that matters: which layer receives which
-//           dependency, and therefore which requirements are still open
-//           at the outer edge. The two spellings above are also not the
-//           same composition, and nothing in the shape of the expression
-//           says so.
-//
-//           Bind the inner layer to a named const and pass the name. The
-//           wiring then reads top to bottom, each edge is one line, and
-//           the layer becomes reusable — which is usually the reason it
-//           was nested in the first place.
-//
-// Applies:  All .ts and .tsx files EXCEPT test files and scripts.
-//
-// Error:    "A Layer.provide inside another Layer.provide's arguments
-//            hides which layer receives which dependency. Bind the inner
-//            layer to a named const and pass that name, so each edge of
-//            the composition is one readable line."
-//
-// Negative space: Sequential provides on one pipeline
-//                 (`App.pipe(Layer.provide(A), Layer.provide(B))`) are
-//                 flat, not nested, and are left alone — they are the
-//                 shape this rule pushes toward.
-//
-// ── Adapt ─────────────────────────────────────────────────────────────
-//
-// 1. Namespace and method — `LAYER_NAMESPACES` and `PROVIDE_METHOD`:
-//    `provide` is far too common a method name to match alone, so the
-//    receiver must be one of the listed namespaces. Add the project's
-//    alias if it imports the module under another name
-//    (`import * as L from "effect/Layer"`), and add `provideMerge` to a
-//    method set if its nesting should read the same way — it composes
-//    differently but is just as unreadable nested.
-//
-// 2. Containment is by source range, not by argument position.
-//    The inner call is a finding wherever it sits in the outer call's
-//    arguments — one level down, inside a `.pipe(…)`, or inside a
-//    `Layer.merge(…)` between them. A rule reading only the direct
-//    arguments passes every pipe-spelled nest, which is the spelling
-//    Effect code is actually written in.
-//
-// 3. Registration:
-//    Add the rule to the project's oxlint plugin
-//    (`rules: { "no-nested-layer-provide": noNestedLayerProvideRule }`)
-//    and turn it on in `.oxlintrc.json`
-//    (`"<plugin>/no-nested-layer-provide": "error"`).
-//
+// Sequential provides on one pipeline
+// (`App.pipe(Layer.provide(A), Layer.provide(B))`) are flat, not nested,
+// and get no finding. They are the shape this rule asks for.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree, type Range } from "@oxlint/plugins";

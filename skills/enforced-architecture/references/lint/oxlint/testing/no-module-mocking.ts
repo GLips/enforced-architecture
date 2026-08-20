@@ -1,74 +1,23 @@
 // ─── testing/no-module-mocking ───────────────────────────────────────
 //
-// Tag:      testing
-// Mechanism: oxlint JS plugin (per-file, real-time)
-// Blocking: Yes
+// Makes sure: Every test runs the real module that it names. A change to a
+// function's signature or to its behaviour fails the tests that cover it. You
+// do not read each test after an edit, to find the mocks that no longer match
+// the module. You can move a module to a different path without an edit to
+// the tests that named the old path.
 //
-// Prevents: Module-level mocking — `vi.mock`, `vi.doMock`, `jest.mock`,
-//           `jest.unstable_mockModule`.
+// This rule reports in test files. Every other rule in this catalog calls
+// `isArchitectureExemptPath` and skips them. A person who makes this rule match
+// the others takes away its only subject, and the rule then reports nothing at
+// all.
 //
-//             vi.mock("./user-store");
+// Keep all three method names in `MOCK_METHODS`. `doMock` defers the same
+// replacement, and `unstable_mockModule` is the ESM spelling of it. A rule that
+// matches `mock` alone leaves two ways to write the same finding.
 //
-//           A module mock replaces a dependency by its PATH, which
-//           means the test is coupled to how the code under test
-//           imports things rather than to what it does. Move the import
-//           and the test breaks while the behaviour is unchanged.
-//           Change the real module's behaviour and the test keeps
-//           passing against a fake that no longer resembles it — the
-//           failure that matters, because it is silent.
-//
-//           The alternative is a seam: pass the dependency in, or
-//           depend on an interface the test can satisfy with a real
-//           implementation. That forces the design question a module
-//           mock lets you skip — which is usually why the mock was
-//           reached for.
-//
-//           This is the rule most likely to be argued with, and the
-//           argument is legitimate. It is here because module mocking
-//           is what an agent reaches for when a test is hard to write,
-//           and "this test is hard to write" is information about the
-//           design that the mock deletes.
-//
-// Excludes: Everything else the test framework offers — `vi.fn()`,
-//           `vi.spyOn`, fake timers, and MSW-style network interception
-//           are all untouched. Those replace a boundary; a module mock
-//           replaces a neighbour.
-//
-// Applies:  ALL files, including test files. This rule is the reason
-//           the tag exists — exempting tests would exempt everything.
-//
-// Error:    "Module mocking couples this test to import paths rather
-//            than behaviour, and it keeps passing when the real module
-//            changes. Inject the dependency, or depend on an interface
-//            a real test implementation can satisfy."
-//
-// ── Adapt ─────────────────────────────────────────────────────────────
-//
-// 1. Note the inverted file scope:
-//    Every other oxlint rule in this catalog calls
-//    `isArchitectureExemptPath` and skips test files. This one MUST
-//    NOT — module mocks only appear in tests, so the usual exemption
-//    would make the rule a no-op. That is easy to "fix" by accident
-//    while tidying; the spec's test-file cases are what catch it.
-//
-// 2. Which frameworks — `MOCK_METHODS` and `TEST_GLOBALS`:
-//    Vitest's `vi` and Jest's `jest` are covered, resolved as bindings
-//    so an import alias does not evade the rule. Add a framework by
-//    extending both sets.
-//
-// 3. Migrating an existing suite:
-//    Turning this on in a codebase with hundreds of module mocks is not
-//    a lint change, it is a refactor. Run it as a warning first and
-//    treat the count as a design backlog, or scope it by path to new
-//    directories only. A blocking rule nobody can satisfy gets disabled
-//    wholesale, which costs more than never adding it.
-//
-// 4. Registration:
-//    Add the rule to the project's oxlint plugin
-//    (`rules: { "no-module-mocking": noModuleMockingRule }`) and turn
-//    it on in `.oxlintrc.json`
-//    (`"<plugin>/no-module-mocking": "error"`).
-//
+// Do not add `vi.fn`, `vi.spyOn`, the fake timers or an MSW handler. Each of
+// those replaces a boundary, and each is what the message asks the author to
+// write instead. A rule that reports them names no edit the author can make.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree, type Scope, type SourceCode } from "@oxlint/plugins";
@@ -127,7 +76,7 @@ export const noModuleMockingRule = defineRule({
         "Module mocking couples this test to import paths rather than behaviour, and it keeps passing when the real module changes. Inject the dependency, or depend on an interface a real test implementation can satisfy.",
     },
   },
-  // No `isArchitectureExemptPath` call, deliberately — see Adapt note 1. Module mocks live only in
+  // No `isArchitectureExemptPath` call, deliberately. Module mocks live only in
   // test files, so the catalog's usual test exemption would silence this rule everywhere.
   create(context) {
     return {

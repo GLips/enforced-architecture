@@ -4,12 +4,12 @@
 
 | Rule | Blocking | What it buys |
 |---|---|---|
-| [derived-state](derived-state.ts) | Yes | `useState` + `useEffect` for values that should be computed inline or with `useMemo` |
-| [no-direct-fetch](no-direct-fetch.ts) | Yes | `fetch()` calls in `.tsx` component files (use server functions or TanStack Query) |
-| [single-component-export](single-component-export.ts) | No | The files that export more than one component, and all of the component names |
-| [no-async-effect](no-async-effect.ts) | Yes | Async operations in useEffect without cleanup, or async useCallback (typically called from effects without cleanup) |
-| [hook-count](hook-count.ts) | No | Each exported component that makes 7 or more hook calls, and the count |
-| [prop-count](prop-count.ts) | No | Each exported component that declares `threshold` props or more, and the count |
+| [derived-state](derived-state.ts) | Yes | A computed value is right on the first render, and a prop change costs one render |
+| [no-direct-fetch](no-direct-fetch.ts) | Yes | Two components that ask for the same data make one request and share one cache entry |
+| [single-component-export](single-component-export.ts) | No | Which components a search by name finds only at their call sites |
+| [no-async-effect](no-async-effect.ts) | Yes | Every async effect has one place to cancel, and no useCallback is async |
+| [hook-count](hook-count.ts) | No | The number of hooks a test of the component must set up |
+| [prop-count](prop-count.ts) | No | Which components make every call site supply many values, and which one to split next |
 
 `hook-count`, `prop-count` and `single-component-export` read one component classifier,
 [lib/component-declarations.ts](../lib/component-declarations.ts). Take one of the three, and copy

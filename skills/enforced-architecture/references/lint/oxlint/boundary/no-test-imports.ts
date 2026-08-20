@@ -1,53 +1,20 @@
 // ─── boundary/no-test-imports ────────────────────────────────────────
 //
-// Tag:      boundary
-// Mechanism: oxlint JS plugin (per-file, real-time)
-// Blocking: Yes
+// Makes sure: No production file under src/ imports a test module — a `.test.`
+// file, a `__tests__/` directory, `@/test/` or `src/test/`. You rewrite a
+// fixture or delete a helper, and only tests break. A test file is exempt from
+// every other rule in this tag, and production code that imports one then
+// reaches any module with no finding.
 //
-// Prevents: Production code importing from test files or test
-//           infrastructure directories. While test files are exempt
-//           from all boundary rules (they need cross-boundary imports
-//           for setup and assertions), the REVERSE is not true:
-//           production code must never depend on test utilities.
-//           If production code imports test helpers, those helpers are
-//           production code and should live in src/, not in test
-//           infrastructure. This rule is the one boundary check that
-//           applies in the opposite direction from all others.
+// A file that is ITSELF a test is exempt, and `isArchitectureExemptPath` makes
+// that judgement. Extend it there. A second definition of a test file here is a
+// second answer to one question.
 //
-// Applies:  All src/** files that are NOT themselves test files:
-//           - Excludes: *.test.*, *.integration.test.*, __tests__/**
-//           - Excludes: src/test/** (shared test infrastructure)
-//           - Excludes: scripts
+// Anchor each alternative in `TEST_SPECIFIER` on a separator or a dot. A bare
+// `test` alternative also matches `@/shared/latest` and `../ui/protest`.
 //
-// Error:    "Production code cannot import from test files. If this
-//            utility is needed by both tests and production, move it
-//            to src/shared/ or the appropriate production directory."
-//
-// ── Adapt ─────────────────────────────────────────────────────────────
-//
-// 1. What a test module looks like from the importing side —
-//    `TEST_SPECIFIER`. The default catches, in order: an extensionless
-//    `./charge.test`, any `.test.` in the path, a `__tests__/`
-//    directory, the `@/test/` alias, and a literal `src/test/` path.
-//    Add a project's own conventions as further alternatives:
-//      `__fixtures__/`, `.storybook/`, `/mocks/`.
-//    Every alternative is anchored on a separator or a dot, which is
-//    what keeps `@/shared/latest` and `../ui/protest` out of it.
-//
-// 2. Which files are governed. A file that is ITSELF a test is exempt,
-//    and that judgement lives in `isArchitectureExemptPath` so this rule
-//    and every other rule agree on what a test is. Extend it there, not
-//    here.
-//
-// 3. Vitest/Jest globals: this rule targets module specifiers, not
-//    global test APIs (describe, it, expect). Those are caught by the
-//    test framework configuration, not by an import rule.
-//
-// 4. Registration:
-//    Add the rule to the project's oxlint plugin
-//    (`rules: { "no-test-imports": noTestImportsRule }`) and turn it on
-//    in `.oxlintrc.json` (`"<plugin>/no-test-imports": "error"`).
-//
+// A relative path to the shared test directory, `../../test/setup`, holds
+// neither `@/test/` nor `/src/test/`. This rule does not match it.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule } from "@oxlint/plugins";

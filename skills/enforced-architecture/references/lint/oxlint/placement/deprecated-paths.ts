@@ -1,53 +1,22 @@
 // ─── placement/deprecated-paths ─────────────────────────────────────────
 //
-// Tag:       placement
-// Mechanism: oxlint JS plugin (per-file, real-time)
-// Blocking:  Yes
+// Makes sure: No file imports a path that a migration removed. You delete
+// `src/components/` once and it stays deleted, because the next import of
+// `@/components/*` fails the lint and the message names the directory that
+// holds the code now. You do not search the tree for old paths after each
+// change an agent writes.
 //
-// Prevents: Imports from legacy directory paths that no longer exist
-//           after an architecture migration. When directories are
-//           relocated or renamed, old import paths linger in agent
-//           memory and in code suggestions. This rule catches them
-//           immediately and directs to the correct new location.
+// Each deprecated path keeps its own messageId. The message is the fix
+// instruction, thus it names the old path and the exact directory the code
+// moved to. One shared "this path is deprecated" message sends the reader
+// somewhere else for the answer.
 //
-// Applies:  All src/** files EXCEPT test files and scripts.
+// Delete an entry only after the last import of that path is gone. An entry
+// removed while agents still write the old path from memory is the point where
+// the migration reverses, and no report follows.
 //
-// Error:    "The <old-path> directory no longer exists. Import from
-//            <new-path> instead."
-//
-// ── Adapt ─────────────────────────────────────────────────────────────
-//
-// 1. `DEPRECATED_PATHS` — the fence itself:
-//    Replace the entry with the project's actual deprecated import
-//    paths. Each entry is a regex over the import specifier plus the
-//    `messageId` naming its replacement.
-//
-//    Common migration patterns:
-//      @/components/*   -> @/shared/ui/* or @/features/*/ui/*
-//      @/lib/*          -> @/shared/*, @/infrastructure/*, or @/domains/*
-//      @/utils/*        -> @/shared/*
-//      @/helpers/*      -> @/shared/*
-//      @/api/*          -> @/features/*/controllers/*
-//      @/db/*           -> @/infrastructure/db/*
-//      @/hooks/*        -> @/shared/* or @/features/*/ui/*
-//      @/services/*     -> @/features/*/service/* or @/infrastructure/*
-//
-// 2. `meta.messages` — one entry per deprecated path:
-//    Every deprecated path gets its OWN messageId, because the message
-//    is the fix instruction: it must name the old path and the exact
-//    directory the code moved to. A shared "this path is deprecated"
-//    message forces the reader to go find the answer elsewhere.
-//
-// 3. Removing a deprecated path:
-//    Once all imports from it are cleaned up and no agent is likely to
-//    re-introduce them, delete its `DEPRECATED_PATHS` entry and its
-//    message.
-//
-// 4. Registration:
-//    Add the rule to the project's oxlint plugin
-//    (`rules: { "deprecated-paths": deprecatedPathsRule }`) and turn it
-//    on in `.oxlintrc.json` (`"<plugin>/deprecated-paths": "error"`).
-//
+// The rule reads the specifier and says the old path is gone. Whether the new
+// path is one this file may import at all is boundary/import-policy's finding.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule } from "@oxlint/plugins";

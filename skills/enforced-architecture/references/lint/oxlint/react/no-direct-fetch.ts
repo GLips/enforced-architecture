@@ -1,53 +1,30 @@
 // ─── react/no-direct-fetch ────────────────────────────────────────────
 //
-// Tag:      react
-// Mechanism: oxlint JS plugin (per-file, real-time)
-// Blocking: Yes
+// Makes sure: No .tsx file calls the global fetch, bare or through
+// `globalThis`, `window` or `self`. Every request from the UI goes through a
+// server function or a query hook. Two components that ask for the same data
+// make one request and share one cache entry. A retry, an auth header, or a
+// timeout goes in one module, and no component writes it again.
 //
-// Prevents: Direct fetch() calls in React component files (.tsx).
-//           Components should use server functions, TanStack Query,
-//           or other data-fetching abstractions — not raw fetch.
-//           Raw fetch in components leads to:
-//           - No caching, deduplication, or background refetching
-//           - Manual loading/error state management
-//           - Race conditions on rapid re-renders
-//           - Inconsistent data-fetching patterns across the codebase
+// The rule matches the exact callee name. A project's own wrapper —
+// `apiFetch()`, `authFetch()` — is no finding, and neither is a `fetch`
+// method on a client object, which is somebody else's API. Widen the match to
+// every name that contains `fetch`, and the rule reports the wrappers it asks
+// people to write.
 //
-// Applies:  All .tsx files EXCEPT:
-//           - Test files and scripts
-//           - Non-.tsx files (.ts utility files may legitimately use fetch
-//             in infrastructure wrappers, SDK clients, etc.)
+// Do not extend `isComponentFile` to .ts. An infrastructure wrapper or an SDK
+// client is where the global belongs, and the .ts/.tsx split is the whole
+// boundary this rule reads. A wider predicate looks like more coverage and
+// instead reports the module that every component calls.
 //
-// Error:    "Direct fetch() calls in component files bypass the
-//            data-fetching layer. Use a server function or TanStack
-//            Query hook instead."
+// The rule assumes the project has a better place for a request. On a project
+// with neither a server function nor a query library, it blocks the only
+// option a component has.
 //
-// ── Adapt ─────────────────────────────────────────────────────────────
-//
-// 1. File scope — `isComponentFile`:
-//    Only .tsx files are checked. Broaden the predicate in
-//    `../lib/architecture-exempt-paths.ts` if components also live in
-//    .jsx files. Do NOT extend it to .ts — infrastructure wrappers and
-//    SDK clients legitimately use fetch, and the .ts/.tsx split is the
-//    whole boundary this rule leans on.
-//
-// 2. Allowed directories — the `isArchitectureExemptPath` guard:
-//    Tests and scripts are already exempt. If the project has other .tsx
-//    files that legitimately use fetch (Storybook mock providers, MSW
-//    handlers), add a path check beside that guard.
-//
-// 3. What counts as the global — `FETCH_GLOBAL` and `GLOBAL_OBJECTS`:
-//    A project's own wrapper (`apiFetch()`, `authFetch()`) is fine and
-//    is not matched: the rule anchors on the exact callee name, so only
-//    a bare `fetch(…)` or an explicit `globalThis.fetch(…)` /
-//    `window.fetch(…)` is a finding. A method named `fetch` on some
-//    client object is somebody else's API, not the global.
-//
-// 4. Registration:
-//    Add the rule to the project's oxlint plugin
-//    (`rules: { "no-direct-fetch": noDirectFetchRule }`) and turn it on
-//    in `.oxlintrc.json` (`"<plugin>/no-direct-fetch": "error"`).
-//
+// The messages below name TanStack Query. That name is the fix instruction, not a
+// detail: a project on SWR, on Apollo, or on a route loader must edit the message
+// text to name what it uses. A message that names a package the project does not
+// have tells the reader to install one.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree } from "@oxlint/plugins";

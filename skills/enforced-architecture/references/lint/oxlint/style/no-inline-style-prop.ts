@@ -1,77 +1,26 @@
 // ─── style/no-inline-style-prop ───────────────────────────────────────
 //
-// Tag:       style
-// Mechanism: oxlint JS plugin (per-file, real-time)
-// Blocking:  Yes
+// Makes sure: Outside the primitives layer, no `style` prop carries an object
+// literal. Every declaration sits in a primitive's token props or in a named
+// stylesheet entry. To change the spacing unit you edit the theme module, and
+// you never read each JSX attribute for a hand-written `padding`.
 //
-// Prevents: Inline `style={{ ... }}` object literals in feature code.
+// Take this rule only where a style has a named place to live: a stylesheet
+// layer, `StyleSheet.create`, StyleX, vanilla-extract, CSS modules. Elsewhere
+// the ban moves the same object into a `styles` prop that no rule reads.
 //
-//           An inline style object is an unconstrained surface: it takes
-//           any property at any value, so it is the one place in a
-//           tokenised codebase where an arbitrary decision still
-//           typechecks. Closing it forces styling back through the
-//           primitives' token props, or into a named stylesheet the
-//           other rules in this tag can see.
+// The primitives-layer exemption is mandatory. The primitives turn token props
+// into real declarations, so without it the rule forbids its own fix.
 //
-// Applies:  All component files EXCEPT:
-//           - The primitives layer (it needs the raw surface to build on)
-//           - Test files and scripts
+// `style={someVar}` passes on purpose. A variable usually names a stylesheet
+// entry, which is the shape this rule asks for, so a report there fires on the
+// fix.
 //
-// Error:    "Inline style object. Use the primitive's token props, or a
-//            named style in the stylesheet."
+// STYLE_PROPS holds one name. A project with an `sx` or `contentContainerStyle`
+// prop that takes an object keeps this rule green while the object ships.
 //
-// ── Adapt ─────────────────────────────────────────────────────────────
-//
-// 0. DECIDE WHETHER YOU WANT THIS RULE AT ALL. It is the strictest rule
-//    in the tag and the one most likely to be wrong for a project.
-//
-//    Take it when the project has a stylesheet layer that inline styles
-//    would bypass — React Native with Unistyles or `StyleSheet.create`,
-//    StyleX, vanilla-extract, CSS modules. There, an inline object skips
-//    the theming and variant machinery entirely, and there is always a
-//    named place for the style to live instead.
-//
-//    Leave it out when inline style is the project's sanctioned escape
-//    hatch for things props cannot express — flex idioms
-//    (`minHeight: 0`, `flexShrink`), a computed one-off dimension, a
-//    `var(--token)` reference. Banning it there does not remove the
-//    need; it just relocates it into a worse shape (a CSS module for two
-//    declarations, or a `styles` prop that dodges the linter). In that
-//    project, `no-inline-color` / `no-inline-font-size` /
-//    `token-equality` already police what goes INSIDE the object, which
-//    is where the drift actually is. That is the narrower, more honest
-//    rule set — prefer it unless the stylesheet-bypass argument applies.
-//
-// 1. `PRIMITIVES_LAYER` — where the design system's `<Box>` / `<Text>`
-//    live. This exemption is MANDATORY: the primitives are what turn
-//    token props into real style declarations, so without it the rule
-//    forbids them from being implemented at all. Default is
-//    `src/shared/ui/`.
-//
-// 2. `STYLE_PROPS` — the attribute names that take a style object.
-//    `style` covers React DOM and React Native; add `contentContainerStyle`
-//    or a project-specific `sx` / `css` prop if those accept an object
-//    literal too.
-//
-// 3. Escape hatch by path, not by suppression: if a handful of files
-//    genuinely need inline style (an animated style driven by a shared
-//    value, a measured layout), add them to `PRIMITIVES_LAYER`'s
-//    alternation with a comment. Do not add an inline-suppression comment
-//    convention — that turns a hard boundary into a soft one, and agents
-//    learn the suppression faster than the rule.
-//
-// 4. Object literals only: `style={someVar}` is deliberately NOT a
-//    violation. A variable reference usually points at a named stylesheet
-//    entry — exactly the shape this rule steers toward — so catching it
-//    would punish the fix. What IS caught is every spelling that still
-//    ships a literal: a cast, a ternary branch, and an element of a
-//    React Native style array.
-//
-// 5. Registration: add the rule to the project's oxlint plugin
-//    (`rules: { "no-inline-style-prop": noInlineStylePropRule }`) and
-//    turn it on in `.oxlintrc.json`
-//    (`"<plugin>/no-inline-style-prop": "error"`).
-//
+// Do not add a suppression comment. A file that must write inline style joins
+// PRIMITIVES_LAYER with a reason; agents learn a suppression faster than a rule.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree } from "@oxlint/plugins";

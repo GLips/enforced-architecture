@@ -1,75 +1,23 @@
 // ─── effect/no-sql-type-parameter ─────────────────────────────────────
 //
-// Tag:       effect
-// Mechanism: oxlint JS plugin (per-file, real-time)
-// Blocking:  Yes
+// Makes sure: No `sql` template states a row shape that nothing checks —
+// `sql<Row>`, `db.sql<Row>`, and `sql.unsafe<Row>` all report. A typed row
+// comes from a `SqlSchema` decode, so a renamed column fails at the query
+// and the message names the column. You stop the search for an `undefined`
+// three frames away, on a field the type calls a `string`.
 //
-// Prevents: A type parameter on an Effect-SQL template literal —
+// Keep `SQL_TAG_NAMES` small. The set is matched against both the base
+// identifier and the final member of the tag, so a common name (`query`,
+// `db`) turns every tagged template with that name into a query.
 //
-//             const rows = yield* sql<Invoice>`select * from invoices`
+// An untyped `sql` template gets no finding. It returns rows the caller
+// must narrow, which is honest — the defect this rule names is the claim,
+// not the query.
 //
-//           The parameter is an assertion wearing generic syntax. It
-//           declares the row shape and checks nothing: the driver hands
-//           back whatever the database sent, and every column rename,
-//           dropped column, or nullable that the migration introduced is
-//           now a lie the compiler will defend. The failure surfaces
-//           later, somewhere that reads a field, as `undefined` where
-//           the type says `string`.
-//
-//           `SqlSchema.findOne` / `findAll` / `single` / `void` take a
-//           `Schema` and decode the result, so the same shape becomes
-//           evidence: a mismatch fails at the query, naming the column,
-//           in the effect that ran it.
-//
-//           The stack-general form of this idea is
-//           `types/no-type-argument-assertion`, which refuses the same
-//           move wherever a call is *told* what came back —
-//           `response.json<User>()`, `parse<Config>(raw)`. That rule and
-//           the rest of the `types/` tag are where the general judgement
-//           lives; this one is the Effect-SQL spelling, where the type
-//           argument also decides how each column is read. A project on
-//           Effect wants both.
-//
-// Applies:  All .ts and .tsx files EXCEPT test files and scripts.
-//
-// Error:    "A type parameter on a sql template is an assertion: it
-//            declares the row shape and nothing checks it, so a renamed
-//            column stays a compile-time success and fails downstream.
-//            Run the query through SqlSchema.findOne / findAll / single /
-//            void with a Schema, and let the decode fail at the query."
-//
-// Negative space: An untyped `sql` template is left alone. It returns
-//                 rows the caller still has to narrow, which is honest —
-//                 the defect this rule names is the *claim*, not the
-//                 query.
-//
-// ── Adapt ─────────────────────────────────────────────────────────────
-//
-// 1. Which tags are SQL tags — `SQL_TAG_NAMES`:
-//    Matched against both the base identifier and the final member of
-//    the tag, so `sql<T>`, `db.sql<T>`, `this.sql<T>`, and
-//    `sql.unsafe<T>` all report. Add the project's own name if the
-//    client is bound as something else (`query`, `pg`) — and keep the
-//    set small, since any tagged template whose name matches will be
-//    read as a query.
-//
-// 2. Other tagged templates are untouched.
-//    A `gql<Data>` or `css<Props>` tag is a different API with different
-//    evidence behind it, and this rule takes no position on those.
-//
-// 3. Adopting `types/no-type-argument-assertion` alongside this rule
-//    double-reports every typed query — `sql` is in that rule's name set
-//    too. Take both and drop `"sql"` from its
-//    `ASSERTING_DATA_CALL_NAMES`, so each line raises the diagnostic
-//    whose message names the fix the project actually wants: `SqlSchema`
-//    here, a parse at the boundary there.
-//
-// 4. Registration:
-//    Add the rule to the project's oxlint plugin
-//    (`rules: { "no-sql-type-parameter": noSqlTypeParameterRule }`) and
-//    turn it on in `.oxlintrc.json`
-//    (`"<plugin>/no-sql-type-parameter": "error"`).
-//
+// `types/no-type-argument-assertion` holds `sql` in its call-name set, so
+// both rules together report every typed query twice. Take both and remove
+// `"sql"` from that rule's `ASSERTING_DATA_CALL_NAMES`. Each line then
+// carries the message that names the fix its own tag asks for.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree } from "@oxlint/plugins";

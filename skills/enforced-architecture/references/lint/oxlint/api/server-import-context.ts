@@ -1,68 +1,28 @@
 // ─── api/server-import-context ───────────────────────────────────────
 //
-// Tag:      api
-// Mechanism: oxlint JS plugin (per-file, real-time)
-// Blocking: Yes
+// Makes sure: A `*/index.server` specifier appears only in a server context: a
+// feature's `controllers/`, `service/` or `repo/` directory, anything under
+// `infrastructure/`, and any file named `*.server.ts`. You change an export of
+// an `index.server.ts`, and every caller outside a test sits in one of those
+// places. To find them you read those directories, not the whole `ui/` and
+// `routes/` trees.
 //
-// Prevents: Client contexts importing server-only barrels (*/index.server
-//           paths). Server barrels export code that depends on server-
-//           only packages (DB clients, auth infrastructure, SDK
-//           wrappers). Importing them from UI files, client-safe
-//           barrels, or shared modules leaks server-only code into
-//           client bundles.
+// Do not add `/src/routes/` to `SERVER_CONTEXTS`. A loader runs on the server
+// for the first request, thus the directory looks like a server context. The
+// same load path runs in the browser on a client-side navigation
+// (`@tanstack/router-core/src/load-matches.ts` calls `route.options.loader`),
+// so a route file is isomorphic. A route that needs the server barrel takes
+// the name `*.server.ts`, as `routes/api.invoices.server.ts` does.
 //
-//           Server contexts are explicitly allowed:
-//           - features/*/controllers/
-//           - features/*/service/
-//           - features/*/repo/
-//           - infrastructure/*
-//           - Any file named *.server.ts or *.server.tsx
+// The fastest way to clear this finding is to rename the file to `*.server.ts`.
+// The name is a claim, and this rule takes the claim as given. Nothing here
+// tests that the file runs only on the server, so a renamed UI module is
+// exempt and reports nothing.
 //
-//           Everything else is a client context where */server imports
-//           are denied.
-//
-// Applies:  All src/** files EXCEPT:
-//           - Server contexts listed above
-//           - Test files and scripts
-//
-// Error:    "*/index.server is a server-only barrel and this is a client
-//            context. Which server context may reach a given barrel is
-//            boundary/import-policy's answer — see the message."
-//
-// Source: @tanstack/router-core/src/load-matches.ts
-//         (the shared load path invokes route.options.loader).
-//
-// ── Adapt ────────────────────────────────────────────────────────────
-//
-// 1. Who may import a server barrel — `SERVER_CONTEXTS`:
-//    Add or remove directories that count as server contexts in the
-//    project. Common additions:
-//      /src/api/                      — a standalone api/ layer
-//      /src/features/[^/]+/actions/   — an actions/ layer
-//    If infrastructure lives under a different name, adjust that entry:
-//      /src/infrastructure/  — standard (this template)
-//      /src/infra/           — shortened name
-//      /src/lib/             — if infrastructure is called lib
-//
-// 2. Server file naming convention — the `\.server\.[tj]sx?$` entry of
-//    `SERVER_CONTEXTS`. It covers every file using the .server.ts
-//    convention, including index.server.ts barrels themselves.
-//    Examples:
-//      \.server\.[tj]sx?$   — standard (this template)
-//      /server\.[tj]sx?$    — alternative naming
-//
-// 3. What a server barrel looks like — `SERVER_BARREL_SPECIFIER`:
-//    Matches any specifier whose last segment is `index.server`.
-//    Examples:
-//      /index\.server  — standard (this template)
-//      /server         — alternative naming
-//
-// 4. Registration:
-//    Add the rule to the project's oxlint plugin
-//    (`rules: { "server-import-context": serverImportContextRule }`) and
-//    turn it on in `.oxlintrc.json`
-//    (`"<plugin>/server-import-context": "error"`).
-//
+// Do not exempt type-only imports with `isTypeOnlyDeclaration`. A type is
+// erased at build time, thus the exemption looks free. A client file that
+// names a type from a server barrel still depends on that barrel's shape,
+// which is the coupling every boundary rule in this catalog counts.
 // ─────────────────────────────────────────────────────────────────────
 
 import { defineRule } from "@oxlint/plugins";

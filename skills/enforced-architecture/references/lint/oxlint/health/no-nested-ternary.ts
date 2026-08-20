@@ -1,42 +1,19 @@
 // ─── health/no-nested-ternary ────────────────────────────────────────
 //
-// Tag:      health
-// Mechanism: oxlint JS plugin (per-file, real-time)
-// Blocking: Yes
+// Makes sure: No expression selects a result behind more than two conditions.
+// To add a case to a decision, you edit an `if` block or a named variable. You
+// do not count the `?` and `:` marks of a chain to find the place for the new
+// case. A case put after the wrong `:` compiles and returns a wrong value for
+// the cases around it.
 //
-// Prevents: Double-nested ternary expressions (three levels of
-//           conditional). Single ternaries are fine and idiomatic.
-//           Nested ternaries (a ? b : c ? d : e) are tolerable.
-//           Double-nested ternaries (a ? b : c ? d : e ? f : g)
-//           become unreadable and should be extracted to variables,
-//           helper functions, or early returns.
+// `MAX_TERNARY_DEPTH` is 2, thus a single ternary and one nested ternary both
+// pass. A value of 1 reports `a ? b : c ? d : e`, which is a common and exact
+// shape. A rule that reports the code a team writes every day is a rule the
+// team disables, and the deep chains then stay too.
 //
-// Applies:  All .tsx and .ts files EXCEPT:
-//           - Test files and scripts
-//
-// Error:    "Avoid double-nested ternary expressions (three
-//            conditionals). Use if/else or extracted variables for
-//            clarity."
-//
-// ── Adapt ─────────────────────────────────────────────────────────────
-//
-// 1. Nesting depth — `MAX_TERNARY_DEPTH`:
-//    This template flags THREE levels of ternary nesting (two levels
-//    deep). Set it to 1 for stricter enforcement (any nesting at all,
-//    which is what ESLint's no-nested-ternary does), or higher for a
-//    more permissive project.
-//
-// 2. File scope — `isArchitectureExemptPath`:
-//    Tests and scripts are exempt through `../lib/architecture-exempt-paths.ts`;
-//    edit the patterns there and every rule in the catalog inherits the
-//    change. To enforce this only in JSX files, also gate on
-//    `isComponentFile(filename)` from the same module.
-//
-// 3. Registration:
-//    Add the rule to the project's oxlint plugin
-//    (`rules: { "no-nested-ternary": noNestedTernaryRule }`) and turn it
-//    on in `.oxlintrc.json` (`"<plugin>/no-nested-ternary": "error"`).
-//
+// Do not gate this rule on `isComponentFile`. A JSX attribute holds many of
+// these chains, but the same chain in a `.ts` file is as hard to read. That
+// gate makes the rule silent on every file that is not `.tsx`.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree, type Range } from "@oxlint/plugins";

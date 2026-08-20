@@ -1,87 +1,24 @@
 // ─── naming/no-vacant-symbol-names ───────────────────────────────────
 //
-// Tag:      naming
-// Mechanism: oxlint JS plugin (per-file, real-time)
-// Blocking: Yes
+// Makes sure: Every name another file can reach — a type, and a function, class
+// or constant at module level — says what the thing is for. One search for
+// `UserRow` or for `CreateUserInput` gives you the declaration and each use of
+// it. You do not open six files to learn which type named `UserData` is the
+// database row and which one is the form input.
 //
-// Prevents: Declarations named after the CATEGORY of thing they are
-//           rather than the role they play:
+// The rule visits declarations, not references. A version that visits every
+// `Identifier` reports an imported third-party name, `DataGrid` for example.
+// That name is not the project's to change, so the rule gets disabled.
 //
-//             interface UserShape { … }
-//             type UserData = { … }
-//             const invoiceInfo = …
-//             class BillingManager { … }
+// Object properties are not checked. An external payload dictates `{ data: … }`
+// and the project cannot rename it. Add `TSPropertySignature` and
+// `PropertyDefinition` to the visitors only in a project that owns its payload
+// names.
 //
-//           Every interface is a shape. Every type is data. The word
-//           adds nothing a reader did not already know from the
-//           declaration keyword, so the name carries exactly as much
-//           information as `User` would have — while looking like it
-//           carries more.
-//
-//           The reason these appear is worth naming, because it decides
-//           the fix. You reach for `UserShape` at the moment you need a
-//           SECOND type for a concept you already have a name for: the
-//           database row, the form input, the API response, the draft.
-//           The names that record that decision are `UserRow`,
-//           `CreateUserInput`, `UserResponse`, `UserDraft` — each one
-//           says which layer owns that representation. `UserShape` says
-//           only that you needed another type and did not want to
-//           choose. It is `Record<string, unknown>` in the name rather
-//           than in the type.
-//
-//           That makes this the naming-side counterpart to the
-//           `boundary` and `api` tags: those keep layers apart in the
-//           import graph, and this keeps the layer visible in the name
-//           an agent greps for.
-//
-// Excludes: Words that merely CONTAIN a banned term. Matching is on
-//           whole words after splitting camelCase, PascalCase and
-//           snake_case, so `reshape`, `metadata`, and `database` are
-//           untouched. Substring matching is what makes this kind of
-//           rule unusable.
-//
-//           Local bindings inside function bodies. A `const data` two
-//           lines from its use is not an address anyone searches for.
-//
-// Applies:  All .ts and .tsx files EXCEPT:
-//           - Test files and scripts
-//
-// Error:    "`{{name}}` is named for what kind of thing it is, not what
-//            it is for — every type is a shape, every value is data.
-//            Name the role: which layer owns this representation and
-//            what it is used for (`UserRow`, `CreateUserInput`,
-//            `UserResponse`)."
-//
-// ── Adapt ─────────────────────────────────────────────────────────────
-//
-// 1. The list — `VACANT_TERMS`. This is the whole rule; edit it freely.
-//    `data` is by far the highest-volume entry and the first one to cut
-//    if the rule is too loud to adopt — `formData` and `chartData` are
-//    idiomatic in many codebases even though the argument above applies
-//    to them. `manager` and `helper` are the safest to keep: a class
-//    named for managing something almost always has no boundary.
-//    Deliberately NOT included: `base`, which carries real meaning in a
-//    component hierarchy, and `item`/`value`, which are correct inside
-//    generic containers.
-//
-// 2. What is checked — declarations, not references:
-//    Type declarations report wherever they appear; functions, classes
-//    and variables report only at module top level. A rule visiting
-//    every `Identifier` also reports on imported third-party names
-//    (`import { DataGrid } from "…"`), which cannot be fixed and
-//    guarantees the rule gets turned off.
-//
-// 3. Object properties are not checked:
-//    `{ data: … }` on a response payload is often dictated by an
-//    external API. Add `TSPropertySignature` and `PropertyDefinition`
-//    to the visitors if the project owns its payload names.
-//
-// 4. Registration:
-//    Add the rule to the project's oxlint plugin
-//    (`rules: { "no-vacant-symbol-names": noVacantSymbolNamesRule }`)
-//    and turn it on in `.oxlintrc.json`
-//    (`"<plugin>/no-vacant-symbol-names": "error"`).
-//
+// Keep `base`, `item` and `value` out of `VACANT_TERMS`. Each is exact in its
+// place: a base component, and a member of a generic container. `data` is the
+// entry that reports most often, and thus the first one to remove if the
+// project cannot adopt the whole list at once.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree } from "@oxlint/plugins";

@@ -1,54 +1,16 @@
 // ─── boundary/server-no-upward ───────────────────────────────────────
 //
-// Tag:      boundary
-// Mechanism: oxlint JS plugin (per-file, real-time)
-// Blocking: Yes
+// Makes sure: No file under src/infrastructure/ imports `@/features`,
+// `@/domains` or `@/routes`. You move src/infrastructure/ into a worker, a
+// script or a package, and no feature code comes with it. You change a feature,
+// and no infrastructure module changes, because infrastructure reads no feature.
 //
-// Prevents: Infrastructure modules importing from features, domains,
-//           or routes. Infrastructure is a service provider — it sits
-//           below features in the dependency graph and provides
-//           capabilities (DB, auth, SDKs, telemetry) that features
-//           consume. If infrastructure imports a feature, the
-//           dependency arrow reverses, creating circular potential
-//           and coupling infrastructure changes to feature internals.
-//           If infrastructure needs feature-specific behavior, the
-//           feature passes it as a parameter (dependency inversion).
+// Infrastructure imports infrastructure freely, and reaches down to `@/shared`
+// and `@/env`. This rule says nothing about those edges, and a project that
+// wants to restrict them needs a separate rule.
 //
-// Applies:  All src/infrastructure/** files EXCEPT:
-//           - Test files
-//           - Scripts
-//
-// Error:    "Infrastructure modules cannot import from features,
-//            domains, or routes. Infrastructure provides services to
-//            upper layers — it does not consume them. If this module
-//            needs feature-specific behavior, accept it as a parameter."
-//
-// ── Adapt ─────────────────────────────────────────────────────────────
-//
-// 1. The infrastructure directory — `INFRASTRUCTURE_LAYER`:
-//      /src/infrastructure/   — standard (this template)
-//      /src/infra/            — abbreviated naming
-//      /src/adapters/         — ports-and-adapters naming
-//
-// 2. The layers above it — `UPPER_LAYER_SPECIFIER`:
-//    The default bans features, domains, and routes, which are the
-//    layers that sit above infrastructure in the dependency graph. Add a
-//    project's own upper layers as further alternatives. The pattern
-//    closes each segment with `(?:\/|$)` so it matches the bare barrel
-//    `@/features` and a subpath, but NOT `@/features-legacy` or
-//    `@/featuresets` — unbounded prefixes here were the single most
-//    common over-match in this catalog.
-//
-// 3. Self-imports: infrastructure importing other infrastructure is
-//    allowed (auth importing db, say), and so is reaching down to
-//    `@/shared` or `@/env`. If a project needs to restrict cross-concern
-//    infrastructure imports, that is a separate rule.
-//
-// 4. Registration:
-//    Add the rule to the project's oxlint plugin
-//    (`rules: { "server-no-upward": serverNoUpwardRule }`) and turn it
-//    on in `.oxlintrc.json` (`"<plugin>/server-no-upward": "error"`).
-//
+// A relative specifier reaches the same module and no pattern here sees it.
+// Adopt boundary/import-policy in the structural tier with this rule.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule } from "@oxlint/plugins";

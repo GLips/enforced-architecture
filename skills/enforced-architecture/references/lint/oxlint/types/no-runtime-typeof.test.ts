@@ -40,7 +40,7 @@ describeRule("types/no-runtime-typeof", noRuntimeTypeofRule, {
     },
     {
       // Documented cost, asserted so nobody adopts this rule believing otherwise: the SSR guard is
-      // correct code and this rule rejects it. See Adapt note 1.
+      // correct code and this rule rejects it.
       name: "the environment guard, which is correct code and still reports",
       filename: SERVICE,
       code: `export const isServer = typeof window === "undefined";`,

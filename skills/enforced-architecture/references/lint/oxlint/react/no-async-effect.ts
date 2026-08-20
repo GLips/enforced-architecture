@@ -1,93 +1,32 @@
 // ─── react/no-async-effect ────────────────────────────────────────────
 //
-// Tag:      react
-// Mechanism: oxlint JS plugin (per-file, real-time)
-// Blocking: Yes
+// Makes sure: Every useEffect that does async work returns a cleanup
+// function, and no useCallback is async. The effect has one place to set a
+// cancelled flag or to abort the request. A `setState` after an `await` does
+// not run against a component that React already removed. No async
+// useCallback exists, so you never trace one to the effect that calls it.
 //
-// Prevents: Async operations in React effects without proper cleanup,
-//           which leads to memory leaks, stale state updates, and
-//           operations continuing after unmount or dependency changes.
+// A `return () => …` anywhere in the effect callback counts as cleanup. To
+// read what the cleanup does looks stricter, but it reports effects that
+// cancel correctly, and an author answers that with a suppression comment.
 //
-//           Two patterns are caught:
+// Async work is `await`, an async arrow, an async function, and a `.then`
+// call. Do not drop the `.then` arm because the `async` flag covers the rest:
+// a promise chain has no `async` keyword and starts the same request.
 //
-//           1. Async inside useEffect without cleanup return:
+// The useCallback arm reports an async useCallback wherever it appears, with
+// no test that an effect calls it. That call is often in another file, and
+// this rule reads one file. Delete the arm and the indirect form gets no
+// report.
 //
-//                useEffect(() => {
-//                  async function load() { ... }
-//                  load();
-//                }, [dep])           // ← no return () => { ... }
+// The rule reads .tsx files only. Move a hook into a sibling use*.ts file, a
+// refactor this catalog asks for elsewhere, and this rule no longer reads its
+// effects. react/derived-state reads .ts too; this one does not.
 //
-//              The async work has no way to cancel when deps change or
-//              the component unmounts. setState calls may fire on a dead
-//              component, and stale closures can corrupt state.
-//
-//           2. useCallback(async () => ...) — the indirect form:
-//
-//                const doWork = useCallback(async () => { ... }, [dep]);
-//                useEffect(() => { doWork(); }, [doWork]);
-//
-//              Wrapping async in useCallback is almost always done to
-//              call it from useEffect. The cleanup problem is the same,
-//              but harder to spot because the async work is separated
-//              from the effect. Additionally, the callback's ref-based
-//              guards (e.g., isRunning.current) are fragile across
-//              component re-renders and navigation.
-//
-//           Correct pattern — async effect with cleanup:
-//
-//                useEffect(() => {
-//                  let cancelled = false;
-//                  async function run() {
-//                    const data = await fetchData();
-//                    if (!cancelled) setState(data);
-//                  }
-//                  run();
-//                  return () => { cancelled = true; };
-//                }, [dep])
-//
-//           Better pattern — use a data-fetching library:
-//
-//                const { data } = useQuery({
-//                  queryKey: ['data', dep],
-//                  queryFn: () => fetchData(dep),
-//                })
-//
-// Applies:  All .tsx files EXCEPT:
-//           - Test files and scripts
-//
-// ── Adapt ─────────────────────────────────────────────────────────────
-//
-// 1. Data-fetching library:
-//    Both messages reference TanStack Query. If the project uses SWR,
-//    Apollo, or a route loader, update the message text — the message is
-//    the fix instruction, so it has to name the thing to reach for.
-//
-// 2. Which hooks the rule reads — `EFFECT_HOOK` and `CALLBACK_HOOK`:
-//    Add `useLayoutEffect` beside `EFFECT_HOOK` if the project runs the
-//    same work there. In projects that don't use a mutation library,
-//    async `CALLBACK_HOOK` for memoized event handlers passed as props
-//    is legitimate; if that causes false positives, delete the
-//    `CALLBACK_HOOK` branch and the `asyncCallback` message and keep
-//    only the effect check. Projects using TanStack Query's useMutation
-//    for all async user interactions should not hit this.
-//
-// 3. Cleanup detection — the `ReturnStatement` visitor:
-//    The rule considers an effect "cleaned up" if its callback contains
-//    `return () => …` anywhere. This is a heuristic — it doesn't verify
-//    the cleanup is correct, only that the developer considered the
-//    lifecycle. This is intentionally permissive; catching missing
-//    cleanup is far more valuable than auditing cleanup contents.
-//
-// 4. File scope — `isComponentFile`:
-//    Only .tsx files are checked, since an effect only runs in a
-//    component. Broaden it in `../lib/architecture-exempt-paths.ts` if
-//    the project keeps hooks in .ts modules.
-//
-// 5. Registration:
-//    Add the rule to the project's oxlint plugin
-//    (`rules: { "no-async-effect": noAsyncEffectRule }`) and turn it on
-//    in `.oxlintrc.json` (`"<plugin>/no-async-effect": "error"`).
-//
+// The messages below name TanStack Query. That name is the fix instruction, not a
+// detail: a project on SWR, on Apollo, or on a route loader must edit the message
+// text to name what it uses. A message that names a package the project does not
+// have tells the reader to install one.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree, type Range } from "@oxlint/plugins";

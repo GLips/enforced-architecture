@@ -1,75 +1,26 @@
 // ─── style/no-inline-font-size ────────────────────────────────────────
 //
-// Tag:       style
-// Mechanism: oxlint JS plugin (per-file, real-time)
-// Blocking:  Yes
+// Makes sure: No style object and no JSX prop sets `fontSize`. Every text size
+// comes from a named entry on the type scale, so a change to the scale reaches
+// every screen. When a surface needs a size the scale does not hold, you add it
+// to the scale, and the next surface finds it there.
 //
-// Prevents: Raw `fontSize` overrides in style objects and props.
+// The rule bans the property, not the value, and that is the whole of it. A
+// version that reports only off-scale numbers leaves `fontSize: 13` in place
+// wherever 13 is on the scale today, and that call site no longer follows the
+// scale the day the scale moves.
 //
-//           Type scale is a closed set by nature — a project has a
-//           handful of named sizes, and any value outside them is drift.
-//           Unlike a width or a height, there is no such thing as a
-//           legitimate one-off font size: if a surface needs a size the
-//           scale does not have, the scale is wrong, and hand-writing
-//           `fontSize: 13` hides that instead of surfacing it. So this
-//           rule bans the property outright rather than checking the
-//           value, which is what separates it from
-//           `style/token-equality`.
+// A JS plugin reads the JS and TS AST only. `font-size: 13px` in a `.css` file
+// keeps this rule green; `style/css-tokens` is the check that reads that file.
 //
-// Applies:  All source files EXCEPT:
-//           - The token source itself
-//           - Non-UI layers with no styling
-//           - Test files and scripts
-//           - Documented raster/canvas boundaries (see Adapt section 3)
+// Add `fontWeight`, `lineHeight` or `letterSpacing` to SCALE_PROPERTIES only
+// when the tokens bundle them into one named variant. Where the tokens expose
+// them separately, the ban names no fix, and a rule with no fix to name is one
+// people disable.
 //
-//           NOT `.css` files — a JS plugin sees the JS/TS AST only. The
-//           stylesheet surface is covered by the `style/css-tokens`
-//           structural check.
-//
-// Error:    "Raw fontSize override. Use a named size from the type
-//            scale."
-//
-// ── Adapt ─────────────────────────────────────────────────────────────
-//
-// 1. `TOKEN_SOURCE` — the module that defines the type scale. It has to
-//    write the raw numbers the named sizes resolve to, so it MUST be
-//    exempt. Point it at the project's `theme.ts` / `tokens.ts`. Add
-//    documented raster boundaries here too — a canvas terminal, a PDF
-//    generator, a chart config takes a size as an API argument rather
-//    than as chrome typography. One path per line, each with a comment
-//    saying why, and derive the number from the scale inside that file.
-//
-// 2. `NON_UI_LAYER` — layers that carry no styling at all (`src/domains/`
-//    in the standard layout). This is an exemption only because those
-//    layers should have nothing to say about type; if yours can style,
-//    delete the constant and the check that uses it.
-//
-// 3. `SCALE_PROPERTIES` — the property names that belong to the closed
-//    scale. `fontWeight`, `lineHeight`, and `letterSpacing` are usually
-//    part of the same one. If the project's tokens bundle all four into a
-//    single `variant` (the stronger design — one decision, not four), add
-//    them here. If the tokens expose them separately, leave this on
-//    `fontSize` alone rather than banning properties that have no token
-//    to point at.
-//
-//    The set is checked against BOTH object-literal keys and JSX
-//    attribute names, so `{ fontSize: 13 }` and `<Text fontSize={13}>`
-//    are the same violation. A prop that carries a scale TOKEN
-//    (`fz="var(--text-caption)"`, `size="caption"`) is a different name
-//    and stays legal — that is the fix this rule steers toward.
-//
-// 4. Name the fix (the message): point at the project's actual type
-//    scale and the prop that reaches it — `size="caption"`,
-//    `fz="var(--text-caption)"`, `variant="heading-xs"`,
-//    `theme.typography.caption`. Include the file the scale lives in;
-//    that is where an agent goes next when the size it wanted is not
-//    there.
-//
-// 5. Registration: add the rule to the project's oxlint plugin
-//    (`rules: { "no-inline-font-size": noInlineFontSizeRule }`) and turn
-//    it on in `.oxlintrc.json`
-//    (`"<plugin>/no-inline-font-size": "error"`).
-//
+// TOKEN_SOURCE holds the scale itself and the documented raster boundaries — a
+// canvas terminal, a PDF generator, a chart config takes a size as an API
+// argument. Derive that number from the scale inside the exempt file.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree } from "@oxlint/plugins";

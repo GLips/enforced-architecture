@@ -1,76 +1,28 @@
 // ─── placement/server-fn-validation ──────────────────────────────────────
 //
-// Tag:      placement
-// Mechanism: oxlint JS plugin (per-file, real-time)
-// Blocking: Yes
+// Makes sure: A createServerFn handler that reads `data` calls .validator()
+// first. Client input reaches a database write or a domain function only after
+// a schema checks it. You do not test the payload shape a second time inside
+// the handler body before you trust what it stores.
 //
-// Prevents: Server functions that accept input without validation.
-//           Every createServerFn whose handler consumes `data` must first
-//           chain .validator() to validate input at
-//           the server boundary. Unvalidated server functions accept
-//           arbitrary client input — this is the primary injection
-//           vector for bad data reaching the database or business
-//           logic.
+// The handler's parameter list is the signal, not the factory's argument. That
+// argument is config (`{ method: "POST" }`) and never client input. A handler
+// that binds the whole options object (`async (options) => …`) reaches `data`
+// through it and needs a validator too.
 //
-// Applies:  All src/** files that contain createServerFn calls.
-//           Excludes test files and scripts.
+// Move the handler out to a named function and the report stops. The rule reads
+// a handler written inline and does not follow `.handler(saveHandler)` to its
+// declaration.
 //
-// Error:    "createServerFn consumes handler data without .validator().
-//            Add .validator(schema) before .handler() to validate
-//            input at the server boundary."
-//
-// Negative space: The handler's PARAMETER LIST is the signal, not the
-//                 factory's argument — that argument is always config
-//                 (`{ method: "POST" }`), never client input. A handler
-//                 passed by reference (`.handler(saveHandler)`) is not
-//                 followed to its declaration and is not reported; the
-//                 rule only reads a handler written inline.
-//
-// ── Adapt ─────────────────────────────────────────────────────────────
-//
-// 1. Server function factory names — `SERVER_FN_FACTORIES`:
-//    The identifiers a validated chain may bottom out in. Add the
-//    project's wrapper if it wraps the factory
-//    (`protectedServerFn`, `createServerAction`, …); a chain that bottoms
-//    out in any other identifier is some other builder and is ignored.
-//
-// 2. Chain method names — `HANDLER_METHOD` and `VALIDATOR_METHOD`:
-//    TanStack Start spells these .handler() and .validator(). Update both
-//    together — and the message with them — for another framework.
-//
-// 3. Input detection — `PAYLOAD_PROPERTY`:
-//    The handler consumes client input when its parameter destructures
-//    `data`. A context-only handler (`async ({ context }) => …`) does not
-//    require a validator; a handler that binds the whole options object
-//    (`async (options) => …`) does, because `data` is reachable through it.
-//
-// 4. Ban the validator's no-op forms in the same change.
-//    This rule mandates that `.validator()` is called. It cannot see
-//    whether the schema passed to it validates anything, and every
-//    validation library ships a spelling that does not: `z.any()`,
-//    `z.unknown()`, a `.passthrough()` object, an empty `z.object({})`
-//    against a payload with fields, `disableValidation`-style opt-outs.
-//    Each satisfies this rule completely and leaves the boundary exactly
-//    as open as it was.
-//
-//    That is not a hole in this rule — it is the shape of every mandate.
-//    A rule requiring a call is satisfiable by a call that does nothing,
-//    so the mandate and a ban on the no-op forms are one decision and
-//    ship together. Under an agent writing the code, this matters more
-//    than it reads: `z.any()` is what a model reaches for when this rule
-//    blocks it and the real schema is not obvious, and the diff looks
-//    like compliance.
-//
-//    The paired ban is a per-file rule of its own — match the validator
-//    argument against the library's own escape hatches. `effect/no-disable-validation`
-//    is the worked example for Effect Schema, and its *Adapt* section
-//    names which constants to repoint for another library.
-//
-// 5. Registration:
-//    Add the rule to the project's oxlint plugin
-//    (`rules: { "server-fn-validation": serverFnValidationRule }`) and turn
-//    it on in `.oxlintrc.json` (`"<plugin>/server-fn-validation": "error"`).
-//
+// Ban the validator's no-op forms in the same change. This rule mandates a call
+// to `.validator()` and cannot see whether the schema checks anything. Every
+// validation library has a spelling that checks nothing: `z.any()`,
+// `z.unknown()`, a `.passthrough()` object, an empty `z.object({})` against a
+// payload with fields. Each one satisfies this rule and leaves the boundary as
+// open as before. `z.any()` is also what an agent writes when this rule blocks
+// it and the real schema is not obvious. `effect/no-disable-validation` bans
+// those forms for Effect Schema and names the constants to repoint for another
+// library.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree } from "@oxlint/plugins";

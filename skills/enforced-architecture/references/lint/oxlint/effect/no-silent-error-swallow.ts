@@ -1,89 +1,27 @@
 // ─── effect/no-silent-error-swallow ───────────────────────────────────
 //
-// Tag:       effect
-// Mechanism: oxlint JS plugin (per-file, real-time)
-// Blocking:  Yes
+// Makes sure: No catch handler answers a failure with the empty effect.
+// `Effect.catchAll`, `Effect.catchTag`, and each branch of an
+// `Effect.catchTags` object all count, in the data-first and the data-last
+// position. So when a write reports success and the row is absent, you
+// read the write, not every handler between it and the caller.
 //
-// Prevents: A catch handler whose whole body is `Effect.void` —
+// `Effect.unit` and `Effect.succeed(undefined)` are the same value as
+// `Effect.void`. Keep all three in the void set, or a handler uses one of
+// the other two names and reports nothing.
 //
-//             Effect.catchAll(() => Effect.void)
-//             Effect.catchTag("NotFound", () => Effect.void)
-//             Effect.catchTags({ NotFound: () => Effect.void })
+// One correct shape reports: idempotent recovery, such as
+// `Effect.catchTag("NotFound", () => Effect.void)` on a delete. Return a
+// value that states the outcome (`Effect.succeed({ deleted: false })`), or
+// keep the void and disable the rule on that line with the invariant next
+// to it. `rg` over the disables is then the list of every deliberate one.
+// Do not widen the rule to permit the shape everywhere: that removes the
+// list and permits the rest.
 //
-//           The error leaves the type signature and leaves the program at
-//           the same time. Effect's whole claim is that failures are in
-//           the type, so a handler that returns the unit effect is not
-//           handling anything — it is deleting the evidence that the
-//           operation failed while the caller reads a success. Every
-//           later symptom is then unattributable, because the one frame
-//           that knew is the frame that discarded it.
-//
-//           Three fixes, and the message names them: let the error
-//           propagate, map it to an error this layer does declare, or
-//           recover with a value the caller can actually use.
-//
-// Applies:  All .ts and .tsx files EXCEPT test files and scripts.
-//
-// Error:    "This catch handler returns Effect.void, so the failure
-//            leaves the type and the program at once and the caller
-//            reads a success. Let the error propagate, map it with
-//            Effect.mapError to an error this layer declares, or
-//            recover with a real fallback value."
-//
-// Negative space: A handler passed by reference
-//                 (`Effect.catchAll(ignoreFailure)`) is not followed to
-//                 its declaration; only an inline handler is read. And a
-//                 handler returning `Effect.logError(…)` is the same
-//                 swallow at the type level — it also produces
-//                 `Effect<void>` — but telling those apart needs types,
-//                 which is @effect/language-service's tier, not this one.
-//                 See overview.md.
-//
-// ── Adapt ─────────────────────────────────────────────────────────────
-//
-// 1. Which combinators count as catching — `CATCH_METHODS`:
-//    The three that take a recovery handler. Add `orElse`, `catchIf`, and
-//    `catchSome` if the project uses them — they swallow identically —
-//    and note that `catchSome` wraps its handler in `Option.some(…)`, so
-//    the void test has to look through that call.
-//
-// 2. What counts as the empty effect — `VOID_EFFECT_MEMBERS` and the
-//    `Effect.succeed(undefined)` spelling:
-//    `unit` is the pre-3.x name for `void` and is here because old code
-//    and old training data both still write it. `Effect.succeed(undefined)`
-//    is the same value spelled around the ban.
-//
-// 3. The one legitimate shape this rule refuses, and what to do with it:
-//    idempotent recovery. `Effect.catchTag("NotFound", () => Effect.void)`
-//    on a delete is correct — the caller asked for the row to be gone and
-//    it is gone, so there is nothing to report and nothing to recover.
-//    The rule still fires, because no per-file rule can tell that case
-//    from a swallow, and the two are spelled identically.
-//
-//    Two honest ways out, both of which leave a trace. Return a value
-//    that says what happened (`Effect.succeed({ deleted: false })` — the
-//    caller then knows, and the type says so), which is usually the
-//    better design anyway. Or keep the void and disable the rule on that
-//    line with a comment naming the invariant, the way
-//    `types/require-safety-comment` makes an assertion justify itself:
-//    `rg` over the disables is then the list of every deliberate swallow
-//    in the codebase, which is exactly the list worth being able to
-//    produce. What must not happen is loosening the rule to allow the
-//    shape globally — that trades a greppable exception list for a hole.
-//
-// 4. Every argument is tested, not the one the arity implies.
-//    `Effect.catchAll(effect, handler)` (data-first) and
-//    `effect.pipe(Effect.catchAll(handler))` (data-last) put the handler
-//    in different positions, and `pipe(effect, Effect.catchAll(handler))`
-//    is a third spelling of the second. Reading `arguments[0]` catches
-//    one of the three and reports nothing for the others.
-//
-// 5. Registration:
-//    Add the rule to the project's oxlint plugin
-//    (`rules: { "no-silent-error-swallow": noSilentErrorSwallowRule }`)
-//    and turn it on in `.oxlintrc.json`
-//    (`"<plugin>/no-silent-error-swallow": "error"`).
-//
+// The rule does not follow a handler passed by name
+// (`Effect.catchAll(ignoreFailure)`) to its declaration. A handler that
+// returns `Effect.logError(…)` has the same type and the same result at
+// the caller. Both need the type-aware tier.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree } from "@oxlint/plugins";

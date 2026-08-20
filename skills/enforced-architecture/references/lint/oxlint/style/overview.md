@@ -15,13 +15,13 @@ surface are in [../../structural/style/overview.md](../../structural/style/overv
 
 Every rule below keys off two project facts: where the primitives layer lives (what the rules exempt) and which module owns each closed scale (what `token-equality` imports). Settle both before adapting anything here. If there is no design system yet, this tag is a later phase rather than a rule set to adapt now.
 
-| Rule | Blocking | What it prevents |
+| Rule | Blocking | What it buys |
 |---|---|---|
-| [no-raw-primitives](no-raw-primitives.ts) | Yes | Feature code using raw `<div>`/`<span>` (web) or `View`/`Text` from `react-native`, instead of composing the design system's primitives |
-| [no-inline-color](no-inline-color.ts) | Yes | Raw hex / `rgb()` / `hsl()` values in style objects and color props (breaks light/dark, which tokens hold together) |
-| [no-inline-font-size](no-inline-font-size.ts) | Yes | Raw `fontSize` overrides instead of a named size from the type scale |
-| [no-inline-style-prop](no-inline-style-prop.ts) | Yes | Inline `style={{…}}` objects outside the primitives layer (strictest rule in the tag — see its Adapt section before taking it) |
-| [no-arbitrary-class-values](no-arbitrary-class-values.ts) | Yes | Utility classes carrying raw values (`text-[13px]`, `bg-[#fff]`) or the framework's generic scale (`text-sm`) instead of semantic tokens |
-| [vendor-component-containment](vendor-component-containment.ts) | Yes | Importing a UI-library component directly when the project ships a wrapper that carries a shared convention |
+| [no-raw-primitives](no-raw-primitives.ts) | Yes | Feature code renders through the design system's primitives, so a call site names a token and never a px or a hex |
+| [no-inline-color](no-inline-color.ts) | Yes | Every color comes from the token table, so a brand change or a dark theme is one edit |
+| [no-inline-font-size](no-inline-font-size.ts) | Yes | Every text size comes from a named entry on the type scale, so one change to the scale reaches every screen |
+| [no-inline-style-prop](no-inline-style-prop.ts) | Yes | Every declaration sits in token props or a named stylesheet entry — the strictest rule in the tag, and it needs a stylesheet layer to be right |
+| [no-arbitrary-class-values](no-arbitrary-class-values.ts) | Yes | A utility class names a semantic token, so the theme config is the one place a size or a color changes |
+| [vendor-component-containment](vendor-component-containment.ts) | Yes | Every use of a wrapped component goes through the app wrapper, so a library swap is an edit to the wrapper |
 
 Adoption mechanics, the spec contract, and cross-tag rule selection: [../../overview.md](../../overview.md).

@@ -7,8 +7,8 @@ The per-file half — one rule, about what a declaration is called. What a *barr
 its way out is a whole-tree question:
 [../../structural/naming/overview.md](../../structural/naming/overview.md).
 
-| Rule | Blocking | What it prevents |
+| Rule | Blocking | What it buys |
 |---|---|---|
-| [no-vacant-symbol-names](no-vacant-symbol-names.ts) | Yes | Declarations named for their container category (`shape`, `data`, `info`, `manager`, `helper`) instead of their role. Whole-word matching, so `reshape` and `metadata` are untouched |
+| [no-vacant-symbol-names](no-vacant-symbol-names.ts) | Yes | Every name another file can reach — a type, and a function, class or constant at module level — says what the thing is for |
 
 Adoption mechanics, the spec contract, and cross-tag rule selection: [../../overview.md](../../overview.md).

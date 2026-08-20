@@ -1,73 +1,29 @@
 // ─── placement/no-raw-result ─────────────────────────────────────────────
 //
-// Tag:      placement
-// Mechanism: oxlint JS plugin (per-file, real-time)
-// Blocking: Yes
+// Makes sure: A repo or controller function never returns a Drizzle write
+// result without `.returning()`. That result holds functions and driver state,
+// and the RPC serializer throws SerovalUnsupportedTypeError on it at run time,
+// far from the query that made it. You return a repo function's value from a
+// server function, and you do not first run the delete path in a browser to
+// learn whether it serializes.
 //
-// Prevents: Data-access functions returning unserializable ORM result
-//           objects. Drizzle (and most SQL drivers) return a raw driver
-//           Result from write operations (delete, insert, update) when
-//           .returning() is not chained. This Result contains functions,
-//           internal parser state, and class instances that cannot be
-//           serialized by RPC layers (TanStack Start's seroval, tRPC,
-//           etc.). When a server function implicitly returns one of
-//           these — especially via arrow-expression handlers — the
-//           serializer throws at runtime with a cryptic
-//           "SerovalUnsupportedTypeError".
+// An expression-bodied arrow returns its chain with no `return` keyword, and it
+// is the short spelling a person writes for a one-line delete. A rule that
+// visits ReturnStatement alone reads none of them.
 //
-//           The fix at the source: data-access functions that perform
-//           writes without .returning() should use `await` without
-//           `return`, so they resolve to `void` instead of leaking a
-//           driver-internal object up the call chain.
+// `onConflictDoNothing` and `onConflictDoUpdate` mark a chain as a write
+// wherever that chain starts. Do not require it to bottom out in `db`: a write
+// that a query builder assembles then passes.
 //
-// Applies:  Data-access layers that run Drizzle queries — typically
-//           features/*/repo/ and features/*/controllers/ (controllers
-//           can call db directly when no repo/ layer exists).
-//           Excludes test files and scripts.
+// The rule reads the returned chain and not the whole returned subtree. A write
+// handed to a helper (`return serialize(db.delete(t))`) gets no report here,
+// because the helper's own return statement returns the write result, not
+// the return this rule reads. A subtree test
+// reports `return () => db.delete(t)`, which returns a function, and it reads a
+// `.returning()` on an unrelated subquery as a fix of the outer chain.
 //
-// Error:    "Returning a Drizzle write without .returning() produces an
-//            unserializable postgres Result object. Either add
-//            .returning() to get row data, or await without returning."
-//
-// Negative space: The rule reads the RETURNED CHAIN, not the whole returned
-//                 subtree. A write handed to a helper
-//                 (`return serialize(db.delete(t))`) is not reported here —
-//                 the helper's own return is where the Result would escape.
-//                 That is deliberate: asking "does this subtree contain a
-//                 write?" reports `return () => db.delete(t)`, which returns
-//                 a function, and treats a `.returning()` on an unrelated
-//                 subquery as if it sanitized the outer chain.
-//
-// ── Adapt ─────────────────────────────────────────────────────────────
-//
-// 1. Layer scope (who runs Drizzle queries) — `DATA_ACCESS_LAYERS`:
-//    Every layer in the project that performs direct Drizzle queries. If
-//    only repo/ touches the DB, drop the controllers/ pattern.
-//    The patterns are anchored on /src/ and on both slashes around the
-//    layer name, so a sibling directory that merely ends in the same word
-//    (`legacy-repo/`) is not mistaken for the layer.
-//
-// 2. The ORM client binding — `DB_CLIENT`:
-//    The identifier a write chain bottoms out in. Change it if the project
-//    binds the Drizzle client under another name.
-//
-// 3. Writes that produce a raw Result — `UNSERIALIZABLE_WRITE_METHODS`
-//    and `UNSERIALIZABLE_CHAIN_METHODS`:
-//    The first are methods on the client that start a write
-//    (delete/insert/update); the second are methods that mark a chain as a
-//    write wherever it started, for writes assembled by a query builder
-//    rather than from `db` directly. Extend either if the project uses more
-//    write spellings.
-//
-// 4. The escape hatch — `SERIALIZING_METHOD`:
-//    .returning() in the chain means the query resolves to plain row
-//    objects instead of a driver Result, so the chain is never reported.
-//
-// 5. Registration:
-//    Add the rule to the project's oxlint plugin
-//    (`rules: { "no-raw-result": noRawResultRule }`) and turn it on in
-//    `.oxlintrc.json` (`"<plugin>/no-raw-result": "error"`).
-//
+// The scope is the layers that run queries, repo/ and controllers/. A db call
+// in another layer is boundary/db-isolation's finding.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree } from "@oxlint/plugins";

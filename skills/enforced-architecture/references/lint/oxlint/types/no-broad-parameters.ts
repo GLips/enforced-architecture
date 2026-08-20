@@ -1,77 +1,20 @@
 // ─── types/no-broad-parameters ───────────────────────────────────────
 //
-// Tag:      types
-// Mechanism: oxlint JS plugin (per-file, real-time)
-// Blocking: Yes
+// Makes sure: Every parameter names what it accepts. No input is `unknown` or
+// `any`, so the body reads the value with no guard of its own. No input is
+// `object`, so no property read needs a cast, and a wrong argument fails at the
+// call site rather than inside the function.
 //
-// Prevents: Function inputs typed `unknown` or `object` — the two ways
-//           of accepting a value while declining to say what it is.
+// A parameter named `cause` is exempt. A `catch` binding is `unknown`, so the
+// value passed to `new Error(msg, { cause })` has no type to name. The
+// exemption is by name and not by position, so it stays greppable. Keep
+// `ALLOWED_UNKNOWN_PARAMETER_NAMES` short: each entry is a place where the type
+// system gives no help.
 //
-//             function save(value: object) {}
-//             function handle(input: unknown) {}
-//
-//           `unknown` is the correct type at exactly one place: the
-//           boundary where external data arrives and is immediately
-//           parsed. Past that point it is a contract that pushes the
-//           decision onto every caller and every reader. `object` is
-//           worse in a quiet way — it admits every non-primitive and
-//           supports no property read without a cast, so a signature
-//           taking `object` cannot use what it was given.
-//
-//           Both are what a model writes when it has not decided what
-//           the function receives, which is the decision a signature
-//           exists to record. The fix is always the same: name the type
-//           the caller already has, and parse external input once at
-//           the boundary rather than everywhere downstream.
-//
-// Excludes: A parameter named `cause`. Error-cause enrichment
-//           (`new Error(msg, { cause })`) genuinely receives an
-//           unconstrained value from a `catch`, and TypeScript types
-//           `catch` bindings as `unknown` for good reason. This is the
-//           one honest `unknown` input and it is carved out by name.
-//
-// Applies:  All .ts and .tsx files EXCEPT:
-//           - Test files and scripts
-//
-// Error:    unknown — "Parameter `{{parameter}}` accepts a value
-//            without saying what it is. Name the type the caller
-//            already has; run the schema or parser at the I/O boundary
-//            instead of pushing `unknown` inward."
-//           object  — "Parameter `{{parameter}}` uses the broad
-//            `object` type, which admits every non-primitive and
-//            supports no property read without a cast. Accept a named
-//            type instead."
-//
-// ── Adapt ─────────────────────────────────────────────────────────────
-//
-// 1. The carve-out — `ALLOWED_UNKNOWN_PARAMETER_NAMES`:
-//    Only `cause` is exempt, and by name rather than by position, so
-//    the exemption stays greppable. A project with another genuinely
-//    unconstrained input (a logger's `meta`, a serialiser's `value`)
-//    adds the name here rather than weakening the match. Keep the list
-//    short: every entry is a place the type system stops helping.
-//
-// 2. Splitting the two halves:
-//    They are one rule because they share every visitor and the whole
-//    annotation walk, and differ only in which keyword they reject.
-//    A project wanting `object` allowed turns the objectParameter
-//    branch off by emptying `OBJECT_KEYWORDS` — the message ids are
-//    separate so the two can also be reported at different severities
-//    if the plugin host supports it.
-//
-// 3. Boundary functions still need somewhere to stand:
-//    This rule bans `unknown` on INPUTS, not the type itself. A parser
-//    (`parseInvoice(input: unknown): Invoice`) is exactly the signature
-//    the message asks for elsewhere, so if the project keeps parsers in
-//    a known directory, exempt it here by path rather than teaching
-//    everyone to disable the rule inline.
-//
-// 4. Registration:
-//    Add the rule to the project's oxlint plugin
-//    (`rules: { "no-broad-parameters": noBroadParametersRule }`) and
-//    turn it on in `.oxlintrc.json`
-//    (`"<plugin>/no-broad-parameters": "error"`).
-//
+// The rule bans `unknown` on INPUTS, not the type itself. A parser
+// (`parseInvoice(input: unknown): Invoice`) is the signature the rest of this
+// tag asks for. Keep parsers in a known directory and exempt that directory
+// here by path, rather than a disable comment on each parser.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree } from "@oxlint/plugins";

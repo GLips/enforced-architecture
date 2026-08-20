@@ -1,54 +1,27 @@
 // ─── boundary/sdk-containment ─────────────────────────────────────────
 //
-// Tag:       boundary
-// Mechanism: oxlint JS plugin (per-file, real-time)
-// Blocking:  Yes
-//
-// Prevents: A third-party SDK being imported anywhere but the module that owns
-//           it. The rest of the app talks to the capability that module exposes.
-//
-// The point is not tidiness: it is that "replace the payments vendor" or "stop
-// sending this field" should be one file to open, not a search whose completeness
-// nobody can vouch for. It also gives the capability somewhere to grow — when a
-// feature first needs to record an event, this rule sends it to the wrapper,
-// where what the app records, and what it deliberately does not, gets decided
-// once instead of at each call site.
-//
-// Applies:  All src/** files EXCEPT test files, scripts, and — per package — the
-//           modules that package's row names as its owners.
-//
-// The policy is `PACKAGE_OWNERS` in `lint/policy/package-owners.ts`, which is
-// also where the argument for what belongs on it lives. This file is the reader:
-// it decides which rows apply to the file being linted, and matches a specifier
-// to a package by canonical name so a subpath cannot step around a row.
+// Makes sure: A package with a row on the owner table is imported only in the
+// modules that own it. To change the Stripe API version, or to drop a field from
+// the analytics payload, you open one file, and the call sites you find are all
+// of them. A UI file cannot construct the server SDK, so its secret key stays
+// out of the browser bundle.
 //
 // This is deliberately NOT a row in `arch/import-policy`'s table. That table is
-// keyed by area; this policy is keyed by exact package and exact module, and the
-// ordering that would let one table express both forces `domain → package` to
-// claim a domain may import any package — a cell stating something untrue so the
-// machinery could work.
+// keyed by area; this policy is keyed by exact package and exact module. One
+// table for both forces `domain → package` to state that a domain may import any
+// package — a cell that says something untrue so the machinery can work.
 //
 // NEGATIVE SPACE: a package with no row is UNCONSTRAINED, and this rule cannot
 // detect that state. Whether a package reaches a network, a keychain or a
 // filesystem is a judgement, not something a check decides; the nearest
-// mechanical proxy would flag React while still missing the first bad import.
-// Adding an SDK means adding the row — nothing reminds you.
+// mechanical proxy flags React and still misses the first bad import. A new SDK
+// needs its row, and nothing reminds you.
 //
 // NEGATIVE SPACE: there is no entrypoint exemption and no way to spell one. An
-// entrypoint that genuinely has to set an SDK up owns it, and says so by
-// appearing on that package's `owners` list — a decision one row records rather
-// than a category of file that inherits a pass. A filename that inherits a pass
-// is a bypass vector: it exempts every import in the file, not the one the
-// entrypoint needed.
-//
-// ── Adapt ─────────────────────────────────────────────────────────────
-//
-// The rows, and the reasoning about what earns one, are in
-// `lint/policy/package-owners.ts`. Nothing in this file is configuration.
-//
-// Registration: `rules: { "sdk-containment": sdkContainmentRule }` in
-// `lint/oxlint/plugin.ts`, and `"arch/sdk-containment": "error"` in `.oxlintrc.json`.
-//
+// entrypoint that genuinely has to set an SDK up owns it, and says so on that
+// package's `owners` list — a decision one row records, rather than a category of
+// file that inherits a pass. A filename that inherits a pass exempts every import
+// in the file, not the one import the entrypoint needs.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule } from "@oxlint/plugins";

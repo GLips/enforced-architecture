@@ -16,20 +16,20 @@ All three key on `as` and its angle-bracket twin, so all three are silent on the
 
 ## Rules
 
-| Rule | Blocking | What it prevents |
+| Rule | Blocking | What it buys |
 |---|---|---|
-| [no-opaque-record](no-opaque-record.ts) | Yes | `Record<string, unknown>` and its other spellings — index signatures, mapped types, `object` values, collapsing unions, and local aliases to any of them |
-| [require-safety-comment](require-safety-comment.ts) | Yes | Type assertions that state no reason. Requires a `SAFETY:` comment naming the invariant — the catalog's one *justify*, rather than *ban*, rule |
-| [no-chained-type-assertions](no-chained-type-assertions.ts) | Yes | `value as unknown as T` — a compiler objection deleted rather than answered |
-| [no-widen-then-assert](no-widen-then-assert.ts) | Yes | A known type discarded to `unknown`/`object`/`Record` and asserted back later in the same function, with nothing checked in between |
-| [no-type-argument-assertion](no-type-argument-assertion.ts) | Yes | `response.json<User>()`, `parse<Config>(text)`, ``sql<Row>`…` `` — an assertion spelled as a type argument on a call that reads external data, which the three above cannot see |
-| [no-known-value-widening](no-known-value-widening.ts) | Yes | `const handlers: Record<string, Handler> = {…}` — an annotation that checks a literal by deleting its keys. Use `satisfies` |
-| [no-broad-parameters](no-broad-parameters.ts) | Yes | `unknown` and `object` function inputs, except the `cause` convention |
-| [no-unknown-returns](no-unknown-returns.ts) | Yes | Declared return contracts of `unknown`, `any`, `Promise<unknown>`, or an alias to one |
-| [no-unknown-type-aliases](no-unknown-type-aliases.ts) | Yes | `type ApiPayload = unknown` — a name promising a contract that does not exist |
-| [no-reflect-access](no-reflect-access.ts) | Yes | `Reflect.get` and `Reflect.apply`, which do ordinary work with the type checking removed |
-| [no-runtime-typeof](no-runtime-typeof.ts) | Yes | Runtime `typeof` narrowing instead of parsing at the boundary. **Blunt** — see below |
-| [no-conditional-empty-object-spread](no-conditional-empty-object-spread.ts) | No | `...(x ? { x } : {})` — property omission hidden in a spread. Ships non-blocking |
+| [no-opaque-record](no-opaque-record.ts) | Yes | A misspelled key is a compile error and not `undefined` at run time, in every spelling of the open dictionary |
+| [require-safety-comment](require-safety-comment.ts) | Yes | `rg "SAFETY:"` lists each place the code overrules the compiler, and each one names its invariant |
+| [no-chained-type-assertions](no-chained-type-assertions.ts) | Yes | Every assertion keeps the overlap check, so a change to the target type still reports |
+| [no-widen-then-assert](no-widen-then-assert.ts) | Yes | A known type survives to the end of the function, so a field rename still reports at each use |
+| [no-type-argument-assertion](no-type-argument-assertion.ts) | Yes | External data takes its type from a parser, so a response that lost a field fails at the parse |
+| [no-known-value-widening](no-known-value-widening.ts) | Yes | A literal keeps its own keys: `handlers.stpo` is an error and the editor lists the keys |
+| [no-broad-parameters](no-broad-parameters.ts) | Yes | A body reads a parameter with no guard and no cast, and a wrong argument fails at the call site |
+| [no-unknown-returns](no-unknown-returns.ts) | Yes | A caller reads a field off the result with no narrowing of its own |
+| [no-unknown-type-aliases](no-unknown-type-aliases.ts) | Yes | A name in a signature states a contract; no alias chain ends at `unknown` |
+| [no-reflect-access](no-reflect-access.ts) | Yes | A property rename and a wrong argument count still fail to compile |
+| [no-runtime-typeof](no-runtime-typeof.ts) | Yes | Each representation check sits in one named guard or one schema. **Reports correct code** — see below |
+| [no-conditional-empty-object-spread](no-conditional-empty-object-spread.ts) | No | Shows which object literals do not state their own keys. Ships non-blocking |
 
 ## The two that are not defaults
 

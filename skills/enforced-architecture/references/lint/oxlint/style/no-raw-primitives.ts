@@ -1,90 +1,28 @@
 // ─── style/no-raw-primitives ──────────────────────────────────────────
 //
-// Tag:       style
-// Mechanism: oxlint JS plugin (per-file, real-time)
-// Blocking:  Yes
+// Makes sure: Feature code renders through the design system's primitives, not
+// the platform's raw elements. No file writes a bare `<div>`, and none takes
+// `View` or `Text` from `react-native` by import, named re-export, or star
+// re-export. A primitive takes token props only, so a call site names a token,
+// never a px number or a hex.
 //
-// Prevents: Feature code reaching for the platform's raw building blocks
-//           instead of the design system's primitives — bare `<div>` /
-//           `<span>` / `<button>` on web, bare `View` / `Text` /
-//           `Pressable` from `react-native` on native.
+// The primitives-layer exemption is mandatory: those files must use raw
+// elements, so without it the rule forbids its own fix. Each RENDER_BOUNDARY
+// path is one more file the rule does not read; give a reason about the
+// boundary rather than about convenience.
 //
-//           A raw element carries no token-aware defaults, so it is the
-//           seam every off-system decision enters through: the moment a
-//           model writes `<div>`, it must also invent the padding, the
-//           color, and the type size — and it will invent them fluently
-//           and slightly wrong. A primitive (`<Box>`, `<Text>` from your
-//           own UI layer) accepts only token props, so the wrong value
-//           does not typecheck. This is the load-bearing rule of the tag:
-//           the others police escape hatches; this one closes the door
-//           they leak through.
+// Do not add semantic elements (`nav`, `section`, `li`) back as exemptions for
+// accessible markup. Give the primitive an `as` prop typed as a closed union
+// (`<Box as='nav'>`). The compiler enforces a closed union; an exemption is
+// a file this rule does not read.
 //
-// Applies:  All component files EXCEPT:
-//           - The primitives layer itself (it must use raw elements —
-//             that is its whole job)
-//           - Test files and scripts
-//           - Documented render boundaries (see Adapt section 4)
+// Do not ban `react-native` whole. `Platform`, `StyleSheet` and
+// `useWindowDimensions` are correct in feature code, and a rule that fails a
+// commit on correct code is one people disable.
 //
-// Error:    "Raw element — compose from the UI primitives instead
-//            (Box/Stack for layout, Text for type), or use the
-//            primitive's polymorphic prop when you need the semantic
-//            element."
-//
-// ── Adapt ─────────────────────────────────────────────────────────────
-//
-// 1. Pick your arm. The two visitor groups cover the two platforms;
-//    DELETE the constant and the handlers for the one that does not
-//    apply. A react-native-web project that ships both surfaces keeps
-//    both — they are independent, and a file can violate either.
-//
-//    - Web / DOM — `RAW_HTML_ELEMENTS`. Bans lowercase intrinsic JSX
-//      tags. PascalCase component tags and member tags (`<Foo.Bar>`) are
-//      never intrinsics and fall through automatically, so this set IS
-//      the ban list. Most projects also want `table`, `form`, `label`,
-//      `input`, `select`.
-//
-//    - React Native — `PLATFORM_MODULE` + `PLATFORM_RENDERING_PRIMITIVES`.
-//      Bans importing core primitives from `react-native`. It keys on the
-//      import, not the tag, because RN primitives are PascalCase and so
-//      are your own components — `<View>` and `<Card>` are
-//      indistinguishable at the tag level. The import is where they
-//      separate, and it is the honest unit: a file that never imports
-//      `View` cannot render one. Extend the set with anything else your
-//      primitives layer wraps (`FlatList`, `SafeAreaView`, `Modal`).
-//
-//      Note it does NOT ban the module wholesale. Utility APIs
-//      (`Platform`, `useWindowDimensions`, `StyleSheet`, `Linking`) are
-//      legitimate in feature code; only the rendering primitives are the
-//      design system's to own. A type-only import also passes — it
-//      renders nothing.
-//
-// 2. `PRIMITIVES_LAYER` — wherever your `<Box>` / `<Text>` live. Default
-//    is `src/shared/ui/`. This exemption is MANDATORY: without it the
-//    rule forbids the primitives from being implemented at all.
-//
-// 3. Polymorphism, not a second ban list: do not add semantic elements
-//    (`nav`, `section`, `li`) back as exemptions to keep markup
-//    accessible. Give the primitive an `as` / `component` prop typed as a
-//    closed union of allowed tags (`<Box as='nav'>`), so semantics stay
-//    expressible without reopening an unconstrained string surface. A
-//    closed union is a type-level guarantee; an exemption list is a hole
-//    this rule cannot see through.
-//
-// 4. `RENDER_BOUNDARY` — files that legitimately emit raw elements: a
-//    markdown renderer's element overrides, the root HTML document, a
-//    canvas-backed widget. One path per line, each with a comment saying
-//    why. Each exemption is a place drift can enter, so the reason should
-//    be about the boundary, not about convenience.
-//
-// 5. Registration: add the rule to the project's oxlint plugin
-//    (`rules: { "no-raw-primitives": noRawPrimitivesRule }`) and turn it
-//    on in `.oxlintrc.json` (`"<plugin>/no-raw-primitives": "error"`).
-//
-// Known hole: a namespace import (`import * as RN from "react-native"`,
-// then `<RN.View>`) names no specifier to check, so neither arm sees it.
-// If your codebase uses that shape, ban the namespace import itself with
-// a one-line rule rather than trying to thread it through here.
-//
+// A namespace import (`import * as RN from "react-native"`, then `<RN.View>`)
+// names no specifier, and neither arm reports it. Ban that import shape on its
+// own if the codebase writes it.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree } from "@oxlint/plugins";

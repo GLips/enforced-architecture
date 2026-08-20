@@ -1,58 +1,26 @@
 // ─── placement/schema-placement ─────────────────────────────────────────
 //
-// Tag:       placement
-// Mechanism: oxlint JS plugin (per-file, real-time)
-// Blocking:  Yes
+// Makes sure: Every pgTable and relations declaration sits in
+// infrastructure/db/schema/. The migration tool reads that one directory, thus
+// a generate run covers every table and no column the code expects is absent
+// from the database. You read the whole data model, foreign keys and relations
+// included, at one address.
 //
-// Prevents: Database schema declarations (table definitions, relation
-//           declarations) placed outside the centralized schema
-//           directory. Schema must live in infrastructure/db/schema/
-//           because migration tooling scans one directory, foreign keys
-//           cross domain boundaries, and ORM relations reference tables
-//           from multiple files. Scattering schema across features
-//           breaks migration generation and makes the data model
-//           impossible to reason about from one location.
+// Generated migrations restate the schema, and /drizzle/ is exempt for that
+// reason. Remove the exemption and every generated file reports. A report
+// against generated output is what makes a person turn the rule off.
 //
-// Applies:  All src/** files EXCEPT:
-//           - infrastructure/db/schema/** (IS the correct location)
-//           - Migration directories (drizzle/, migrations/)
-//           - Test files and scripts
+// SCHEMA_DECLARATIONS is a closed set of names. A dialect outside it —
+// `mysqlTable` in a project that also uses postgres — gets no check, and its
+// tables pass at any address. Add every dialect the project uses on the day of
+// adoption.
 //
-// Error:    "Schema declarations (pgTable, relations) must live in
-//            infrastructure/db/schema/*. Move this declaration to the
-//            appropriate schema file."
+// The rule reports the call and not the export. A declaration nested in a
+// factory or in an object literal is a table all the same, and it gets the same
+// report as a top-level `export const`.
 //
-// ── Adapt ─────────────────────────────────────────────────────────────
-//
-// 1. `SCHEMA_DIRECTORY` — where schema IS allowed:
-//    Examples:
-//      /\/src\/infrastructure\/db\/schema\//  — layered (this template)
-//      /\/src\/db\/schema\//                  — flat top-level db directory
-//      /\/src\/database\/schema\//            — alternative naming
-//    A single schema FILE rather than a directory works too:
-//    /\/src\/schema\.ts$/.
-//
-// 2. `SCHEMA_DECLARATIONS` — the ORM's declaration functions:
-//    Examples:
-//      pgTable, relations         — Drizzle with PostgreSQL (this template)
-//      mysqlTable, relations      — Drizzle with MySQL
-//      sqliteTable, relations     — Drizzle with SQLite
-//      defineTable                — alternative ORM
-//    Add every dialect the project actually uses; a name not in the set
-//    is not checked.
-//
-// 3. `MIGRATION_DIRECTORY` — generated migrations, which legitimately
-//    restate the schema:
-//    Examples:
-//      /\/drizzle\//              — Drizzle default (this template)
-//      /\/prisma\/migrations\//   — Prisma migrations
-//      /\/migrations\//           — generic migrations directory
-//
-// 4. Registration:
-//    Add the rule to the project's oxlint plugin
-//    (`rules: { "schema-placement": schemaPlacementRule }`) and turn it
-//    on in `.oxlintrc.json` (`"<plugin>/schema-placement": "error"`).
-//
+// A table at the right address says nothing about who may query it. That is
+// boundary/db-isolation's finding.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule } from "@oxlint/plugins";

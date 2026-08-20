@@ -2,7 +2,7 @@ import { describeRule } from "../lib/rule-spec.ts";
 import { noModuleMockingRule } from "./no-module-mocking.ts";
 
 // This rule's cases live in TEST files, because that is the only place module mocks appear. Every
-// other oxlint rule in the catalog treats these paths as exempt — see the rule's Adapt note 1.
+// other oxlint rule in the catalog treats these paths as exempt.
 const SPEC = "/repo/src/features/billing/service/invoices.test.ts";
 const SERVICE = "/repo/src/features/billing/service/invoices.ts";
 

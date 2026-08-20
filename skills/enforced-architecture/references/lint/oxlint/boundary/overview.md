@@ -22,15 +22,15 @@ a network, a disk or the environment does it with an import list that shows noth
 `ambient-globals` is the one rule here that matches *references* instead of specifiers, which is why
 its policy is a config map rather than a path regex.
 
-| Rule | Blocking | What it prevents |
+| Rule | Blocking | What it buys |
 |---|---|---|
-| [import-policy](import-policy.ts) | Yes | Every aliased or bare-package import judged against one `SourceProfile × TargetArea` table in [../../policy/import-policy.ts](../../policy/import-policy.ts). Feature and domain barrel depth, shared and shared-ui purity, domain runtime purity, route reach — one row each |
-| [db-isolation](db-isolation.ts) | Yes | Code outside data-access layers importing DB modules directly |
-| [route-thinness](route-thinness.ts) | Yes | Routes importing DB, raw SDKs, or infrastructure internals |
-| [sdk-containment](sdk-containment.ts) | Yes | Direct SDK imports outside the modules that own them, per [../../policy/package-owners.ts](../../policy/package-owners.ts) |
-| [client-server-infra](client-server-infra.ts) | Yes | Client contexts importing server-only infrastructure modules |
-| [server-no-upward](server-no-upward.ts) | Yes | Controllers/server code importing from UI or route layers |
-| [no-test-imports](no-test-imports.ts) | Yes | Production code importing from test files |
-| [ambient-globals](ambient-globals.ts) | Yes | Restricted runtime globals (`process.env`, `fetch`, `localStorage`) read outside the module that owns each. Matches references, not import specifiers |
+| [import-policy](import-policy.ts) | Yes | A feature and a domain are reached at their barrel, `@/env.server` reaches no client file, and a domain takes no runtime package — one [table](../../policy/import-policy.ts) decides all of it |
+| [db-isolation](db-isolation.ts) | Yes | Every query sits in three directories, and the build puts no database driver in the browser bundle |
+| [route-thinness](route-thinness.ts) | Yes | A framework migration rewrites `src/routes/` with no query and no secret to move |
+| [sdk-containment](sdk-containment.ts) | Yes | One file to change a vendor's API version or payload, and no server SDK in the browser bundle — [owner rows](../../policy/package-owners.ts) |
+| [client-server-infra](client-server-infra.ts) | Yes | One short list tells you what the browser takes from `src/infrastructure/` |
+| [server-no-upward](server-no-upward.ts) | Yes | `src/infrastructure/` moves to a worker or a package, and no feature code comes with it |
+| [no-test-imports](no-test-imports.ts) | Yes | You rewrite a fixture or delete a helper, and only tests break |
+| [ambient-globals](ambient-globals.ts) | Yes | One reader for `process.env`, `fetch` and `localStorage`, so a missing variable fails at boot in `@/env`. Matches references, not import specifiers |
 
 Adoption mechanics, the spec contract, and cross-tag rule selection: [../../overview.md](../../overview.md).

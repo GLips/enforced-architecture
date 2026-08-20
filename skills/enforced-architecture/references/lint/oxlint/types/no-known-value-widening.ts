@@ -1,81 +1,23 @@
 // ─── types/no-known-value-widening ───────────────────────────────────
 //
-// Tag:      types
-// Mechanism: oxlint JS plugin (per-file, real-time)
-// Blocking: Yes
+// Makes sure: A literal keeps the type TypeScript read from it. No annotation
+// on a variable, a class property or a return replaces a literal's own keys
+// with `unknown`, `any`, `object` or an open dictionary. So `handlers.stpo` is
+// an error, the editor lists the keys, and `satisfies` checks the values
+// without that loss.
 //
-// Prevents: An explicit broad annotation on a value the compiler could
-//           already see precisely:
+// `Record<string, Handler>` reports although its value type is precise. The
+// loss is in the keys. That surprises readers, and it is the point of the rule.
 //
-//             const handlers: Record<string, Handler> = {
-//               start: startHandler,
-//               stop: stopHandler,
-//             };
+// An empty object or array literal is legal. `const acc: Record<string,
+// Handler> = {}` is an accumulator that gets the type it grows into, which is
+// the one case where the annotation adds information.
 //
-//           TypeScript knew this object has exactly `start` and `stop`.
-//           The annotation replaces that with "some strings, maybe" —
-//           so `handlers.stpo` is now `Handler` instead of an error,
-//           and no editor can complete the keys. The annotation was
-//           added to CHECK the object, and it checked it by deleting
-//           what it knew.
-//
-//           `satisfies` is the operator that does what the annotation
-//           was reaching for: it verifies every value against `Handler`
-//           and keeps the literal keys. It did not exist before
-//           TypeScript 4.9, which is why the annotation habit is so
-//           widespread in training data and so common in generated
-//           code.
-//
-//           The same applies to `unknown`, `any`, and `object` on a
-//           value written out in front of you: there is nothing to
-//           check and everything to lose.
-//
-// Excludes: An empty object or array literal. `const acc: Record<string,
-//           Handler> = {}` is an accumulator being given the type it
-//           will grow into, which is the annotation doing real work.
-//
-//           Values that are not self-evident — anything from a call.
-//           `const x: unknown = parse(text)` is a boundary, and
-//           `types/no-widen-then-assert` is the rule for what happens
-//           to it afterwards.
-//
-// Applies:  All .ts and .tsx files EXCEPT:
-//           - Test files and scripts
-//
-// Error:    "This annotation discards what TypeScript already knew
-//            about the value — the literal's own keys and types.
-//            Use `satisfies {{target}}` to check it without widening
-//            it, or drop the annotation and let inference do the work."
-//
-// ── Adapt ─────────────────────────────────────────────────────────────
-//
-// 1. What counts as a widening target — `isWideningTarget`:
-//    `unknown`, `any`, `object`, and any open-keyed dictionary
-//    (`Record<…>`, an index signature, a mapped type). Note that
-//    `Record<string, Handler>` counts even though its VALUE type is
-//    precise: the loss is in the KEYS. That surprises people, and it is
-//    the whole point of the rule.
-//
-// 2. Direct literals only:
-//    The value must be written at the annotation. A value reached
-//    through an intermediate `const` is not followed, so
-//    `const base = {…}; const h: Record<string, Handler> = base;` is
-//    missed. Following it needs the scope resolution
-//    `types/no-widen-then-assert` demonstrates; it is left out here
-//    because the direct spelling is the overwhelming majority and the
-//    indirect one has real false-positive risk.
-//
-// 3. `satisfies` requires TypeScript 4.9:
-//    On an older compiler the fix the message names does not exist and
-//    the honest advice is "drop the annotation". Reword the message
-//    before adopting, or the rule sends people somewhere they cannot go.
-//
-// 4. Registration:
-//    Add the rule to the project's oxlint plugin
-//    (`rules: { "no-known-value-widening": noKnownValueWideningRule }`)
-//    and turn it on in `.oxlintrc.json`
-//    (`"<plugin>/no-known-value-widening": "error"`).
-//
+// The value must be written at the annotation. `const base = {…}; const h:
+// Record<string, Handler> = base;` is missed on purpose, and so is any value
+// from a call: `const x: unknown = parse(text)` is a boundary. To follow a
+// binding you need the scope resolution in `types/no-widen-then-assert`, and
+// the indirect spelling carries real false-positive risk.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree } from "@oxlint/plugins";
@@ -84,7 +26,8 @@ import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
 const BROAD_KEYWORDS = new Set(["TSUnknownKeyword", "TSAnyKeyword", "TSObjectKeyword"]);
 
 // Values whose precise type is visible in the source, so an annotation over them can only subtract.
-// A CallExpression is absent on purpose — see Excludes.
+// A CallExpression is absent on purpose: a call is a boundary, not a value that carries its
+// own evidence.
 const SELF_EVIDENT = new Set([
   "ArrayExpression",
   "ArrowFunctionExpression",

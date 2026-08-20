@@ -10,14 +10,14 @@ directory. The completeness check that governs the paths *nothing* recognises is
 Several rules here are TanStack Start or Drizzle specific — keep the shape, repoint the API being
 matched.
 
-| Rule | Blocking | What it prevents |
+| Rule | Blocking | What it buys |
 |---|---|---|
-| [server-fn-placement](server-fn-placement.ts) | Yes | `createServerFn` outside `controllers/` directories |
-| [no-deprecated-input-validator](no-deprecated-input-validator.ts) | Yes | Deprecated `.inputValidator()` calls on TanStack Start server functions and middleware |
-| [no-plain-export-in-server-fn-module](no-plain-export-in-server-fn-module.ts) | Yes | Runtime exports other than `createServerFn` and `createMiddleware` bridges in compiler-processed modules |
-| [deprecated-paths](deprecated-paths.ts) | Yes | Imports from removed/renamed paths (e.g., `@/components/*`) |
-| [schema-placement](schema-placement.ts) | Yes | Drizzle schema declarations (`pgTable`, `relations`) outside `infrastructure/db/schema/` |
-| [server-fn-validation](server-fn-validation.ts) | Yes | `createServerFn` chaining `.handler()` without `.validator()` |
-| [no-raw-result](no-raw-result.ts) | Yes | Returning unserializable Drizzle write results (`db.delete`, `.onConflictDoNothing`) without `.returning()` |
+| [server-fn-placement](server-fn-placement.ts) | Yes | Every endpoint a feature exposes is in one directory, the imports of the factory included |
+| [no-deprecated-input-validator](no-deprecated-input-validator.ts) | Yes | One spelling of the validator method, thus a search for `.validator(` finds every checked chain |
+| [no-plain-export-in-server-fn-module](no-plain-export-in-server-fn-module.ts) | Yes | No sibling runtime export reaches the browser from a compiler-processed module |
+| [deprecated-paths](deprecated-paths.ts) | Yes | A removed directory stays removed, and the next import of the old path gets the name of its replacement |
+| [schema-placement](schema-placement.ts) | Yes | One directory holds every table, thus a migration generate run covers all of them |
+| [server-fn-validation](server-fn-validation.ts) | Yes | Client input reaches a handler only after a schema checks it |
+| [no-raw-result](no-raw-result.ts) | Yes | No Drizzle write result reaches the RPC serializer, which throws on one at run time |
 
 Adoption mechanics, the spec contract, and cross-tag rule selection: [../../overview.md](../../overview.md).

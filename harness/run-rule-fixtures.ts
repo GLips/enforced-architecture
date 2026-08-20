@@ -125,6 +125,17 @@ async function checkRule(rulePath: string): Promise<RuleFailure[]> {
     }
   }
 
+  // The header is the ONLY documentation that reaches the project this rule is copied into, so a
+  // rule that never says what it buys arrives there as a matcher with no stated purpose. Presence
+  // only — no gate can tell a concrete claim from abstract praise, and a green tick on that would
+  // defeat the format it is checking.
+  if (!statesWhatItBuys(await readFile(rulePath, "utf8"))) {
+    fail(
+      `its header opens with no "Makes sure:" (blocking) or "Shows:" (warning) line, ` +
+        `so nothing says what the rule buys`,
+    );
+  }
+
   // The plugin module is the manifest a consuming project copies. A rule missing from it ships as a
   // file nobody loads — tested, and never run.
   const bound = registered[name];
@@ -204,3 +215,17 @@ console.log(
     ` plus ${policySpecs.length} spec file(s) over the shared tables in lint/policy/.`,
 );
 process.exit(failedRules === 0 && orphans.length === 0 && run.status === 0 ? 0 : 1);
+
+/**
+ * Whether a rule's banner states what the rule buys, rather than what it matches. `Makes sure:`
+ * claims a property the codebase can rely on and belongs to a blocking rule; `Shows:` reports
+ * something a reader learns and belongs to a warning. The label carries the blocking status, which
+ * is why no separate field states it.
+ */
+function statesWhatItBuys(source: string): boolean {
+  const lines = source.split("\n");
+  const end = lines.findIndex((line) => !line.startsWith("//"));
+  return lines
+    .slice(0, end === -1 ? lines.length : end)
+    .some((line) => /^\/\/ (Makes sure|Shows):/.test(line));
+}

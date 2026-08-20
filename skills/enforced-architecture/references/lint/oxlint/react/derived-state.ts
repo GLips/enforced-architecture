@@ -1,66 +1,26 @@
 // ─── react/derived-state ─────────────────────────────────────────────
 //
-// Tag:      react
-// Mechanism: oxlint JS plugin (per-file, real-time)
-// Blocking: Yes
+// Makes sure: No useEffect calls a useState setter with a value it computes
+// from what the render already has. Such a value comes from an expression or
+// from useMemo, so it is right on the first render and after every prop
+// change. The component renders once for a prop change and not twice. You do
+// not search for the effect that writes a value you read.
 //
-// Prevents: The "derived state" anti-pattern where useState + useEffect
-//           is used to synchronize a value that could be computed inline
-//           or with useMemo. The pattern is:
+// An effect that awaits, calls `.then`, starts a timer, or adds an event
+// listener is never a finding. Each one sets state from outside the render
+// pass, and no expression replaces it. Add the project's own deferral calls —
+// `requestAnimationFrame`, a debounce helper, an event-bus `.on` — beside
+// them. Delete one instead, and the rule blocks a build over a correct effect.
 //
-//             const [derived, setDerived] = useState(...)
-//             useEffect(() => { setDerived(compute(dep)) }, [dep])
+// A setter counts only when the same file destructures it from useState. A
+// helper named `setTitle()` is no finding, and neither is a setter from a
+// custom hook. Report on the `set[A-Z]` name alone to catch those, and the
+// rule reports every other function whose name starts with `set` too.
 //
-//           This should be:
-//             const derived = useMemo(() => compute(dep), [dep])
-//           or simply:
-//             const derived = compute(dep)
-//
-//           The anti-pattern causes unnecessary re-renders (state update
-//           triggers a render, then effect runs and triggers another),
-//           introduces timing bugs (stale value on first render), and
-//           adds complexity for what is fundamentally a computation.
-//
-// Excludes: Effects whose callback contains `await`, `for await`, a
-//           promise `.then`, a timer, or an `addEventListener` — these
-//           set state from outside the render pass (streams, polling,
-//           subscriptions), which is not synchronous derivation.
-//
-// Applies:  All .tsx and .ts files EXCEPT:
-//           - Test files and scripts
-//
-// Error:    "A useState setter is called inside useEffect to synchronize
-//            derived state. Compute the value inline or with useMemo()."
-//
-// ── Adapt ─────────────────────────────────────────────────────────────
-//
-// 1. Which hooks the rule reads — `STATE_HOOK` and `EFFECT_HOOK`:
-//    A setter only counts if it was destructured from `STATE_HOOK` in
-//    the same file, so a plain helper called `setTitle()` is not a
-//    finding. If the project gets setters from custom hooks that wrap
-//    useState, drop the `stateSetters` membership test in `Program:exit`
-//    and report on `SETTER_NAME` alone — that trades false negatives for
-//    false positives. Add `useLayoutEffect` beside `EFFECT_HOOK` if the
-//    project uses it for the same work.
-//
-// 2. What a setter looks like — `SETTER_NAME`:
-//    The React convention is `setX`. Adjust if the project names state
-//    setters some other way.
-//
-// 3. False positive tolerance — `TIMER_SCHEDULERS` and `DEFERRED_METHODS`:
-//    These name the escape hatches: an effect that schedules, awaits, or
-//    subscribes is interacting with an external system, not deriving.
-//    Add the project's own deferral primitives (`requestAnimationFrame`,
-//    a debounce helper, an event-bus `.on`) if they produce false
-//    positives. If false positives are still common, consider making
-//    this rule non-blocking; the default is blocking because the
-//    anti-pattern is far more common than the legitimate uses.
-//
-// 4. Registration:
-//    Add the rule to the project's oxlint plugin
-//    (`rules: { "derived-state": derivedStateRule }`) and turn it on in
-//    `.oxlintrc.json` (`"<plugin>/derived-state": "error"`).
-//
+// This rule reads .ts as well as .tsx, unlike the other react rules. A custom
+// hook in a .ts module holds the same useState and useEffect pair. Add an
+// `isComponentFile` guard here to match the siblings, and the rule reads no
+// hook module at all.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree, type Range } from "@oxlint/plugins";

@@ -1,38 +1,25 @@
 // ─── placement/no-deprecated-input-validator ──────────────────────────
 //
-// Tag:       placement
-// Mechanism: oxlint JS plugin (per-file, real-time)
-// Blocking:  Yes
+// Makes sure: Server functions and middleware use one spelling, `.validator()`.
+// The rename covers the whole tree and not the files someone opened, thus a
+// search for `.validator(` finds every checked chain. You read one method name,
+// not two, to know whether a handler checks its input.
 //
-// Prevents: Deprecated `.inputValidator()` calls on TanStack Start server
-//           functions and middleware. Use `.validator()` instead.
+// Both builders share the deprecation. A rule that names createServerFn alone
+// leaves middleware on the old method, and middleware checks a request before
+// the handler runs.
 //
-// Applies:  All src/** files except tests and scripts.
+// The method name alone does not identify the builder. Require a mention of
+// createServerFn or createMiddleware inside the receiver, or an unrelated
+// object with an `.inputValidator()` method of its own gets a report it cannot
+// act on.
 //
-// Error:    ".inputValidator() is deprecated in TanStack Start. Use
-//            .validator() instead."
+// A chain still on `.inputValidator()` also reports at
+// placement/server-fn-validation, which reads the name `.validator()` and no
+// other. The two rules agree by design.
 //
-// Source: @tanstack/start-plugin-core/src/start-compiler/handleCreateServerFn.ts
-//         and handleCreateMiddleware.ts.
-//
-// ── Adapt ─────────────────────────────────────────────────────────────
-//
-// 1. `DEPRECATED_METHOD` — the builder method that was renamed.
-//    Point it at whatever method the framework retired; the message
-//    must name the replacement, since the message IS the fix.
-//
-// 2. `BUILDER_FACTORIES` — whose builder this method belongs to:
-//    Both TanStack Start builders share the deprecation, so both are
-//    listed. The set is what keeps an unrelated object that happens to
-//    expose `.inputValidator()` out of the diagnostic — a bare method
-//    name is not enough to identify a builder.
-//
-// 3. Registration:
-//    Add the rule to the project's oxlint plugin
-//    (`rules: { "no-deprecated-input-validator": noDeprecatedInputValidatorRule }`)
-//    and turn it on in `.oxlintrc.json`
-//    (`"<plugin>/no-deprecated-input-validator": "error"`).
-//
+// The deprecation is in @tanstack/start-plugin-core/src/start-compiler/,
+// handleCreateServerFn.ts and handleCreateMiddleware.ts.
 // ──────────────────────────────────────────────────────────────────────
 
 import type { ESTree, Range } from "@oxlint/plugins";

@@ -1,75 +1,24 @@
 // ─── types/no-opaque-record ──────────────────────────────────────────
 //
-// Tag:      types
-// Mechanism: oxlint JS plugin (per-file, real-time)
-// Blocking: Yes
+// Makes sure: No type is an open dictionary with an `unknown`, `any` or
+// `object` value. That holds for `Record<string, unknown>`, an index signature,
+// a mapped type with an open key domain, a union that collapses to `unknown`,
+// and a local alias to any of them. So a misspelled key is a compile error and
+// not `undefined` at run time, and a field rename reports at each read.
 //
-// Prevents: `Record<string, unknown>` and the other spellings of the
-//           same untyped bag:
+// `any` sits beside `unknown` in `OPAQUE_VALUE_TYPES`. A ban on `unknown`
+// alone teaches an agent to write `any` on the retry, which is the weaker type.
 //
-//             Record<string, unknown>      Record<string, any>
-//             { [key: string]: unknown }   { [K in string]: unknown }
+// The key type is not read. `Record<number, unknown>` and
+// `Record<PropertyKey, unknown>` hold the same values as the string-keyed one.
+// A test for `TSStringKeyword` looks more precise and creates a bypass.
 //
-//           A value typed this way carries no information. Every read
-//           needs a cast the compiler cannot check, every write is
-//           accepted whatever the key, and a typo in a key name is a
-//           silent `undefined` rather than an error. It is the type an
-//           agent reaches for when it has not decided what the data is
-//           — which is exactly the decision the type is supposed to
-//           record.
+// A schema or serialization layer that needs the type gets a path test beside
+// `isArchitectureExemptPath`, such as `/\/schemas?\//`. Do not loosen the type
+// match instead: an exemption that names a directory stays greppable.
 //
-//           The three fixes the message names, in order of preference:
-//           declare the fields as a named type; use `Map<string, T>`
-//           when the keys really are open-ended runtime data; or parse
-//           external input with a schema so the boundary produces a
-//           typed shape and `unknown` stops at that boundary.
-//
-// Excludes: `unknown` on its own (`(input: unknown)` is the correct way
-//           to receive unvalidated data), `Record<K, ConcreteType>`, and
-//           shape-preserving mapped types (`{ [K in keyof T]: unknown }`),
-//           whose key domain is closed.
-//
-// Applies:  All .ts and .tsx files EXCEPT:
-//           - Test files and scripts
-//
-// Error:    "Record<string, unknown> is an untyped bag: every read needs
-//            a cast and no key is checked. Declare the fields as a named
-//            type or interface, use Map<string, T> for open-ended runtime
-//            keys, or parse external input with a schema that returns a
-//            typed shape."
-//
-// ── Adapt ─────────────────────────────────────────────────────────────
-//
-// 1. What counts as an opaque value — `OPAQUE_VALUE_TYPES`:
-//    `unknown` and `any` are both here because banning only `unknown`
-//    teaches an agent to write `any` on the retry — the weaker of the
-//    two. Drop `TSAnyKeyword` if a separate `no-explicit-any` already
-//    covers it, and add `TSObjectKeyword` to also reject
-//    `Record<string, object>`.
-//
-// 2. The key type is deliberately not read.
-//    `Record<number, unknown>` and `Record<PropertyKey, unknown>` are
-//    the same bag as the string-keyed one, so the rule matches on the
-//    value alone. To narrow it to string keys, test
-//    `params[0].type === "TSStringKeyword"` in `TSTypeReference`.
-//
-// 3. Where the bag is legitimate — `isArchitectureExemptPath`:
-//    Tests and scripts are exempt through `../lib/architecture-exempt-paths.ts`.
-//    A project whose schema or serialization layer genuinely needs the
-//    type adds a path test beside that call (`/\/schemas?\//`) rather
-//    than weakening the match — an exemption that names a directory
-//    keeps the escape hatch greppable, which a loosened pattern does not.
-//
-// 4. The name `Record` is matched textually, not resolved.
-//    A project-local type also called `Record` would be flagged. That
-//    is the trade every per-file rule in this catalog makes; there is no
-//    type checker in this tier.
-//
-// 5. Registration:
-//    Add the rule to the project's oxlint plugin
-//    (`rules: { "no-opaque-record": noOpaqueRecordRule }`) and turn it
-//    on in `.oxlintrc.json` (`"<plugin>/no-opaque-record": "error"`).
-//
+// `Record` is matched by name, not resolved. A project-local type also called
+// `Record` reports. There is no type checker in this tier.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree } from "@oxlint/plugins";

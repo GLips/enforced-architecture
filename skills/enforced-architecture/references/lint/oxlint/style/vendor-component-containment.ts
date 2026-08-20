@@ -1,69 +1,25 @@
 // ─── style/vendor-component-containment ───────────────────────────────
 //
-// Tag:       style
-// Mechanism: oxlint JS plugin (per-file, real-time)
-// Blocking:  Yes
+// Makes sure: Every use of a wrapped vendor component goes through the app
+// wrapper. No file imports the original from the library, and no module
+// re-exports it — by name or by star — under its own name. To swap the library,
+// or to add a convention every use site needs, you edit the wrapper alone.
 //
-// Prevents: Feature code importing a UI-library component directly when
-//           the project ships its own wrapper for it.
+// A wrapper with no row in WRAPPED_COMPONENTS is not enforced at all. Write the
+// row when you write the wrapper: nothing about a call site that bypasses it
+// looks wrong in review, so this table is what keeps the wrapper canonical.
 //
-//           A wrapper exists because the raw component was missing a
-//           convention every use site needs — Enter-to-submit on a
-//           compose box, a loading state on every button, an analytics
-//           id on every link. The wrapper holds that convention in one
-//           place. An import that goes around it silently reintroduces a
-//           component that hand-rolls the convention, or omits it, and
-//           the two versions drift apart from there. Nothing about the
-//           bypassing call site looks wrong, which is why this needs a
-//           rule and not a review.
+// VENDOR_MODULE matches one exact specifier. A library that also serves its
+// components from subpaths (`@mantine/core/Textarea`) keeps this rule green
+// while the call site holds the unwrapped original. Widen it to a RegExp there.
 //
-//           This is the design-system sibling of
-//           `boundary/sdk-containment`: same containment shape, applied
-//           to component libraries rather than service SDKs.
+// The `why` field is the text of the diagnostic. An agent fixes what the
+// message explains, so write the convention the wrapper carries in one
+// sentence.
 //
-// Applies:  All source files EXCEPT:
-//           - The wrapper module itself (it must import the original)
-//           - Test files and scripts
-//
-// Error:    "Import <Component> from the app wrapper, not the library —
-//            the wrapper carries the convention every use site needs."
-//
-// ── Adapt ─────────────────────────────────────────────────────────────
-//
-// 1. `VENDOR_MODULE` — the library the wrappers wrap, matched exactly.
-//    A deep path into the same library (`@mantine/core/styles.css`) is a
-//    different specifier and is not checked; if the library re-exports
-//    its components from subpaths too, widen this to a RegExp.
-//
-// 2. `WRAPPED_COMPONENTS` — the table of wrapped components. Each row
-//    names the component, the wrapper module to import instead, and the
-//    path of the wrapper itself, which is the ONE file allowed to import
-//    the original. A newly wrapped component is a new row.
-//
-//    The `why` is not decoration: it is what the diagnostic says, and an
-//    agent fixes what the message explains. Write the convention the
-//    wrapper carries, in one sentence. When two components are wrapped
-//    for genuinely different reasons, the table already keeps their
-//    messages apart — that is why it is a table and not an alternation.
-//
-// 3. `SOURCE_ROOT` — the rule only governs application source, so
-//    generated clients and config files outside `src/` are not checked.
-//
-// 4. Write the rule when you write the wrapper, not later: a wrapper
-//    without this rule lasts about as long as the memory of the person
-//    who wrote it. The bypass is invisible in review, so the rule is the
-//    only thing that keeps the wrapper canonical.
-//
-// 5. Do not exempt "just this once". If a call site genuinely needs the
-//    unwrapped component, that is usually a missing prop on the wrapper.
-//    Add the prop. A second exempt path per row becomes the second
-//    implementation the rule existed to prevent.
-//
-// 6. Registration: add the rule to the project's oxlint plugin
-//    (`rules: { "vendor-component-containment": vendorComponentContainmentRule }`)
-//    and turn it on in `.oxlintrc.json`
-//    (`"<plugin>/vendor-component-containment": "error"`).
-//
+// Do not add a second exempt path to a row. A call site that needs the
+// unwrapped component names a missing prop on the wrapper. Add the prop; a
+// second exempt file is the second implementation this rule exists to stop.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree } from "@oxlint/plugins";

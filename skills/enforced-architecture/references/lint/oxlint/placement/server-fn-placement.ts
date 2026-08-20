@@ -1,53 +1,24 @@
 // ─── placement/server-fn-placement ──────────────────────────────────────
 //
-// Tag:       placement
-// Mechanism: oxlint JS plugin (per-file, real-time)
-// Blocking:  Yes
+// Makes sure: The name createServerFn appears only under
+// features/<name>/controllers/. To read every endpoint a feature exposes, you
+// open one directory. You do not search the whole tree for a definition that
+// sits in a UI file or in an infrastructure helper.
 //
-// Prevents: Server function definitions (createServerFn) placed outside
-//           the controllers/ layer. Server functions are application
-//           delivery endpoints — they belong in the feature layer that
-//           owns them, not scattered across infrastructure, domains,
-//           shared utilities, or UI components.
+// The subject is the name and not a call shape. A module outside controllers/
+// has no reason to name the factory at all, thus the rule reports the import as
+// well. Do not narrow the rule to `createServerFn(...)`. An alias at the import
+// (`createServerFn as makeFn`) or a namespace access (`start.createServerFn()`)
+// then passes, and the definition under it passes too.
 //
-// Applies:  All src/** files EXCEPT:
-//           - features/*/controllers/** (IS the correct location)
-//           - Test files and scripts
+// The message names the destination, features/<name>/controllers/. A message
+// that only refuses leaves the author with the same question, and that author
+// turns the rule off.
 //
-// Error:    "createServerFn must be placed in feature controllers/
-//            modules. Server functions are application delivery
-//            endpoints. Move this to features/<name>/controllers/."
-//
-// Note:     This is a claim about the NAME, not about a call shape, so
-//           every mention outside controllers/ is reported — including
-//           the import that brings it in. A module outside controllers/
-//           has no reason to name the factory at all: importing it is
-//           either a definition about to be written, or a leftover. The
-//           GritQL original matched only `createServerFn(...)` and so
-//           was evaded by aliasing the import or reaching the factory
-//           through a namespace.
-//
-// ── Adapt ─────────────────────────────────────────────────────────────
-//
-// 1. `CONTROLLERS_PATH` — the one layer allowed to define endpoints:
-//    Examples:
-//      /\/src\/features\/[^/]+\/controllers\//  — layered features (this template)
-//      /\/src\/modules\/[^/]+\/controllers\//   — if the project says "modules"
-//      /\/src\/features\/[^/]+\/server\//       — if the controller layer
-//                                                 is named "server/"
-//
-// 2. `SERVER_FN_FACTORY` — the framework's factory name:
-//    Examples:
-//      createServerFn     — TanStack Start (this template)
-//      createServerAction — alternative naming
-//      server$            — SolidStart convention
-//
-// 3. Registration:
-//    Add the rule to the project's oxlint plugin
-//    (`rules: { "server-fn-placement": serverFnPlacementRule }`) and
-//    turn it on in `.oxlintrc.json`
-//    (`"<plugin>/server-fn-placement": "error"`).
-//
+// A file inside controllers/ is not correct for that reason alone. Whether the
+// server function checks its input is placement/server-fn-validation's finding.
+// What else the module exports is
+// placement/no-plain-export-in-server-fn-module's.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule } from "@oxlint/plugins";

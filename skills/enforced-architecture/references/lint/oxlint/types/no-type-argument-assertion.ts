@@ -1,98 +1,28 @@
 // ─── types/no-type-argument-assertion ────────────────────────────────
 //
-// Tag:      types
-// Mechanism: oxlint JS plugin (per-file, real-time)
-// Blocking: Yes
+// Makes sure: A call that reads external data does not name the result type
+// itself. Not `response.json<User>()`, not `parse<Config>(text)`, not a
+// `sql<Row>` tagged template, and not the deferred form
+// `const load = client.get<User>`. The type comes from a parser, so a response
+// that lost a field fails at the parse with a message, and not later at a read
+// of `undefined`.
 //
-// Prevents: A type argument on a call that fetches or parses external
-//           data, where the argument is doing the work of an assertion:
+// The list `ASSERTING_DATA_CALL_NAMES` IS the rule; the other code only finds
+// the name. It ships with the HTTP verbs, `json`, `parse`, the SQL driver
+// methods and the query tags. Add the project's own transport wrappers —
+// `fetchJson`, `$fetch`, `rpc`, `invoke` — because a wrapper is where this
+// spelling appears most.
 //
-//             const user = await response.json<User>();
-//             const config = parse<Config>(rawText);
-//             const rows = await sql<InvoiceRow>`select * from invoices`;
+// Only the last name segment is read, never the receiver. `container.get<Svc>()`
+// therefore reports, because it is the same unchecked claim. A project that
+// disagrees drops `get` from the list instead of a match on the receiver.
 //
-//           Each of these is `as User` wearing respectable clothes.
-//           Nothing checked the bytes that came back; the call was told
-//           what they are. The difference from a bare assertion is
-//           entirely cosmetic — and cosmetic is the whole problem,
-//           because it reads as ordinary typed API usage rather than as
-//           an override.
+// `json<unknown>()` passes and `json<any>()` reports. The first claims nothing
+// and is the first half of the fix. If you allow the second, the cheapest
+// answer to this rule also stops the checks downstream.
 //
-//           This is a hole in the assertion trio rather than an addition
-//           to it. `types/require-safety-comment`,
-//           `types/no-chained-type-assertions`, and
-//           `types/no-widen-then-assert` all key on `as` expressions and
-//           the angle-bracket assertion node, so all three are silent on
-//           every line above. An agent that has been refused `as User`
-//           three times reaches for this spelling next, and it is the
-//           first one that goes green.
-//
-//           The Effect-SQL-specific spelling of the same idea — where
-//           the type argument to `sql` also decides how each column is
-//           decoded — lives at `rules/effect/no-sql-type-parameter.ts`.
-//           A project on Effect wants both: this rule for the transport
-//           calls, that one for the query builder's own richer contract.
-//
-// Excludes: Type arguments that are not claims about external data —
-//           `useState<User>()`, `new Map<string, Invoice>()`,
-//           `Schema.decodeUnknown<Invoice>(raw)`. The rule matches a
-//           named list of calls, never explicit type arguments as such.
-//           `response.json<unknown>()` is also allowed: it asserts
-//           nothing, and it is the first half of the fix.
-//
-// Applies:  All .ts and .tsx files EXCEPT:
-//           - Test files and scripts
-//
-// Error:    "`{{name}}<{{args}}>` asserts that external data is
-//            `{{type}}` with nothing checked — `as {{type}}` in a
-//            position the assertion rules cannot see. Parse the result
-//            at this boundary with a schema and take the type from the
-//            parser."
-//
-// ── Adapt ─────────────────────────────────────────────────────────────
-//
-// 1. Which calls assert — `ASSERTING_DATA_CALL_NAMES`:
-//    The list IS the rule; everything else is plumbing. It ships with
-//    the HTTP verbs, `json`, `parse`, the SQL driver methods, and the
-//    query tags, which covers fetch, axios/ky, node-postgres, and the
-//    `sql`/`gql` template tags. Add the project's own transport wrappers
-//    — `fetchJson`, `$fetch`, `rpc`, `invoke` — since a wrapper is
-//    exactly where this spelling collects.
-//
-// 2. Only the last name segment is read, never the receiver:
-//    `get` matches `api.get`, `httpClient.get`, and a bare `get(…)`
-//    alike, so no project has to enumerate its client variables. The
-//    cost is a false positive on a DI container's `container.get<Svc>()`
-//    — which is the same unchecked claim, so the rule reports it on
-//    purpose, and a project that disagrees drops `get` from the list
-//    rather than adding receiver matching.
-//
-// 3. `unknown` is the escape hatch; `any` deliberately is not.
-//    `json<unknown>()` claims nothing and is the honest spelling of "I
-//    have not parsed this yet", so it passes. `json<any>()` claims
-//    nothing either and still reports, because allowing it would make
-//    the cheapest response to this rule the one that also turns off
-//    checking downstream.
-//
-// 4. Wrappers around the callee are stepped through —
-//    `TRANSPARENT_CALLEE_WRAPPERS`:
-//    `api.get!<User>(url)` and `(client.get as Getter)<User>(url)` are
-//    the same call with a node wedged in, and TypeScript hands both over
-//    for free. Stepping through them is four lines; not stepping through
-//    them is a bypass anyone finds by accident.
-//
-// 5. A callee behind a binding is not followed:
-//    `const runQuery = db.query; runQuery<Row>(sql)` reports only if
-//    `runQuery` is itself in the list. Following the binding needs the
-//    kind of flow analysis that belongs to `tsc`, not this tier. Named
-//    here because the silence is a design decision, not an oversight.
-//
-// 6. Registration:
-//    Add the rule to the project's oxlint plugin
-//    (`rules: { "no-type-argument-assertion": noTypeArgumentAssertionRule }`)
-//    and turn it on in `.oxlintrc.json`
-//    (`"<plugin>/no-type-argument-assertion": "error"`).
-//
+// A callee behind a binding is not followed: `const runQuery = db.query;
+// runQuery<Row>(sql)` reports only if `runQuery` is in the list, by design.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree } from "@oxlint/plugins";
@@ -174,7 +104,7 @@ export const noTypeArgumentAssertionRule = defineRule({
 
       const name = calledName(callee);
       if (name === null || !ASSERTING_DATA_CALL_NAMES.has(name)) return;
-      // See Adapt note 3: the all-`unknown` instantiation is the honest spelling, not an evasion.
+      // The all-`unknown` instantiation is the honest spelling, not an evasion.
       if (params.every((param) => param.type === "TSUnknownKeyword")) return;
 
       const args = params.map((param) => sourceCode.getText(param));

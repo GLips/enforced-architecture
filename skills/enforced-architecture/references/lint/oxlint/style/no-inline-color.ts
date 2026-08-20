@@ -1,84 +1,27 @@
 // ─── style/no-inline-color ────────────────────────────────────────────
 //
-// Tag:       style
-// Mechanism: oxlint JS plugin (per-file, real-time)
-// Blocking:  Yes
+// Makes sure: No style-object value and no color prop carries a hex, `rgb()`,
+// or `hsl()` literal. Every color in the JS and TSX source comes from the token
+// table, and each token holds both schemes. To change the brand color, or to
+// add a dark theme, you edit the token table and no component file.
 //
-// Prevents: Raw color values written into style objects or color props —
-//           hex literals (`#0a0c10`), and `rgb()` / `rgba()` / `hsl()` /
-//           `hsla()` with literal channels.
+// A JS plugin reads the JS and TS AST only. `color: #0a0c10` in a `.css` file
+// keeps this rule green; `style/css-tokens` is the check that reads that file.
 //
-//           Color is the axis where drift is both easiest and least
-//           visible. A model reaches for a plausible gray fluently, and
-//           the result looks fine in the scheme it was written against
-//           and wrong in the other one. Routing every color through the
-//           token table is also what makes dark mode true by
-//           construction: the token holds both schemes, so there is no
-//           second variant for a model to forget, and the bug stops
-//           being expressible.
+// Do not add bare color keywords (`red`, `dimmed`) to RAW_COLOR. Several token
+// systems spell a token name as a keyword, so the rule would report the fix.
 //
-// Applies:  All source files EXCEPT:
-//           - The token source itself (it defines the raw values)
-//           - Non-UI layers with no styling (domains, pure logic)
-//           - Test files and scripts
-//           - Documented raster/canvas boundaries (see Adapt section 1)
+// Keep COLOR_PROPS small and exact. A rule that reads every attribute reports
+// `href="#anchor"` and every fragment id.
 //
-//           NOT `.css` files — a JS plugin sees the JS/TS AST only. The
-//           stylesheet surface is covered by the `style/css-tokens`
-//           structural check.
+// TOKEN_SOURCE also holds the documented raster boundaries — a canvas theme or
+// a Skia paint takes a literal by contract. Derive it from the token there.
 //
-// Error:    "Raw color value. Use a color token so light and dark stay
-//            in sync."
+// NON_UI_LAYER assumes the domain layer carries no style. If yours does, delete
+// the constant and its `filename` test; otherwise this rule skips those files.
 //
-// ── Adapt ─────────────────────────────────────────────────────────────
-//
-// 1. `TOKEN_SOURCE` — the module that defines the token table. It has to
-//    write the literals the tokens resolve to, so it MUST be exempt.
-//    Point it at the project's `theme.ts` / `tokens.ts`. Add documented
-//    raster boundaries here too: canvas / native-module APIs take a
-//    literal color by contract (an xterm.js theme, a Skia paint, a
-//    status-bar color). One path per line, each with a comment saying
-//    why, and derive the literal from the token inside that file.
-//
-// 2. `NON_UI_LAYER` — layers that carry no styling at all
-//    (`src/domains/` in the standard layout). This is an exemption only
-//    because those layers should have nothing to say about color; if
-//    yours can style, delete the constant and the check that uses it.
-//
-// 3. `COLOR_PROPS` — the attribute names that carry a color. The default
-//    set is `c` / `bg` / `color`, and it exists so `<Text color="#fff">`
-//    is caught alongside `{ color: "#fff" }`. Keep the set SMALL and
-//    EXACT — matching every attribute would flag `href="#anchor"` and
-//    fragment ids. Add the project's primitives' color props (`tint`,
-//    `borderColor`, `backgroundColor`) if they accept strings.
-//
-//    If those props are typed as a closed union of token names, the type
-//    system already rejects a hex and this arm is belt-and-braces for
-//    the props that stayed open. That is the correct division: types own
-//    the closed props, this rule owns the leaks.
-//
-// 4. `RAW_COLOR` — what counts as a literal color. The digit requirement
-//    in the function forms is what lets `rgb(var(--x))` through. Add
-//    `oklch(` / `color(` if the project's CSS uses them. Do not add bare
-//    color KEYWORDS (`red`, `dimmed`): a keyword is how several token
-//    systems spell a token name, so banning them here would fire on the
-//    fix.
-//
-// 5. Name the fix (the message): the message is the only documentation
-//    an agent reliably reads, so it must name the exact shape a fix
-//    takes in this project — `var(--app-bg-raised)`,
-//    `theme.colors.backgroundRaised`, or a closed color prop
-//    (`c='dimmed'`). Replace the examples with the project's.
-//
-// 6. Registration: add the rule to the project's oxlint plugin
-//    (`rules: { "no-inline-color": noInlineColorRule }`) and turn it on
-//    in `.oxlintrc.json` (`"<plugin>/no-inline-color": "error"`).
-//
-// What this rule deliberately does NOT do: it does not check that a
-// `var(--x)` / `theme.colors.x` reference names a REAL token. That needs
-// the token source, which a per-file linter cannot import — see
-// `style/token-equality` for the tier that can.
-//
+// The rule does not check that a `var(--x)` reference names a real token. That
+// needs the token source, which a per-file linter cannot import.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree } from "@oxlint/plugins";

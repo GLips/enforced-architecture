@@ -11,15 +11,16 @@
 // tone?: Tone }` is one prop in TypeScript and must be one prop here.
 //
 // Only BASES expand. A member with a named type — `result: ScanResultViewModel`
-// — is one prop. To expand it makes the rule report the shape it asks for: props
-// that travel together, put into one object.
+// — is one prop. To expand it makes the rule report the shape it asks for:
+// props that a call site always passes together, put into one object.
 //
 // A base this rule cannot read in this file adds nothing, and the count becomes
 // a floor. A JS plugin gets no type checker, thus the rule cannot read a type
-// that another file declares. The message says "at least N props" and names the base. Silence
-// is an under-count, and a report on every `extends ViewProps` is a permanent
-// warning that a person cannot act on. A floor can miss a wide component, but it
-// cannot invent one.
+// that another file declares. The message says "at least N props" and names
+// the base. A missing report does not mean the true count is below the
+// threshold, and a report on every `extends ViewProps` is a permanent warning
+// that a person cannot act on. A floor can miss a wide component. It cannot
+// report one that is not wide.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree } from "@oxlint/plugins";

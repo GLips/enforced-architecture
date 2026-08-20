@@ -1,89 +1,27 @@
 // ─── types/no-widen-then-assert ──────────────────────────────────────
 //
-// Tag:      types
-// Mechanism: oxlint JS plugin (per-file, real-time)
-// Blocking: Yes
+// Makes sure: A value with a known type keeps that type to the end of the
+// function. No step assigns it to `unknown`, `object` or an open `Record` and
+// then asserts the type back with nothing checked between the two. So when you
+// change a field on `User`, the compiler reports each use; the two steps cannot
+// hold the old type in place.
 //
-// Prevents: A local flow that throws a known type away and then claims
-//           it back:
+// A bare call is not evidence of a known type. `const x: unknown = parse(text)`
+// is a boundary, and the assertion after it is a parse problem, not this one.
+// Follow call return types and the rule reports at every boundary in the file.
 //
-//             const loaded: User = loadUser();
-//             const stored: unknown = loaded;   // evidence discarded
-//             const user = stored as User;      // evidence invented
+// `types/require-safety-comment` does not cover this flow. It fires on the same
+// line, and the compliant answer is `// SAFETY: stored came from loaded, which
+// is a User` — a true sentence that keeps both steps and silences the linter
+// for good. Take the safety rule alone and prose becomes the cheapest fix.
 //
-//           Nothing is checked in the middle. The round trip converts a
-//           type the compiler was enforcing into one it is merely being
-//           told, and the assertion at the end looks like diligence.
+// Both steps must sit in the same function. Across a closure the two lines have
+// different authors, and a per-file rule cannot call the flow pointless.
 //
-//           This reads as a mistake nobody would make, and for a person
-//           writing the three lines together it is. It is here because
-//           agents do not write them together: the widening is how a
-//           model silences a type error it does not understand, the
-//           assertion is a later edit restoring the type it needs, and
-//           nothing re-reads the pair as a whole. Two plausible edits
-//           compose into something neither one looks like.
-//
-//           `types/require-safety-comment` does NOT cover this. It fires
-//           on the same line, but the compliant response is to write
-//           `// SAFETY: stored came from loaded, which is a User` — a
-//           true sentence that documents the round trip instead of
-//           deleting it, and permanently silences the linter. Verified
-//           against oxlint 1.77.0. Adopting the safety rule without this
-//           one makes prose the cheapest fix for a pattern whose only
-//           correct fix is deletion.
-//
-// Excludes: Values that were never known — `JSON.parse(text)`, an
-//           already-`unknown` parameter, a fetch body. Those genuinely
-//           arrive untyped, and asserting them is a boundary-parsing
-//           problem this rule deliberately says nothing about.
-//
-// Applies:  All .ts and .tsx files EXCEPT:
-//           - Test files and scripts
-//
-// Error:    "`{{name}}` had a known type, discarded it, and this
-//            assertion invents it back. Nothing was checked in between.
-//            Delete the widening and keep the original type through to
-//            here."
-//
-// ── Adapt ─────────────────────────────────────────────────────────────
-//
-// 1. What counts as widening — `broadTypeKind`:
-//    Three kinds are recognised: `unknown`/`any` ("top"), the `object`
-//    keyword, and the open dictionary (`Record<K, unknown>` and its
-//    index-signature spelling). A project wanting only the dominant
-//    case can return `null` for everything but "top" and delete
-//    `isDefinitelyObjectType` and `isDefinitelyNarrowerRecordType` with
-//    it — that is roughly half this file, and it keeps the pattern that
-//    actually shows up in generated code.
-//
-// 2. What counts as evidence — `knownValueEvidence`:
-//    A value is "known" if it is written out (a literal, an object or
-//    array expression, `new X()`), if it is asserted to a non-broad
-//    type, or if it is a binding carrying a non-broad annotation. It is
-//    deliberately NOT known when it comes from a bare call, because
-//    `const x: unknown = parseInput()` is a boundary, not a mistake.
-//    Widening the definition to follow call return types needs a type
-//    checker and does not belong in this tier.
-//
-// 3. Same-function only — `functionBoundary`:
-//    Both the widening and the assertion must sit in the same function.
-//    Crossing a closure means the two lines have different authors in
-//    practice, and the flow between them is no longer local enough for
-//    a per-file rule to call it pointless.
-//
-// 4. No parenthesis handling anywhere in this file, on purpose:
-//    oxlint's AST surfaces neither `ParenthesizedExpression` nor
-//    `TSParenthesizedType` — `(value) as (User)` arrives as the bare
-//    nodes. Verified against oxlint 1.77.0; the spec asserts the
-//    parenthesized spelling still reports, so this goes red rather than
-//    silent if a future version starts surfacing them.
-//
-// 5. Registration:
-//    Add the rule to the project's oxlint plugin
-//    (`rules: { "no-widen-then-assert": noWidenThenAssertRule }`) and
-//    turn it on in `.oxlintrc.json`
-//    (`"<plugin>/no-widen-then-assert": "error"`).
-//
+// Do not add code to unwrap parentheses. oxlint 1.77.0 surfaces neither
+// ParenthesizedExpression nor TSParenthesizedType, so `(value) as (User)`
+// arrives as the bare nodes. The spec pins the parenthesized spelling, so the
+// test fails if a later version surfaces them.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree, type Scope, type SourceCode, type Variable } from "@oxlint/plugins";
@@ -101,7 +39,8 @@ const FUNCTION_NODES = new Set([
 ]);
 
 // Values that are their own evidence: what they are is visible in the source, so widening one is
-// always a loss. A CallExpression is absent on purpose — see Adapt note 2.
+// always a loss. A CallExpression is absent on purpose: a call's return type is not visible
+// here, so an annotation over it can add information rather than subtract it.
 const SELF_EVIDENT_EXPRESSIONS = new Set([
   "ArrayExpression",
   "ArrowFunctionExpression",

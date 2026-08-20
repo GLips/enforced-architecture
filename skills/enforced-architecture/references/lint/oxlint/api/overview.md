@@ -11,9 +11,9 @@ asking and that is the same question every other cell of the table answers. The 
 `service/`, a module at a feature's root, another domain — and `deny` from the other eight, so there
 is no single answer a per-file rule could hold.
 
-| Rule | Blocking | What it prevents |
+| Rule | Blocking | What it buys |
 |---|---|---|
-| [barrel-direction](barrel-direction.ts) | Yes | `index.ts` importing from `index.server.ts` (must never reverse) |
-| [server-import-context](server-import-context.ts) | Yes | Non-server contexts importing `*/index.server` barrels |
+| [barrel-direction](barrel-direction.ts) | Yes | You add an export to `index.server.ts` with no change to what `index.ts` gives a client component |
+| [server-import-context](server-import-context.ts) | Yes | Every caller of a `*/index.server` barrel sits in a server directory or a `*.server.ts` file |
 
 Adoption mechanics, the spec contract, and cross-tag rule selection: [../../overview.md](../../overview.md).

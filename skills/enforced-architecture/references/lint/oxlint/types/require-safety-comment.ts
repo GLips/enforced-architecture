@@ -1,80 +1,20 @@
 // ─── types/require-safety-comment ────────────────────────────────────
 //
-// Tag:      types
-// Mechanism: oxlint JS plugin (per-file, real-time)
-// Blocking: Yes
+// Makes sure: Every type assertion carries a `SAFETY:` comment that names the
+// invariant. `rg "SAFETY:"` returns each place where the code overrules the
+// compiler, so an audit of the assertions is one search. When you change a
+// type, the comment tells you what to check again.
 //
-// Prevents: Type assertions (`value as User`, `<User>value`) that state
-//           no reason. The assertion is not banned — it is made to cost
-//           a sentence. Every one must carry a `SAFETY:` comment naming
-//           the invariant the compiler cannot see.
+// Keep one marker. A second spelling such as `// JUSTIFY:` reads as a small
+// improvement, and it means no single search finds every assertion.
 //
-//           This is the catalog's one rule built on a different
-//           mechanism from the rest. Every other rule makes the wrong
-//           thing inexpressible; this one leaves the escape hatch open
-//           and makes using it leave a trace. That fits assertions
-//           specifically, because a small number of them are correct
-//           and no per-file rule can tell which.
+// One comment covers every assertion in the statement it sits above. That is
+// deliberate: one justified statement split into two assertions must not cost
+// two identical sentences. It also means `value as unknown as User` passes with
+// one comment, so take `types/no-chained-type-assertions` with this rule.
 //
-//           It works on an agent for a reason worth stating: an
-//           assertion is how a model answers a compiler error it does
-//           not understand, and it is invisible in review because it
-//           looks like a decision. Forcing the justification either
-//           produces a real invariant — at which point the assertion is
-//           probably fine — or produces a sentence whose weakness is
-//           legible to a human reading the diff. A bare `as User` says
-//           nothing either way.
-//
-// Excludes: `as const`, which widens nothing and asserts nothing about
-//           a value's provenance, and `satisfies`, which is checked.
-//
-// Applies:  All .ts and .tsx files EXCEPT:
-//           - Test files and scripts
-//
-// Error:    "This type assertion states no reason. Add a `// SAFETY:`
-//            comment naming the invariant that makes it true — what was
-//            already checked, and where. If no such invariant exists,
-//            parse the value instead of asserting it."
-//
-// ── Adapt ─────────────────────────────────────────────────────────────
-//
-// 1. The marker — `SAFETY_COMMENT`:
-//    `SAFETY:` is borrowed from Rust's `unsafe` convention, where it
-//    carries the same meaning: the compiler has stopped checking, so
-//    the author states what holds instead. Any marker works as long as
-//    it is greppable — `// JUSTIFY:`, `// CHECKED:`. Pick one and hold
-//    it, because two spellings means neither can be audited with a
-//    single search. Auditing the escape hatch is most of the value:
-//    `rg "SAFETY:"` is the list of every place the type system was
-//    overruled.
-//
-// 2. How far up the comment may sit — `COMMENT_OWNER_KINDS`:
-//    The comment is looked for immediately above the assertion, then
-//    above each enclosing node up to the containing statement. That is
-//    what lets one comment cover an assertion buried in a call argument
-//    or a ternary branch, where there is no line of its own to sit on.
-//    It also means one comment covers *every* assertion in that
-//    statement — deliberate, since splitting one justified statement
-//    into two assertions should not cost two identical comments. A
-//    project wanting one comment per assertion narrows this set.
-//
-// 3. Pairing — this rule has a known bypass on its own:
-//    `value as unknown as User` satisfies it with one comment for a
-//    double assertion that discards more evidence than either half
-//    admits. Adopt `types/no-chained-type-assertions` alongside it, or
-//    the escape hatch has its own escape hatch.
-//
-// 4. File scope — `isArchitectureExemptPath`:
-//    Tests and scripts are exempt through `../lib/architecture-exempt-paths.ts`.
-//    A test builds fixtures that are deliberately partial, and making
-//    it narrate each one produces noise, not evidence.
-//
-// 5. Registration:
-//    Add the rule to the project's oxlint plugin
-//    (`rules: { "require-safety-comment": requireSafetyCommentRule }`)
-//    and turn it on in `.oxlintrc.json`
-//    (`"<plugin>/require-safety-comment": "error"`).
-//
+// `as const` needs no comment. It narrows a literal the compiler already reads
+// and cannot be wrong. Remove the carve-out and people write empty sentences.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree } from "@oxlint/plugins";

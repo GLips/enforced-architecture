@@ -1,51 +1,21 @@
 // ─── boundary/db-isolation ────────────────────────────────────────────
 //
-// Tag:       boundary
-// Mechanism: oxlint JS plugin (per-file, real-time)
-// Blocking:  Yes
+// Makes sure: `@/infrastructure/db` is imported only from infrastructure/,
+// features/*/repo/ and features/*/controllers/. To add a tenant filter to every
+// query, or to find each caller of a table, you read three directories. A UI
+// file cannot reach the database client, so the build puts no database driver in
+// the browser bundle.
 //
-// Prevents: Code outside the data-access layers importing database
-//           modules directly, bypassing the repo or controller layer.
-//           This is the single most important boundary rule — it
-//           enforces that all DB access flows through designated layers.
+// `DB_ALIAS` comes from `DB_DIR` and the alias prefix in lint/policy/layout.ts,
+// which is also where boundary/layer-occupancy reads the schema path. A project
+// with a flat `@/db` moves the directory THERE and both rules follow. A path
+// written out again here is how the two rules end up with different paths.
 //
-// Applies:  All src/** files EXCEPT:
-//           - infrastructure/** (IS the DB layer)
-//           - features/*/repo/** (designated DB access layer)
-//           - features/*/controllers/** (when no repo layer exists)
-//           - ORM config files (drizzle.config.ts)
-//           - Test files and scripts
+// A raw ORM or driver package is not matched here. Containment of a package is
+// boundary/sdk-containment's question, and its owner rows answer it.
 //
-// Error:    "DB client/schema imports are restricted to
-//            infrastructure/*, features/*/repo/*, and
-//            features/*/controllers/*. Move this DB access
-//            to a repo or controller module."
-//
-// ── Adapt ─────────────────────────────────────────────────────────────
-//
-// 1. Who is allowed DB access — the `ALLOWED_LAYERS` patterns:
-//    Add or remove layers that are permitted DB access in the project.
-//    If the project has no repo/ layer, controllers/ is the DB boundary.
-//    If the project uses a service/ layer for DB access, add it here.
-//
-// 2. What counts as a DB import:
-//    Nothing here — `DB_ALIAS` is built from `DB_DIR` and the alias
-//    prefix in `lint/policy/layout.ts`, which is also where
-//    `boundary/layer-occupancy` reads the schema path from. A project
-//    with a flat `@/db` moves the directory THERE and both rules follow;
-//    restating it here is how the two end up fencing different paths.
-//    Matched as a prefix rather than a regex so a path segment
-//    containing a `.` needs no escaping.
-//
-//    Raw ORM/driver packages are a separate question and deliberately
-//    not matched here: containment of a package belongs to
-//    `boundary/sdk-containment` and its owner rows.
-//
-// 3. Registration:
-//    Add the rule to the project's oxlint plugin
-//    (`rules: { "db-isolation": dbIsolationRule }`) and turn it on in
-//    `.oxlintrc.json` (`"<plugin>/db-isolation": "error"`).
-//
+// A relative specifier reaches the same module and no pattern here sees it.
+// Adopt boundary/import-policy in the structural tier with this rule.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule } from "@oxlint/plugins";

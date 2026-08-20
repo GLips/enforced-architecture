@@ -1,63 +1,18 @@
 // ─── types/no-conditional-empty-object-spread ────────────────────────
 //
-// Tag:      types
-// Mechanism: oxlint JS plugin (per-file, real-time)
-// Blocking: No — register as "warn". See Adapt note 1 before adopting.
+// Shows: Object literals whose key set depends on a condition inside a spread.
+// A reader learns which literals do not state their own keys, and how many
+// shapes each one can have — three such spreads in one literal make eight
+// shapes. The rule reports; it does not block a commit.
 //
-// Prevents: Property omission hidden inside a spread:
+// Register it as "warn". Under `exactOptionalPropertyTypes` this idiom is the
+// standard way to omit a property rather than set it to `undefined`, and the
+// alternatives are worse: several statements that mutate an object, or a
+// helper. It is a signal about density, not a defect.
 //
-//             const options = {
-//               ...(timeout !== undefined ? { timeout } : {}),
-//             };
-//
-//           The `{}` is doing invisible work. Reading the object
-//           literal tells you nothing about which keys it has — that
-//           depends on a condition buried inside a spread, and the
-//           resulting type is a union the reader has to compute. Stack
-//           three of these in one literal and the set of possible
-//           shapes is eight.
-//
-//           It is also the shape an agent produces when it wants to
-//           satisfy `exactOptionalPropertyTypes` and does not want to
-//           restructure the code, which is why it clusters in generated
-//           config-building.
-//
-// Excludes: Conditional spreads with two real branches
-//           (`...(isAdmin ? adminDefaults : userDefaults)`), which
-//           choose between things rather than hiding an absence.
-//
-// Applies:  All .ts and .tsx files EXCEPT:
-//           - Test files and scripts
-//
-// Error:    "This spread hides whether the property exists behind an
-//            empty object, so the literal's own keys are no longer
-//            readable. Build the object in named steps and add the
-//            property when it is present."
-//
-// ── Adapt ─────────────────────────────────────────────────────────────
-//
-// 1. This is the most arguable rule in the catalog — read before taking:
-//    Under `exactOptionalPropertyTypes`, this idiom is the standard way
-//    to omit rather than set-to-undefined, and the alternatives are
-//    genuinely worse: a mutable object built over several statements,
-//    or a helper. Reasonable codebases use it deliberately. It ships
-//    NON-BLOCKING for that reason — as a signal about density, not a
-//    defect. Take it if generated config objects are drifting toward
-//    unreadable; skip it if the idiom is a considered house style.
-//
-// 2. Tightening it — a count threshold:
-//    One conditional spread is readable; four in one literal is not.
-//    Reporting only when a single ObjectExpression contains more than
-//    N of them targets the real damage and drops nearly all the noise.
-//    That is the version to reach for if this rule is too loud, and it
-//    is a better rule than the one implemented here for most projects.
-//
-// 3. Registration:
-//    Add the rule to the project's oxlint plugin
-//    (`rules: { "no-conditional-empty-object-spread": noConditionalEmptyObjectSpreadRule }`)
-//    and turn it on in `.oxlintrc.json` as
-//    (`"<plugin>/no-conditional-empty-object-spread": "warn"`).
-//
+// A conditional spread with two real branches stays legal
+// (`...(isAdmin ? adminDefaults : userDefaults)`). It chooses between two
+// values and hides no absence.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree } from "@oxlint/plugins";

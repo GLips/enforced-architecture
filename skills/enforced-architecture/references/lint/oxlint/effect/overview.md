@@ -54,14 +54,14 @@ The heavier one makes plain `tsc` raise them, which is the recommendation — a 
 
 The last column is the tag each rule would sit in if it were not Effect-specific — the catalog's mental model, for readers who know the other tags.
 
-| Rule | Blocking | What it prevents | Tag if not Effect |
+| Rule | Blocking | What it buys | Tag if not Effect |
 |---|---|---|---|
-| [no-disable-validation](no-disable-validation.ts) | Yes | `{ disableValidation: true }` on a Schema constructor — and the shorthand, quoted, computed, and forwarded-flag spellings of it | placement |
-| [no-silent-error-swallow](no-silent-error-swallow.ts) | Yes | A catch handler whose body is `Effect.void`, in either the data-first or the data-last spelling, including the `catchTags` object form | testing |
-| [no-effect-catchallcause](no-effect-catchallcause.ts) | Yes | `Effect.catchAllCause` and `Effect.catchAllDefect` — handling a bug as if it were an expected failure | boundary |
-| [no-service-option](no-service-option.ts) | Yes | `Effect.serviceOption`, which turns a missing layer from a compile error into a quiet runtime `None` | boundary |
-| [no-nested-layer-provide](no-nested-layer-provide.ts) | Yes | `Layer.provide` nested anywhere inside another `Layer.provide`'s arguments, including through `.pipe(…)` | health |
-| [no-sql-type-parameter](no-sql-type-parameter.ts) | Yes | ``sql<Row>`…` `` — a row shape declared and never checked. Use `SqlSchema` with a `Schema` | types |
+| [no-disable-validation](no-disable-validation.ts) | Yes | Every value with a schema's type also passes that schema's check | placement |
+| [no-silent-error-swallow](no-silent-error-swallow.ts) | Yes | A failure reaches the caller, so you read the write and not every handler on the path | testing |
+| [no-effect-catchallcause](no-effect-catchallcause.ts) | Yes | A bug reports as one crash with a stack, never as a business outcome | boundary |
+| [no-service-option](no-service-option.ts) | Yes | A missing layer is a compile error where the layers compose, not a `None` branch at run time | boundary |
+| [no-nested-layer-provide](no-nested-layer-provide.ts) | Yes | A runtime's layer graph reads as a list of names, one `Layer.provide` edge per line | health |
+| [no-sql-type-parameter](no-sql-type-parameter.ts) | Yes | A typed row comes from a `SqlSchema` decode, so a renamed column fails at the query | types |
 
 Two of them are one catalog idea in Effect clothing:
 
