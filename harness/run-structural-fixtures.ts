@@ -37,6 +37,7 @@ import {
   FIXTURE_TREE,
   fixtureConfig,
   PDF_TREE,
+  PDF_TREE_MISREAD,
 } from "./structural-fixtures/config.ts";
 import type { CheckFixtures, GeneratedFixture } from "./structural-fixtures/expectations.ts";
 import type { Finding } from "../skills/enforced-architecture/references/lint/structural/check-substrate.ts";
@@ -158,12 +159,16 @@ function removeGeneratedFixtures(): void {
 writeGeneratedFixtures();
 let runs: CheckRun[];
 let bothTrees: CheckRun[];
+let misread: CheckRun[];
 try {
   runs = runStructuralChecks(structuralChecks, fixtureConfig, DECLARED_FIXTURE_TREES);
   // The probe reuses the same registry and config and varies ONLY the tree list,
   // because that is the claim: declaring a tree is the whole of what turns the
   // catalog on over it.
   bothTrees = runStructuralChecks(structuralChecks, fixtureConfig, BOTH_FIXTURE_TREES);
+  // The positive control for the vocabulary assertion below. Same root, wrong
+  // vocabulary — see PDF_TREE_MISREAD for why the negative alone is not enough.
+  misread = runStructuralChecks(structuralChecks, fixtureConfig, PDF_TREE_MISREAD);
 } finally {
   // Removed whether the run passed, failed, or threw, so by the first assertion
   // below the tree is back to its committed fixtures and nothing surprising is
@@ -250,14 +255,29 @@ if (!firesOnceDeclared.includes(expectedProbeFinding)) {
 // Read with the app tree's vocabulary, `capabilities/` is not a top-level
 // directory and topology reports every file under it. Read with its own, it is
 // the features directory.
-const wrongVocabulary = firesOnceDeclared.filter((entry) =>
-  entry.includes(`${PDF_TREE.root}/capabilities/`),
-);
+//
+// BOTH directions, and the positive one is the load-bearing half. The negative
+// alone — "nothing reported under capabilities/" — passes unchanged if the
+// fixture under it is renamed or deleted, which is how this guard was
+// deletable-green: a silent stop-matching reports nothing and reads as a pass.
+const CAPABILITIES_PREFIX = `${PDF_TREE.root}/capabilities/`;
+
+const wrongVocabulary = firesOnceDeclared.filter((entry) => entry.includes(CAPABILITIES_PREFIX));
 if (wrongVocabulary.length > 0) {
   fail(
     "<declared-trees>",
     `a declared tree was read with another tree's vocabulary:\n` +
       `        ${wrongVocabulary.join("\n        ")}`,
+  );
+}
+
+const misreadFindings = findingsUnder(misread, CAPABILITIES_PREFIX);
+if (misreadFindings.length === 0) {
+  fail(
+    "<declared-trees>",
+    `the vocabulary assertion has nothing to read: declaring ${PDF_TREE.root} with the WRONG ` +
+      `vocabulary produced no finding under ${CAPABILITIES_PREFIX}, so the fixture that proves ` +
+      `the right vocabulary works is missing and the assertion above passes vacuously`,
   );
 }
 

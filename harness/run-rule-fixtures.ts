@@ -300,6 +300,25 @@ function stripLineComments(source: string): string {
  * rule resolves and oxlint never runs them over, and a project widening the glob
  * without declaring the root gets rules that load and return early on every file.
  * Both read as green.
+ *
+ * WHICH BLOCK each rule belongs in is also asserted, and derived rather than
+ * listed: a rule that resolves its filename against the declared trees is
+ * tree-scoped, and one that does not is global. `testing/no-module-mocking` is
+ * the only rule in the second group — its subject is tests, which
+ * `classifyFileRole` deliberately reports as no subject at all — and putting it
+ * behind a tree glob silently stops it reporting on every suite outside a
+ * declared tree, including the repo-root `test/` directory this catalog treats
+ * as a first-class convention. A curated exception list would drift; reading the
+ * rule source cannot, because the same line that makes a rule tree-dependent is
+ * the line the guard looks for.
+ *
+ * NEGATIVE SPACE: this asks WHICH block a rule is in, never whether it is in one
+ * at all. A rule enabled nowhere is the separate registration-versus-enablement
+ * defect, and the config records one deliberate instance of it — the HELD BACK
+ * note on `arch/no-reflect-access`, which cannot fire under a real global scope
+ * and is tracked by ea-48. Asserting existence here would make this guard the
+ * second owner of that question and would fail on a hold it has no opinion
+ * about.
  */
 async function checkTreeScoping(): Promise<string[]> {
   const { DECLARED_TREES } = (await import(join(POLICY_ROOT, "declared-trees.ts"))) as {
@@ -311,19 +330,49 @@ async function checkTreeScoping(): Promise<string[]> {
   };
 
   const failures: string[] = [];
+
+  // A rule is tree-dependent when its own source resolves the filename it is
+  // handed against the declared trees. Every rule that does must be glob-scoped
+  // to those trees, and every rule that does not must be global — otherwise the
+  // glob is the only thing scoping it, and narrowing the glob narrows the rule.
+  const treeDependent = new Set<string>();
+  for (const rulePath of rulePaths) {
+    const source = await readFile(rulePath, "utf8");
+    if (/\bclassifyFileRole\b|\bdeclaredTreeFor\b/.test(source)) {
+      // `arch/<basename>`, which is the key the plugin registers and the config
+      // spells — NOT the `<category>/<name>` path `ruleIdOf` gives.
+      treeDependent.add(`arch/${basename(rulePath, ".ts")}`);
+    }
+  }
+
   const globalArchKeys = Object.keys(config.rules ?? {}).filter((key) => key.startsWith("arch/"));
-  if (globalArchKeys.length > 0) {
+  const misplacedGlobal = globalArchKeys.filter((key) => treeDependent.has(key));
+  if (misplacedGlobal.length > 0) {
     failures.push(
-      `setup/oxlintrc.json enables ${globalArchKeys.join(", ")} outside any tree-scoped override, ` +
-        `so those rules run over files no declared tree owns`,
+      `setup/oxlintrc.json enables ${misplacedGlobal.join(", ")} outside any tree-scoped override, ` +
+        `so those rules are loaded for files no declared tree owns and return early on all of them`,
     );
   }
 
-  const scopedGlobs = new Set(
-    (config.overrides ?? [])
-      .filter((entry) => Object.keys(entry.rules ?? {}).some((key) => key.startsWith("arch/")))
-      .flatMap((entry) => entry.files ?? []),
+  const scopedEntries = (config.overrides ?? []).filter((entry) =>
+    Object.keys(entry.rules ?? {}).some((key) => key.startsWith("arch/")),
   );
+  const scopedGlobs = new Set(scopedEntries.flatMap((entry) => entry.files ?? []));
+
+  const scopedArchKeys = scopedEntries.flatMap((entry) =>
+    Object.keys(entry.rules ?? {}).filter((key) => key.startsWith("arch/")),
+  );
+  const misplacedScoped = scopedArchKeys.filter((key) => !treeDependent.has(key));
+  if (misplacedScoped.length > 0) {
+    failures.push(
+      `setup/oxlintrc.json scopes ${misplacedScoped.join(", ")} to the declared trees, but ` +
+        `${misplacedScoped.length === 1 ? "that rule reads" : "those rules read"} no tree — so the ` +
+        `glob is the only thing bounding ${misplacedScoped.length === 1 ? "it" : "them"}, and every ` +
+        `file outside a declared tree goes unreported with nothing saying so. Enable ` +
+        `${misplacedScoped.length === 1 ? "it" : "them"} in the global "rules" block`,
+    );
+  }
+
   const declaredGlobs = new Set(DECLARED_TREES.map((tree) => `${tree.root}/**`));
 
   for (const glob of declaredGlobs) {

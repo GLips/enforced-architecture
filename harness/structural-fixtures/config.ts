@@ -59,6 +59,22 @@ export const DECLARED_FIXTURE_TREES: DeclaredTree[] = [APP_TREE];
 /** The same project after it adopts the catalog for its second package. */
 export const BOTH_FIXTURE_TREES: DeclaredTree[] = [APP_TREE, PDF_TREE];
 
+/**
+ * The POSITIVE CONTROL for the vocabulary half of the probe: the same second
+ * root, declared with the WRONG vocabulary.
+ *
+ * Without this list the vocabulary assertion is one-sided — "no finding under
+ * `capabilities/`" — and a one-sided negative passes just as well when the
+ * fixture it is meant to read has been renamed, moved, or deleted. It was
+ * deletable-green exactly that way. This list makes the fixture's presence
+ * load-bearing: read with the app tree's spelling, `capabilities/` is a
+ * top-level directory no grammar claims and topology must report it.
+ */
+export const PDF_TREE_MISREAD: DeclaredTree[] = [
+  APP_TREE,
+  { root: PDF_TREE.root, vocabulary: RECOMMENDED_VOCABULARY },
+];
+
 export const fixtureConfig: ArchitectureConfig = {
   projectRoot: FIXTURE_TREE,
   jsxImportSource: "react",

@@ -31,6 +31,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  describeKnownAreas,
   evaluateImportPolicy,
   IMPORT_POLICY,
   type PolicyVerdict,
@@ -537,5 +538,139 @@ describeSuite("the adapter contract: the one flag, and the loud defaults", () =>
 
   testCase("an unpoliced source is loud rather than skipped", () => {
     assert.equal(messageId(verdict("lib/format-date.ts", "@/shared/utils")), "unclassifiedSource");
+  });
+});
+
+
+// ─── Two trees ────────────────────────────────────────────────────────
+//
+// Everything above spells ONE vocabulary, because the rows are the recommended
+// layout. These cases are the other half of the ticket: that a file is resolved
+// into the tree that OWNS it and then read with THAT tree's names.
+//
+// The second tree renames the features directory, so a case that passes under
+// both vocabularies proves nothing here. Every assertion below is one the app
+// tree's vocabulary would answer differently.
+
+const APP_TREE: DeclaredTree = { root: "apps/web/src", vocabulary: RECOMMENDED_VOCABULARY };
+
+const PDF_VOCABULARY: TreeVocabulary = {
+  ...RECOMMENDED_VOCABULARY,
+  featuresDir: "capabilities",
+  sharedDir: "common",
+  sharedUiDir: "common/ui",
+};
+
+const PDF_TREE: DeclaredTree = { root: "packages/pdf/src", vocabulary: PDF_VOCABULARY };
+
+const TWO_TREES: DeclaredTree[] = [APP_TREE, PDF_TREE];
+
+describeSuite("resolving a file into the tree that owns it", () => {
+  testCase("a file resolves to its own tree, with a path from THAT tree's root", () => {
+    assert.deepEqual(declaredTreeFor("/repo/apps/web/src/features/billing/ui/panel.tsx", TWO_TREES), {
+      tree: APP_TREE,
+      sourcePath: "features/billing/ui/panel.tsx",
+    });
+    assert.deepEqual(declaredTreeFor("/repo/packages/pdf/src/capabilities/render/ui/page.ts", TWO_TREES), {
+      tree: PDF_TREE,
+      sourcePath: "capabilities/render/ui/page.ts",
+    });
+  });
+
+  testCase("the second tree is read with ITS vocabulary, not the first tree's", () => {
+    // `capabilities/` is this tree's features directory and `features/` is not.
+    // Under the app tree's vocabulary both answers invert, which is what makes
+    // this pair a test of the resolution rather than of the classifier.
+    const role = classifyFileRole("/repo/packages/pdf/src/capabilities/render/ui/page.ts", TWO_TREES);
+    assert.equal(role?.place?.profile, "feature-ui");
+    // The unit carries the tree's OWN directory name, which is the second half
+    // of reading with its vocabulary: nothing downstream has to re-derive it.
+    assert.equal(role?.place?.unit, "capabilities/render");
+
+    const asAppTreeWouldRead = classifyFileRole("/repo/packages/pdf/src/features/render/ui/page.ts", TWO_TREES);
+    assert.equal(asAppTreeWouldRead?.place, undefined);
+  });
+
+  testCase("an undeclared sibling is in no tree at all, which is the whole of the scoping claim", () => {
+    assert.equal(declaredTreeFor("/repo/packages/cli/src/features/billing/ui/panel.tsx", TWO_TREES), undefined);
+    assert.equal(classifyFileRole("/repo/packages/cli/src/features/billing/ui/panel.tsx", TWO_TREES), undefined);
+  });
+
+  testCase("declaring the sibling is the only thing that turns it on", () => {
+    const declared: DeclaredTree[] = [...TWO_TREES, { root: "packages/cli/src", vocabulary: RECOMMENDED_VOCABULARY }];
+    const role = classifyFileRole("/repo/packages/cli/src/features/billing/ui/panel.tsx", declared);
+    assert.equal(role?.place?.profile, "feature-ui");
+  });
+
+  testCase("the most specific root wins, so a bare root does not swallow a nested one", () => {
+    const nested: DeclaredTree[] = [{ root: "src", vocabulary: RECOMMENDED_VOCABULARY }, APP_TREE];
+    assert.equal(declaredTreeFor("/repo/apps/web/src/features/billing/ui/panel.tsx", nested)?.tree, APP_TREE);
+  });
+
+  testCase("a checkout living under a directory called src is not mistaken for the tree", () => {
+    // ONE tree, and the root name appears twice in the path. The LAST occurrence
+    // is the tree; the first is somebody's home directory. Reading the first
+    // gives every file a sourcePath with the repo name still on the front, which
+    // classifies as nothing and reports the whole tree as unclassified.
+    const single: DeclaredTree[] = [{ root: "src", vocabulary: RECOMMENDED_VOCABULARY }];
+    assert.deepEqual(declaredTreeFor("/home/me/src/repo/src/features/billing/ui/panel.tsx", single), {
+      tree: single[0],
+      sourcePath: "features/billing/ui/panel.tsx",
+    });
+  });
+
+  testCase("two roots ending at the same offset are broken by the longer declaration", () => {
+    // `src` and `apps/web/src` both end at the same character here, so the depth
+    // comparison cannot separate them and only the tie-break can.
+    const nested: DeclaredTree[] = [{ root: "src", vocabulary: RECOMMENDED_VOCABULARY }, APP_TREE];
+    assert.deepEqual(declaredTreeFor("/repo/apps/web/src/features/billing/ui/panel.tsx", nested), {
+      tree: APP_TREE,
+      sourcePath: "features/billing/ui/panel.tsx",
+    });
+  });
+
+  testCase("a position inside a declared tree that no profile claims is loud, not silent", () => {
+    const role = classifyFileRole("/repo/packages/pdf/src/lib/stray.ts", TWO_TREES);
+    assert.notEqual(role, undefined);
+    assert.equal(role?.place, undefined);
+  });
+
+  testCase("an architecture-exempt file inside a declared tree has no subject", () => {
+    assert.equal(classifyFileRole("/repo/apps/web/src/features/billing/ui/panel.test.tsx", TWO_TREES), undefined);
+    assert.equal(classifyFileRole("/repo/apps/web/src/scripts/backfill.ts", TWO_TREES), undefined);
+  });
+});
+
+describeSuite("the unclassified message names a destination in the tree's own words", () => {
+  // The verdict is the same either way — this is the WORDING, which is the whole
+  // product of `describeKnownAreas` and the reason `unclassifiedSource` is a
+  // blocking message a reader can act on rather than a refusal with no exit.
+  testCase("the recommended tree is described in the recommended directory names", () => {
+    const areas = describeKnownAreas(RECOMMENDED_VOCABULARY);
+    assert.match(areas, /\bfeatures\/<name>\/\(ui\|controllers\|service\|repo\)/);
+    assert.match(areas, /\bshared\/ui\b/);
+    assert.doesNotMatch(areas, /\bcapabilities\b/);
+  });
+
+  testCase("a renaming tree is described in ITS names, so the message never prescribes a directory the tree does not have", () => {
+    const areas = describeKnownAreas(PDF_VOCABULARY);
+    assert.match(areas, /\bcapabilities\/<name>\/\(ui\|controllers\|service\|repo\)/);
+    assert.match(areas, /\bcommon\/ui\b/);
+    // The load-bearing half: no spelling from the OTHER tree leaks in. A
+    // hardcoded `features` here would pass every match above.
+    assert.doesNotMatch(areas, /\bfeatures\b/);
+    assert.doesNotMatch(areas, /(^|[^/])\bshared\b/);
+  });
+
+  testCase("the areas string reaches the verdict, so the message a rule prints is the tree's", () => {
+    const denied = evaluateImportPolicy({
+      vocabulary: PDF_VOCABULARY,
+      sourcePath: "lib/stray.ts",
+      target: { kind: "module", path: "capabilities/render" },
+      specifier: "@/capabilities/render",
+      typeOnly: false,
+    });
+    assert.equal(messageId(denied), "unclassifiedSource");
+    assert.equal(denied.kind === "deny" ? denied.data.areas : "", describeKnownAreas(PDF_VOCABULARY));
   });
 });

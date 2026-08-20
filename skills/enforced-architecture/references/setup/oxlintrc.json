@@ -61,6 +61,18 @@
     // and say so — not as a substitute for the policy, which would then be
     // enforcing nothing about those specifiers.
 
+    // ── testing: a test exercises the module it names ──
+    //
+    // The ONE `arch/` rule in this block, and it is here for a structural reason
+    // rather than by preference: its subject is test files, which every other
+    // rule in the catalog treats as no subject at all. It reads no declared
+    // tree, so a tree glob would not narrow WHICH files it judges — it would
+    // just stop it seeing the suites that live outside one, the repo-root
+    // `test/` directory included. `harness/run-rule-fixtures.ts` derives this
+    // split from the rule sources and fails the build if a rule is in the wrong
+    // block, in either direction.
+    "arch/no-module-mocking": "error",
+
     // The type-aware built-ins that earn the tsgolint dependency, and only those.
     // Naming them is not decoration: `typeAware` on its own runs some at warning
     // severity — a green exit 0 with the violation printed — and leaves the
@@ -120,11 +132,15 @@
   // "unclassified" diagnostic — and that silence is not coverage. Adding a
   // package without adding its root leaves it unpoliced, and nothing says so.
   //
-  // The scoping is belt AND braces: every `arch/` rule also resolves the file it
-  // is handed against the declared trees and returns early outside them, so a
-  // project that reaches oxlint some other way still gets the same silence. The
-  // globs are what keep the rules from being loaded for files they will never
-  // report on.
+  // The scoping is belt AND braces: every rule named in this block also resolves
+  // the file it is handed against the declared trees and returns early outside
+  // them, so a project that reaches oxlint some other way still gets the same
+  // silence. The globs are what keep those rules from being loaded for files
+  // they will never report on.
+  //
+  // NOT every `arch/` rule — `arch/no-module-mocking` reads no tree and is
+  // enabled globally above for that reason. The guard derives the split from the
+  // rule sources rather than from a list here, so neither block can drift.
   //
   // `typescript/` and `sonarjs/` stay GLOBAL above. They are questions about a
   // file — an unawaited promise, two identical branches — not about a position
@@ -238,8 +254,6 @@
       "arch/no-raw-primitives": "error",
       "arch/vendor-component-containment": "error",
 
-      // ── testing: a test exercises the module it names ──
-      "arch/no-module-mocking": "error",
 
       // ── types: no value arrives somewhere claiming a type nothing checked ──
       "arch/no-broad-parameters": "error",

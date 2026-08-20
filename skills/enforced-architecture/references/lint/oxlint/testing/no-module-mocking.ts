@@ -11,6 +11,14 @@
 // the others takes away its only subject, and the rule then reports nothing at
 // all.
 //
+// It follows that this rule reads NO declared tree, and it is the only one in
+// the catalog that does not. Its scope is therefore whatever oxlint hands it —
+// so it is enabled in the shipped config's GLOBAL block rather than behind a
+// tree glob, and a project that scopes it to a tree silently stops it reporting
+// on every suite outside one, the repo-root `test/` directory included. The
+// spec harness derives that placement from this file and fails the build if the
+// config disagrees, in either direction.
+//
 // Keep all three method names in `MOCK_METHODS`. `doMock` defers the same
 // replacement, and `unstable_mockModule` is the ESM spelling of it. A rule that
 // matches `mock` alone leaves two ways to write the same finding.
