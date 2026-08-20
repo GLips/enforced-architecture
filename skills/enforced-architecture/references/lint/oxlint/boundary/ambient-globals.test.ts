@@ -126,6 +126,18 @@ describeRule("boundary/ambient-globals", ambientGlobalsRule, {
       errors: [{ messageId: "ambientGlobalOutsideOwner" }],
     },
     {
+      name: "a TypeScript cast wedged between the load and the read",
+      filename: SERVICE,
+      code: `export const key = (require("node:process") as never).env.STRIPE_KEY;`,
+      errors: [{ messageId: "ambientGlobalOutsideOwner" }],
+    },
+    {
+      name: "a rest element beside the capability, which names no key of its own",
+      filename: SERVICE,
+      code: `const { env, ...rest } = require("node:process");\nexport const key = [env.STRIPE_KEY, rest];`,
+      errors: [{ messageId: "ambientGlobalOutsideOwner" }],
+    },
+    {
       name: "a backtick specifier, which is what a string-literal fence teaches people to write",
       filename: SERVICE,
       code: `const { env } = require(\`node:process\`);\nexport const key = env.STRIPE_KEY;`,
@@ -184,6 +196,11 @@ describeRule("boundary/ambient-globals", ambientGlobalsRule, {
       name: "a module that is not the capability's, however it is loaded",
       filename: SERVICE,
       code: `import path = require("node:path");\nconst { join } = require("node:path");\nexport const p = [path.sep, join("a", "b"), require("node:path").resolve("c")];`,
+    },
+    {
+      name: "a local binding named require is not the module loader",
+      filename: SERVICE,
+      code: `export function boot(require: (id: string) => { env: Record<string, string> }) {\n  const { env } = require("node:process");\n  return env.STRIPE_KEY;\n}`,
     },
     {
       name: "an import-equals that aliases a local namespace loads no module at all",

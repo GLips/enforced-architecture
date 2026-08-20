@@ -126,6 +126,37 @@ describeRule("style/no-raw-primitives", noRawPrimitivesRule, {
       errors: [{ messageId: "platformPrimitive" }, { messageId: "platformPrimitive" }],
     },
     {
+      name: "a namespace element with children, which names the binding again to close the tag",
+      filename: COMPONENT,
+      code: `import * as RN from "react-native";\nexport const Row = () => <RN.View>{null}</RN.View>;`,
+      errors: [{ messageId: "platformPrimitive" }],
+    },
+    {
+      name: "a nested JSX member with children, where the tag closes on the same binding",
+      filename: COMPONENT,
+      code: `import * as RN from "react-native";\nexport const Row = () => <RN.Text.Body>{null}</RN.Text.Body>;`,
+      errors: [{ messageId: "platformPrimitive" }],
+    },
+    {
+      name: "a project that declares its environment, where require IS a resolvable global",
+      filename: COMPONENT,
+      languageOptions: { env: { node: true } },
+      code: `export const used = require("react-native").View;`,
+      errors: [{ messageId: "platformPrimitive" }],
+    },
+    {
+      name: "a TypeScript cast wedged between the load and the read",
+      filename: COMPONENT,
+      code: `export const used = (require("react-native") as never).View;`,
+      errors: [{ messageId: "platformPrimitive" }],
+    },
+    {
+      name: "a destructured binding with a default, which puts a node between name and property",
+      filename: COMPONENT,
+      code: `const { View = null } = require("react-native");\nexport const used = View;`,
+      errors: [{ messageId: "platformPrimitive" }],
+    },
+    {
       name: "a rest element beside a primitive, which names no key of its own",
       filename: COMPONENT,
       code: `import * as RN from "react-native";\nconst { View, ...rest } = RN;\nexport const used = [View, rest];`,
@@ -216,6 +247,21 @@ describeRule("style/no-raw-primitives", noRawPrimitivesRule, {
       name: "a namespace handed on as a value is read wherever it lands, which is not this file",
       filename: COMPONENT,
       code: `import * as RN from "react-native";\nexport const platform = RN;`,
+    },
+    {
+      name: "a specifier that is not a static string names no module to fence on",
+      filename: COMPONENT,
+      code: `const named = "react-native";\nexport const used = [require().View, require(1).View, require(named).View];`,
+    },
+    {
+      name: "a local binding named require is not the module loader",
+      filename: COMPONENT,
+      code: `export function open(require: (id: string) => { View: unknown }) {\n  const { View } = require("react-native");\n  return View;\n}`,
+    },
+    {
+      name: "a nested destructure reads the outer key, and the inner name is not an export",
+      filename: COMPONENT,
+      code: `const { Animated: { View } } = require("react-native");\nexport const used = View;`,
     },
     {
       name: "an interpolated specifier names a family of modules, so there is nothing to fence on",

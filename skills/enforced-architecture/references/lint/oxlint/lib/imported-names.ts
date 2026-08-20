@@ -1,5 +1,6 @@
-import type { Definition, ESTree, SourceCode, Variable, Visitor } from "@oxlint/plugins";
+import type { Definition, ESTree, Scope, SourceCode, Variable, Visitor } from "@oxlint/plugins";
 import { staticKeyName } from "./static-key-name.ts";
+import { outermostTransparentWrapper } from "./transparent-wrappers.ts";
 
 // Every name a file takes from a NAMED SET of modules, under the exporting module's spelling. A
 // rule that fences on names — `View` from react-native, `Textarea` from @mantine/core — asks this
@@ -10,9 +11,9 @@ import { staticKeyName } from "./static-key-name.ts";
 // ImportDeclaration visitor cannot see `import * as RN; RN.View` at all, because the name never
 // appears in a specifier. Scope analysis hands over the binding and every reference to it, already
 // resolved — so a local `const View` inside a function shadowing an import is a different Variable,
-// and is not a use of it. That is true of the four static forms. It is NOT true of the `require`
-// half below, which matches a callee by name: a file that shadows `require` with a parameter of
-// its own is read as loading the module, because the specifier is all there is to go on.
+// and is not a use of it. The `require` half is resolved the same way rather than matched on the
+// word: `function f(require) { require("react-native") }` loads nothing, and a rule that reported
+// it would be over-matching on the one spelling with no binding to point at.
 //
 // Scope analysis does not link `require()` or `await import()` to a module at all: those bindings
 // arrive as an ordinary `Variable` definition with no module attached, so their specifier is read
@@ -27,12 +28,23 @@ import { staticKeyName } from "./static-key-name.ts";
 //     following it means following the promise, which is a whole-program question.
 //   - A module bound by assignment rather than by declaration (`let RN; RN = require("m")`): the
 //     binding's definition carries no initializer, so nothing links it to a module.
+//   - A name reached through a NESTED destructure (`const { Animated: { View } } = require("m")`).
+//     The export actually read is the outer key, which binds nothing and so has no Variable; the
+//     inner name is not an export of the module and is deliberately not reported as one.
 //   - Passing the namespace on as a value (`export const RN2 = RN`, `f(RN)`): the read happens in
 //     whatever code receives it, which this file never sees. `export * from "m"` is the same leak
 //     and IS catchable, so the rules here fence that one themselves.
 //   - Re-exports of any kind. This answers what the file IMPORTS; a rule that also cares about
 //     what it hands on reads `ExportNamedDeclaration` / `ExportAllDeclaration` itself, because the
 //     blame node and usually the message differ.
+//
+// ONE CONVENTION FOR THE CONDITIONS BELOW, because a file that applies two teaches neither. A
+// condition that decides what this module FINDS is pinned by a fixture — delete it and a spec goes
+// red, without exception. A condition that only narrows a type, or names which of two nodes a
+// binding is, stays even where no input reaches its other branch: it is how the next reader knows
+// the shape being matched. Where a condition claimed to decide something and did not, it was
+// deleted and replaced by a comment saying why the absence is deliberate — `takeNamespaceReads`
+// below carries one, and `takeFromImportBinding` the other.
 
 /** The exporting module's name for a specifier, which is the one a local alias cannot change. */
 export function exportedName(name: ESTree.ModuleExportName): string {
@@ -46,14 +58,39 @@ export function exportedName(name: ESTree.ModuleExportName): string {
  * through an ordinary variable, or through no binding at all, so the specifier only exists on the
  * initializer. `require.resolve` is deliberately absent — it names a path and loads nothing, so no
  * name comes out of it.
+ *
+ * `sourceCode` is here for `require` alone, which is a plain identifier a file may rebind. The
+ * module loader is the one that resolves to no declaration; a parameter or a local named `require`
+ * has one, and calling it loads nothing.
  */
-export function runtimeImportSpecifier(node: ESTree.Node | null | undefined): string | undefined {
+export function runtimeImportSpecifier(
+  node: ESTree.Node | null | undefined,
+  sourceCode: SourceCode,
+): string | undefined {
   if (node === null || node === undefined) return undefined;
   const loaded = node.type === "AwaitExpression" ? node.argument : node;
   if (loaded.type === "ImportExpression") return staticSpecifier(loaded.source);
   if (loaded.type !== "CallExpression") return undefined;
   if (loaded.callee.type !== "Identifier" || loaded.callee.name !== "require") return undefined;
+  if (isRebound(loaded.callee, sourceCode)) return undefined;
   return staticSpecifier(loaded.arguments[0]);
+}
+
+/**
+ * Whether the name this identifier reads was declared by the file rather than by the environment.
+ *
+ * A declared global — `env: { node: true }` — is a global-scope Variable with no definition, so the
+ * definition count is the question and the mere existence of a Variable is not. Same distinction
+ * `boundary/ambient-globals` draws to find an ambient read.
+ */
+function isRebound(identifier: ESTree.Node, sourceCode: SourceCode): boolean {
+  const name = identifier.type === "Identifier" ? identifier.name : undefined;
+  if (name === undefined) return false;
+  for (let scope: Scope | null = sourceCode.getScope(identifier); scope !== null; scope = scope.upper) {
+    const variable = scope.set.get(name);
+    if (variable !== undefined) return variable.defs.length > 0;
+  }
+  return false;
 }
 
 /**
@@ -111,9 +148,11 @@ export function visitImportedNames(
    * `require("m").View`. There is no Variable for scope analysis to answer about, so this is the
    * one spelling that has to come off the AST — and the one a fence on bindings alone leaves open.
    */
-  const takeUnboundMemberRead = (loaded: ESTree.Node) => {
-    const specifier = runtimeImportSpecifier(loaded);
+  const takeUnboundMemberRead = (node: ESTree.Node) => {
+    const specifier = runtimeImportSpecifier(node, sourceCode);
     if (specifier === undefined || !moduleSpecifiers.includes(specifier)) return;
+    // `(require("m") as never).View` is the same read with a TypeScript node wedged in.
+    const loaded = outermostTransparentWrapper(node);
     const parent: ESTree.Node | null | undefined = loaded.parent;
     if (parent === null || parent === undefined) return;
     if (parent.type !== "MemberExpression" || parent.object !== loaded) return;
@@ -158,7 +197,13 @@ export function visitImportedNames(
       // object. JSX models its identifiers as a separate node family, so the two are the same node
       // with types that do not overlap and the check could not be written as an identity anyway.
       if (parent.type === "JSXMemberExpression") {
-        if (parent.property.type === "JSXIdentifier") take(parent.property.name, parent, specifier);
+        // `<RN.View>…</RN.View>` names the binding twice and resolves both, so the closing tag has
+        // to be dropped or one element draws two diagnostics. Climbing first is what keeps
+        // `<RN.A.View>` working: the reference's parent there is the INNER member expression.
+        let outermost: ESTree.Node = parent;
+        while (outermost.parent?.type === "JSXMemberExpression") outermost = outermost.parent;
+        if (outermost.parent?.type === "JSXClosingElement") continue;
+        take(parent.property.name, parent, specifier);
         continue;
       }
       if (parent.type === "VariableDeclarator" && parent.init === reference.identifier) {
@@ -213,14 +258,24 @@ export function visitImportedNames(
   const takeFromRuntimeImportBinding = (variable: Variable, definition: Definition) => {
     const declarator = definition.node;
     if (declarator.type !== "VariableDeclarator") return;
-    const specifier = runtimeImportSpecifier(declarator.init);
+    const specifier = runtimeImportSpecifier(declarator.init, sourceCode);
     if (specifier === undefined || !moduleSpecifiers.includes(specifier)) return;
 
     // Each name in a destructure is its own Variable pointing at the SAME declarator, so the whole
     // pattern must not be read here — it would report every key once per key bound. The binding's
-    // own property is the one this Variable is about.
-    const property: ESTree.Node | null | undefined = definition.name.parent;
+    // own property is the one this Variable is about, one node further out when the binding carries
+    // a default (`const { View = Fallback } = …`), which is an AssignmentPattern in between.
+    const bound: ESTree.Node = definition.name;
+    const holder: ESTree.Node | null | undefined = bound.parent;
+    const property: ESTree.Node | null | undefined =
+      holder !== null && holder !== undefined && holder.type === "AssignmentPattern"
+        ? holder.parent
+        : holder;
     if (property !== null && property !== undefined && property.type === "Property") {
+      // Only a property of the declarator's OWN pattern reads an export. In
+      // `const { Animated: { View } } = require("m")` the export read is `Animated`; `View` is a
+      // property of it, and reporting `View` would name an export the module does not have.
+      if (property.parent !== declarator.id) return;
       const key = staticKeyName(property.key, property.computed);
       if (key !== undefined) take(key, property, specifier);
       return;

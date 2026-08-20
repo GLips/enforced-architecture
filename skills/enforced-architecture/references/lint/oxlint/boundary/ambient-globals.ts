@@ -44,7 +44,10 @@
 // the load expression. What is NOT followed is the capability passed on as a
 // value (`f(process)`), a module bound by assignment rather than declaration,
 // and `import("node:process").then(({ env }) => …)`, where the name is a
-// callback parameter and following it means following the promise.
+// callback parameter and following it means following the promise. The module
+// spellings share lib/imported-names.ts with the two style rules that fence on
+// names, so its blind spots — chiefly a specifier that is not a literal or a
+// substitution-free template — are this rule's too.
 // ──────────────────────────────────────────────────────────────────────
 
 import {
@@ -56,6 +59,10 @@ import {
 import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
 import { exportedName, runtimeImportSpecifier } from "../lib/imported-names.ts";
 import { staticKeyName } from "../lib/static-key-name.ts";
+import {
+  TRANSPARENT_EXPRESSION_WRAPPERS,
+  outermostTransparentWrapper,
+} from "../lib/transparent-wrappers.ts";
 
 type AmbientGlobalPolicy = {
   /** The read as it is spelled in source, host-free: `fetch`, `process.env`. */
@@ -108,18 +115,6 @@ const RESTRICTED_AMBIENT_GLOBALS: AmbientGlobalPolicy[] = [
 // A global is reachable as a property of the global object, which is a different node shape for the
 // same read. Stripped before matching, so one entry covers every host.
 const GLOBAL_OBJECT_HOSTS = new Set(["globalThis", "global", "window", "self"]);
-
-// `(process).env`, `process!.env` and `(globalThis as never).localStorage` are the same read with a
-// node wedged in. Stepping through them is four lines; not stepping through them is a bypass that
-// TypeScript syntax hands over for free.
-const TRANSPARENT_WRAPPERS = new Set([
-  "ParenthesizedExpression",
-  "ChainExpression",
-  "TSNonNullExpression",
-  "TSAsExpression",
-  "TSSatisfiesExpression",
-  "TSTypeAssertion",
-]);
 
 /**
  * Every identifier in the file that references an ambient global, and no identifier that does not.
@@ -214,9 +209,11 @@ export const ambientGlobalsRule = defineRule({
      * Records a read taken straight off a load expression, which binds no name for the reference
      * walk to find: `(await import("node:process")).env`, `require("node:process").env`.
      */
-    const pushUnboundLoadRoot = (loaded: ESTree.Node) => {
-      const specifier = runtimeImportSpecifier(loaded);
+    const pushUnboundLoadRoot = (node: ESTree.Node) => {
+      const specifier = runtimeImportSpecifier(node, context.sourceCode);
       if (specifier === undefined) return;
+      // `(require("node:process") as never).env` is the same read with a TypeScript node wedged in.
+      const loaded = outermostTransparentWrapper(node);
       const parent: ESTree.Node | null | undefined = loaded.parent;
       if (parent === null || parent === undefined) return;
       if (parent.type !== "MemberExpression" || parent.object !== loaded) return;
@@ -267,7 +264,7 @@ export const ambientGlobalsRule = defineRule({
         const parent: ESTree.Node | null | undefined = node.parent;
         if (parent === null || parent === undefined) return;
 
-        if (TRANSPARENT_WRAPPERS.has(parent.type) && "expression" in parent && parent.expression === node) {
+        if (TRANSPARENT_EXPRESSION_WRAPPERS.has(parent.type) && "expression" in parent && parent.expression === node) {
           node = parent;
           continue;
         }
@@ -393,7 +390,7 @@ export const ambientGlobalsRule = defineRule({
       // `const { env } = await import("node:process")` is the ESM one. No import visitor sees
       // either.
       VariableDeclarator(node) {
-        const specifier = runtimeImportSpecifier(node.init);
+        const specifier = runtimeImportSpecifier(node.init, context.sourceCode);
         if (specifier === undefined) return;
         for (const policy of enforced) {
           const segments = capabilitySegments(policy, specifier);
@@ -416,6 +413,9 @@ export const ambientGlobalsRule = defineRule({
             path: GLOBAL_OBJECT_HOSTS.has(name) ? "" : name,
           });
         }
+        // NO SPEC PINS THIS SORT, and one cannot: `RuleTester` sorts a rule's diagnostics by span
+        // before comparing, so under the harness the ordering is right either way. The oxlint CLI
+        // emits in report order, which is why it is here. Delete it and every spec stays green.
         roots.sort((left, right) => left.node.range[0] - right.node.range[0]);
         for (const root of roots) reportAmbientRead(root.node, root.path);
       },
