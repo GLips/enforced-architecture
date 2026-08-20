@@ -16,7 +16,7 @@ Compound components namespaced under one export (`Object.assign(Card, { Header }
 
 ## Why a rule
 
-The counting was never the obstacle: a per-file rule accumulates exported components as it walks and decides at `Program:exit`. What kept this in the script tier was that the hard part — the component-declaration classifier — was shared with [hook-count](hook-count.md) and [prop-count](prop-count.md), and the rule tier was GritQL, where the other two could not follow. All three moved together, and the classifier moved with them to [`lib/component-declarations.ts`](../lib/component-declarations.ts).
+The counting was never the obstacle: a per-file rule accumulates exported components as it walks and decides at `Program:exit`. What kept this in the structural tier was that the hard part — the component-declaration classifier — was shared with [hook-count](hook-count.md) and [prop-count](prop-count.md), and the rule tier was GritQL, where the other two could not follow. All three moved together, and the classifier moved with them to [`lib/component-declarations.ts`](../lib/component-declarations.ts).
 
 On an AST the classifier is a read of the export statement rather than a set of regexes over declaration lines, which is most of what it used to be.
 

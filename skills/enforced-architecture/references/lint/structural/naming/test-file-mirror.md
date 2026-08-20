@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | **Tag** | naming |
-| **Mechanism** | Structural script (cross-file, pre-commit + CI) |
+| **Mechanism** | Structural check (cross-file, pre-commit + CI) |
 | **Blocking** | No (warn) |
 
 Implementation: [test-file-mirror.ts](test-file-mirror.ts). Knobs live under `checks["naming/test-file-mirror"]` in [../config.ts](../config.ts).

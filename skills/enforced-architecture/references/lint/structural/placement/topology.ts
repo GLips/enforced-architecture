@@ -1,7 +1,7 @@
 // ─── placement/topology ───────────────────────────────────────────────
 //
 // Tag:       placement
-// Mechanism: structural script (filesystem walk)
+// Mechanism: structural check (filesystem walk)
 // Blocking:  Yes
 //
 // Prevents:  A file living somewhere no rule looks. Every other rule in the
@@ -23,7 +23,7 @@ import {
   toSourcePath,
   type Finding,
   type StructuralCheck,
-} from "../lib.ts";
+} from "../check-substrate.ts";
 
 export const topologyCheck: StructuralCheck = {
   id: "placement/topology",

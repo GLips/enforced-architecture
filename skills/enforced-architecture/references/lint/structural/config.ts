@@ -1,4 +1,4 @@
-// ─── The structural-script tier's configuration ───────────────────────
+// ─── The structural tier's configuration ───────────────────────
 //
 // Every knob the script checks read lives here, in ONE object per project.
 // Adopting this tier in a new codebase means writing an `arch.config.ts` that

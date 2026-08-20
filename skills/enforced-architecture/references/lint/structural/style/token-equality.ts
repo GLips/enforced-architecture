@@ -1,7 +1,7 @@
 // ─── style/token-equality ─────────────────────────────────────────────
 //
 // Tag:       style
-// Mechanism: structural script (reads the project's own token source)
+// Mechanism: structural check (reads the project's own token source)
 // Blocking:  Yes
 //
 // Prevents:  A raw value that is EXACTLY a token on the relevant closed scale —
@@ -10,7 +10,7 @@
 //            the two spellings moves when the scale moves.
 //
 // The scales arrive through `config`, which the PROJECT's config file fills in by
-// importing its theme module — see `harness/script-fixtures/config.ts` for the
+// importing its theme module — see `harness/structural-fixtures/config.ts` for the
 // worked example. Never restate a scale here: an enforcer carrying its own copy
 // of the design system drifts from the thing it guards, and reading the token
 // source is the entire reason this axis is a script rather than a lint rule.
@@ -28,7 +28,7 @@ import {
   toSourcePath,
   type Finding,
   type StructuralCheck,
-} from "../lib.ts";
+} from "../check-substrate.ts";
 
 /**
  * One surface. Group 1 of `pattern` is the prop or key name; the px digits are

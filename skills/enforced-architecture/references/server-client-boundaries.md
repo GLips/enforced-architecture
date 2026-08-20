@@ -16,13 +16,9 @@ TanStack Start-specific server/client conventions and enforcement. How to keep s
 
 The `.server.ts` convention is not just a naming hint — TanStack Start actively prevents any client-side import chain from reaching these files if server-only code survives compilation. Reserve `.server.ts` for files with raw server-only code (DB connections, secrets, auth internals) that should never appear in a client import chain.
 
-### `createServerFn` Files Must NOT Use `.server.ts`
+### `createServerFn` files must NOT use `.server.ts`
 
-Files that export `createServerFn()` must use plain `.ts`. The compiler replaces handler bodies with client RPC stubs and prunes imports used only inside the handler. Top-level code and sibling exports remain client code.
-
-Controller files are named without `.server.ts` — e.g., `controllers/jobs.ts` not `controllers/jobs.server.ts`. They contain `createServerFn` exports and are re-exported through the feature's `index.ts` barrel.
-
-Source: `@tanstack/start-plugin-core/src/start-compiler/handleCreateServerFn.ts`.
+A file exporting `createServerFn()` uses plain `.ts` — its RPC reference has to stay client-importable, and the compiler has already pruned the handler's imports by the time protection runs. So `controllers/jobs.ts`, never `controllers/jobs.server.ts`, re-exported through the feature's `index.ts`. Source: `@tanstack/start-plugin-core/src/start-compiler/handleCreateServerFn.ts`.
 
 ### `createMiddleware` Files
 
@@ -73,16 +69,9 @@ Each feature has two barrels that control the server/client boundary:
 | `index.ts` | Client-safe | `createServerFn` RPC bridges, types, constants, safe metadata | `@/features/<name>` |
 | `index.server.ts` | Server-only | Raw server code: DB access, repo modules, secrets, internals | `@/features/<name>/index.server` |
 
-**Why `index.server.ts` instead of `server.ts`:**
+**`index.server.ts`, not `server.ts`,** because `**/*.server.*` already catches it: the naming fence covers the barrel for free rather than costing another file pattern in the protection config, and `index.ts` / `index.server.ts` resolve from the same directory.
 
-The `index.server.ts` naming is automatically caught by vite's `**/*.server.*` import-protection pattern. This means:
-- No need for additional `src/**/server.ts` or `src/**/server.tsx` file patterns in the import protection config
-- The server-only nature is obvious at a glance from the filename
-- The barrel naming is consistent: `index.ts` (client) and `index.server.ts` (server) — both resolve from the same directory
-
-**Barrel direction rule:** `index.ts` must NEVER import from `index.server.ts`. `index.server.ts` may re-export from `index.ts`. Violating this pulls server-only code into client bundles.
-
-**Route imports use the feature barrel:** Routes import from `@/features/<name>` (resolves to `index.ts`), not from deep paths like `@/features/<name>/controllers/jobs`. This avoids triggering both the deep-import lint rule and vite import-protection.
+Which direction re-exports may run between the two, and what each may hold: [import-boundaries.md](import-boundaries.md#barrel-invariants). Routes import `@/features/<name>`, never a deep path — a deep import trips the lint rule and import protection both.
 
 ---
 
@@ -97,40 +86,24 @@ Controller files may import infrastructure, repos, and auth for use inside handl
 ```typescript
 // features/chat/controllers/conversations.ts
 import { createServerFn } from "@tanstack/react-start";
-import { z } from "zod";
 import { requireSession } from "@/infrastructure/auth/require-session.server";
 import { db } from "@/infrastructure/db/client";
 import { conversationRepo } from "../repo/conversations";
-
-const loadConversationSchema = z.object({
-  conversationId: z.string(),
-});
 
 export const loadConversationFn = createServerFn({ method: "GET" })
   .validator(loadConversationSchema)
   .handler(async ({ data }) => {
     const session = await requireSession();
-
     const conv = await conversationRepo.getActiveByIdForUser(db, {
       conversationId: data.conversationId,
       userId: session.user.id,
     });
-
-    if (!conv) {
-      throw new Error("Conversation not found or access denied");
-    }
-
-    return {
-      id: conv.id,
-      title: conv.title,
-      messages: conv.messages.map((m) => ({
-        id: m.id,
-        role: m.role,
-        content: m.content,
-      })),
-    };
+    if (!conv) throw new Error("Conversation not found or access denied");
+    return { id: conv.id, title: conv.title, messages: conv.messages };
   });
 ```
+
+Every import above is server-only, and none of them reaches the client: each is used only inside the handler body the compiler extracts.
 
 ### Two-File Split
 
@@ -167,7 +140,6 @@ The dynamic `await import()` inside the handler body gets extracted along with t
 - Auth via `requireSession()` from `@/infrastructure/auth/require-session.server`
 - Return plain serializable objects (no Drizzle query builders, no class instances)
 - Throw typed errors for business failures
-- Controller files use plain `.ts` — the compiler prunes server-only imports from `createServerFn` handlers
 
 ---
 
@@ -212,36 +184,18 @@ tanstackStart({
 
 ### What Import Protection Does NOT Catch
 
-- Feature A importing Feature B's internals (the architecture lint rules handle this)
-- Layer direction violations within features (the lint rules handle this)
-- SDK containment violations (the lint rules handle this)
-- Cross-boundary alias violations (a structural script handles this — the check needs the resolved import graph)
+Everything that is an architectural question rather than a leakage one: feature encapsulation, layer direction, SDK containment, cross-boundary aliases. Those are the lint and structural tiers' half of the split below.
 
 ---
 
 ## Two Boundaries
 
-Two enforcement mechanisms protect the server/client split. They serve different purposes and overlap only on DB isolation.
+Two mechanisms protect the server/client split, and they answer different questions.
 
-### Boundary 1: Framework-level (bundler)
+- **Framework-level (bundler).** TanStack Start's import protection plus `.server.ts` denial, running during `dev` and `build`, failing with a full import trace. Primary for DB connection isolation, API key protection, SDK secret containment.
+- **Architecture-level (oxlint rules and structural checks).** Runs in the editor (lint only), pre-commit, and CI. Primary for feature encapsulation, public API enforcement, layer direction, the alias requirement, cycle detection.
 
-Server-only code must not leak into client bundles. Enforced by TanStack Start's import protection and `.server.ts` file denial. Runs during `dev` and `build`. Produces build errors with full import traces.
-
-**Primary for:** DB connection isolation, API key protection, SDK secret containment.
-
-### Boundary 2: Architecture-level (oxlint rules + structural scripts)
-
-Layers must respect the dependency direction graph. Enforced by oxlint JS-plugin rules (per-file) and structural scripts (cross-file). Runs in editor (lint rules only), pre-commit, and CI.
-
-**Primary for:** Feature encapsulation, public API enforcement, layer direction, cross-boundary alias requirement, cycle detection.
-
-### Where They Overlap
-
-DB isolation is enforced by both:
-- Framework import protection denies `infrastructure/db/**` from client bundles (runtime safety)
-- The `boundary/db-isolation` rule denies DB imports from non-repo/non-controller files (architectural correctness)
-
-The framework catches "this code would leak secrets." The architecture rules catch "this code is in the wrong layer." Both must pass.
+They overlap on exactly one thing, DB isolation, and the overlap is not redundant: import protection denies `infrastructure/db/**` from client bundles, while `boundary/db-isolation` denies DB imports from files outside repo and controller. The framework catches "this code would leak secrets"; the rule catches "this code is in the wrong layer." Both must pass.
 
 ---
 

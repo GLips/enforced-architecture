@@ -1,7 +1,7 @@
 // ─── health/file-size ─────────────────────────────────────────────────
 //
 // Tag:       health
-// Mechanism: structural script (counts across a file set)
+// Mechanism: structural check (counts across a file set)
 // Blocking:  Mixed — warn signals "split soon", fail is a hard stop
 //
 // Prevents:  Files growing beyond a maintainable size. Without a mechanical
@@ -13,7 +13,7 @@
 //
 // ──────────────────────────────────────────────────────────────────────
 
-import { collectFiles, readFile, toProjectPath, type Finding, type StructuralCheck } from "../lib.ts";
+import { collectFiles, readFile, toProjectPath, type Finding, type StructuralCheck } from "../check-substrate.ts";
 
 export const fileSizeCheck: StructuralCheck = {
   id: "health/file-size",

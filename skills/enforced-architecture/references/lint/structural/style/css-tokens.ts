@@ -1,7 +1,7 @@
 // ─── style/css-tokens ─────────────────────────────────────────────────
 //
 // Tag:       style
-// Mechanism: structural script (a surface the linter cannot see)
+// Mechanism: structural check (a surface the linter cannot see)
 // Blocking:  Yes
 //
 // Prevents:  Raw color and font-size values in stylesheets. It is the
@@ -28,7 +28,7 @@ import {
   toSourcePath,
   type Finding,
   type StructuralCheck,
-} from "../lib.ts";
+} from "../check-substrate.ts";
 
 // A hex literal (#rgb / #rrggbb / #rrggbbaa) or a color function used as a
 // value. The function forms require a literal digit inside the parens, which is

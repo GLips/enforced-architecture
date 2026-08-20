@@ -1,11 +1,14 @@
 # Rule Catalog
 
 70 enforcement rules in one tree, split by **tier** first and **tag** second. Read this file to
-choose tags, a tier's tag `overview.md` to choose rules within it, and a rule's own template —
-which carries its documentation, *Adapt* section, and implementation — to adapt it.
+choose tags, a tier's tag `overview.md` to choose rules within it, then the rule itself to adapt it.
+
+Where the rule's documentation and its *Adapt* section live differs by tier, because the tiers are
+copied differently: an oxlint rule carries both in its own file header, and a structural check
+carries them in the `<name>.md` beside the implementation.
 
 ```
-policy/       runtime-neutral tables both tiers read
+policy/       runtime-neutral tables both tiers read — empty on arrival
 oxlint/       the per-file tier
 structural/   the whole-tree tier
 ```
@@ -14,7 +17,8 @@ structural/   the whole-tree tier
 
 **`policy/`** is runtime-neutral: no Node APIs, no Bun APIs, no oxlint ESTree types, and no import
 from either tier. It sits below both so one edge cannot reach two verdicts depending on how it was
-spelled. See [policy/README.md](policy/README.md) for the contract it holds itself to.
+spelled. It holds nothing yet — the directory exists so the first table to land there has a
+contract to violate. See [policy/overview.md](policy/overview.md).
 
 **`oxlint/`** is handed one file at a time and sees its syntax. It catches what is visible in a
 single source text: a specifier, a JSX prop, a hook call. Its specs run under real Node — oxlint's
@@ -93,7 +97,7 @@ visible in the project as it is here.
    part of the rule, not an optional extra. These are the tier that needs **adapting**: path
    patterns are written against one standard layout and have to be repointed.
 2. **Structural checks** go into `lint/structural/<tag>/`, along with the substrate that sits at
-   `lint/structural/`: `lib.ts`, `import-graph.ts`, `config.ts`, `registry.ts` and the orchestrator.
+   `lint/structural/`: `check-substrate.ts`, `import-graph.ts`, `config.ts`, `registry.ts` and the orchestrator.
    Each exports a check that **returns findings**; the orchestrator owns reporting and the exit
    code. These are **copied, not adapted** — adopting one means writing config, not reimplementing
    an algorithm. See [structural/config.ts](structural/config.ts) for the shape and every rule's
@@ -104,10 +108,9 @@ visible in the project as it is here.
 4. **Every rule ships with its specs**, including one adversarial case — see *Rule Specs* in
    [enforcement-implementation.md](../enforcement-implementation.md).
 
-The two tiers need separate tsconfig programs, because they run under different runtimes: the
-oxlint tier needs `types: ["node"]` for `node:test`, the structural tier `types: ["bun"]`. Both need
-`allowImportingTsExtensions`, since every rule imports its neighbours with the `.ts` extension —
-oxlint and Bun load these files directly at runtime.
+Each tier is its own tsconfig program, because they run under different runtimes. Copy
+[../setup/oxlint.tsconfig.json](../setup/oxlint.tsconfig.json) and
+[../setup/structural.tsconfig.json](../setup/structural.tsconfig.json); both explain themselves.
 
 ## What is verified before it reaches you
 
@@ -120,11 +123,11 @@ request. The two tiers are proved differently because they read differently:
   sources. The specs ship *beside* the rules, so a project stealing a rule steals its tests in the
   same copy. `bun run check:rules`.
 - **Structural** checks scan declared roots rather than being handed a file, so the cases are real
-  files in one shared tree under `harness/script-fixtures/tree/`, and the checks are pointed at it
+  files in one shared tree under `harness/structural-fixtures/tree/`, and the checks are pointed at it
   wholesale by one config object — which doubles as the worked example of adopting the tier.
   Findings are compared as a **multiset with severity** against declared expectations, and every
   registered check must have expectations, so a check that is deleted or stubbed fails rather than
-  passing on zero findings. `bun run check:scripts`.
+  passing on zero findings. `bun run check:structural`.
 
 The harness does not ship with the skill directory; it lives in `harness/` beside `skills/` in the
 skill's source repository. The rules and their config do ship, which is the point.

@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | **Tag** | health |
-| **Mechanism** | Structural script — [file-size.ts](file-size.ts) |
+| **Mechanism** | Structural check — [file-size.ts](file-size.ts) |
 | **Blocking** | Mixed (over `failThreshold` fails, over `warnThreshold` warns) |
 
 ## What it prevents

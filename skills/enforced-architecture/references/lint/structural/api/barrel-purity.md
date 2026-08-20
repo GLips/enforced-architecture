@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | **Tag** | api |
-| **Mechanism** | Structural script (cross-file, pre-commit + CI) |
+| **Mechanism** | Structural check (cross-file, pre-commit + CI) |
 | **Blocking** | Yes |
 
 ## What it prevents
@@ -96,4 +96,4 @@ FAIL [api/barrel-purity] src/features/checkout/index.ts:12
 
 ## Implementation
 
-[`api/barrel-purity.ts`](./barrel-purity.ts). Fixtures in [`expectations/api/barrel-purity.ts`](../../../../../../harness/script-fixtures/expectations/api/barrel-purity.ts) cover the three-hop chain, the aliased middle hop, the domain barrel with a false marker, a legal chain below a real server-function boundary, a legal type-only reference, and a legal re-export cycle.
+[`api/barrel-purity.ts`](./barrel-purity.ts). Fixtures in [`expectations/api/barrel-purity.ts`](../../../../../../harness/structural-fixtures/expectations/api/barrel-purity.ts) cover the three-hop chain, the aliased middle hop, the domain barrel with a false marker, a legal chain below a real server-function boundary, a legal type-only reference, and a legal re-export cycle.

@@ -1,7 +1,7 @@
 // ─── placement/layer-direction ────────────────────────────────────────
 //
 // Tag:       placement
-// Mechanism: structural script (resolution across the tree)
+// Mechanism: structural check (resolution across the tree)
 // Blocking:  Yes
 //
 // Prevents:  A lower layer importing from a higher one inside the same feature.
@@ -19,7 +19,7 @@
 //
 // ──────────────────────────────────────────────────────────────────────
 
-import type { Finding, StructuralCheck } from "../lib.ts";
+import type { Finding, StructuralCheck } from "../check-substrate.ts";
 
 export const layerDirectionCheck: StructuralCheck = {
   id: "placement/layer-direction",

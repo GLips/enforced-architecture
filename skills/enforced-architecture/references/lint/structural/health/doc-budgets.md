@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | **Tag** | health |
-| **Mechanism** | Structural script — [doc-budgets.ts](doc-budgets.ts) |
+| **Mechanism** | Structural check — [doc-budgets.ts](doc-budgets.ts) |
 | **Blocking** | Yes |
 
 ## What it prevents

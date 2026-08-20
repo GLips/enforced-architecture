@@ -30,7 +30,7 @@ import {
   lineStartOffsets,
   sourceRoot,
   toProjectPath,
-} from "./lib.ts";
+} from "./check-substrate.ts";
 
 /**
  * Where one end of an edge sits. `boundary` is always known; `feature`,

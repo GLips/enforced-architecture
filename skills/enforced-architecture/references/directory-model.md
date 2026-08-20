@@ -1,12 +1,12 @@
 # Directory Model
 
-Where every type of code lives, what it owns, and what it must not touch. This is the primary reference for placing code during planning and implementation.
+Where every type of code lives, what it owns, and what it must not touch.
 
 ---
 
 ## Configurable Choices
 
-These choices are surfaced during Phase 2 (planning). Each shapes the target directory structure and enforcement rules. Select one option per choice; the combination determines the project's structural template.
+Each shapes the target directory structure and the enforcement rules. Select one option per choice; the combination determines the project's structural template.
 
 ### Choice 1: Domains Layer
 
@@ -56,16 +56,7 @@ Determines how environment variables are organized.
 
 **Recommendation:** Use split for any project with a browser-facing bundle. The cost is two files instead of one. The benefit is mechanical prevention of secret leakage.
 
-**Implementation notes for `@t3-oss/env-core`:**
-
-The env split is not just renaming files — the `runtimeEnv` configuration differs meaningfully between server and client contexts:
-
-- **Server env** uses `runtimeEnv: process.env` — no prefix needed, all server-side vars are available directly.
-- **Client env** uses `runtimeEnv: { VITE_PUBLIC_*: import.meta.env.VITE_PUBLIC_* }` — each public var must be explicitly mapped from Vite's `import.meta.env`.
-- **Exports** should be named differently (`serverEnv` vs `clientEnv`) to make it obvious at import sites which context is being used.
-- **`NODE_ENV`** belongs in server env — it is only available via `process.env`, not `import.meta.env`.
-
-For Vite-based frameworks (TanStack Start, SvelteKit), client env vars must use the `VITE_PUBLIC_` prefix. For Next.js, the prefix is `NEXT_PUBLIC_`. The plan should include the exact env configuration code for the project's framework.
+**Splitting `@t3-oss/env-core` is not just splitting the file.** `runtimeEnv` differs by context: the server env takes `process.env` wholesale, while the client env must map each public var out of `import.meta.env` by name. `NODE_ENV` belongs in the server env — `import.meta.env` does not carry it. Name the exports `serverEnv` and `clientEnv` so the import site says which context it is in. The public prefix is the framework's (`VITE_PUBLIC_` under Vite, `NEXT_PUBLIC_` under Next); the plan carries the exact config for the project's.
 
 ### Choice 4: Error Architecture
 
@@ -203,22 +194,6 @@ For any type of work, this table tells you where code lives and what it must not
 | Test infrastructure | `test/` | No architectural restrictions |
 | Scripts | `scripts/` | No architectural restrictions |
 
-### Quick Decision Flowchart
-
-When placing new code, ask these questions in order:
-
-1. **Is it a pure data transformation with no side effects?** -> `domains/*/`
-2. **Does it define a DB table or relation?** -> `infrastructure/db/schema/`
-3. **Does it wrap an external SDK?** -> `infrastructure/integrations/`
-4. **Does it configure auth, telemetry, or DB connections?** -> `infrastructure/*/`
-5. **Is it a `createServerFn`?** -> `features/*/controllers/`
-6. **Does it query the database?** -> `features/*/repo/`
-7. **Does it orchestrate multiple repos, domains, or policies?** -> `features/*/service/`
-8. **Is it a React component tied to a feature?** -> `features/*/ui/`
-9. **Is it a React component used by 3+ features with no business imports?** -> `shared/ui/`
-10. **Is it a pure utility function?** -> `shared/`
-11. **Is it a route/page?** -> `routes/`
-
 ---
 
 ## Layer Hierarchy
@@ -236,8 +211,4 @@ From top (user-facing) to bottom (foundational):
 
 Lower layers never import upper layers. All layers may import from `shared/*`.
 
-For the complete import boundary matrix (which cells are YES/NO and why), see [import-boundaries.md](import-boundaries.md).
-
-For directory-wide repo and service occupancy at the controller edge, see [feature-patterns.md](feature-patterns.md).
-
-For server/client file naming and bundle splitting conventions, see [server-client-boundaries.md](server-client-boundaries.md).
+Which cells of the matrix are YES or NO and why: [import-boundaries.md](import-boundaries.md). Directory-wide repo and service occupancy at the controller edge: [feature-patterns.md](feature-patterns.md). Server/client file naming and bundle splitting: [server-client-boundaries.md](server-client-boundaries.md).

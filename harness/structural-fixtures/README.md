@@ -1,7 +1,7 @@
-# The structural-script fixture tree
+# The structural fixture tree
 
-One synthetic repo, under `tree/`, that every structural-script check runs over
-at once. `bun run check:scripts` points the checks at it through `config.ts` and
+One synthetic repo, under `tree/`, that every structural check runs over
+at once. `bun run check:structural` points the checks at it through `config.ts` and
 compares what they report against the expectations in `expectations/`.
 
 ## Why a tree at all, when the rule tier gave its up
@@ -88,7 +88,7 @@ Four files, and the runner fails until all four line up:
 skills/…/lint/structural/<tag>/<name>.ts   the check, exporting a StructuralCheck
 skills/…/lint/structural/<tag>/<name>.md   intent, negative space, adapt notes
 skills/…/lint/structural/registry.ts       one entry
-harness/script-fixtures/expectations/<tag>/<name>.ts
+harness/structural-fixtures/expectations/<tag>/<name>.ts
 ```
 
 Plus its fixtures in `tree/`. Two rules keep a shared tree workable:
@@ -106,7 +106,7 @@ as numbers in the `generated` field and materialised for the duration of the run
 
 ## The runtime
 
-`check:scripts` runs under Bun, because the checks use `Bun.Glob` and
+`check:structural` runs under Bun, because the checks use `Bun.Glob` and
 `Bun.Transpiler`. That is the opposite of `check:rules`, which needs real Node —
 oxlint's `RuleTester` refuses Bun by name. The two harnesses do not share a
 runtime and are not meant to.

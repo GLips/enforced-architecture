@@ -1,6 +1,6 @@
 # Feature Patterns
 
-Feature scaling patterns, internal structure, layer occupancy, and public API conventions. This is the reference for designing and evolving features within the enforced architecture.
+Feature scaling patterns, internal structure, layer occupancy, and public API conventions.
 
 ---
 
@@ -147,24 +147,14 @@ Exports types, constants, pure helpers, createServerFn references, and UI compon
 // features/chat/index.ts
 
 // Server function references (client-safe -- TanStack Start replaces with RPC stubs)
+export { chatStreamFn, ServerFnChatTransport } from "./controllers/chat-stream";
 export {
-  chatStreamFn,
-  ServerFnChatTransport,
-} from "./controllers/chat-stream";
-export {
-  deleteConversationFn,
   listConversationsFn,
   loadConversationFn,
   type PersistedMessage,
-  renameConversationFn,
-  toUIMessages,
 } from "./controllers/conversations";
 // Errors
-export {
-  ChatError,
-  type ChatErrorCode,
-  getDisplayErrorMessage,
-} from "./errors";
+export { ChatError, type ChatErrorCode } from "./errors";
 ```
 
 ### `index.server.ts` (Server-Only)
@@ -213,12 +203,10 @@ Features own their queries, not their tables — see [architecture-principles.md
 
 ## Feature Extension Mechanism
 
-Complex features may need internal layering rules beyond the base set. When adding feature-specific rules:
+Complex features may need internal layering rules beyond the base set. A feature-scoped rule is an ordinary rule with a scoped id:
 
-1. Document the rule with the same field template used for base rules
-2. Namespace the rule ID to the feature: `LINT-EDITOR-01` for lint rules, `ST-EDITOR-01` for structural
-3. Add lint rules to `oxlint/` with the feature namespace prefix, and register them in the plugin under the same prefixed name — the diagnostic id is the registration key, so the prefix is what tells a reader the rule is feature-scoped
-4. Scope structural checks to the feature's directory tree in the orchestrator script
-5. The rule only applies within that feature's directory
+1. Namespace the id to the feature — `editor-boundary/no-canvas-sidebar-import` rather than `boundary/…` — and document it with the same field template the catalog's rules use. The diagnostic id is also the registration key, so the prefix is what tells a reader the rule is feature-scoped.
+2. oxlint rules go in `lint/oxlint/<feature-tag>/` and are registered in `lint/oxlint/plugin.ts` like any other; structural checks are scoped to the feature's directory tree through their config roots.
+3. The rule applies within that feature's directory and nowhere else.
 
 Example: an editor feature might prevent canvas rendering code from importing sidebar components, enforcing communication through shared state rather than direct imports.

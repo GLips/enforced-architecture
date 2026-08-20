@@ -1,7 +1,7 @@
 // ─── style/shadow-source ──────────────────────────────────────────────
 //
 // Tag:       style
-// Mechanism: structural script (a surface the linter cannot see)
+// Mechanism: structural check (a surface the linter cannot see)
 // Blocking:  Yes
 //
 // Prevents:  Elevation being invented at the call site. Every shadow in the
@@ -26,7 +26,7 @@ import {
   toSourcePath,
   type Finding,
   type StructuralCheck,
-} from "../lib.ts";
+} from "../check-substrate.ts";
 
 /**
  * Extensions the JS spelling applies to; everything else scanned is a

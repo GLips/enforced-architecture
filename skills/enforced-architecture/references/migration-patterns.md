@@ -53,125 +53,28 @@ Each migration phase specifies:
 | **Goal** | One sentence: what invariant does this phase establish? |
 | **Rules activated** | Which enforcement rules become active at the START of this phase — write/enable the rule, then run `check:arch` to get the violation list |
 | **Changes** | Fix each violation reported by the newly active rules. Classify each fix as mechanical or judgment. |
-| **Verification** | `check:arch`, `typecheck`, `test` — each run independently, all must pass. Chained with `&&`, the first failure hides the rest. |
+| **Verification** | `check:arch`, `typecheck`, `test`, `dev` — each run independently, all must pass before the next phase starts. Chained with `&&`, the first failure hides the rest. |
 | **No shims** | No temporary compatibility layers. Each phase is complete in itself. |
 
 ---
 
 ## Example Migration Sequence
 
-### Phase 1: Enforcement Infrastructure
+Every phase runs the same loop — activate its rules, run `check:arch`, work the violation list, verify — so only what differs between phases is listed. The last column is the work that cannot be batched.
 
-**Goal:** The enforcement pipeline exists and runs successfully (trivially, with no rules active).
+| # | Goal | Rules activated | Judgment inside it |
+|---|---|---|---|
+| 1 | The enforcement pipeline exists and passes trivially | none | — |
+| 2 | Only designated modules reach the database | `boundary/db-isolation`, plus import protection for `infrastructure/db/**` | Per violation: move the query into a repo module, into a controller, or behind a new server function |
+| 3 | External SDKs are reached only through infrastructure adapters | `boundary/sdk-containment`, `boundary/client-server-infra` | Which SDKs are security-sensitive or configuration-heavy enough to wrap, and each wrapper's API |
+| 4 | Features expose public APIs through barrels | `api/feature-public-api`, `api/domain-public-api`, `api/barrel-direction`, `api/server-import-context` | What each feature's public API should expose |
+| 5 | Boundary-crossing imports use `@/` | `boundary/cross-boundary-alias` | — |
+| 6 | Files live in the right layer and direction is enforced | `placement/layer-direction`, `placement/schema-placement`, `placement/server-fn-placement`, `boundary/domain-purity`, `boundary/route-thinness`, `boundary/shared-ui-purity`, `boundary/shared-purity`, `boundary/server-no-upward` | A `createServerFn` outside `controllers/` may need refactoring to move; domain logic with side effects has to land in a feature or in infrastructure |
+| 7 | Cross-file constraints are enforced | `graph/domain-cycles`, `graph/feature-deps`, `api/barrel-purity`, `boundary/layer-occupancy`, `health/file-size`, `health/trampolines` (warning) | Splitting oversized files, breaking cycles, adding repo layers where controllers bypass them |
 
-**Rules activated:** None. Infrastructure only.
+Phase 1 is the only one with no violation list to work, and it is all setup: `lint/oxlint/` with an empty `plugin.ts` named in `.oxlintrc.json`, `lint/structural/` with an empty registry, `check:arch` and `check:structural` in `package.json`, pre-commit hooks, and framework import protection with empty deny lists.
 
-**Changes (all mechanical):**
-- Create the `oxlint/` directory with an empty `plugin.ts`, and point `.oxlintrc.json` at it via `jsPlugins`
-- Create the orchestrator script skeleton (no check functions yet)
-- Add `"check:arch"` and `"check:structure"` to `package.json` scripts
-- Configure pre-commit hooks
-- Configure framework import protection (start with empty deny lists)
-
-**Verification:** `bun run check:arch` runs and passes trivially. `bun run dev` starts clean. Pre-commit hooks fire on next commit.
-
----
-
-### Phase 2: DB Isolation
-
-**Goal:** Only designated modules access the database layer. All other code uses server functions.
-
-**Rules activated:** `boundary/db-isolation`, framework import protection for `infrastructure/db/**`.
-
-**Changes:**
-- Move DB client and schema to `infrastructure/db/` if not already there (mechanical)
-- Write the `boundary/db-isolation` lint rule and its spec in `oxlint/`, register it in `oxlint/plugin.ts`, and add `infrastructure/db/**` to framework import protection
-- Run `bun run check:arch` — the violations are your TODO list
-- For each violation: move the DB query into a repo module, move it into a controller, or create a server function (judgment per violation)
-
-**Verification:** `bun run check:arch` passes with the DB isolation rule active. No client-side code can reach the DB.
-
----
-
-### Phase 3: Infrastructure Containment
-
-**Goal:** External SDKs are accessed only through infrastructure adapter modules.
-
-**Rules activated:** `boundary/sdk-containment`, `boundary/client-server-infra`.
-
-**Changes:**
-- Identify all third-party SDKs with security sensitivity or configuration complexity (judgment)
-- Create `infrastructure/integrations/` wrappers for each identified SDK (judgment -- API design)
-- Write the lint rules for SDK containment and client-server infrastructure boundaries, add infrastructure paths to framework import protection
-- Run `bun run check:arch` — violations show every remaining raw SDK import
-- Fix each violation: update feature code to import wrappers via `@/infrastructure/integrations/` (mechanical)
-
-**Verification:** `bun run check:arch` passes. No feature code imports raw SDK packages.
-
----
-
-### Phase 4: Feature Boundaries
-
-**Goal:** Features expose public APIs through barrels. External consumers use barrels, not internal paths.
-
-**Rules activated:** `api/feature-public-api`, `api/domain-public-api`, `api/barrel-direction`, `api/server-import-context`.
-
-**Changes:**
-- Create `index.ts` barrel for every feature and `index.server.ts` for features with server-only exports (mechanical)
-- Write the lint rules for public API enforcement
-- Run `bun run check:arch` — violations show every deep cross-feature import
-- Decide what each feature's public API should expose (judgment -- API design)
-- Populate barrels and rewrite cross-feature imports to use them (mechanical)
-
-**Verification:** `bun run check:arch` passes. All cross-feature imports go through barrels.
-
----
-
-### Phase 5: Cross-Boundary Aliases
-
-**Goal:** All imports crossing top-level boundaries use `@/` aliases instead of relative paths.
-
-**Rules activated:** `boundary/cross-boundary-alias`.
-
-**Changes (all mechanical):**
-- Build [graph/import-graph](lint/structural/graph/import-graph.md) in the shared library, then write `boundary/cross-boundary-alias` as its first consumer — it is a structural script, not a lint rule, and it has nothing to run against until the graph exists
-- Run `bun run check:arch` — violations list every relative import crossing a boundary
-- Rewrite each to use the `@/` alias
-
-**Verification:** `bun run check:arch` passes. All boundary-crossing imports use `@/`.
-
----
-
-### Phase 6: Layer Direction and Placement
-
-**Goal:** Files live in the correct layers. Layer direction is enforced.
-
-**Rules activated:** `placement/layer-direction`, `boundary/domain-purity`, `boundary/route-thinness`, `boundary/shared-ui-purity`, `placement/server-fn-placement`, `boundary/server-no-upward`, `boundary/shared-purity`, `placement/schema-placement`.
-
-**Changes:**
-- Write the lint rules and the structural `placement/layer-direction` consumer
-- Run `bun run check:arch` — violations show every misplaced file and wrong-direction import
-- Move misplaced files to correct layer directories (mechanical)
-- Move `createServerFn` calls from non-controller locations to `controllers/` (judgment -- may require refactoring)
-- Move domain logic with side effects into features or infrastructure (judgment)
-
-**Verification:** `bun run check:arch` passes with all phase rules active.
-
----
-
-### Phase 7: Structural Checks
-
-**Goal:** All cross-file constraints are enforced.
-
-**Rules activated:** `graph/domain-cycles`, `health/file-size`, `health/trampolines` (non-blocking), `boundary/layer-occupancy`, `graph/feature-deps`, `api/barrel-purity`.
-
-**Changes:**
-- Implement check functions in the orchestrator script and create delegated TypeScript scripts for complex analysis
-- Run `bun run check:arch` — violations show cycles, oversized files, trampolines, and coupling issues
-- Fix each violation: split oversized files, break cycles, add repo layers where controllers bypass them
-- Track known-oversized files in the file-size check's exclusion list with TODOs
-
-**Verification:** `bun run check:arch` passes with all structural checks active. Full pipeline is operational.
+Phase 5 carries an ordering constraint the others do not: build [graph/import-graph](lint/structural/graph/import-graph.md) first. `boundary/cross-boundary-alias` is its first consumer and has nothing to run against until the graph exists.
 
 ---
 
@@ -179,7 +82,7 @@ Each migration phase specifies:
 
 **Activating too many rules at once.** Hard to debug which change caused which violation. Activate rules incrementally, verify after each.
 
-**Not verifying after each phase.** Violations compound. A missed import rewrite in Phase 4 causes cascading errors in Phase 5 and 6. Run `check:arch`, `typecheck` and `test` after every phase.
+**Not verifying after each phase.** Violations compound: a missed import rewrite in Phase 4 causes cascading errors in Phases 5 and 6.
 
 **Creating shim layers "temporarily."** They become permanent. No re-export wrappers, no compatibility adapters, no "we will clean this up later" modules. Each phase is complete in itself.
 
@@ -187,26 +90,4 @@ Each migration phase specifies:
 
 **Fixing violations in the wrong order.** If a file has both a cross-boundary alias violation and a layer direction violation, fix the layer direction first. Moving the file to the correct layer changes the import path, making the alias fix different.
 
-**Batching judgment changes with mechanical changes.** Mechanical changes (import rewrites) are safe to batch in large commits. Judgment changes (API redesign, ownership decisions) need focused commits with clear rationale. Mixing them makes review impossible.
-
 ---
-
-## Verification Checklist
-
-After every migration phase:
-
-```bash
-# 1. Architecture rules pass
-bun run check:arch
-
-# 2. Types compile
-bun run typecheck
-
-# 3. Tests pass
-bun run test
-
-# 4. Dev server starts
-bun run dev
-```
-
-All four must pass. If any fails, fix it before moving to the next phase. Do not accumulate failures across phases.

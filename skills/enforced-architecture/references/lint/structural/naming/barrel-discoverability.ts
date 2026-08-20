@@ -1,7 +1,7 @@
 // ─── naming/barrel-discoverability ────────────────────────────────────
 //
 // Tag:       naming
-// Mechanism: structural script (a declared set of files, not a handed one)
+// Mechanism: structural check (a declared set of files, not a handed one)
 // Blocking:  Yes
 //
 // Prevents:  A public barrel hiding or renaming what it exposes. A wildcard
@@ -28,7 +28,7 @@ import {
   toProjectPath,
   type Finding,
   type StructuralCheck,
-} from "../lib.ts";
+} from "../check-substrate.ts";
 
 /**
  * `export * from "…"` and `export * as ns from "…"`, plus the type-only

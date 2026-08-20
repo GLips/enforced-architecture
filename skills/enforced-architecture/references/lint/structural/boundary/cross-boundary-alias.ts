@@ -1,7 +1,7 @@
 // ─── boundary/cross-boundary-alias ────────────────────────────────────
 //
 // Tag:       boundary
-// Mechanism: structural script (resolution across the tree)
+// Mechanism: structural check (resolution across the tree)
 // Blocking:  Yes
 //
 // Prevents:  A relative import leaving the boundary it is written in. Every
@@ -20,7 +20,7 @@
 //
 // ──────────────────────────────────────────────────────────────────────
 
-import type { Finding, StructuralCheck } from "../lib.ts";
+import type { Finding, StructuralCheck } from "../check-substrate.ts";
 
 export const crossBoundaryAliasCheck: StructuralCheck = {
   id: "boundary/cross-boundary-alias",

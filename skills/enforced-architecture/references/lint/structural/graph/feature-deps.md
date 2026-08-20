@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | **Tag** | graph |
-| **Mechanism** | Structural script — [feature-deps.ts](feature-deps.ts) |
+| **Mechanism** | Structural check — [feature-deps.ts](feature-deps.ts) |
 | **Blocking** | Mixed (cycles fail, coupling thresholds warn) |
 
 ## What it prevents

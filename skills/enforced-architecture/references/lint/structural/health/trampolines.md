@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | **Tag** | health |
-| **Mechanism** | Structural script (cross-file, pre-commit + CI) |
+| **Mechanism** | Structural check (cross-file, pre-commit + CI) |
 | **Blocking** | No (warning only) |
 
 Implementation: [trampolines.ts](trampolines.ts).

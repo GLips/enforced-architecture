@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * Proves every structural-script check in the skill catches what its doc claims.
+ * Proves every structural check in the skill catches what its doc claims.
  *
  * The tier's failure mode is silent by construction. When a check's matcher
  * stops matching it does not error — it reports nothing, and a clean run is
@@ -16,11 +16,11 @@
  *
  * Unlike the oxlint tier, these checks scan declared roots rather than being
  * handed a file, and several scan more than one. So the cases are real files in
- * one shared tree under `script-fixtures/tree/`, and the checks are pointed at
- * it wholesale by `script-fixtures/config.ts` — which is also the worked example
+ * one shared tree under `structural-fixtures/tree/`, and the checks are pointed at
+ * it wholesale by `structural-fixtures/config.ts` — which is also the worked example
  * of adopting this tier by writing config and nothing else.
  *
- *     bun run check:scripts
+ *     bun run check:structural
  *
  * Revert-probe after any change here. Break a check and expect its adversarial
  * kind to report MISSED; delete a check from the registry and expect the runner
@@ -31,15 +31,15 @@
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { FIXTURE_TREE, fixtureConfig } from "./script-fixtures/config.ts";
-import type { CheckFixtures, GeneratedFixture } from "./script-fixtures/expectations.ts";
+import { FIXTURE_TREE, fixtureConfig } from "./structural-fixtures/config.ts";
+import type { CheckFixtures, GeneratedFixture } from "./structural-fixtures/expectations.ts";
 import { runStructuralChecks } from "../skills/enforced-architecture/references/lint/structural/run-structural-checks.ts";
 import { structuralChecks } from "../skills/enforced-architecture/references/lint/structural/registry.ts";
 
 const HARNESS_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HARNESS_DIR, "..");
 const STRUCTURAL_ROOT = join(REPO_ROOT, "skills/enforced-architecture/references/lint/structural");
-const EXPECTATIONS_ROOT = join(HARNESS_DIR, "script-fixtures/expectations");
+const EXPECTATIONS_ROOT = join(HARNESS_DIR, "structural-fixtures/expectations");
 
 const KINDS = ["obvious", "adversarial", "legal"] as const;
 
@@ -94,7 +94,7 @@ for (const id of registeredIds) {
   if (!fixturesByCheck.has(id)) {
     fail(
       id,
-      `registered, but no expectations at script-fixtures/expectations/${id}.ts, ` +
+      `registered, but no expectations at structural-fixtures/expectations/${id}.ts, ` +
         `so nothing exercises it`,
     );
   }
@@ -226,7 +226,7 @@ for (const check of [...failedChecks].sort()) {
 }
 
 console.log(
-  `\n${proved}/${registeredIds.length} structural-script checks proved against their ` +
+  `\n${proved}/${registeredIds.length} structural checks proved against their ` +
     `obvious / adversarial / legal fixtures.`,
 );
 process.exit(failures.length === 0 ? 0 : 1);

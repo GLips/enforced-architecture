@@ -2,8 +2,8 @@
 
 | Field | Value |
 |---|---|
-| **Tag** | structure |
-| **Mechanism** | Structural script (resolved import graph, pre-commit + CI) |
+| **Tag** | placement |
+| **Mechanism** | Structural check (resolved import graph, pre-commit + CI) |
 | **Blocking** | Yes |
 
 ## What it prevents

@@ -1,7 +1,7 @@
 // ─── health/trampolines ───────────────────────────────────────────────
 //
 // Tag:       health
-// Mechanism: structural script (counts across a file set)
+// Mechanism: structural check (counts across a file set)
 // Blocking:  No — warning only
 //
 // Prevents:  Pass-through wrappers that add nothing beyond forwarding a call to
@@ -28,7 +28,7 @@ import {
   toProjectPath,
   type Finding,
   type StructuralCheck,
-} from "../lib.ts";
+} from "../check-substrate.ts";
 
 /** `export function name` at the start of a line, which is the only place a real one sits. */
 const EXPORTED_FUNCTION = /^[ \t]*export\s+(?:default\s+)?(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/gm;

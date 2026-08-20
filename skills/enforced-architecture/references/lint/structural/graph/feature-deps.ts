@@ -1,7 +1,7 @@
 // ─── graph/feature-deps ───────────────────────────────────────────────
 //
 // Tag:       graph
-// Mechanism: structural script (consumes the resolved import graph)
+// Mechanism: structural check (consumes the resolved import graph)
 // Blocking:  Mixed — cycles fail, coupling thresholds warn
 //
 // Prevents:  Two classes of problem in the cross-feature dependency graph.
@@ -18,7 +18,7 @@
 //
 // ──────────────────────────────────────────────────────────────────────
 
-import type { Finding, StructuralCheck } from "../lib.ts";
+import type { Finding, StructuralCheck } from "../check-substrate.ts";
 
 export const featureDepsCheck: StructuralCheck = {
   id: "graph/feature-deps",

@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | **Tag** | style |
-| **Mechanism** | Structural script (scans stylesheets, pre-commit + CI) |
+| **Mechanism** | Structural check (scans stylesheets, pre-commit + CI) |
 | **Blocking** | Yes |
 
 ## What it prevents

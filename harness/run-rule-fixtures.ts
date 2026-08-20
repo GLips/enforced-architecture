@@ -26,7 +26,7 @@ const REPO_ROOT = resolve(HARNESS_DIR, "..");
 /**
  * The oxlint tier is a directory, not a filter. Every `.ts` under this root is either a rule, a
  * rule's spec, or shared helpers in `lib/` — the whole-tree tier lives in a sibling directory with
- * its own harness (`harness/run-script-fixtures.ts`), so nothing here has to ask which tier a file
+ * its own harness (`harness/run-structural-fixtures.ts`), so nothing here has to ask which tier a file
  * belongs to.
  */
 const OXLINT_ROOT = join(REPO_ROOT, "skills/enforced-architecture/references/lint/oxlint");

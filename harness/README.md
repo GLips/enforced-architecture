@@ -7,10 +7,10 @@ It proves the **chosen examples**, not the header claim in general. The cases an
 ```
 bun run check          # both tiers
 bun run check:rules    # 54 oxlint rules, under real Node
-bun run check:scripts  # 16 structural checks, under Bun
+bun run check:structural  # 16 structural checks, under Bun
 ```
 
-Two runners because the two tiers read differently, not because the standard differs. Each runner owns one directory — `lint/oxlint/` and `lint/structural/` — so neither has to ask which tier a file belongs to; the path already said. An oxlint rule is handed one file, so it is exercised through `RuleTester` against inline sources. A structural check scans declared roots and several scan more than one, so its cases are real files in one shared tree. Both are held to the same three-kind contract below. The script side has its own README at [script-fixtures/README.md](script-fixtures/README.md); the rest of this file is the oxlint side plus what the two share.
+Two runners because the two tiers read differently, not because the standard differs. Each runner owns one directory — `lint/oxlint/` and `lint/structural/` — so neither has to ask which tier a file belongs to; the path already said. An oxlint rule is handed one file, so it is exercised through `RuleTester` against inline sources. A structural check scans declared roots and several scan more than one, so its cases are real files in one shared tree. Both are held to the same three-kind contract below. The structural side has its own README at [structural-fixtures/README.md](structural-fixtures/README.md); the rest of this file is the oxlint side plus what the two share.
 
 ## Why this exists
 
@@ -41,7 +41,7 @@ The specs shipping *beside* the rules is the other half of the trade: a project 
 
 ## The three-kind contract
 
-Both tiers hold to it. On the oxlint side `describeRule` takes the three kinds as named arguments, so a missing one is a type error rather than a convention nobody checks; on the script side the same three names are fields of a `CheckFixtures` object and the runner rejects an empty one:
+Both tiers hold to it. On the oxlint side `describeRule` takes the three kinds as named arguments, so a missing one is a type error rather than a convention nobody checks; on the structural side the same three names are fields of a `CheckFixtures` object and the runner rejects an empty one:
 
 ```ts
 import { describeRule } from "../lib/rule-spec.ts";
@@ -88,8 +88,8 @@ Verified on oxlint 1.77.0 / bun 1.3.13 / Node 24.17.0. Re-check whether JavaScri
 
 ## Scope
 
-All 70 rules are covered: 54 oxlint rules through `check:rules`, 16 structural checks through `check:scripts`. Nothing in the catalog ships as an untested description any more.
+All 70 rules are covered: 54 oxlint rules through `check:rules`, 16 structural checks through `check:structural`. Nothing in the catalog ships as an untested description any more.
 
-The script tier used to be prose. Each consuming project hand-rolled an implementation from the algorithm in the `.md`, and three independent audits found the same result: the implementations drifted, and each one had silently stopped matching part of what its doc promised. One deployment's layer-occupancy check had three bypasses and hardcoded a path its own doc documented as configurable; another's barrel-purity discovered a third of the barrels it claimed to. Every one of those was green. That is the argument for shipping code and config rather than an algorithm — the adaptation step is where the silence was getting in, so the adaptation step is now writing config.
+The structural tier used to be prose. Each consuming project hand-rolled an implementation from the algorithm in the `.md`, and three independent audits found the same result: the implementations drifted, and each one had silently stopped matching part of what its doc promised. One deployment's layer-occupancy check had three bypasses and hardcoded a path its own doc documented as configurable; another's barrel-purity discovered a third of the barrels it claimed to. Every one of those was green. That is the argument for shipping code and config rather than an algorithm — the adaptation step is where the silence was getting in, so the adaptation step is now writing config.
 
 What is still not covered, for either tier: whether a rule survives **adaptation**. Repointing a root, extending a package list, or adding an exclusion is unverified work in the consuming project — see *Rule Specs* in `references/enforcement-implementation.md`.

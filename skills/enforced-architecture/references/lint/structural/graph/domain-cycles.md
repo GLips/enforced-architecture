@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | **Tag** | graph |
-| **Mechanism** | Structural script (resolved import graph, pre-commit + CI) |
+| **Mechanism** | Structural check (resolved import graph, pre-commit + CI) |
 | **Blocking** | Yes |
 
 ## What it prevents

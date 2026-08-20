@@ -2,8 +2,8 @@
 
 | Field | Value |
 |---|---|
-| **Tag** | structure |
-| **Mechanism** | Structural script (filesystem walk, pre-commit + CI) |
+| **Tag** | placement |
+| **Mechanism** | Structural check (filesystem walk, pre-commit + CI) |
 | **Blocking** | Yes |
 
 Implementation: [topology.ts](topology.ts).

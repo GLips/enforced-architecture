@@ -1,7 +1,7 @@
 // ─── naming/test-file-mirror ──────────────────────────────────────────
 //
 // Tag:       naming
-// Mechanism: structural script (counts across a file set)
+// Mechanism: structural check (counts across a file set)
 // Blocking:  No — warning only
 //
 // Prevents:  Test files whose names do not map to the source they cover. A
@@ -24,7 +24,7 @@ import {
   toSourcePath,
   type Finding,
   type StructuralCheck,
-} from "../lib.ts";
+} from "../check-substrate.ts";
 
 /**
  * Extensions a test's sibling source may carry. `.tsx` is not decoration: a

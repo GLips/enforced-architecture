@@ -1,7 +1,7 @@
 // ─── api/barrel-purity ────────────────────────────────────────────────
 //
 // Tag:       api
-// Mechanism: structural script (cross-file trace)
+// Mechanism: structural check (cross-file trace)
 // Blocking:  Yes
 //
 // Prevents:  A client-safe barrel transitively pulling a server-only package
@@ -36,7 +36,7 @@ import {
   toProjectPath,
   type Finding,
   type StructuralCheck,
-} from "../lib.ts";
+} from "../check-substrate.ts";
 
 /**
  * Every specifier the file imports AT RUNTIME.

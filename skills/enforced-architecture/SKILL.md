@@ -1,7 +1,7 @@
 ---
 name: enforced-architecture
 description: >
-  Generate a mechanically enforced architecture plan for a TypeScript codebase. Use when establishing or redesigning the architecture of any TypeScript project with machine-checkable import boundary enforcement. Produces a plan document: audit, target architecture, oxlint rule + structural script enforcement rules, and a phased implementation plan. Designed for codebases where AI agents are the primary code writers.
+  Generate a mechanically enforced architecture plan for a TypeScript codebase. Use when establishing or redesigning the architecture of any TypeScript project with machine-checkable import boundary enforcement. Produces a plan document: audit, target architecture, oxlint rule + structural-check enforcement rules, and a phased implementation plan. Designed for codebases where AI agents are the primary code writers.
 disable-model-invocation: true
 ---
 
@@ -24,8 +24,7 @@ Read these references before and during the process:
 | [import-boundaries.md](references/import-boundaries.md) | Phase 2 (boundaries) | Import boundary matrix, cross-boundary rules, public API conventions, SDK containment |
 | [feature-patterns.md](references/feature-patterns.md) | Phase 2 (feature design) | Feature scaling templates, layer occupancy, controllers/service/repo/ui |
 | [server-client-boundaries.md](references/server-client-boundaries.md) | Phase 2 (bundle splitting) | TanStack Start server/client conventions, createServerFn patterns, importProtection config |
-| [enforcement-strategy.md](references/enforcement-strategy.md) | Phase 3 (rule design) | Two-layer enforcement (oxlint rules + scripts), three-tier pipeline, rule field template |
-| [enforcement-implementation.md](references/enforcement-implementation.md) | Phase 4 (implementation) | oxlint config, lefthook, package.json scripts, structural script orchestration |
+| [enforcement-implementation.md](references/enforcement-implementation.md) | Phase 3–4 (rules and wiring) | Rule design principles, the three tiers, oxlint config, lefthook, structural orchestration |
 | [documentation-model.md](references/documentation-model.md) | Phase 4 (documentation) | What to document in CLAUDE.md and docs/architecture/, content checklists |
 | [migration-patterns.md](references/migration-patterns.md) | Phase 4 (migration) | Atomic phase decomposition, sequencing, verification |
 | [lint/overview.md](references/lint/overview.md) | Phase 3–4 (rule catalog) | The catalog map: what each tag governs, and which rules a project needs |
@@ -92,7 +91,7 @@ Using the chosen configuration, propose:
 
 ### Phase 3: Design enforcement rules
 
-Read [enforcement-strategy.md](references/enforcement-strategy.md) for the two-layer model. Read [lint/overview.md](references/lint/overview.md) to choose tags.
+Read [lint/overview.md](references/lint/overview.md) to choose tags, and *Rule Design Principles* in [enforcement-implementation.md](references/enforcement-implementation.md) for what a rule has to be.
 
 **Process:**
 1. Pick the tags this architecture needs from the hub's map and *Selecting rules* table. Its tag table has one column per tier, so it also tells you which halves of a tag exist; read `lint/<tier>/<tag>/overview.md` for each to choose rules within it.
@@ -112,26 +111,32 @@ Keep the plan's rule section lean — two tables, not a copy of template content
 
 Read [enforcement-implementation.md](references/enforcement-implementation.md) for tooling setup. Read [migration-patterns.md](references/migration-patterns.md) for migration sequencing.
 
+**The project mirrors the catalog.** One `lint/` at the repo root holding the same three directories, so a rule's tier is as visible in the project as it is in the catalog and copying one is copying a path:
+
+```
+lint/
+  policy/       tables both tiers read
+  oxlint/       plugin.ts, lib/, <tag>/ — rules and their specs
+  structural/   config.ts check-substrate.ts import-graph.ts registry.ts run-structural-checks.ts,
+                arch.config.ts, <tag>/ — checks
+```
+
 **Greenfield sequence:**
-1. `.oxlintrc.json` from [references/setup/oxlintrc.json](references/setup/oxlintrc.json), plus the rule modules and their specs in the `oxlint/` directory, all registered in `oxlint/plugin.ts`. Install its dev dependencies with the package manager, unversioned so the project gets current releases: `bun add -d oxlint oxlint-tsgolint eslint-plugin-sonarjs jscpd`
-2. `scripts/` — copy `config.ts`, `lib.ts`, `import-graph.ts`, `run-structural-checks.ts` and `registry.ts` from the catalog, then each selected check module. Write the project's `arch.config.ts` on top of the defaults; the checks themselves are taken unmodified
-3. Package.json scripts (`check:arch`, and `duplication` for the CI-only jscpd pass), plus `.jscpd.json` from [references/setup/jscpd.json](references/setup/jscpd.json)
-4. `lefthook.yml` from [references/setup/lefthook.yml](references/setup/lefthook.yml)
-5. Framework import protection (vite.config.ts)
-6. Directory structure with empty barrels
-7. Generate documentation per [documentation-model.md](references/documentation-model.md) — CLAUDE.md rules section, and docs/architecture/ files if chosen. Then, if `health/doc-budgets` was selected, write `docs/doc-budgets.manifest.json` from [references/setup/doc-budgets.manifest.json](references/setup/doc-budgets.manifest.json) — ceilings come from what the generated docs actually weigh, so this step follows them
-8. Verify: `bun run check:arch && bun run dev`
+1. `lint/oxlint/` — the selected rules and their specs under `<tag>/`, plus `lib/`, all registered in `lint/oxlint/plugin.ts`. Then `.oxlintrc.json` at the root from [references/setup/oxlintrc.json](references/setup/oxlintrc.json), and the dev dependencies, unversioned so the project gets current releases: `bun add -d oxlint oxlint-tsgolint eslint-plugin-sonarjs jscpd`
+2. `lint/structural/` — the substrate (`config.ts`, `check-substrate.ts`, `import-graph.ts`, `registry.ts`, `run-structural-checks.ts`) and each selected check, all taken unmodified. Write `arch.config.ts` on top of `defaultCheckConfigs`
+3. One tsconfig per tier — [references/setup/oxlint.tsconfig.json](references/setup/oxlint.tsconfig.json) and [references/setup/structural.tsconfig.json](references/setup/structural.tsconfig.json) — and add both to the typecheck script by path. They are separate programs because the tiers run under different runtimes
+4. Package.json scripts (`check:arch`, and `duplication` for the CI-only jscpd pass), plus `.jscpd.json` from [references/setup/jscpd.json](references/setup/jscpd.json)
+5. `lefthook.yml` from [references/setup/lefthook.yml](references/setup/lefthook.yml)
+6. Framework import protection (vite.config.ts)
+7. Directory structure with empty barrels
+8. Generate documentation per [documentation-model.md](references/documentation-model.md) — CLAUDE.md rules section, and docs/architecture/ files if chosen. Then, if `health/doc-budgets` was selected, write `docs/doc-budgets.manifest.json` from [references/setup/doc-budgets.manifest.json](references/setup/doc-budgets.manifest.json) — ceilings come from what the generated docs actually weigh, so this step follows them
+9. Verify: `bun run check:arch && bun run dev`
 
 **Migration:** Decompose into atomic phases per [migration-patterns.md](references/migration-patterns.md). Each phase produces a clean repo.
 
-**The two tiers adopt differently, and treating them alike is the mistake to avoid.**
+**The two tiers adopt differently, and treating them alike is the mistake to avoid.** Structural checks are copied wholesale and configured on top of `defaultCheckConfigs` — reimplementing one from its doc is how a check ends up silently matching less than its doc promises. oxlint rules *are* adapted, because their path patterns are written against one standard layout. Parallelize the adapting with one subagent per tag directory, and have them register in `lint/oxlint/plugin.ts` in one pass afterwards rather than editing that file concurrently. Procedures for both are in [enforcement-implementation.md](references/enforcement-implementation.md).
 
-- **Structural scripts are copied, not adapted.** Take `scripts/` wholesale and write config on top of `defaultCheckConfigs`. Reimplementing a check from its doc is how three separate deployments each ended up with one that had silently stopped matching part of what the doc promised.
-- **oxlint rules do need adapting** — they are written against one standard layout and their path patterns have to be repointed. Parallelize with one subagent per tag directory. Have them write rules first and register in `oxlint/plugin.ts` in one pass afterwards rather than editing that file concurrently.
-
-Procedures for both are in [enforcement-implementation.md](references/enforcement-implementation.md).
-
-**Every rule ships with a permanent spec, and one of its cases is adversarial.** A rule's failure mode is silent: when it stops matching it goes green, not red. Verifying it once against the shape you had in mind and throwing the check away is how a tier ends up governing its canonical examples and nothing else. The adversarial case — the violation written the way your rule *misses* — is the one that decides whether the rule works.
+**Every rule ships with a permanent spec, and one of its cases is adversarial.** A rule's failure mode is silent: when it stops matching it goes green, not red. The adversarial case — the violation written the way your rule *misses* — is the one that decides whether the rule works.
 
 **Done when:** Numbered phases with specific file-level changes, the rules that activate in each phase, and a verification step. Every rule has its spec, and the suite runs in the gate.
 
@@ -155,8 +160,4 @@ Combine all phases into a single document:
 
 ## Tone
 
-Be opinionated. Err on the side of stricter boundaries — relaxing rules is cheap, tightening them after violations have been copied as patterns is expensive.
-
-Calibrate honestly. Not every codebase needs every layer. Not every rule earns its enforcement cost. The right amount of structure is the minimum needed to maintain dependency invariants — no more.
-
-The output should be domain-agnostic — define structural boundaries, not feature-specific behavior.
+Be opinionated and calibrate honestly: err toward stricter boundaries, but propose only the structure the dependency invariants actually need. Define structural boundaries, not feature-specific behavior.

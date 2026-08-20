@@ -1,7 +1,7 @@
 // ─── graph/domain-cycles ──────────────────────────────────────────────
 //
 // Tag:       graph
-// Mechanism: structural script (resolution across the tree)
+// Mechanism: structural check (resolution across the tree)
 // Blocking:  Yes
 //
 // Prevents:  A cycle between domain modules, direct or transitive. Domains are
@@ -27,7 +27,7 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { describeEdgeLine, type ImportEdge } from "../import-graph.ts";
-import type { Finding, StructuralCheck } from "../lib.ts";
+import type { Finding, StructuralCheck } from "../check-substrate.ts";
 
 /** One domain→domain dependency, and the earliest import that establishes it. */
 type DomainDependency = { from: string; to: string; witness: ImportEdge };

@@ -57,7 +57,7 @@ pre-commit:
           # deletions. The whole newline-separated list lands in one env value.
           # Unset means no filter, so CI and manual runs warn repo-wide.
           - name: structure
-            run: STAGED_FILES="$(git diff --cached --name-only --diff-filter=ACMR)" bun run check:structure
+            run: STAGED_FILES="$(git diff --cached --name-only --diff-filter=ACMR)" bun run check:structural
 
           - name: typecheck
             run: bun run typecheck

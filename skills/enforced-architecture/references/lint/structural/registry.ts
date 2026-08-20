@@ -30,7 +30,7 @@ import { testFileMirrorCheck } from "./naming/test-file-mirror.ts";
 import { tokenEqualityCheck } from "./style/token-equality.ts";
 import { topologyCheck } from "./placement/topology.ts";
 import { trampolinesCheck } from "./health/trampolines.ts";
-import type { StructuralCheck } from "./lib.ts";
+import type { StructuralCheck } from "./check-substrate.ts";
 
 export const structuralChecks: StructuralCheck[] = [
   barrelPurityCheck,

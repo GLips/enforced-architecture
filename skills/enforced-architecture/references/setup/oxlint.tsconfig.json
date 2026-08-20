@@ -1,0 +1,28 @@
+// Copy to `lint/oxlint/tsconfig.json`. The oxlint tier is its own TypeScript
+// program, not part of the app's — its specs run under real Node, so they need
+// `node:test` and Node globals, and naming those here rather than in the app
+// program is what stops `node:test` from compiling inside a screen.
+//
+// `allowImportingTsExtensions` is required, not stylistic: every rule imports
+// its neighbours with the `.ts` extension because oxlint loads these files
+// directly at runtime, with no build step to rewrite a specifier.
+//
+// Add it to the typecheck script explicitly — `tsc --noEmit -p lint/oxlint` —
+// because a program nothing runs is a program that goes stale silently.
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "compilerOptions": {
+    "lib": ["ESNext"],
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "target": "ESNext",
+    "types": ["node"],
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "strict": true
+  },
+  // `../policy/` joins both programs: it is the tier-neutral half, so it has to
+  // typecheck under Node types and Bun types alike.
+  "include": ["**/*.ts", "../policy/**/*.ts"]
+}

@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | **Tag** | style |
-| **Mechanism** | Structural script (all surfaces, pre-commit + CI) |
+| **Mechanism** | Structural check (all surfaces, pre-commit + CI) |
 | **Blocking** | Yes |
 
 ## What it prevents

@@ -1,5 +1,8 @@
 # policy — the tables both tiers read
 
+Empty on arrival. The directory and this contract exist first so the first table to land here has
+something to hold itself to.
+
 Runtime-neutral. A module here may import nothing but other modules here, and may reference:
 
 - **no Node APIs** — no `node:fs`, no `node:path`, nothing that assumes a filesystem

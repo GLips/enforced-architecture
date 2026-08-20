@@ -21,9 +21,9 @@ The fix depends on which of those it is:
 
 ## Why a rule and not a script
 
-It is a count against a **threshold**, but a threshold is a rule option and always was. What kept these three in the script tier was the rule tier being GritQL: a declarative matcher cannot accumulate a count and compare it to a number. A JS plugin is a stateful visitor, so it can.
+It is a count against a **threshold**, but a threshold is a rule option and always was. What kept these three in the structural tier was the rule tier being GritQL: a declarative matcher cannot accumulate a count and compare it to a number. A JS plugin is a stateful visitor, so it can.
 
-The move is worth more than tier tidiness. Everything these rules ask — is this a component, what are its parameters, what does its props type declare — is a question about syntax, and a script tier answers it by re-implementing a TypeScript parser out of regexes and brace counting. Every silent failure in these three rules' history came from that parser, not from the counting.
+The move is worth more than tier tidiness. Everything these rules ask — is this a component, what are its parameters, what does its props type declare — is a question about syntax, and a structural tier answers it by re-implementing a TypeScript parser out of regexes and brace counting. Every silent failure in these three rules' history came from that parser, not from the counting.
 
 "What is a component" is still one question for all three, answered once in [`lib/component-declarations.ts`](../lib/component-declarations.ts). A declaration form one of them fails to recognise is a component all three skip in silence.
 

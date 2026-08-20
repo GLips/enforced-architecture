@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | **Tag** | api |
-| **Mechanism** | Structural script — [feature-visibility.ts](feature-visibility.ts) |
+| **Mechanism** | Structural check — [feature-visibility.ts](feature-visibility.ts) |
 | **Blocking** | Mixed (ungranted edges fail, stale grants warn) |
 
 ## What it is

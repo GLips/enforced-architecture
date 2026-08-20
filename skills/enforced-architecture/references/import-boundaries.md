@@ -50,14 +50,6 @@ Three cells look like ordinary NOs and are worth stating explicitly, because eac
 
 ## Within-Feature Boundaries
 
-The layer direction within a feature is:
-
-```
-ui/ --> controllers/ --> service/ --> repo/
-```
-
-Each arrow means "may import from." The flow is strictly top-down.
-
 | Source ↓ imports Target → | `controllers/` | `service/` | `repo/` | `ui/` |
 |---|:---:|:---:|:---:|:---:|
 | **`controllers/`** | self | YES | YES (if no service) | NO |
@@ -65,13 +57,9 @@ Each arrow means "may import from." The flow is strictly top-down.
 | **`repo/`** | NO | NO | self | NO |
 | **`ui/`** | YES | NO | NO | self |
 
-### Key Rules
+Flow is strictly `ui/ → controllers/ → service/ → repo/`, and `repo/` is a leaf. Upward imports are denied by `boundary/server-no-upward`.
 
-- **`controllers/` cannot import `ui/`** -- The server layer does not consume the client layer. Enforced by the `boundary/server-no-upward` rule.
-- **`repo/` is a leaf** -- It imports nothing from feature siblings. Repo modules access infrastructure and return data upward.
-- **`service/` cannot import `controllers/`** -- Layer direction is strictly downward.
-- **Layer occupancy gating** -- If `service/` exists, `controllers/` goes through it to reach `repo/`. If `service/` does not exist, `controllers/` may import `repo/` directly. If `repo/` does not exist, the layer above it accesses infrastructure directly.
-- **DB occupancy refinement** -- When `repo/` exists, `controllers/` cannot import `infrastructure/db/schema` directly (the `boundary/layer-occupancy` check). Schema-based query construction belongs in `repo/`. The DB client import (`infrastructure/db/client`) is still allowed for passing the client to repo functions for transactions.
+**Occupancy gates the skips.** A layer that exists may not be bypassed: with `service/` present, `controllers/` reaches `repo/` through it; with `service/` absent, directly. With `repo/` present, `controllers/` may not import `infrastructure/db/schema` — schema-based query construction belongs in `repo/` — while the DB *client* import stays legal so a controller can hand a transaction down. Enforced by `boundary/layer-occupancy`.
 
 ---
 
@@ -88,12 +76,7 @@ Features import other features ONLY through public API barrels. All other intern
 | `@/features/<name>/service/*` | NO | --- |
 | `@/features/<name>/repo/*` | NO | --- |
 
-Enforcement (the `api/feature-public-api` rule):
-
-- Denies deep imports from routes unless the path matches `/ui/*`.
-- Denies deep imports from other features unless the path matches `/index.server`.
-- Denies all deep feature imports from domains, shared, and infrastructure.
-- The `api/server-import-context` rule denies `*/index.server` imports from client contexts (UI files, barrels, shared modules).
+Enforced by `api/feature-public-api`; `api/server-import-context` additionally denies `*/index.server` from client contexts (UI files, barrels, `shared/`).
 
 Cross-feature UI imports are banned even between features. If two features need the same UI component, it gets promoted to `shared/ui/` once three features need it (promotion threshold).
 
@@ -111,10 +94,7 @@ Domains import other domains through barrels only.
 | `@/domains/<name>/index.server` (resolves to `index.server.ts`) | YES |
 | `@/domains/<name>/<internal>/*` | NO |
 
-Enforcement:
-
-- The `api/domain-public-api` rule denies any import matching `@/domains/<name>/<path>` unless `<path>` is exactly `index.server`.
-- The `graph/domain-cycles` check detects cross-domain dependency cycles via DFS and fails the build. Domain A importing domain B and domain B importing domain A (directly or transitively) is a hard structural violation.
+Enforced by `api/domain-public-api`. `graph/domain-cycles` fails the build on a cross-domain cycle, direct or transitive — domains are the floor, so a cycle there has nowhere to break.
 
 ---
 
@@ -138,16 +118,6 @@ import { fetchItems } from "../controllers/items"
 import { validate } from "./validation"
 ```
 
-The rule covers all six top-level boundaries:
-
-- Files in `domains/` using relative paths to reach `features/`, `infrastructure/`, `shared/`, or `routes/`
-- Files in `features/` using relative paths to reach `domains/`, `infrastructure/`, `shared/`, `routes/`, or other features
-- Files in `infrastructure/` using relative paths to reach `domains/`, `features/`, `shared/`, or `routes/`
-- Files in `shared/` using relative paths to reach `domains/`, `features/`, `infrastructure/`, or `routes/`
-- Files in `routes/` using relative paths to reach `domains/`, `features/`, `infrastructure/`, or `shared/`
-
-Within a feature or within a subdirectory, relative imports are expected and preferred.
-
 ---
 
 ## Public API Convention Table
@@ -168,8 +138,6 @@ Within a feature or within a subdirectory, relative imports are expected and pre
 **`index.server.ts` MAY re-export from `index.ts`.** This allows the server barrel to present a superset of the client-safe API when convenient.
 
 **`createServerFn` references belong in `index.ts`.** TanStack Start replaces server function implementations with RPC stubs in client bundles, making the reference itself client-safe. The function definition lives in `controllers/`, but the reference is re-exported through the client-safe barrel.
-
-**Why `index.server.ts` instead of `server.ts`:** The `index.server.ts` naming is automatically caught by vite's `**/*.server.*` import-protection pattern -- no need for additional `src/**/server.ts` file patterns in the import protection config. The naming also makes the server-only nature immediately obvious.
 
 **Barrel client-safety.** A transitive trace from each `index.ts` barrel follows runtime imports up to 6 levels deep. If any branch reaches a server-only package, the `api/barrel-purity` check fails -- unless a `createServerFn` boundary is encountered first, which stops the trace (TanStack Start strips everything below it from client bundles).
 
@@ -194,35 +162,15 @@ Infrastructure is server-only by default; a short allowlist of modules is explic
 
 ## SDK Containment
 
-External SDK packages are restricted from direct import outside designated modules. Two classification strategies exist.
+External SDK packages are restricted from direct import outside designated modules. Two strategies; default to **wrapped**, and layer-restrict only when wrapping adds genuinely zero value. An unnecessary wrapper costs one small file; an unwrapped SDK scattered across the codebase costs a migration when its API changes or the provider is swapped.
 
 ### Wrapped SDKs
 
-The raw package import is banned everywhere except the wrapper module. Consumer code imports the wrapper, never the raw package. Use wrapping for SDKs with:
-
-- **Configuration complexity** — API keys, client options, retry policies
-- **Security sensitivity** — Payment processing, auth libraries, email services
-- **API instability** — Frequent breaking changes; the wrapper absorbs them
-
-The wrapper configures the SDK and re-exports its interface (or a thin convenience layer). The goal is containment, not abstraction. Enforced by the `boundary/sdk-containment` rule, which denies imports of these packages from any file outside `infrastructure/`.
+The raw package import is banned everywhere except the wrapper module, which configures the SDK and re-exports its interface. The goal is containment, not abstraction. Enforced by `boundary/sdk-containment`, which denies the package from any file outside `infrastructure/`. Wrap when the SDK carries configuration complexity (keys, client options, retries), security sensitivity (payments, auth, email), or an unstable API the wrapper can absorb.
 
 ### Layer-Restricted SDKs
 
-The raw import is allowed but only from designated directories. No wrapper exists.
-
-Use layer restriction for SDKs with:
-
-- **Simple configuration** — Works out of the box or is configured once
-- **Pervasive usage within a layer** — ORMs imported by every repo file, schema libraries in every validation file
-- **Stable APIs** — Doesn't change often enough to justify wrapping
-
-### Server-Only Package Blocklist
-
-The `api/barrel-purity` check maintains a list of server-only package patterns (Node.js built-ins, ORM packages, server SDK clients). Client-safe barrels must not transitively import these packages. Update this list when adding new server-only dependencies.
-
-### Choosing a Strategy
-
-Default to wrapped. Layer-restrict only when wrapping adds genuinely zero value. The cost of an unnecessary wrapper is one small file. The cost of an unwrapped SDK scattering across the codebase is a migration when the SDK changes its API or you need to swap providers.
+The raw import is allowed, from designated directories only, with no wrapper. Fits an SDK configured once and used pervasively within one layer — an ORM every repo file imports, a schema library every validation file imports — whose API is stable enough that a wrapper would only forward calls.
 
 ### Adding a New SDK
 

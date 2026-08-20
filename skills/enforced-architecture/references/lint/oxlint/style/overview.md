@@ -8,7 +8,7 @@ Enforcement runs in three tiers, and choosing the right one per axis is most of 
 
 1. **Types** — closed props on your own primitives (a `tone`, not an open `color`; a `size` from a small union). The wrong value does not compile. This is the strongest tier and the cheapest; put every axis here that will fit. It is also the answer for "the variant value must come from the token union" — that is a type-system job, not a lint job.
 2. **oxlint rules** — the escape hatches types leave open (component libraries that also accept any string, inline style objects, `className`). Per-file, real-time, JS/TS AST only.
-3. **Structural scripts** — anything needing the token source, cross-file knowledge, or the CSS surface, none of which a per-file JS/TS rule can reach.
+3. **Structural checks** — anything needing the token source, cross-file knowledge, or the CSS surface, none of which a per-file JS/TS rule can reach.
 
 The per-file half is below; the axes needing the token source, cross-file knowledge, or the CSS
 surface are in [../../structural/style/overview.md](../../structural/style/overview.md).

@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | **Tag** | boundary |
-| **Mechanism** | Structural script (resolved import graph + directory presence, pre-commit + CI) |
+| **Mechanism** | Structural check (resolved import graph + directory presence, pre-commit + CI) |
 | **Blocking** | Yes |
 
 ## What it prevents
@@ -64,7 +64,7 @@ At adoption the check is loudest on the features furthest along, since only a fe
 
 ## Fixtures
 
-[`expectations/boundary/layer-occupancy.ts`](../../../../../../harness/script-fixtures/expectations/boundary/layer-occupancy.ts).
+[`expectations/boundary/layer-occupancy.ts`](../../../../../../harness/structural-fixtures/expectations/boundary/layer-occupancy.ts).
 
 The two a grep-based version passes: `../../repo/x` from a nested controller, and the same import written as a same-feature alias. The legal neighbours carry as much weight — a controller importing the DB *client* while `repo/` exists, a type-only import of the very repo module the adversarial cases fire on, and a feature with neither layer whose controller imports the schema directly. That last one is the presence test's only witness: drop the test and it starts reporting.
 

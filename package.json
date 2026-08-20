@@ -3,9 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "bun run check:rules && bun run check:scripts",
+    "check": "bun run check:rules && bun run check:structural",
     "check:rules": "harness/with-real-node.sh harness/run-rule-fixtures.ts",
-    "check:scripts": "bun harness/run-script-fixtures.ts"
+    "check:structural": "bun harness/run-structural-fixtures.ts"
   },
   "devDependencies": {
     "@oxlint/plugins": "^1.77.0",

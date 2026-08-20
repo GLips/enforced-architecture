@@ -1,4 +1,4 @@
-// The three-kind contract for the structural-script tier.
+// The three-kind contract for the structural tier.
 //
 // The oxlint tier gets this from `describeRule`, which takes the kinds as named
 // arguments so a missing one is a type error rather than a convention nobody

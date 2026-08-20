@@ -2,8 +2,6 @@
 
 The worldview behind mechanically enforced architecture: what the layers are, why they are separated where they are, and what may never be traded away. Every other reference handles specifics — this one handles *why*, and points at the specific doc rather than restating it.
 
-Written for AI agent readers. Agents are the primary code writers and the primary consumers of this architecture.
-
 ---
 
 ## Core Philosophy
@@ -31,7 +29,7 @@ Non-negotiable properties of the architecture. Everything else is convention tha
 3. **Features expose public APIs.** External consumers import through barrels, never internal paths. A feature that reorganizes internally breaks no consumer. — [import-boundaries.md](import-boundaries.md#public-api-convention-table), [lint/oxlint/api/feature-public-api.ts](lint/oxlint/api/feature-public-api.ts)
 4. **SDKs are contained.** Every third-party SDK is either wrapped or layer-restricted. — [SDK containment](#sdk-containment)
 5. **Cross-boundary imports use aliases.** — [the cross-boundary alias rule](#the-cross-boundary-alias-rule)
-6. **Rules are blocking.** — [principle 4](#4-all-rules-blocking-from-day-one)
+6. **Rules are blocking.** — [all rules blocking](#all-rules-blocking-from-day-one)
 7. **The filesystem is the source of truth.** Directory structure plus the import graph fully describe the architecture. No metadata layers, no configuration-driven topology. Nothing enforces this — it is the constraint on whoever designs the architecture, and it is what rules out a topology manifest as a solution to any problem below.
 8. **Tests are exempt; production is not.** Tests may cross boundaries for setup. Production code may never import test files. — [test placement](#test-placement)
 
@@ -39,7 +37,7 @@ Non-negotiable properties of the architecture. Everything else is convention tha
 
 ## Foundational Principles
 
-### 1. Mechanical enforcement is knowledge transfer
+### Mechanical enforcement is knowledge transfer
 
 The enforcement pipeline is the onboarding process:
 
@@ -47,7 +45,13 @@ The enforcement pipeline is the onboarding process:
 - **Rules must be self-documenting.** The error message is the documentation. An agent should be able to fix any violation from the error message alone, without reading any reference document.
 - **The first edit is validated by the same rules as the hundredth.** There is no ramp-up period.
 
-### 2. Predictable structure enables autonomous navigation
+### Types hold a constraint better than a rule does
+
+Before writing a rule, check whether the type system can hold the constraint instead. A typed closed set beats a lint rule on the same axis on every axis that matters: it fails at compile time, needs no exclusion list, cannot fall out of sync with what it guards, and surfaces in autocomplete — the agent sees the allowed values while writing rather than the forbidden one after. That is most of the answer for anything shaped like *the value must come from this closed set*: a variant prop is a union of token names, not a `string` a rule then polices.
+
+Types have one structural gap, and it is why the other tiers exist: **libraries you did not write also accept escape hatches.** A component library may type `gap` as a token union *and* accept a raw number; a `className` is a string regardless. Write the rule for the leaks only — one that duplicates a constraint the types already hold is maintenance with no coverage.
+
+### Predictable structure enables autonomous navigation
 
 An agent should answer "where does this code live?" from directory structure alone.
 
@@ -55,7 +59,7 @@ If a convention holds everywhere, agents navigate autonomously. If it holds "mos
 
 Two consequences of taking the filesystem as the source of truth (invariant 7). Directory names *are* the naming convention — if a directory is called `controllers/`, the files in it are controllers, and an agent needs no config file to know that. And a layer's name is fixed project-wide: a codebase calling it `server/` here, `controllers/` there and `api/` in a third place is three architectures pretending to be one, and an agent will pick whichever it saw last.
 
-### 3. Anti-ceremony
+### Anti-ceremony
 
 Architecture has a tax. Every layer costs readability. Every abstraction costs discoverability. Every indirection costs debugging time. These costs are real and they compound.
 
@@ -63,9 +67,9 @@ The goal is not maximum structure. It is the minimum structure that maintains de
 
 **Optional layer occupancy.** Layers exist in a fixed logical order, but physical presence is optional. A feature with two files and no complex data access does not need four directories. What makes this safe rather than sloppy is that occupancy is enforced: a layer that exists may not be bypassed, and a layer that does not exist costs nothing — see [lint/structural/boundary/layer-occupancy.md](lint/structural/boundary/layer-occupancy.md). Never scaffold empty directories, never create `.gitkeep` files, never create a layer "because we might need it later."
 
-**No-trampoline policy.** A layer function must add at least one of: domain-level validation, authorization or policy enforcement, orchestration of multiple dependencies, data mapping, error normalization or retry, telemetry boundary behavior. If it does none of these it is a trampoline. Do not add `repo/` or `service/` until it earns directory-wide use from controllers; restructure or remove the layer instead of bypassing it.
+**No-trampoline policy.** A layer function that only forwards a call has not earned its layer. Do not add `repo/` or `service/` until it earns directory-wide use from controllers; restructure or remove the layer rather than bypassing it. What counts as earning it, and the re-export escape when a name genuinely has to exist: [lint/structural/health/trampolines.md](lint/structural/health/trampolines.md).
 
-### 4. All rules blocking from day one
+### All rules blocking from day one
 
 Agents do not distinguish warnings from errors in their behavior. A warning says "this might be wrong," and an agent treats "might be wrong" identically to "is fine" because neither one blocks progress. The violation persists, gets committed, gets copied.
 
@@ -77,13 +81,13 @@ Invalid reasons, all three of which are the cost asymmetry misread:
 - "It might have false positives." A false positive costs minutes; a missed violation costs days.
 - "It's just a best practice." If it matters enough to check, it matters enough to block. If it doesn't matter enough to block, don't check it.
 
-### 5. Domain-agnostic enforcement
+### Domain-agnostic enforcement
 
 The architecture defines structural boundaries, not feature-specific behavior. It should say that server functions live in `controllers/` and may not import UI components. It should not say how a specific feature structures its mutation logic.
 
 Feature-internal conventions belong in feature implementation plans. The architecture provides the container; the feature fills it. This is what keeps the rule set from growing linearly with the number of features.
 
-### 6. Enforce on the import graph, not the runtime graph
+### Enforce on the import graph, not the runtime graph
 
 What matters is what a file imports, not whether that code executes. A file importing the database client is a violation even in a dead code path, and a dynamic import of a restricted module is a violation even if never triggered.
 
@@ -138,11 +142,7 @@ Database imports scattered across routes, UI, and utilities leave a codebase wit
 
 ### Why this matters for SSR frameworks
 
-SSR blurs the server/client line: code that runs on the server during SSR also runs on the client during hydration and navigation. A component importing the database client works perfectly during SSR — the import resolves, the query runs, the data appears — and breaks only when the client bundler tries to put a database driver in the browser. It works in development and fails in production, and that feedback loop is long enough for the pattern to spread first.
-
-The hydration variant is subtler. A component importing a server-only module renders and ships HTML fine; hydration then re-executes it, imports included, and fails. Depending on the framework that surfaces as a build error (caught before deployment), a runtime error on navigation (caught by users), or a silent mismatch where the client drops the server-rendered content.
-
-Only the first is caught by the bundler. The other two are caught only by rules that stop the import existing at all — which is why framework protection and architecture rules both run and deliberately overlap on DB isolation. See [server-client-boundaries.md](server-client-boundaries.md#two-boundaries) for which mechanism is primary for what.
+SSR blurs the server/client line: the same code runs on the server during render and on the client during hydration. A component importing the database client works perfectly in development and fails only when the client bundler tries to ship a database driver — a feedback loop long enough for the pattern to spread first, and the hydration variant is worse because the bundler catches nothing. Only a rule that stops the import existing catches those, which is why framework protection and architecture rules deliberately overlap on DB isolation. Which mechanism is primary for what: [server-client-boundaries.md](server-client-boundaries.md#two-boundaries).
 
 ### Schema ownership vs. query ownership
 
@@ -178,7 +178,7 @@ Do not create error types speculatively. Start with one, and add per-layer types
 
 **Tests live next to the code they test.** Co-location buys three things: an agent finds a file's tests without searching, tests move and die with their source rather than orphaning, and the relative import makes the relationship explicit.
 
-**Tests are exempt from boundary rules.** A controller test may need to set up database state, create auth sessions, and assert against infrastructure. Enforcing boundaries there makes tests either impossible to write or full of dependency injection that exists solely to satisfy the linter. The exclusion is stated once for the whole system — see [enforcement-strategy.md](enforcement-strategy.md#global-test-exclusion) — never per rule.
+**Tests are exempt from boundary rules.** A controller test may need to set up database state, create auth sessions, and assert against infrastructure. Enforcing boundaries there makes tests either impossible to write or full of dependency injection that exists solely to satisfy the linter. The exclusion is stated once for the whole system — see *Rule Design Principles* in [enforcement-implementation.md](enforcement-implementation.md) — never per rule.
 
 **The reverse IS enforced.** Production code may never import from a test file. If it does, that utility is production code and belongs in the shared test infrastructure directory, which the same rule keeps production out of.
 
@@ -212,9 +212,7 @@ Cross-feature UI is banned. When Feature A needs something in Feature B's UI dir
 
 ## File Size Discipline
 
-Large files are architecture smells: a file past a few hundred lines is doing too many things or working at too many levels of abstraction. Enforce it mechanically, with graduated thresholds — a warning that gives an agent room to split as part of work it is already doing, and a hard failure behind it. Hitting the hard limit should be rare when the warning is calibrated.
-
-Exceptions go in one centralized list with a TODO each, never as per-file ignore comments. Scattered exemptions are invisible; a list is auditable. Thresholds and exclusions: [lint/structural/health/file-size.md](lint/structural/health/file-size.md).
+Large files are architecture smells: a file past a few hundred lines is doing too many things or working at too many levels of abstraction. Enforce it with graduated thresholds — a warning giving an agent room to split as part of work it is already doing, and a hard failure behind it. Exceptions go in one centralized list with a TODO each, never as per-file ignore comments: scattered exemptions are invisible, a list is auditable. Thresholds and exclusions: [lint/structural/health/file-size.md](lint/structural/health/file-size.md).
 
 ---
 

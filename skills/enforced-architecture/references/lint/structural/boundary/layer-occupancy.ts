@@ -1,7 +1,7 @@
 // ─── boundary/layer-occupancy ─────────────────────────────────────────
 //
 // Tag:       boundary
-// Mechanism: structural script (resolution across the tree + directory presence)
+// Mechanism: structural check (resolution across the tree + directory presence)
 // Blocking:  Yes
 //
 // Prevents:  A controller reaching past a layer the feature ALREADY HAS. A
@@ -22,12 +22,12 @@
 // as clean.
 //
 // See boundary/layer-occupancy.md for why the DB client is legal here while the
-// schema is not, and for the line this does NOT hold — `structure/layer-
+// schema is not, and for the line this does NOT hold — `placement/layer-
 // direction` rejects UPWARD imports and sees no downward skip at all.
 //
 // ──────────────────────────────────────────────────────────────────────
 
-import type { Finding, StructuralCheck } from "../lib.ts";
+import type { Finding, StructuralCheck } from "../check-substrate.ts";
 
 export const layerOccupancyCheck: StructuralCheck = {
   id: "boundary/layer-occupancy",

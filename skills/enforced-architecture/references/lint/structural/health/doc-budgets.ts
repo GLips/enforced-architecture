@@ -1,7 +1,7 @@
 // ─── health/doc-budgets ───────────────────────────────────────────────
 //
 // Tag:       health
-// Mechanism: structural script (word counts against a manifest)
+// Mechanism: structural check (word counts against a manifest)
 // Blocking:  Yes
 //
 // Prevents:  Standing documentation growing without bound. Every doc a project
@@ -35,7 +35,7 @@
 
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { readFile, type Finding, type StructuralCheck } from "../lib.ts";
+import { readFile, type Finding, type StructuralCheck } from "../check-substrate.ts";
 
 /**
  * How far a ceiling may sit above the doc it governs. Deliberately not a config

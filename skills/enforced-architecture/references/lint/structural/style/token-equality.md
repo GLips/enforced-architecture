@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | **Tag** | style |
-| **Mechanism** | Structural script (reads the project's token source, pre-commit + CI) |
+| **Mechanism** | Structural check (reads the project's token source, pre-commit + CI) |
 | **Blocking** | Yes |
 
 ## What it prevents
@@ -58,7 +58,7 @@ Fixing one matcher while another has quietly stopped matching is the failure thi
 
 Every knob is `config.checks["style/token-equality"]`:
 
-- **`spacingScale` / `radiusScale`** — the one thing every project must supply, and the only correct way to supply it is by importing the theme module in the config file. `harness/script-fixtures/config.ts` is the worked example: it imports `spacing` and `radius` from the tree's own `shared/ui/theme.ts`. Never restate a scale in the config — a copied scale is the duplicated-scale failure with an extra step. If the two scales live in different modules (spacing in a theme, radius in a CSS-adjacent module), import each from where it actually lives.
+- **`spacingScale` / `radiusScale`** — the one thing every project must supply, and the only correct way to supply it is by importing the theme module in the config file. `harness/structural-fixtures/config.ts` is the worked example: it imports `spacing` and `radius` from the tree's own `shared/ui/theme.ts`. Never restate a scale in the config — a copied scale is the duplicated-scale failure with an extra step. If the two scales live in different modules (spacing in a theme, radius in a CSS-adjacent module), import each from where it actually lives.
 - **`spacingProps` / `radiusProps`** — the JSX props your primitives actually expose. The defaults are the Mantine-shaped set (`gap`, `p`, `px`…, `radius`); a design system with different prop names replaces the list rather than adding to it.
 - **`spacingKeys` / `radiusKeys`** — the style-object keys, in their JS spelling. Values are read as px numbers, so `padding: "16px"` in a style object is not a subject; the string surface that is read is the JSX prop value.
 - **`exemptPaths`** — regexes tested against the **source-root-relative** path. The token source itself belongs here (it defines the raw values, which is what a token declaration is), along with layers that carry no styling (`domains/` by default) and documented render boundaries such as a root document or a canvas-backed widget.

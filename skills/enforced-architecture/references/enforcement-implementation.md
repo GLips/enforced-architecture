@@ -2,13 +2,16 @@
 
 How to wire up the enforcement infrastructure. Not the rules themselves — those live in [lint/](lint/overview.md).
 
-Three of the five config artifacts ship as commented files. Copy them and read the comments in place; the gotchas live on the lines they govern. `jscpd.json` is the one that cannot carry its own: jscpd parses it as strict JSON and dies on the first comment, so its rationale sits under *Package.json Scripts* below.
+Most of these ship as commented files. Copy them and read the comments in place; the gotchas live on the lines they govern. `jscpd.json` is the one that cannot carry its own: jscpd parses it as strict JSON and dies on the first comment, so its rationale sits under *Package.json Scripts* below.
 
 | Artifact | Copy from | Target |
 |---|---|---|
 | oxlint config | [setup/oxlintrc.json](setup/oxlintrc.json) | `.oxlintrc.json` (repo root; root of the monorepo) |
 | Pre-commit hook | [setup/lefthook.yml](setup/lefthook.yml) | `lefthook.yml` |
 | Duplication config | [setup/jscpd.json](setup/jscpd.json) | `.jscpd.json` (repo root) |
+| oxlint tier program | [setup/oxlint.tsconfig.json](setup/oxlint.tsconfig.json) | `lint/oxlint/tsconfig.json` |
+| Structural tier program | [setup/structural.tsconfig.json](setup/structural.tsconfig.json) | `lint/structural/tsconfig.json` |
+| Real-Node spec launcher | [setup/with-real-node.sh](setup/with-real-node.sh) | `lint/oxlint/with-real-node.sh` |
 | Structural check substrate | [lint/structural/](lint/structural/) | `lint/structural/` |
 | Rule catalog | [lint/](lint/overview.md) | `lint/` (mirrors the catalog's tier split) |
 | Framework import protection | [server-client-boundaries.md](server-client-boundaries.md) | `vite.config.ts` |
@@ -33,7 +36,7 @@ Rules share a `lib/`, and the sharing is load-bearing rather than tidy. One modu
 
 ---
 
-## Structural Script Orchestration
+## Structural Check Orchestration
 
 An orchestrator runs all structural checks. Each check is a function returning findings — errors (blocking) and warnings (non-blocking). The orchestrator reports every error, reports the warnings that survive scoping, counts both, and exits 1 if any errors.
 
@@ -41,8 +44,8 @@ An orchestrator runs all structural checks. Each check is a function returning f
 
 The same trap catches the tiers *above* the orchestrator, and it is easy to fix the scripts and leave it in place one level up. Watch two:
 
-- `check:arch` written as `oxlint src && check:structure` lets a lint failure hide every structural finding.
-- `typecheck` written as `tsc --noEmit && tsc --noEmit -p scripts` lets an app type error hide every error in the check scripts themselves.
+- `check:arch` written as `oxlint src && check:structural` lets a lint failure hide every structural finding.
+- `typecheck` written as `tsc --noEmit && tsc --noEmit -p lint/oxlint && tsc --noEmit -p lint/structural` lets an app type error hide every error in the check scripts themselves.
 
 Run each independently and aggregate. Reserve `&&` for steps where the second genuinely cannot run after the first fails.
 
@@ -51,7 +54,7 @@ Run each independently and aggregate. Reserve `&&` for steps where the second ge
 Structural checks ship with the modules they share, and the sharing is the point: duplicated across scripts, they drift apart on exclusions and on what counts as an import, without either copy reporting that it has.
 
 - **`config.ts`** — every per-repo value for every check, one object. The adoption surface.
-- **`lib.ts`** — file collection with the global exclusions applied once, plus the `Finding` and `StructuralCheck` shapes.
+- **`check-substrate.ts`** — file collection with the global exclusions applied once, plus the `Finding` and `StructuralCheck` shapes.
 - **`import-graph.ts`** — the resolved graph, and `scanDeclaredImports` for the one check that needs raw specifiers instead. Any check asking where an import *lands* consumes this rather than matching how the specifier is spelled.
 - **`run-structural-checks.ts`** — the orchestrator.
 
@@ -61,7 +64,7 @@ Centralising the *same* patterns into a shared file reduces duplication and fixe
 
 ### Staged-scoped warnings
 
-At pre-commit, advisory warnings scope to the files the commit touches; blocking errors always surface repo-wide (rationale in [enforcement-strategy.md](enforcement-strategy.md) under Tier 2). Two design constraints make it possible, and both bind any new check:
+At pre-commit, advisory warnings scope to the files the commit touches; blocking errors always surface repo-wide (rationale under *The Three Tiers* below). Two design constraints make it possible, and both bind any new check:
 
 - **Every finding carries its file as structured data**, not a path buried in a message string. This is why checks *return* findings rather than printing as they go — a line already written to stdout cannot be filtered.
 - **The staged set is injected, not discovered.** The orchestrator reads `STAGED_FILES` and stays agnostic to which pre-commit tool produced it. A finding with no file is kept rather than hidden — it cannot be matched, and dropping it would make scoping silently lossy.
@@ -71,9 +74,9 @@ At pre-commit, advisory warnings scope to the files the commit touches; blocking
 ## Package.json Scripts
 
 - `check:arch` — runs `oxlint` and the structural checks **independently** and aggregates, so a lint failure cannot hide every structural finding. The single command that verifies all architectural constraints.
-- `check:structure` — structural checks only. For iterating on script changes without re-running lint.
-- `duplication` — `jscpd --config .jscpd.json src scripts`. A separate binary with its own exit code, not an oxlint plugin, and it runs in CI only ([enforcement-strategy.md](enforcement-strategy.md), Tier 3). 60 tokens / 6 lines, matched on normalized tokens in `mild` mode: renaming every variable does not hide the clone, and neither does inserting a comment or a blank line. `sonarjs/no-identical-functions` in `.oxlintrc.json` catches what fits inside one rule's window; this catches the copy that spans files. Fence repetition that is genuinely irreducible with `/* jscpd:ignore-start */ … /* jscpd:ignore-end */`. Do not raise `minTokens` instead: that hides every clone of that size, not the one you meant to allow.
-- `check:rules` — the rule specs, through the real-Node launcher (`harness/with-real-node.sh`, which explains itself). **`RuleTester` does not run under Bun**, and under Bun the specs fail with an error naming the test framework rather than the runtime — so a working gate reads as a broken suite and invites `--no-verify`. A project on Bun also needs `bun test --path-ignore-patterns='**/oxlint/**'`, or `bun test` picks the specs up and throws on every case. The `oxlint` CLI itself is fine under Bun; this binds only the rule-authoring path.
+- `check:structural` — structural checks only. For iterating on structural-check changes without re-running lint.
+- `duplication` — `jscpd --config .jscpd.json src scripts`. A separate binary with its own exit code, not an oxlint plugin, and it runs in CI only. 60 tokens / 6 lines, matched on normalized tokens in `mild` mode: renaming every variable does not hide the clone, and neither does inserting a comment or a blank line. `sonarjs/no-identical-functions` in `.oxlintrc.json` catches what fits inside one rule's window; this catches the copy that spans files. Fence repetition that is genuinely irreducible with `/* jscpd:ignore-start */ … /* jscpd:ignore-end */`. Do not raise `minTokens` instead: that hides every clone of that size, not the one you meant to allow.
+- `check:rules` — the rule specs, through the real-Node launcher ([setup/with-real-node.sh](setup/with-real-node.sh), which explains itself). **`RuleTester` does not run under Bun**, and under Bun the specs fail with an error naming the test framework rather than the runtime — so a working gate reads as a broken suite and invites `--no-verify`. A project on Bun also needs `bun test --path-ignore-patterns='**/oxlint/**'`, or `bun test` picks the specs up and throws on every case. The `oxlint` CLI itself is fine under Bun; this binds only the rule-authoring path.
 
 ---
 
@@ -113,7 +116,7 @@ Three, and they are all the same shape: the rule does nothing, and nothing says 
 
 **A parent is visited before its children.** The walk is depth-first and pre-order, so no visitor can answer "does this subtree contain X" at the moment it sees the enclosing node. Any rule shaped as a claim about a subtree records what it sees and decides at `"Program:exit"`; [lib/range-index.ts](lint/oxlint/lib/range-index.ts) is that pattern factored out.
 
-**A rule sees one file.** A rule instance is created per file and knows nothing about any other. It cannot resolve a specifier to the file it lands in, ask whether a directory exists, or aggregate across a file set. Everything of that shape is a structural script: cycles, coupling, transitive barrel purity, and the depth-dependent question of whether `../../beta` leaves the current feature.
+**A rule sees one file.** A rule instance is created per file and knows nothing about any other. It cannot resolve a specifier to the file it lands in, ask whether a directory exists, or aggregate across a file set. Everything of that shape belongs to the structural tier: cycles, coupling, transitive barrel purity, and — the least obvious and most damaging — **anything whose answer depends on where the importing file sits.** Whether `../../beta` leaves the current feature is a function of the importing file's depth, not of the import string, so it has to be *resolved and compared*, never matched. A rule written the matching way looks right, passes its spec, and silently permits the shortest spelling of the violation. See [lint/structural/graph/import-graph.md](lint/structural/graph/import-graph.md).
 
 ---
 
@@ -132,7 +135,7 @@ Three, and they are all the same shape: the rule does nothing, and nothing says 
 
 Not "implementing" — the catalog's checks are runnable modules, proved against fixtures in the skill's own CI. Reimplementing one from its doc is how a check ends up silently matching less than the doc promises, which is what happened at three separate deployments before this tier shipped as code.
 
-1. Copy `lint/structural/{config,lib,import-graph,registry,run-structural-checks}.ts` into the project's `lint/structural/`, plus each selected `lint/structural/<tag>/<name>.ts`
+1. Copy `lint/structural/{config,check-substrate,import-graph,registry,run-structural-checks}.ts` into the project's `lint/structural/`, plus each selected `lint/structural/<tag>/<name>.ts`
 2. Register the checks in `lint/structural/registry.ts`. A check that is not registered is a file that ships and never runs
 3. Write `arch.config.ts`: spread `defaultCheckConfigs` and override what differs. Each rule's *Adapt* section names its keys, because the config object is the entire adoption surface
 4. Run once against the real tree and calibrate thresholds *just above* current values, so they signal growth rather than firing on day one. A check that fires on the state of the world the day it was installed gets switched off in the same week
@@ -145,6 +148,38 @@ Not "implementing" — the catalog's checks are runnable modules, proved against
 2. Take imports from `context.importGraph()` and file sets from the shared collection helpers. Do not scan files for imports directly: the union of Bun's two scans and the JSX-runtime filter are where the silent losses live
 3. Put every per-repo value in the config object, never as a constant in the check body. The test is whether a second project could adopt it by writing config alone
 4. Write its three cases, then revert-probe: disable the matcher and watch the adversarial case report as missed
+
+---
+
+## The Three Tiers
+
+Same rules, three moments, decreasing value.
+
+**Tier 1 — the editor.** oxlint's language server publishes JS-plugin diagnostics like any built-in rule, so an agent sees a bad import underlined as it writes it. The per-file tier only; structural checks are too slow to run here. Surface only what makes the agent change its approach — formatting and import order are Tier 2's silent business.
+
+**Tier 2 — pre-commit.** The formatter runs first and alone, then the read-only gates run in parallel: `oxlint`, the structural checks, typecheck, tests. Under 15 seconds is the budget. **Scope follows the check:** format and lint see the staged files, because a repo-wide formatter would rewrite what another agent is mid-edit on and someone else's per-file violation isn't this commit's problem; typecheck, tests and structural checks see the whole repo, because those catch what is broken no matter who wrote it. [setup/lefthook.yml](setup/lefthook.yml) is the mechanism and carries its own gotchas.
+
+**Tier 3 — CI.** The same checks, as the safety net for `--no-verify`. Only `duplication` is CI-only, because scanning the tree for clones does not fit the hook budget. A violation reaching Tier 3 means the loop already failed; the goal is to catch everything above it.
+
+---
+
+## Rule Design Principles
+
+**Every rule is blocking by default.** Three exceptions qualify and nothing else does — [architecture-principles.md](architecture-principles.md#all-rules-blocking-from-day-one) has the list and the argument.
+
+**Rules detect the narrowest possible violation.** A rule that catches too much trains agents to work around it. If a rule needs many exceptions, it is too broad.
+
+**Error messages are the documentation.** A message must let the agent fix the violation without opening anything else. Per-file messages live in `meta.messages` keyed by `messageId`; oxlint renders one as `error <plugin>(<rule>): <message>`, and since the rule key is its file name, the diagnostic id is also the path to the rule that raised it. Structural findings use:
+
+```
+FAIL [rule-name] path/to/file.ts
+  What's wrong in one sentence.
+  What to do about it, with specific paths.
+```
+
+`WARN` is the same shape, non-blocking.
+
+**One global exemption, stated twice and never per rule.** Every rule but `boundary/no-test-imports` skips test files (`*.test.*`, `*.integration.test.*`, `__tests__/`, `src/test/`) and one-off scripts (`scripts/`) — tests need cross-boundary imports to exercise a seam, and a script is not part of the shipped module graph. It lives in `isArchitectureExemptPath` in `lint/oxlint/lib/` and in the structural tier's file collection. Per-rule copies drift, and they drift identically: each one over-matches the same way and each has to be found separately.
 
 ---
 

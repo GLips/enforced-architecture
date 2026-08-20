@@ -1,4 +1,4 @@
-// ─── Shared substrate for the structural-script tier ──────────────────
+// ─── Shared substrate for the structural tier ──────────────────
 //
 // Four things put a check in this tier rather than in `rules/<tag>/*.ts` as an
 // oxlint rule:

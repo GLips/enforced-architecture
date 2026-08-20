@@ -1,7 +1,7 @@
 // ─── api/feature-visibility ───────────────────────────────────────────
 //
 // Tag:       api
-// Mechanism: structural script (consumes the resolved import graph)
+// Mechanism: structural check (consumes the resolved import graph)
 // Blocking:  Mixed — ungranted edges block, stale grants warn
 //
 // Prevents:  Cross-feature imports the importee never granted. A qualified
@@ -22,8 +22,8 @@
 //
 // ──────────────────────────────────────────────────────────────────────
 
-import type { Finding, StructuralCheck } from "../lib.ts";
-import { readFile } from "../lib.ts";
+import type { Finding, StructuralCheck } from "../check-substrate.ts";
+import { readFile } from "../check-substrate.ts";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 

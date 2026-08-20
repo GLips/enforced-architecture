@@ -3,10 +3,12 @@
 | Field | Value |
 |---|---|
 | **Tag** | graph |
-| **Mechanism** | Structural script — the shared substrate, not a rule itself |
+| **Mechanism** | Structural check — the shared substrate, not a rule itself |
 | **Blocking** | Its consumers are |
 
-Implementation: [../import-graph.ts](../import-graph.ts).
+Implementation: [../import-graph.ts](../import-graph.ts) — at the tier root rather than in this
+folder, because six rules across four tags consume it and it belongs to none of them. The doc sits
+under `graph/` because `graph/import-graph` is the id those rules cite.
 
 Not a rule. This is the resolved import graph six rules consume instead of each matching import strings on its own: `boundary/cross-boundary-alias`, `placement/layer-direction`, `boundary/layer-occupancy`, `graph/feature-deps`, `graph/domain-cycles`, and `api/feature-visibility`. Built once by `CheckContext.importGraph()` and shared; no rule scans files for imports itself.
 

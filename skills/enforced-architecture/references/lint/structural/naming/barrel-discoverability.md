@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | **Tag** | naming |
-| **Mechanism** | Structural script (pre-commit + CI) |
+| **Mechanism** | Structural check (pre-commit + CI) |
 | **Blocking** | Yes |
 
 Implemented in `naming/barrel-discoverability.ts`. Configured under

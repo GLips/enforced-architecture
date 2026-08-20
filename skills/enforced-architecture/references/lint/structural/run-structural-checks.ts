@@ -31,7 +31,7 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import type { ArchitectureConfig } from "./config.ts";
-import { createCheckContext, type Finding, type StructuralCheck } from "./lib.ts";
+import { createCheckContext, type Finding, type StructuralCheck } from "./check-substrate.ts";
 
 export type CheckRun = {
   id: string;
