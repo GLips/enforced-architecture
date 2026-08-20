@@ -721,6 +721,37 @@ describeSuite("a vocabulary cannot declare its own tree out of existence", () =>
   // walking the filesystem, so it would drop edges the linter — which resolves
   // no relative specifier at all — goes on policing. Loosen this and the
   // deliberate asymmetry between the tiers becomes a silent disagreement.
+  // `generatedDirs` REMOVES subjects too, in both tiers and in the shipped
+  // ignore pattern the harness derives from it. `["**"]` is the whole catalog
+  // switched off while every rule still appears enabled.
+  testCase("a directory name is accepted, leading dot and all", () => {
+    const generated: TreeVocabulary = {
+      ...RECOMMENDED_VOCABULARY,
+      generatedDirs: ["gen", "__generated__", ".generated"],
+    };
+    assert.doesNotThrow(() => assertGoverningVocabulary(generated, "src"));
+  });
+
+  testCase("a glob is refused, because the ignore pattern would be the adopter's", () => {
+    const silenced: TreeVocabulary = { ...RECOMMENDED_VOCABULARY, generatedDirs: ["**"] };
+    assert.throws(() => assertGoverningVocabulary(silenced, "src"), /not a directory name/);
+  });
+
+  testCase("a single-segment wildcard is refused for the same reason", () => {
+    const silenced: TreeVocabulary = { ...RECOMMENDED_VOCABULARY, generatedDirs: ["gen*"] };
+    assert.throws(() => assertGoverningVocabulary(silenced, "src"), /not a directory name/);
+  });
+
+  testCase("a multi-segment path is refused — one entry names one directory", () => {
+    const path: TreeVocabulary = { ...RECOMMENDED_VOCABULARY, generatedDirs: ["gen/client"] };
+    assert.throws(() => assertGoverningVocabulary(path, "src"), /not a directory name/);
+  });
+
+  testCase("the tree root itself, spelled as a dot, is refused", () => {
+    const silenced: TreeVocabulary = { ...RECOMMENDED_VOCABULARY, generatedDirs: ["."] };
+    assert.throws(() => assertGoverningVocabulary(silenced, "src"), /not a directory name/);
+  });
+
   testCase("a relative prefix is not an alias", () => {
     const notAnAlias: TreeVocabulary = { ...RECOMMENDED_VOCABULARY, nonSourceAliases: ["./vendor/"] };
     assert.throws(() => assertGoverningVocabulary(notAnAlias, "src"), /is not an alias/);

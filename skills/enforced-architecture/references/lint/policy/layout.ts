@@ -211,19 +211,26 @@ export type TreeVocabulary = {
   /**
    * Directories of GENERATED output, relative to this tree's source root.
    *
-   * Two things read this, and neither is an architecture rule. The catalog's own
-   * rules already skip generated files by the `.gen` naming convention, which is
-   * a fact about the file — see `isArchitectureExemptPath`. This list exists for
-   * the code generators that do NOT stamp their output that way and write a whole
-   * directory instead (a route tree, a GraphQL client, protobuf stubs), and it is
-   * what the shipped `oxlintrc.json` derives its `ignorePatterns` from so the
-   * BUILT-IN `typescript/` and `sonarjs/` rules stay quiet there too. Those rules
-   * know nothing about `isArchitectureExemptPath`, so without this an adopting
-   * project lints its own generated output on day one.
+   * For the code generators that do not stamp `.gen` on each file and write a
+   * whole directory instead — a route tree, a GraphQL client, protobuf stubs.
+   * The `.gen` convention is a fact about a file and needs no vocabulary; a
+   * directory name is vocabulary, because only the project knows where its
+   * generator writes.
    *
-   * A directory NAME, never a glob: the harness builds `<root>/<dir>/**` for each
-   * declared tree, so the entry cannot name a path no tree owns, and an adopter
-   * cannot widen it into an off-switch by writing a pattern.
+   * THREE things read it, and they must agree. `isArchitectureExemptSourcePath`
+   * and `isArchitectureExemptProjectPath` make the catalog's own rules silent
+   * there, in both tiers — a file the linter ignores and the structural tier
+   * reports is one file with two verdicts, and that is exactly what happened
+   * while only the ignore pattern read this. The third is the shipped
+   * `oxlintrc.json`, whose `ignorePatterns` the harness derives from this list so
+   * the BUILT-IN `typescript/` and `sonarjs/` rules stay quiet too — they know
+   * nothing about either predicate, so without it an adopting project lints its
+   * own generator's output on day one.
+   *
+   * One directory NAME per entry, checked at module load: the harness builds
+   * `<root>/<dir>/**` from each, so an entry carrying glob syntax writes the
+   * pattern rather than naming a directory, and `["**"]` silences the whole tree
+   * with nothing appearing to be turned off.
    */
   generatedDirs: string[];
 
@@ -461,6 +468,17 @@ export function carriesPresentation(profile: SourceProfile): boolean {
  * aliases only because this field cannot name anything but an alias.
  */
 export function assertGoverningVocabulary(vocabulary: TreeVocabulary, treeRoot: string): void {
+  for (const dir of vocabulary.generatedDirs) {
+    if (isSafeDirectorySegment(dir)) continue;
+    throw new Error(
+      `The tree at "${treeRoot}" declares generatedDirs entry "${dir}", which is not a directory ` +
+        `name. Entries are single path segments — "gen", "__generated__" — because the shipped ` +
+        `oxlintrc derives an ignore pattern from each one. An entry containing "*" or "/" writes ` +
+        `that pattern itself: "**" ignores the whole tree, and every rule in the catalog, ` +
+        `including this one's own, goes silent with nothing appearing to be turned off.`,
+    );
+  }
+
   for (const alias of vocabulary.nonSourceAliases) {
     if (alias === "" || alias.startsWith(".") || alias.startsWith("/")) {
       throw new Error(
@@ -481,6 +499,20 @@ export function assertGoverningVocabulary(vocabulary: TreeVocabulary, treeRoot: 
         `tree's own root.`,
     );
   }
+}
+
+/**
+ * True when `segment` names ONE directory and nothing else.
+ *
+ * `*` and `?` are refused because a vocabulary entry the harness composes into a
+ * glob would otherwise carry glob syntax of its own — that is the predicate
+ * arriving in a name's costume, which is the one thing this vocabulary must not
+ * accept. `.` and `..` are refused because they name a position rather than a
+ * directory, and a leading `.` is fine (`.generated`) while being one is not.
+ */
+function isSafeDirectorySegment(segment: string): boolean {
+  if (segment === "" || segment === "." || segment === "..") return false;
+  return !/[*?/\\]/.test(segment);
 }
 
 export function isStyleSubject(vocabulary: TreeVocabulary, pathFromSourceRoot: string): boolean {

@@ -19,7 +19,8 @@ import { relative, resolve } from "node:path";
 import {
   type DeclaredTree,
   DECLARED_TREES,
-  isArchitectureExemptPath,
+  isArchitectureExemptProjectPath,
+  isArchitectureExemptSourcePath,
 } from "../policy/declared-trees.ts";
 import { SOURCE_FILE_GLOB, type TreeVocabulary } from "../policy/layout.ts";
 import type { ArchitectureConfig } from "./config.ts";
@@ -214,7 +215,7 @@ export function toSourcePath(context: TreeContext, absolute: string): string {
  * glob segments (`features/*` /ui), because "where components live" is a set that
  * grows and listing it by hand goes stale in silence.
  *
- * The exemptions come from `isArchitectureExemptPath`, which BOTH tiers read.
+ * The exemptions come from `isArchitectureExemptSourcePath`, which BOTH tiers read.
  * Do not add a second test here: a file one tier governs and the other does not
  * is one edge with two answers, and the tier that skips it reports clean.
  *
@@ -235,7 +236,10 @@ export function collectTreeFiles(
     // `includeExempt` is for the one check whose SUBJECT is an exempt file:
     // `naming/test-file-mirror` audits the names of tests, which every other
     // check skips. Nothing else should reach for it.
-    if (options.includeExempt === true || !isArchitectureExemptPath(toSourcePath(context, absolute))) {
+    if (
+      options.includeExempt === true ||
+      !isArchitectureExemptSourcePath(context.vocabulary, toSourcePath(context, absolute))
+    ) {
       found.push(absolute);
     }
   }
@@ -247,9 +251,10 @@ export function collectTreeFiles(
  * checks that are not scoped to a tree.
  *
  * Exemptions are measured from the project root here rather than from a source
- * root, which is the frame `isArchitectureExemptPath` documents as the caller's
- * choice: `test/` at the top of the repo is the cross-cutting suite in this
- * frame, exactly as `test/` at the top of a tree is in the other.
+ * root, which is what `isArchitectureExemptProjectPath` exists for: `test/` at
+ * the top of the repo is the cross-cutting suite in this frame exactly as
+ * `test/` at the top of a tree is in the other, and every declared tree's
+ * generated directories are named from their own roots.
  */
 export function collectProjectFiles(
   config: ArchitectureConfig,
@@ -259,7 +264,7 @@ export function collectProjectFiles(
   const glob = root === "" ? pattern : `${root}/${pattern}`;
   const found: string[] = [];
   for (const absolute of new Bun.Glob(glob).scanSync({ cwd: config.projectRoot, absolute: true })) {
-    if (!isArchitectureExemptPath(toProjectPath(config, absolute))) found.push(absolute);
+    if (!isArchitectureExemptProjectPath(toProjectPath(config, absolute))) found.push(absolute);
   }
   return found.sort();
 }

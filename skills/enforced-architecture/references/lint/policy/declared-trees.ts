@@ -49,6 +49,7 @@ import {
   barrelModules,
   classifySourcePath,
   isServerModule,
+  isUnderPath,
   RECOMMENDED_VOCABULARY,
   runsOnServer,
   type SourcePlace,
@@ -106,8 +107,14 @@ for (const tree of DECLARED_TREES) assertGoverningVocabulary(tree.vocabulary, tr
  * project root for the two project-scoped structural checks. Every test but one is on a segment or
  * a suffix and reads the same in either frame; the exception is the cross-cutting `test/` directory,
  * which is only recognised at the FIRST segment of whatever frame it was given.
+ *
+ * NOT the whole exemption. A tree's `generatedDirs` are exempt too, and they are frame-sensitive in
+ * a way nothing here is — `gen` means `<root>/gen`, and which root depends on which tree. The two
+ * exported wrappers below add that half, one per frame; call one of them, not this. It is private
+ * so no caller can take the name-only half and believe it has the whole answer, which is how the
+ * oxlint tier came to ignore `src/gen/` while the structural tier reported findings in it.
  */
-export function isArchitectureExemptPath(path: string): boolean {
+function isExemptByFileName(path: string): boolean {
   // The extension is STRIPPED before the conventions are matched, never listed
   // alongside them. A regex spelling `[tj]sx?` covers four of the eight
   // extensions the walkers accept, so `a.test.mts`, `a.gen.mts` and `a.d.cts`
@@ -117,6 +124,41 @@ export function isArchitectureExemptPath(path: string): boolean {
   if (bare !== path && EXEMPT_MODULE_SUFFIXES.some((suffix) => bare.endsWith(suffix))) return true;
   if (hasTestDirectorySegment(path)) return true;
   return path.split("/").some((segment) => segment === "scripts");
+}
+
+/**
+ * True when the file at `pathFromSourceRoot` is outside the architecture contract, in the frame of
+ * ONE declared tree. The oxlint tier's question, and the tree-scoped structural checks'.
+ *
+ * `generatedDirs` is per-tree vocabulary, which is why this takes a vocabulary at all: a monorepo
+ * whose app writes into `gen/` and whose package writes into `__generated__/` has one answer per
+ * tree, and a predicate with no tree cannot give it.
+ */
+export function isArchitectureExemptSourcePath(
+  vocabulary: TreeVocabulary,
+  pathFromSourceRoot: string,
+): boolean {
+  if (isExemptByFileName(pathFromSourceRoot)) return true;
+  return vocabulary.generatedDirs.some((dir) => isUnderPath(pathFromSourceRoot, dir));
+}
+
+/**
+ * The same question in the PROJECT frame, for the two structural checks that walk across trees
+ * rather than inside one.
+ *
+ * Every declared tree's generated directories are exempt here, each measured from its own root:
+ * `src/gen` is generated because the tree at `src` says so, and it says nothing about a `gen/`
+ * directory in a tree it does not own. A path in no declared tree gets the name-only half, which is
+ * the same silence the rest of the catalog gives it.
+ */
+export function isArchitectureExemptProjectPath(
+  path: string,
+  trees: readonly DeclaredTree[] = DECLARED_TREES,
+): boolean {
+  if (isExemptByFileName(path)) return true;
+  return trees.some((tree) =>
+    tree.vocabulary.generatedDirs.some((dir) => isUnderPath(path, `${tree.root}/${dir}`)),
+  );
 }
 
 /**
@@ -236,7 +278,7 @@ export function classifyFileRole(
 ): FileRole | undefined {
   const found = declaredTreeFor(absolutePath, trees);
   if (found === undefined) return undefined;
-  if (isArchitectureExemptPath(found.sourcePath)) return undefined;
+  if (isArchitectureExemptSourcePath(found.tree.vocabulary, found.sourcePath)) return undefined;
   return {
     tree: found.tree,
     sourcePath: found.sourcePath,

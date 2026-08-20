@@ -37,6 +37,12 @@ export const topologyFixtures: CheckFixtures = {
     // `.gen` convention with the extension already stripped — spelled as a regex
     // over four extensions it misses this one and reports it.
     "src/generated-manifest.gen.mts",
+    // A whole generated DIRECTORY, which is the case the `.gen` convention does
+    // not cover: the generator stamps nothing on the files it writes. `gen` is
+    // this tree's vocabulary, and both tiers read it — while only the oxlint
+    // ignore pattern did, this exact file was a blocking structural finding and
+    // an ignored file to the linter.
+    "src/gen/graphql-client.ts",
     // A source-root file. Not a layer, has no layer to move to, and rejected by
     // a whitelist of directory names alone.
     "src/env.server.ts",

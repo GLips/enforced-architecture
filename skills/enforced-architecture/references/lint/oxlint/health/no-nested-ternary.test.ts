@@ -112,6 +112,16 @@ export const outer = (a, b, c) => (c ? inner(a, b) : 0);`,
       code: `const label = (n: number) => (n > 100 ? "high" : n > 50 ? "mid" : n > 10 ? "low" : "none");`,
     },
     {
+      // The other half of the generated exemption: a whole DIRECTORY the tree
+      // declares as generated, holding files the generator stamped no `.gen` on.
+      // Both tiers read `generatedDirs`, so this file is exempt here and exempt
+      // to the structural checks — while only the shipped ignore pattern read
+      // the list, the linter skipped it and the structural tier reported it.
+      name: "a generated directory the tree declared, on a file with no .gen in its name",
+      filename: "/repo/src/gen/graphql-client.ts",
+      code: `export const label = (n: number) => (n > 100 ? "high" : n > 50 ? "mid" : n > 10 ? "low" : "none");`,
+    },
+    {
       name: "a directory that merely contains the word 'test' is not a test path",
       filename: "/repo/src/features/billing/latest-labels/label.ts",
       code: `export const status = (n: number) => (n > 50 ? "high" : n > 10 ? "low" : "none");`,
