@@ -216,7 +216,7 @@ export type TreeVocabulary = {
   assetExtensions: string[];
 
   /**
-   * Directories of GENERATED output, relative to this tree's source root.
+   * THE directory of generated output, relative to this tree's source root.
    *
    * For the code generators that do not stamp `.gen` on each file and write a
    * whole directory instead — a route tree, a GraphQL client, protobuf stubs.
@@ -224,22 +224,30 @@ export type TreeVocabulary = {
    * directory name is vocabulary, because only the project knows where its
    * generator writes.
    *
+   * ONE name, not a list, and that is the load-bearing part. Everything under
+   * this directory is exempt from every rule in the catalog, so a list is an
+   * exemption an adopter can GROW — the menu re-entering through the back door,
+   * one `generatedDirs.push` at a time, each entry individually defensible. A
+   * project whose generators write to two places points them at one directory:
+   * shaping the tree to fit is the adoption this catalog asks for. Renaming it is
+   * vocabulary; having a second is not.
+   *
    * THREE things read it, and they must agree. `isArchitectureExemptSourcePath`
    * and `isArchitectureExemptProjectPath` make the catalog's own rules silent
    * there, in both tiers — a file the linter ignores and the structural tier
    * reports is one file with two verdicts, and that is exactly what happened
    * while only the ignore pattern read this. The third is the shipped
-   * `oxlintrc.json`, whose `ignorePatterns` the harness derives from this list so
+   * `oxlintrc.json`, whose `ignorePatterns` the harness derives from this name so
    * the BUILT-IN `typescript/` and `sonarjs/` rules stay quiet too — they know
    * nothing about either predicate, so without it an adopting project lints its
    * own generator's output on day one.
    *
-   * One directory NAME per entry, checked at module load: the harness builds
-   * `<root>/<dir>/**` from each, so an entry carrying glob syntax writes the
-   * pattern rather than naming a directory, and `["**"]` silences the whole tree
-   * with nothing appearing to be turned off.
+   * One directory NAME, checked at module load: the harness builds
+   * `<root>/<dir>/**` from it, so a value carrying glob syntax writes the pattern
+   * rather than naming a directory, and `**` would silence the whole tree with
+   * nothing appearing to be turned off.
    */
-  generatedDirs: string[];
+  generatedDir: string;
 
   /**
    * The database directory inside `infrastructureDir`, and the schema directory
@@ -316,7 +324,7 @@ export const RECOMMENDED_VOCABULARY: TreeVocabulary = {
     env: "env-server",
   },
 
-  generatedDirs: ["gen"],
+  generatedDir: "gen",
 
   extraSourceRootModules: ["router", "client", "server", "routeTree.gen"],
 
@@ -482,12 +490,34 @@ export function assertGoverningVocabulary(vocabulary: TreeVocabulary, treeRoot: 
     );
   }
 
-  if (vocabulary.serverModuleSuffix.length < 2 || !vocabulary.serverModuleSuffix.startsWith(".")) {
+  // Every MODULE name is spelled the way a specifier spells it: no extension.
+  // `isSafeDirectorySegment` cannot catch this, because a dot is legal in a name
+  // (`index.server`, `routeTree.gen`) and only a SOURCE extension is wrong here.
+  // The failure is silent in both directions: `clientBarrelModule: "index.ts"`
+  // makes `features/x/index.ts` classify as a feature ROOT rather than a barrel,
+  // and sends the barrel walkers looking for `index.ts.ts`.
+  for (const [field, name] of Object.entries(moduleNames(vocabulary))) {
+    if (withoutSourceExtension(name) === name) continue;
+    throw new Error(
+      `The tree at "${treeRoot}" spells ${field} as "${name}", which carries a source extension. ` +
+        `Module names here are spelled the way an import spells them — "index", "index.server" — ` +
+        `because the classifiers strip the extension off the FILE before comparing. A name that ` +
+        `carries one matches no file, and the position it names stops being recognised at all.`,
+    );
+  }
+
+  // A dotted literal, one dot, no separators and no source extension. The
+  // length-and-leading-dot version of this accepted ".server.ts", ".server/" and
+  // ".*", each of which classifies `charge.server.ts` as a CLIENT module while
+  // reading as though the suffix had merely been renamed.
+  if (!/^\.[A-Za-z0-9][A-Za-z0-9-]*$/.test(vocabulary.serverModuleSuffix)) {
     throw new Error(
       `The tree at "${treeRoot}" spells serverModuleSuffix as "${vocabulary.serverModuleSuffix}". ` +
-        `It is a dotted suffix on a module name — ".server". An empty one ends every filename, so ` +
-        `every file in the tree reads as server-only and the three rules that ask "is this a ` +
-        `client context" have no client left to find.`,
+        `It is one dotted word on a module name — ".server", ".node" — with no extension and no ` +
+        `separator. An empty one ends every filename, so every file in the tree reads as ` +
+        `server-only and the three rules that ask "is this a client context" have no client left ` +
+        `to find; one carrying an extension or a slash matches no file at all, and every ` +
+        `server-only module in the tree reads as client-safe.`,
     );
   }
 
@@ -522,31 +552,24 @@ export function assertGoverningVocabulary(vocabulary: TreeVocabulary, treeRoot: 
     );
   }
 
-  for (const dir of vocabulary.generatedDirs) {
-    const collision = Object.entries(topLevelDirsByField(vocabulary)).find(
-      ([, name]) => name === dir,
-    );
-    if (collision !== undefined) {
-      throw new Error(
-        `The tree at "${treeRoot}" declares generatedDirs entry "${dir}", which is also its ` +
-          `${collision[0]}. Everything under a generated directory is exempt from every rule in ` +
-          `the catalog, so this hands a whole governed position the exemption — silently, and ` +
-          `with the position still spelled in the vocabulary as though it were policed.`,
-      );
-    }
-  }
-
-  for (const dir of vocabulary.generatedDirs) {
-    if (isSafeDirectorySegment(dir)) continue;
+  // `generatedDir` is segment-checked with every other name above, via
+  // `namedSegments`. What is specific to it is the COLLISION: a governed position
+  // handed the generated exemption is the whole position going silent while it is
+  // still spelled in the vocabulary as though it were policed. `assertDistinctNames`
+  // cannot own this one — it refuses a duplicate among peers, and this is a name
+  // from one group matching a name in another.
+  const generatedCollision = Object.entries(topLevelDirsByField(vocabulary)).find(
+    ([, name]) => name === vocabulary.generatedDir,
+  );
+  if (generatedCollision !== undefined) {
     throw new Error(
-      `The tree at "${treeRoot}" declares generatedDirs entry "${dir}", which is not a directory ` +
-        `name. Entries are single path segments — "gen", "__generated__" — because the shipped ` +
-        `oxlintrc derives an ignore pattern from each one. An entry containing "*" or "/" writes ` +
-        `that pattern itself: "**" ignores the whole tree, and every rule in the catalog, ` +
-        `including this one's own, goes silent with nothing appearing to be turned off.`,
+      `The tree at "${treeRoot}" spells generatedDir as "${vocabulary.generatedDir}", which is ` +
+        `also its ${generatedCollision[0]}. Everything under the generated directory is exempt ` +
+        `from every rule in the catalog, so this hands a whole governed position the exemption — ` +
+        `silently, and with the position still spelled in the vocabulary as though it were ` +
+        `policed.`,
     );
   }
-
 }
 
 /**
@@ -570,8 +593,9 @@ export function topLevelDirsByField(vocabulary: TreeVocabulary): Record<string, 
 /**
  * Every field whose value must be exactly one path segment, by field name.
  *
- * `generatedDirs` is checked separately: it is a LIST, and its entries carry
- * their own message about the ignore pattern they become.
+ * The module names are in here as well as in their own loop, because a module
+ * name is a segment first: it has to be one before "does it carry an extension"
+ * is even a coherent question.
  */
 function namedSegments(vocabulary: TreeVocabulary): Record<string, string> {
   return {
@@ -580,12 +604,40 @@ function namedSegments(vocabulary: TreeVocabulary): Record<string, string> {
     sharedUiSubdir: vocabulary.sharedUiSubdir,
     dbSubdir: vocabulary.dbSubdir,
     dbSchemaSubdir: vocabulary.dbSchemaSubdir,
+    generatedDir: vocabulary.generatedDir,
+    ...moduleNames(vocabulary),
+  };
+}
+
+/**
+ * Every field that names a MODULE, by the field that spells it — the list fields
+ * flattened as `field[i]` so a bad entry's error says which one.
+ *
+ * Separate from the directory names because module names carry a second
+ * obligation the directories do not: no source extension. Both loops in
+ * `assertGoverningVocabulary` read this, so a module field added to the
+ * vocabulary and not to this map is a name neither loop checks.
+ */
+function moduleNames(vocabulary: TreeVocabulary): Record<string, string> {
+  const listed: Record<string, string> = {};
+  for (const [field, modules] of Object.entries({
+    extraFeatureRootModules: vocabulary.extraFeatureRootModules,
+    extraSourceRootModules: vocabulary.extraSourceRootModules,
+    envModules: Object.keys(vocabulary.envModules),
+  })) {
+    modules.forEach((module, index) => {
+      listed[`${field}[${index}]`] = module;
+    });
+  }
+
+  return {
     apiClientName: vocabulary.apiClientName,
     browserStorageName: vocabulary.browserStorageName,
     themeModuleName: vocabulary.themeModuleName,
     rootRouteName: vocabulary.rootRouteName,
     clientBarrelModule: vocabulary.clientBarrelModule,
     serverBarrelModule: vocabulary.serverBarrelModule,
+    ...listed,
   };
 }
 
@@ -610,27 +662,37 @@ function assertDistinctNames(
 }
 
 /**
- * True when `extension` is a bare file extension: no dot, no separator, no glob.
+ * True when `extension` is a bare file extension: letters and digits, nothing else.
+ *
+ * An ALLOWLIST, not a list of banned characters. A review defeated the banned-character
+ * version by writing `{ts,tsx}`: brace expansion, character classes and negation are all
+ * glob syntax the ban list did not name, and each one turns the walk this composes into
+ * a pattern the vocabulary never declared. Enumerating what a name may contain cannot be
+ * defeated by a syntax nobody thought of.
  *
  * The empty string is the case worth naming — as an extension it is the suffix
  * of every filename, so one empty entry turns a suffix test into a tautology.
  */
 function isSafeExtension(extension: string): boolean {
-  return extension !== "" && !/[.*?/\\]/.test(extension);
+  return /^[A-Za-z0-9]+$/.test(extension);
 }
 
 /**
- * True when `segment` names ONE directory and nothing else.
+ * True when `segment` names ONE directory or module and nothing else.
  *
- * `*` and `?` are refused because a vocabulary entry the harness composes into a
- * glob would otherwise carry glob syntax of its own — that is the predicate
- * arriving in a name's costume, which is the one thing this vocabulary must not
- * accept. `.` and `..` are refused because they name a position rather than a
- * directory, and a leading `.` is fine (`.generated`) while being one is not.
+ * An ALLOWLIST of the characters a name may contain, deliberately, because the
+ * banned-character version of this was defeated: it refused `*` and `?` and
+ * accepted `{features,gen}`, which the harness composed straight into
+ * `src/{features,gen}/**` and thereby exempted a governed position. Brace
+ * expansion, `[a-z]` classes, `!` negation and `()` groups are all glob syntax a
+ * ban list has to have thought of; an allowlist does not.
+ *
+ * A leading `.` is fine (`.generated`), while BEING one is not: `.` and `..`
+ * name a position rather than a directory.
  */
 function isSafeDirectorySegment(segment: string): boolean {
-  if (segment === "" || segment === "." || segment === "..") return false;
-  return !/[*?/\\]/.test(segment);
+  if (segment === "." || segment === "..") return false;
+  return /^[A-Za-z0-9._-]+$/.test(segment);
 }
 
 /**

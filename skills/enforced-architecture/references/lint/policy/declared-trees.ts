@@ -166,7 +166,7 @@ function canonicalRoot(root: string): string {
  * a suffix and reads the same in either frame; the exception is the cross-cutting `test/` directory,
  * which is only recognised at the FIRST segment of whatever frame it was given.
  *
- * NOT the whole exemption. A tree's `generatedDirs` are exempt too, and they are frame-sensitive in
+ * NOT the whole exemption. A tree's `generatedDir` is exempt too, and it is frame-sensitive in
  * a way nothing here is — `gen` means `<root>/gen`, and which root depends on which tree. The two
  * exported wrappers below add that half, one per frame; call one of them, not this. It is private
  * so no caller can take the name-only half and believe it has the whole answer, which is how the
@@ -225,16 +225,16 @@ export function isUnauthoredSourcePath(
   return namesGeneratedDir(vocabulary, pathFromSourceRoot);
 }
 
-/** True when `pathFromSourceRoot` sits in one of this tree's declared generated directories. */
+/** True when `pathFromSourceRoot` sits in this tree's declared generated directory. */
 function namesGeneratedDir(vocabulary: TreeVocabulary, pathFromSourceRoot: string): boolean {
-  return vocabulary.generatedDirs.some((dir) => isUnderPath(pathFromSourceRoot, dir));
+  return isUnderPath(pathFromSourceRoot, vocabulary.generatedDir);
 }
 
 /**
  * True when the file at `pathFromSourceRoot` is outside the architecture contract, in the frame of
  * ONE declared tree. The oxlint tier's question, and the tree-scoped structural checks'.
  *
- * `generatedDirs` is per-tree vocabulary, which is why this takes a vocabulary at all: a monorepo
+ * `generatedDir` is per-tree vocabulary, which is why this takes a vocabulary at all: a monorepo
  * whose app writes into `gen/` and whose package writes into `__generated__/` has one answer per
  * tree, and a predicate with no tree cannot give it.
  */
@@ -260,9 +260,7 @@ export function isArchitectureExemptProjectPath(
   trees: readonly DeclaredTree[] = DECLARED_TREES,
 ): boolean {
   if (isExemptByFileName(path)) return true;
-  return trees.some((tree) =>
-    tree.vocabulary.generatedDirs.some((dir) => isUnderPath(path, `${tree.root}/${dir}`)),
-  );
+  return trees.some((tree) => isUnderPath(path, `${tree.root}/${tree.vocabulary.generatedDir}`));
 }
 
 /**

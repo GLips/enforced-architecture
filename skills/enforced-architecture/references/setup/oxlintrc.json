@@ -21,14 +21,14 @@
   // reach for that only to scope a plugin to a subtree.
   "jsPlugins": ["./lint/oxlint/plugin.ts", "eslint-plugin-sonarjs"],
 
-  // One `<root>/<dir>/**` entry per declared tree per `generatedDirs` entry, and
+  // One `<root>/<dir>/**` entry per declared tree, naming its `generatedDir`, and
   // `harness/run-rule-fixtures.ts` fails the build when this list is not exactly
   // that. The names live in each tree's vocabulary; this file spells the globs
   // the names imply, the same way the `overrides` block below spells the tree
   // roots.
   //
   // This is here for the BUILT-IN rules. Every `arch/` rule already skips these
-  // directories — `isArchitectureExemptSourcePath` reads the same `generatedDirs`
+  // directories — `isArchitectureExemptSourcePath` reads the same `generatedDir`
   // list, in both tiers — but `typescript/` and `sonarjs/` know nothing about
   // that predicate, so without this an adopting project lints its own code
   // generator's output on day one. The two must agree: while only this pattern

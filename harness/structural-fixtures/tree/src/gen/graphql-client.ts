@@ -1,4 +1,4 @@
-// SILENT in placement/topology: `gen/` is one of this tree's generatedDirs, and
+// SILENT in placement/topology: `gen/` is this tree's generatedDir, and
 // a generated directory is exempt in BOTH tiers.
 //
 // It is a top-level directory the path grammar claims nothing about, so without

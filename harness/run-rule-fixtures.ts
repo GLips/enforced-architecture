@@ -324,12 +324,12 @@ function stripLineComments(source: string): string {
  */
 async function checkTreeScoping(): Promise<string[]> {
   const { DECLARED_TREES } = (await import(join(POLICY_ROOT, "declared-trees.ts"))) as {
-    DECLARED_TREES: { root: string; vocabulary: { generatedDirs: string[] } }[];
+    DECLARED_TREES: { root: string; vocabulary: { generatedDir: string } }[];
   };
   const config = JSON.parse(stripLineComments(await readFile(OXLINTRC_PATH, "utf8"))) as {
     rules?: Record<string, unknown>;
     ignorePatterns?: string[];
-    overrides?: { files?: string[]; rules?: Record<string, unknown> }[];
+    overrides?: { files?: string[]; excludeFiles?: string[]; rules?: Record<string, unknown> }[];
   };
 
   const failures: string[] = [];
@@ -355,17 +355,17 @@ async function checkTreeScoping(): Promise<string[]> {
   }
 
   // `ignorePatterns` is the third place this file could spell a tree root, and
-  // it is derived from the same two lists as the rest: one glob per declared
-  // tree per generated directory that tree names. An entry no tree implies is
-  // either a stale root or a hand-written exemption, and both read as coverage.
-  const expectedIgnores = DECLARED_TREES.flatMap((tree) =>
-    tree.vocabulary.generatedDirs.map((dir) => `${tree.root}/${dir}/**`),
+  // it is derived from the same list as the rest: one glob per declared tree,
+  // naming that tree's generated directory. An entry no tree implies is either a
+  // stale root or a hand-written exemption, and both read as coverage.
+  const expectedIgnores = DECLARED_TREES.map(
+    (tree) => `${tree.root}/${tree.vocabulary.generatedDir}/**`,
   ).sort();
   const actualIgnores = [...(config.ignorePatterns ?? [])].sort();
   if (expectedIgnores.join("|") !== actualIgnores.join("|")) {
     failures.push(
       `setup/oxlintrc.json's ignorePatterns is [${actualIgnores.join(", ")}], but the declared ` +
-        `trees and their generatedDirs imply [${expectedIgnores.join(", ")}] — a hand-written ` +
+        `trees and their generatedDir imply [${expectedIgnores.join(", ")}] — a hand-written ` +
         `entry is an exemption nothing declared, and a missing one lints generated output`,
     );
   }
@@ -382,6 +382,23 @@ async function checkTreeScoping(): Promise<string[]> {
   const scopedEntries = (config.overrides ?? []).filter((entry) =>
     Object.keys(entry.rules ?? {}).some((key) => key.startsWith("arch/")),
   );
+
+  // `excludeFiles` subtracts from the glob the pairs below are built out of, and
+  // it is invisible to every one of them: the matrix compares `files` against the
+  // declared roots, so an override that names `<root>/**` and then excludes
+  // `<root>/features/**` produces exactly the pairs the matrix expects while
+  // oxlint runs no architecture rule inside a governed position. There is no
+  // legitimate value — a tree the project does not want policed is a tree it does
+  // not declare — so any nonempty one is refused rather than compared.
+  const excluding = scopedEntries.filter((entry) => (entry.excludeFiles ?? []).length > 0);
+  if (excluding.length > 0) {
+    failures.push(
+      `setup/oxlintrc.json gives an arch/ override an excludeFiles of ` +
+        `[${(excluding[0]?.excludeFiles ?? []).join(", ")}], which carves a hole inside a declared ` +
+        `tree that the rule/tree matrix cannot see — every pairing still reads as scoped. A tree ` +
+        `that should not be policed is a tree policy/declared-trees.ts should not declare`,
+    );
+  }
 
   const scopedArchKeys = scopedEntries.flatMap((entry) =>
     Object.keys(entry.rules ?? {}).filter((key) => key.startsWith("arch/")),

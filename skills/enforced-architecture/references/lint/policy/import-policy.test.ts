@@ -717,35 +717,31 @@ describeSuite("a vocabulary cannot declare its own tree out of existence", () =>
     assert.doesNotThrow(() => assertGoverningVocabulary(RECOMMENDED_VOCABULARY, "src"));
   });
 
-  // `generatedDirs` REMOVES subjects too, in both tiers and in the shipped
-  // ignore pattern the harness derives from it. `["**"]` is the whole catalog
+  // `generatedDir` REMOVES subjects too, in both tiers and in the shipped
+  // ignore pattern the harness derives from it. `**` is the whole catalog
   // switched off while every rule still appears enabled.
   testCase("a directory name is accepted, leading dot and all", () => {
-    const generated: TreeVocabulary = {
-      ...RECOMMENDED_VOCABULARY,
-      generatedDirs: ["gen", "__generated__", ".generated"],
-    };
-    assert.doesNotThrow(() => assertGoverningVocabulary(generated, "src"));
+    for (const dir of ["gen", "__generated__", ".generated"]) {
+      const generated: TreeVocabulary = { ...RECOMMENDED_VOCABULARY, generatedDir: dir };
+      assert.doesNotThrow(() => assertGoverningVocabulary(generated, "src"));
+    }
   });
 
-  testCase("a glob is refused, because the ignore pattern would be the adopter's", () => {
-    const silenced: TreeVocabulary = { ...RECOMMENDED_VOCABULARY, generatedDirs: ["**"] };
-    assert.throws(() => assertGoverningVocabulary(silenced, "src"), /not a directory name/);
-  });
-
-  testCase("a single-segment wildcard is refused for the same reason", () => {
-    const silenced: TreeVocabulary = { ...RECOMMENDED_VOCABULARY, generatedDirs: ["gen*"] };
-    assert.throws(() => assertGoverningVocabulary(silenced, "src"), /not a directory name/);
-  });
-
-  testCase("a multi-segment path is refused — one entry names one directory", () => {
-    const path: TreeVocabulary = { ...RECOMMENDED_VOCABULARY, generatedDirs: ["gen/client"] };
-    assert.throws(() => assertGoverningVocabulary(path, "src"), /not a directory name/);
-  });
+  // Each of these is a distinct glob SYNTAX, and that is the point: the
+  // banned-character version of the check refused `*` and `?` and accepted brace
+  // expansion, character classes and negation, each of which composes into an
+  // ignore pattern the vocabulary never declared. `{features,gen}` is the one a
+  // review actually used to exempt `src/features/**` with a green run.
+  for (const dir of ["**", "gen*", "gen?", "{features,gen}", "[a-z]en", "!gen", "@(gen)", "gen/client"]) {
+    testCase(`a generatedDir spelled "${dir}" is refused — the pattern would be the adopter's`, () => {
+      const silenced: TreeVocabulary = { ...RECOMMENDED_VOCABULARY, generatedDir: dir };
+      assert.throws(() => assertGoverningVocabulary(silenced, "src"), /not a single path segment/);
+    });
+  }
 
   testCase("the tree root itself, spelled as a dot, is refused", () => {
-    const silenced: TreeVocabulary = { ...RECOMMENDED_VOCABULARY, generatedDirs: ["."] };
-    assert.throws(() => assertGoverningVocabulary(silenced, "src"), /not a directory name/);
+    const silenced: TreeVocabulary = { ...RECOMMENDED_VOCABULARY, generatedDir: "." };
+    assert.throws(() => assertGoverningVocabulary(silenced, "src"), /not a single path segment/);
   });
 
   // A name collision does not fail loudly — it ERASES.
@@ -755,7 +751,7 @@ describeSuite("a vocabulary cannot declare its own tree out of existence", () =>
   });
 
   testCase("a generated directory that IS a governed position exempts the whole position", () => {
-    const exempted: TreeVocabulary = { ...RECOMMENDED_VOCABULARY, generatedDirs: ["features"] };
+    const exempted: TreeVocabulary = { ...RECOMMENDED_VOCABULARY, generatedDir: "features" };
     assert.throws(() => assertGoverningVocabulary(exempted, "src"), /also its featuresDir/);
   });
 
@@ -797,6 +793,49 @@ describeSuite("a vocabulary cannot declare its own tree out of existence", () =>
   testCase("an empty server suffix makes every file server-only", () => {
     const silenced: TreeVocabulary = { ...RECOMMENDED_VOCABULARY, serverModuleSuffix: "" };
     assert.throws(() => assertGoverningVocabulary(silenced, "src"), /serverModuleSuffix/);
+  });
+
+  // Neither of the next two is empty, and neither reads as a switch. A suffix
+  // carrying an extension or a separator matches NO file, so every server-only
+  // module in the tree reads as client-safe — the same silence as the empty one,
+  // arrived at from the opposite end.
+  for (const suffix of [".server.ts", ".server/", ".*", ".", ".server.jsx"]) {
+    testCase(`a server suffix spelled "${suffix}" classifies every server module as client`, () => {
+      const wrong: TreeVocabulary = { ...RECOMMENDED_VOCABULARY, serverModuleSuffix: suffix };
+      assert.throws(() => assertGoverningVocabulary(wrong, "src"), /serverModuleSuffix/);
+    });
+  }
+
+  // A module name here is spelled the way an IMPORT spells it. The classifiers
+  // strip the extension off the file before comparing, so a name carrying one
+  // matches nothing: `clientBarrelModule: "index.ts"` makes every barrel classify
+  // as a feature ROOT and sends the barrel walkers looking for `index.ts.ts`.
+  for (const [field, value] of [
+    ["clientBarrelModule", "index.ts"],
+    ["serverBarrelModule", "index.server.ts"],
+    ["themeModuleName", "theme.tsx"],
+    ["rootRouteName", "__root.tsx"],
+  ] as const) {
+    testCase(`${field} carrying a source extension matches no file`, () => {
+      const extended: TreeVocabulary = { ...RECOMMENDED_VOCABULARY, [field]: value };
+      assert.throws(() => assertGoverningVocabulary(extended, "src"), /carries a source extension/);
+    });
+  }
+
+  testCase("an extra root module carrying an extension is caught by the same loop", () => {
+    const extended: TreeVocabulary = {
+      ...RECOMMENDED_VOCABULARY,
+      extraSourceRootModules: ["router", "client.tsx"],
+    };
+    assert.throws(() => assertGoverningVocabulary(extended, "src"), /extraSourceRootModules\[1\]/);
+  });
+
+  testCase("an env module spelled as a glob is a pattern in a name's costume", () => {
+    const patterned: TreeVocabulary = {
+      ...RECOMMENDED_VOCABULARY,
+      envModules: { "env.*": "env-server" },
+    };
+    assert.throws(() => assertGoverningVocabulary(patterned, "src"), /not a single path segment/);
   });
 
   testCase("a server suffix without its dot is not a suffix on a module name", () => {

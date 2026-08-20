@@ -114,7 +114,7 @@ export const outer = (a, b, c) => (c ? inner(a, b) : 0);`,
     {
       // The other half of the generated exemption: a whole DIRECTORY the tree
       // declares as generated, holding files the generator stamped no `.gen` on.
-      // Both tiers read `generatedDirs`, so this file is exempt here and exempt
+      // Both tiers read `generatedDir`, so this file is exempt here and exempt
       // to the structural checks — while only the shipped ignore pattern read
       // the list, the linter skipped it and the structural tier reported it.
       name: "a generated directory the tree declared, on a file with no .gen in its name",
