@@ -1,25 +1,26 @@
 // ─── api/feature-visibility ───────────────────────────────────────────
 //
-// Tag:       api
-// Mechanism: structural check (consumes the resolved import graph)
-// Blocking:  Mixed — ungranted edges block, stale grants warn
+// Makes sure: Every import from one feature into another has an entry in the
+// importee's visibility.json, with a written reason. To find every feature that
+// depends on feature B, you read one file in B, not the whole repository. To add
+// a dependency on B, you must edit B, so the diff shows the decision.
 //
-// Prevents:  Cross-feature imports the importee never granted. A qualified
-//            export at the feature boundary, JPMS `exports … to` style: feature
-//            B names each feature allowed to import it, with a written
-//            justification per grant. Everything else denies.
+// Do not move the grants into one central file, and do not derive them from
+// tags. Both find the same edges. An edit to a config file the author already
+// has open looks like part of the task. An edit inside another feature does
+// not. The rule depends on that difference.
 //
-// The mechanism is the point, and it is smaller than it looks: the friction sits
-// on the IMPORTEE's side, in a file, in the diff. A central allowlist enforces
-// the same edges and buys none of this, because an edit to a config the author
-// already had open reads as part of the work. Making feature A's new dependency
-// require an edit to feature B — a file the author had no reason to touch — is
-// what turns silent accretion into a decision someone has to write a sentence
-// about. The sentence is the deliverable; the JSON is bookkeeping.
+// A grant names a feature, not a barrel and not a path. One entry covers the
+// client barrel and index.server. Grants are not transitive: "A grants B" plus
+// "B grants C" permits no edge between A and C.
 //
-// See api/feature-visibility.md for when to take it and why it is not cycle
-// detection.
+// Stale grants are warnings, and the orchestrator hides warnings for files a
+// commit did not stage. The case this arm exists for — an importer that drops
+// its last import — stages nothing in the importee. Run this check in CI as
+// well as in the pre-commit hook, or you do not see that case.
 //
+// A cycle of granted edges is graph/feature-deps's finding, not this one's. No
+// grant makes a cycle legal.
 // ──────────────────────────────────────────────────────────────────────
 
 import type { Finding, StructuralCheck } from "../check-substrate.ts";

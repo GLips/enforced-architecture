@@ -1,16 +1,27 @@
 // ─── health/file-size ─────────────────────────────────────────────────
 //
-// Tag:       health
-// Mechanism: structural check (counts across a file set)
-// Blocking:  Mixed — warn signals "split soon", fail is a hard stop
+// Makes sure: Every .ts and .tsx file in the configured roots is shorter than
+// failThreshold lines. You can read a complete file before you change one
+// function in it. No file grows so large that you must plan the split as
+// separate work.
 //
-// Prevents:  Files growing beyond a maintainable size. Without a mechanical
-//            limit each addition is "just a few lines" until the file is 1200
-//            lines and nobody wants to touch it.
+// Count every line: code, comments and blank lines. Do not add a parser that
+// skips imports, type declarations or comments. A file with 300 lines of code
+// and 300 lines of comments is still 600 lines for a person to read. A count
+// of logical lines selects almost the same files.
 //
-// See health/file-size.md for why total lines rather than logical lines, and
-// what the exclusion list is and is not for.
+// Keep two thresholds and two severities. The gap between them lets a person
+// finish a change and split the file in the same commit. One threshold stops
+// the work in the middle of the change. If the hard limit reports a warning,
+// an agent continues past it and the file keeps its size.
 //
+// There is no per-file pragma. A comment in the file puts the exemption in the
+// file that grew, where nobody reads it again. The exclusion list is central,
+// thus every exemption is in one place and each new one is visible in the
+// config diff.
+//
+// Do not make an exclusion match a directory. A directory that produces large
+// files again and again is the result you want to see.
 // ──────────────────────────────────────────────────────────────────────
 
 import { collectFiles, readFile, toProjectPath, type Finding, type StructuralCheck } from "../check-substrate.ts";

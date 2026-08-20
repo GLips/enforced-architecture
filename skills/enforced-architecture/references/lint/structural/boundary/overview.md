@@ -9,9 +9,25 @@ oxlint adapter judges aliased specifiers and bare packages, this one judges reso
 and both hand the same string to the same table. Taking one without the other leaves every verdict
 true of one spelling only.
 
-| Rule | Blocking | What it prevents |
+| Rule | Blocking | What it buys |
 |---|---|---|
-| [import-policy](import-policy.md) | Yes | Relative imports the policy denies, and permitted crossings written relatively — a bypass for every rule that matches the aliased path. Consumes the import graph |
-| [layer-occupancy](layer-occupancy.md) | Yes | Bypassing an OCCUPIED layer inside one feature — any source layer, any skipped layer, type imports included (e.g., `ui/` importing `service/` while `controllers/` holds code) |
+| [import-policy](import-policy.ts) | Yes | Every relative import gets the same verdict as its aliased form, and every import that leaves its unit uses the alias |
+| [layer-occupancy](layer-occupancy.ts) | Yes | If a feature has a repo directory, every query to its tables is in that directory |
+
+`import-policy` has no exclusion list and no per-directory scope. A codebase that adopts it already
+holds imports that this rule denies, so adoption is one correction pass over the whole tree.
+
+`layer-occupancy` does not see a bypass that goes through the feature's own barrel. A file at a
+feature root has no layer. The path `ui/` -> `@/features/<self>` -> `service/` thus has no layer at
+either end, and the check reports nothing. `api/barrel-purity` is the other half.
+
+`layer-occupancy` is the filesystem-aware complement to the per-file rule `boundary/db-isolation`.
+`db-isolation` says which layers may touch the DB at all, statically and for every feature alike.
+`layer-occupancy` gets stricter as a feature grows layers. At adoption it reports most of its
+findings against the features that have the most layers. Only a feature with several layers can
+bypass one, and there is no exclusion list.
+
+The coverage of both checks is the coverage of the import graph. An import spelling that
+`graph/import-graph` does not reveal is an edge that neither check receives.
 
 Adoption mechanics, the spec contract, and cross-tag rule selection: [../../overview.md](../../overview.md).

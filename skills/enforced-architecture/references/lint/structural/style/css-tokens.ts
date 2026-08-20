@@ -1,22 +1,27 @@
 // ─── style/css-tokens ─────────────────────────────────────────────────
 //
-// Tag:       style
-// Mechanism: structural check (a surface the linter cannot see)
-// Blocking:  Yes
+// Makes sure: Every color and font-size value in a stylesheet is a token
+// reference or a token definition. You change a color or a size in the token
+// source, and no `.css` file keeps the old value. To add a dark theme, you do
+// not first read every stylesheet for raw values.
 //
-// Prevents:  Raw color and font-size values in stylesheets. It is the
-//            stylesheet mirror of `style/no-inline-color` and
-//            `style/no-inline-font-size`, and it exists because oxlint's JS
-//            plugins parse JavaScript and TypeScript only — they cannot see a
-//            `.css` file at all, so both lint rules pass, the pipeline is
-//            green, and `font-size: 13px` sits in a CSS module.
+// style/no-inline-color and style/no-inline-font-size do not make this check
+// unnecessary. The oxlint JS plugins receive JavaScript and TypeScript files
+// only. A `.css` file never reaches them, so both lint rules stay green while
+// `font-size: 13px` sits in a CSS module.
 //
-// Scope is color and font-size only. `box-shadow` belongs to
-// `style/shadow-source` and spacing to `style/token-equality`, which reads the
-// project's actual scale and so owns that axis better.
+// Do not add `em` or `%` to the font-size matcher. They are relative units, and
+// an absolute scale holds no token for "1.3 times the text around it". A check
+// with no fix to name is a check that people turn off.
 //
-// See style/css-tokens.md for the `em` / `%` restraint and the adapt notes.
+// Do not add spacing here. style/token-equality checks spacing, because it
+// imports the project's real scale. This check holds no scale and can only
+// guess which lengths are on one. style/shadow-source checks `box-shadow`, so
+// one violation gives one message and not two.
 //
+// exemptFiles is for the files that define the scales. Per-line suppression is
+// absent on purpose. A value no token can express is a gap in the scale, not a
+// false positive to silence.
 // ──────────────────────────────────────────────────────────────────────
 
 import {

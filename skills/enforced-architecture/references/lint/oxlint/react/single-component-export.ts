@@ -1,23 +1,23 @@
 // ─── react/single-component-export ────────────────────────────────────
 //
-// Tag:       react
-// Mechanism: oxlint JS plugin (per-file, real-time)
-// Blocking:  No — a warning. Two components in one file is a smell, and the
-//            author decides whether the second one has earned its own file.
+// Shows: The files that export more than one component. A component that
+// shares a file has no file with its name. A text search for that name finds
+// the uses and not the declaration. The message gives all of the names, thus
+// you know which component to move.
 //
-// Prevents:  Two exported components in one file. Both are then found by the
-//            name of the FILE rather than their own, so the second is invisible
-//            to a grep for where it is defined.
+// The `Object.assign` exemption must hold. It is the shape this rule's message
+// tells people to write, and a report against it teaches people to ignore the
+// rule. If a project groups compound components under one export some other
+// way, add that spelling to `isCompoundNamespace`.
 //
-// The declaration forms this has to see live in `lib/component-declarations.ts`,
-// shared with `react/hook-count` and `react/prop-count`. See
-// react/single-component-export.md for why the classifier tests the bound value
-// rather than the exported name, and why the compound exemption exists.
+// Do not add a declaration form to this file. `lib/component-declarations.ts`
+// answers "what is a component" for `react/hook-count` and `react/prop-count`
+// too. A second answer here makes the three rules govern different sets of
+// files.
 //
-// ── Adapt ──
-// The compound exemption is `Object.assign`. A project that namespaces compound
-// components some other way names that spelling in `isCompoundNamespace`.
-//
+// This rule gives a warning and does not stop the build. A second component in
+// a file is sometimes correct, and only the author knows. The rule reports the
+// names and leaves the decision to the author.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree } from "@oxlint/plugins";

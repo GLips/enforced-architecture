@@ -7,7 +7,6 @@ import { importPolicyRule } from "./boundary/import-policy.ts";
 import { deprecatedPathsRule } from "./placement/deprecated-paths.ts";
 import { derivedStateRule } from "./react/derived-state.ts";
 import { hookCountRule } from "./react/hook-count.ts";
-import { domainPublicApiRule } from "./api/domain-public-api.ts";
 import { noArbitraryClassValuesRule } from "./style/no-arbitrary-class-values.ts";
 import { noAsyncEffectRule } from "./react/no-async-effect.ts";
 import { noDeprecatedInputValidatorRule } from "./placement/no-deprecated-input-validator.ts";
@@ -70,7 +69,6 @@ export default definePlugin({
   meta: { name: "arch" },
   rules: {
     "barrel-direction": barrelDirectionRule,
-    "domain-public-api": domainPublicApiRule,
     "server-import-context": serverImportContextRule,
     "ambient-globals": ambientGlobalsRule,
     "client-server-infra": clientServerInfraRule,

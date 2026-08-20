@@ -28,7 +28,7 @@
  * through both is not testing anything.
  */
 
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { FIXTURE_TREE, fixtureConfig } from "./structural-fixtures/config.ts";
@@ -85,11 +85,16 @@ for (const id of registeredIds) {
   if (!existsSync(implementation)) {
     fail(id, `registered, but there is no structural/${id}.ts — the id and the file disagree`);
   }
-  // A check with no doc is a check whose intent, negative space, and adapt notes
-  // live nowhere. The catalog indexes rules by their doc; an undocumented one is
-  // unreachable from `overview.md`.
-  if (!existsSync(join(STRUCTURAL_ROOT, `${id}.md`))) {
-    fail(id, `registered, but there is no structural/${id}.md to say what it is for`);
+  // A check whose header states no value line is a check nobody can select. The
+  // header is the ONLY documentation that reaches the project the check is
+  // copied into, so an omission here is invisible until someone is reading a
+  // finding in a repo that has no catalog.
+  else if (!statesWhatItBuys(implementation)) {
+    fail(
+      id,
+      `registered, but its header opens with no "Makes sure:" (blocking) or ` +
+        `"Shows:" (warning) line, so nothing says what the check buys`,
+    );
   }
   if (!fixturesByCheck.has(id)) {
     fail(
@@ -254,3 +259,21 @@ console.log(
     `obvious / adversarial / legal fixtures.`,
 );
 process.exit(failures.length === 0 ? 0 : 1);
+
+/**
+ * Whether a check's banner states what the check buys, rather than what it
+ * matches. `Makes sure:` claims a property the codebase can rely on and is for
+ * blocking checks; `Shows:` reports something a reader learns and is for
+ * warnings.
+ *
+ * Presence only — no linter can tell a concrete claim from abstract praise, and
+ * pretending otherwise would put a green tick on exactly the sentences this
+ * format exists to stop.
+ */
+function statesWhatItBuys(implementationPath: string): boolean {
+  const banner = readFileSync(implementationPath, "utf8").split("\n");
+  const end = banner.findIndex((line) => !line.startsWith("//"));
+  return banner
+    .slice(0, end === -1 ? banner.length : end)
+    .some((line) => /^\/\/ (Makes sure|Shows):/.test(line));
+}

@@ -1,20 +1,29 @@
 // ─── placement/topology ───────────────────────────────────────────────
 //
-// Tag:       placement
-// Mechanism: structural check (filesystem walk)
-// Blocking:  Yes
+// Makes sure: Each .ts and .tsx file under the source root is at a path that a
+// rule in this catalog matches. You can add a file and know that the layer
+// rules read it. You do not have to look for the files that no pattern reaches
+// before you trust a clean report.
 //
-// Prevents:  A file living somewhere no rule looks. Every other rule in the
-//            catalog keys on a path pattern, so a path matching none of them is
-//            governed by nothing. Enforcement built on path patterns has to
-//            close the set of paths, or it is enforcement on the paths that
-//            happened to be there when it was written.
+// The check walks the whole source tree. Its subject is the absence of a match.
+// A smaller scope leaves the paths outside it with no check at all, which is
+// the exact condition this rule removes.
 //
-// A whitelist, because the failure is the unlisted case. Every message is a
-// DESTINATION rather than a refusal: this rule fires when someone had nowhere
-// obvious to put something, and a refusal leaves them exactly where they were.
-// See placement/topology.md.
+// The permitted names are a closed set, not a list of bad names. A list of bad
+// names holds only the paths that a person thought of, and the next bad path is
+// not on it.
 //
+// Do not test the first path segment alone. src/features/scanner/helpers.ts has
+// the first segment `features` and passes that test. It is inside a feature but
+// outside every layer, and it is the file this rule exists to find.
+//
+// Each message names a destination, not a refusal. This rule fires when a person
+// has no obvious place for a file, and a refusal leaves that person at the same
+// point. That person then turns the check off.
+//
+// A path this rule permits says nothing about the imports in the file or the
+// kind of code in it. Those are the findings of placement/layer-direction and
+// of the boundary/ rules.
 // ──────────────────────────────────────────────────────────────────────
 
 import {

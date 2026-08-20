@@ -1,35 +1,28 @@
 // ─── health/doc-budgets ───────────────────────────────────────────────
 //
-// Tag:       health
-// Mechanism: structural check (word counts against a manifest)
-// Blocking:  Yes
+// Makes sure: Every doc in the manifest is at or below its word ceiling, and
+// each ceiling is no more than 5% above the word count. When you add a
+// paragraph to a budgeted doc, the same commit makes you cut one, move the
+// text, or raise the number. You do not have to check whether CLAUDE.md is
+// still short enough for an agent to read all of it.
 //
-// Prevents:  Standing documentation growing without bound. Every doc a project
-//            asks agents to read is a doc agents keep appending to, one
-//            reasonable paragraph at a time, until the file nobody budgeted is
-//            the file nobody reads.
+// A doc below its ceiling can still fail. A ceiling only moves down on its own.
+// Do not delete the slack status to let a small doc pass. The words between a
+// doc and an old ceiling are words the next agent adds with no manifest diff.
 //
-// The contract, in three parts:
+// countWords counts tables, code fences and front matter. Do not make the count
+// more exact with a Markdown parse that skips fenced blocks. A count that skips
+// fences moves the text into fences.
 //
-//   1. Every budgeted doc has a word ceiling in the manifest, and exceeding it
-//      fails. `wc -w` equivalent: whitespace-delimited tokens, tables and code
-//      fences included, because they take a reader's attention like any other
-//      words do.
-//   2. A ceiling more than 5% above the doc's actual size fails too. That is the
-//      ratchet, and it is the half that does the work: a ceiling only ever
-//      moves down on its own. Slack left behind by a doc that shrank is room the
-//      next agent expands into without anyone seeing a diff.
-//   3. Raising a ceiling is therefore an explicit edit to the manifest, in the
-//      same commit as the prose it makes room for, where a human declines it or
-//      approves it on the record. The number is bookkeeping; the sentence in the
-//      commit message is the deliverable.
+// There is no pragma and no per-file override. A ceiling inside the doc lets one
+// edit add both the words and the permission for them. Then no manifest diff
+// exists for a person to approve.
 //
-// The check RETURNS findings and never exits — the orchestrator owns the exit
-// code, so a failing budget blocks the commit the same way every other check
-// does. `--list` is the one mode here, and it enforces nothing: see the note
-// above the CLI at the bottom of this file.
-//
-// See health/doc-budgets.md for what belongs in the manifest and what does not.
+// A manifest that is absent or does not parse is an error. Do not make it an
+// empty run. One typo in manifestPath leaves every doc uncounted while the check
+// reports clean. The fixture tree cannot test this branch: it holds one
+// manifest, and every other case needs that manifest to parse. Zero entries is
+// not an error, and a project without budgets deletes its line in registry.ts.
 //
 // ──────────────────────────────────────────────────────────────────────
 

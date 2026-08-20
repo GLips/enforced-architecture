@@ -65,9 +65,9 @@ Architecture has a tax. Every layer costs readability. Every abstraction costs d
 
 The goal is not maximum structure. It is the minimum structure that maintains dependency invariants. Two controls prevent architecture from becoming ceremony.
 
-**Optional layer occupancy.** Layers exist in a fixed logical order, but physical presence is optional. A feature with two files and no complex data access does not need four directories. What makes this safe rather than sloppy is that occupancy is enforced: a layer that exists may not be bypassed, and a layer that does not exist costs nothing — see [lint/structural/boundary/layer-occupancy.md](lint/structural/boundary/layer-occupancy.md). Never scaffold empty directories, never create `.gitkeep` files, never create a layer "because we might need it later."
+**Optional layer occupancy.** Layers exist in a fixed logical order, but physical presence is optional. A feature with two files and no complex data access does not need four directories. What makes this safe rather than sloppy is that occupancy is enforced: a layer that exists may not be bypassed, and a layer that does not exist costs nothing — see [lint/structural/boundary/layer-occupancy.ts](lint/structural/boundary/layer-occupancy.ts). Never scaffold empty directories, never create `.gitkeep` files, never create a layer "because we might need it later."
 
-**No-trampoline policy.** A layer function that only forwards a call has not earned its layer. Do not add `repo/` or `service/` until it earns directory-wide use from controllers; restructure or remove the layer rather than bypassing it. What counts as earning it, and the re-export escape when a name genuinely has to exist: [lint/structural/health/trampolines.md](lint/structural/health/trampolines.md).
+**No-trampoline policy.** A layer function that only forwards a call has not earned its layer. Do not add `repo/` or `service/` until it earns directory-wide use from controllers; restructure or remove the layer rather than bypassing it. What counts as earning it, and the re-export escape when a name genuinely has to exist: [lint/structural/health/trampolines.ts](lint/structural/health/trampolines.ts).
 
 ### All rules blocking from day one
 
@@ -91,7 +91,7 @@ Feature-internal conventions belong in feature implementation plans. The archite
 
 What matters is what a file imports, not whether that code executes. A file importing the database client is a violation even in a dead code path, and a dynamic import of a restricted module is a violation even if never triggered.
 
-Static analysis does not need to model runtime control flow. Its guarantees cover the import forms the shared extractor represents, and an extraction gap that is not documented is a hole nobody knows about — see [lint/structural/graph/import-graph.md](lint/structural/graph/import-graph.md).
+Static analysis does not need to model runtime control flow. Its guarantees cover the import forms the shared extractor represents, and an extraction gap that is not documented is a hole nobody knows about — see [lint/structural/import-graph.ts](lint/structural/import-graph.ts).
 
 ---
 
@@ -152,7 +152,7 @@ SSR blurs the server/client line: the same code runs on the server during render
 
 So features own their queries, not their tables. Adding a table means adding it centrally, then querying it from the feature that needs it. This reads backwards if you are used to feature-owned migrations, and it is the only model that survives cross-domain foreign keys.
 
-The same logic governs data another feature owns: technically any repo can import any table, but a feature that needs another feature's data calls that feature's server API rather than writing its own query. The owning feature controls how its data is exposed, including auth, validation, and query optimization — and a project can put *who may consume it* under the owner's control too, see [lint/structural/api/feature-visibility.md](lint/structural/api/feature-visibility.md).
+The same logic governs data another feature owns: technically any repo can import any table, but a feature that needs another feature's data calls that feature's server API rather than writing its own query. The owning feature controls how its data is exposed, including auth, validation, and query optimization — and a project can put *who may consume it* under the owner's control too, see [lint/structural/api/feature-visibility.ts](lint/structural/api/feature-visibility.ts).
 
 ---
 
@@ -194,7 +194,7 @@ Every import rule pattern-matches on the aliased path. "Files in `routes/` canno
 
 The unit is finer than the top-level directory. `shared/ui/` and the rest of `shared/` are one boundary and two units, so a primitive reaching `../lib/tokens` is a crossing — and reading the first path segment as the boundary is precisely what let that edge go ungoverned before.
 
-Treat this as the load-bearing one when sequencing a migration. Both halves are one rule: [lint/structural/boundary/import-policy.md](lint/structural/boundary/import-policy.md) resolves relative edges, [lint/oxlint/boundary/import-policy.ts](lint/oxlint/boundary/import-policy.ts) reads aliased ones, and both ask [lint/policy/import-policy.ts](lint/policy/import-policy.ts).
+Treat this as the load-bearing one when sequencing a migration. Both halves are one rule: [lint/structural/boundary/import-policy.ts](lint/structural/boundary/import-policy.ts) resolves relative edges, [lint/oxlint/boundary/import-policy.ts](lint/oxlint/boundary/import-policy.ts) reads aliased ones, and both ask [lint/policy/import-policy.ts](lint/policy/import-policy.ts).
 
 ---
 
@@ -214,7 +214,7 @@ Cross-feature UI is banned. When Feature A needs something in Feature B's UI dir
 
 ## File Size Discipline
 
-Large files are architecture smells: a file past a few hundred lines is doing too many things or working at too many levels of abstraction. Enforce it with graduated thresholds — a warning giving an agent room to split as part of work it is already doing, and a hard failure behind it. Exceptions go in one centralized list with a TODO each, never as per-file ignore comments: scattered exemptions are invisible, a list is auditable. Thresholds and exclusions: [lint/structural/health/file-size.md](lint/structural/health/file-size.md).
+Large files are architecture smells: a file past a few hundred lines is doing too many things or working at too many levels of abstraction. Enforce it with graduated thresholds — a warning giving an agent room to split as part of work it is already doing, and a hard failure behind it. Exceptions go in one centralized list with a TODO each, never as per-file ignore comments: scattered exemptions are invisible, a list is auditable. Thresholds and exclusions: [lint/structural/health/file-size.ts](lint/structural/health/file-size.ts).
 
 ---
 

@@ -1,29 +1,27 @@
 // ─── graph/domain-cycles ──────────────────────────────────────────────
 //
-// Tag:       graph
-// Mechanism: structural check (resolution across the tree)
-// Blocking:  Yes
+// Makes sure: No domain depends on a domain that depends on it back, at any
+// depth. You can move one domain into its own package, or delete it, and
+// change only the code above it. You can test one domain with only the
+// domains below it.
 //
-// Prevents:  A cycle between domain modules, direct or transitive. Domains are
-//            pure business logic at the bottom of the dependency graph. Two
-//            domains in a cycle are not independent — they are one domain
-//            pretending to be two, and untangling them later means restructuring
-//            both at once.
+// The check reads the two resolved ends of each edge, never the specifier.
+// Do not give it the alias prefix, and do not let it assume that
+// boundary/import-policy removes the relative form first. People also write
+// these imports relatively, and a missing edge makes no finding, thus the
+// check reports clean.
 //
-// Invisible at the file level, which is why it is here and not in the lint tier.
-// A per-file rule can confirm that `@/domains/usage` is spelled correctly from
-// inside `domains/billing`; it cannot know that `usage` imports back, and it
-// certainly cannot see the three-domain version where no single file names the
-// domain it eventually reaches.
+// Type-only edges count. The graph marks them and this check ignores the
+// mark. With a circular type dependency you must still change both domains
+// at the same time.
 //
-// Self-contained by construction: it reads the RESOLVED ends of every edge, so
-// the aliased and relative spellings of the same import are one edge here. It
-// does not assume `boundary/import-policy` has already banned the
-// relative one.
+// The check says nothing about which edges are correct. A layered domain
+// graph, such as pricing -> catalog, is normal and gets no finding. A check
+// that reports layered domains is one that people disable.
 //
-// See graph/domain-cycles.md for the intent and the negative space, and
-// graph/import-graph.md for how an edge gets resolved at all.
-//
+// Coverage is the graph's coverage. If this check does not see an import,
+// change the extractor in import-graph.ts. A specifier match here gives two
+// checks two different sets of imports under one stated scope.
 // ──────────────────────────────────────────────────────────────────────
 
 import { describeEdgeLine, type ImportEdge } from "../import-graph.ts";

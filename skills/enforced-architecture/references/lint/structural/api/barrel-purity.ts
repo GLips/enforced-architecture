@@ -1,24 +1,25 @@
 // ─── api/barrel-purity ────────────────────────────────────────────────
 //
-// Tag:       api
-// Mechanism: structural check (cross-file trace)
-// Blocking:  Yes
+// Makes sure: No client-safe barrel in domains/*/index.ts or features/*/index.ts
+// reaches a server-only package through its re-exports. A client component or a
+// route file can import any barrel, and you do not first read the chain below it.
+// When a chain does reach one, the finding at commit time names the barrel to
+// change, not the last package in a build log.
 //
-// Prevents:  A client-safe barrel transitively pulling a server-only package
-//            into the client bundle through its re-exports. No file in the chain
-//            looks wrong on its own — the barrel re-exports a controller, the
-//            controller imports a service, the service imports `stripe` — so
-//            only a cross-file trace can see it.
+// This check does not use the resolved import graph. Graph resolution discards
+// bare package specifiers as "not a boundary question", and bare package names
+// are the subject of this check. It shares the extraction instead, through
+// scanDeclaredImports.
 //
-// This is the one check in the tier that does NOT consume the resolved import
-// graph. Graph resolution discards bare package specifiers as "not a boundary
-// question", and bare package names are precisely this rule's subject. It shares
-// the EXTRACTION instead, importing `scanDeclaredImports` from the substrate:
-// the union of the two Bun scans, minus the JSX runtime entries Bun injects.
-// See graph/import-graph.md.
+// Do not add the pass that recovers "import type" edges. Both Bun scans erase
+// those edges, and this check wants that erasure. A type-only import makes no
+// runtime code and cannot put a package in the client bundle. A mixed re-export
+// (export { type Foo, bar } from "…") stays, because bar is a runtime dependency.
 //
-// See api/barrel-purity.md for the server-function short-circuit — a documented
-// assumption rather than a proof — and for the resolution gaps.
+// The serverFnMarkers test is a string match on the text of the file, so the
+// stop below a marker is an assumption. A comment, a string, or an unused import
+// with the marker name also stops the trace. This check under-reports, and it
+// does not over-report.
 //
 // ──────────────────────────────────────────────────────────────────────
 
@@ -54,12 +55,7 @@ import {
  * dependency and the chain below it is real.
  */
 function runtimeSpecifiers(absolute: string, source: string, jsxImportSource: string): string[] {
-  const scanned = scanDeclaredImports({
-    absolute,
-    source,
-    jsxImportSource,
-    reportAs: absolute,
-  });
+  const scanned = scanDeclaredImports({ path: absolute, source, jsxImportSource });
   return [...new Set(scanned.map((entry) => entry.path))];
 }
 

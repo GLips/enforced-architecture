@@ -1,37 +1,25 @@
 // ─── react/prop-count ─────────────────────────────────────────────────
 //
-// Tag:       react
-// Mechanism: oxlint JS plugin (per-file, real-time)
-// Blocking:  No — a warning. A wide prop surface is a smell, and the developer
-//            decides whether decomposition or the current interface is right.
+// Shows: Each exported component that declares the threshold number of props or
+// more, and the count. A reader learns which components make every call site
+// supply many values, and which one to split next. The rule only warns, so the
+// count is a report and not a property you can depend on.
 //
-// Prevents:  Components with a prop surface wide enough to be hard to use
-//            correctly — usually a component doing too much, props that always
-//            travel together, or data drilled through an intermediary.
+// The rule never adds the annotation and the destructure together. `({ a, b }:
+// { a: string; b: string })` declares the same two props twice, and a sum
+// doubles every name. Names merge as a SET for the same reason: `Model & {
+// tone?: Tone }` is one prop in TypeScript and must be one prop here.
 //
-// The surface is read from the parameter's ANNOTATION, resolved through the type
-// declarations in the same file. Intersection terms and `extends` clauses are
-// followed, because `type XProps = Model & { onThing }` is what a component
-// reaches for once its surface has grown wide enough to want a name — a reader
-// that took only the members written beside the component would go quiet at
-// exactly the size this rule exists to report.
+// Only BASES expand. A member with a named type — `result: ScanResultViewModel`
+// — is one prop. To expand it makes the rule report the shape it asks for: props
+// that travel together, put into one object.
 //
-// AN UNRESOLVED BASE CONTRIBUTES NOTHING AND THE COUNT BECOMES A FLOOR. A type
-// declared in another file cannot be read from this one — a JS plugin gets no
-// type checker — so the finding says "at least N props" and names the base
-// rather than staying silent or refusing to count. Reporting every component
-// whose base is imported would put a permanent unactionable warning on every
-// `extends ViewProps`, which is the defect that teaches people to scroll past a
-// rule. The floor is the conservative half: it can miss a wide component, never
-// invent one.
-//
-// See react/prop-count.md for the rest.
-//
-// ── Adapt ──
-// `threshold` is a rule option — `["warn", { "threshold": 8 }]`. Raise it for a
-// design-system package, where `Button`, `Input` and `Table` are configurable by
-// intent and a low threshold reports the whole library.
-//
+// A base this rule cannot read in this file adds nothing, and the count becomes
+// a floor. A JS plugin gets no type checker, thus the rule cannot read a type
+// that another file declares. The message says "at least N props" and names the base. Silence
+// is an under-count, and a report on every `extends ViewProps` is a permanent
+// warning that a person cannot act on. A floor can miss a wide component, but it
+// cannot invent one.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree } from "@oxlint/plugins";

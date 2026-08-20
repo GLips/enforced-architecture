@@ -1,21 +1,30 @@
 // ─── graph/feature-deps ───────────────────────────────────────────────
 //
-// Tag:       graph
-// Mechanism: structural check (consumes the resolved import graph)
-// Blocking:  Mixed — cycles fail, coupling thresholds warn
+// Makes sure: No feature imports a feature that imports it back, at any depth.
+// You can delete one feature, or move it into its own package, and change only
+// the code that imports it. You do not have to edit two features together to
+// make one change.
 //
-// Prevents:  Two classes of problem in the cross-feature dependency graph.
-//            Cycles, where neither feature can evolve independently. And
-//            coupling that has become structural rather than incidental, which
-//            the three thresholds surface without blocking.
+// The check reads the two resolved ends of each edge, never the specifier text.
+// Do not match "@/features/<name>". People also write these imports as relative
+// paths, and the check then does not see a cycle that it exists to find.
 //
-// This asks what shape the edge set forms. `api/feature-visibility` asks whether
-// each individual edge was intended, and the two are blind to each other: a
-// cycle built from fully-granted, individually-legal edges is still a cycle and
-// still hard-fails here. Declaring both directions only writes the cycle down.
+// Type-only edges count. A type that crosses a feature boundary makes the two
+// features dependent: the importee cannot change the type unless the importer
+// changes too.
 //
-// See graph/feature-deps.md for why the split between blocking and warning.
+// No entry in visibility.json makes a cycle legal, so do not add a way to grant
+// one. The fix for a cycle is to move the shared code to domains/ or shared/.
 //
+// Cycles fail the run. The three coupling thresholds give warnings only, because
+// the correct number changes with the size of the project. Do not make them
+// errors before you set each one above the current count. A check that reports
+// the project in its current state is a check the team disables. The cycle
+// errors then stop with it.
+//
+// This check has no mode that only prints the edge set. A check returns findings
+// and the orchestrator owns every mode; add a baseline report there, over the
+// same graph.
 // ──────────────────────────────────────────────────────────────────────
 
 import type { Finding, StructuralCheck } from "../check-substrate.ts";

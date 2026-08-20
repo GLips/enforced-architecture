@@ -91,7 +91,7 @@ Enforced by `boundary/import-policy`, whose feature column is a *surface* rather
 
 Cross-feature UI imports are banned even between features. If two features need the same UI component, it gets promoted to `shared/ui/` once three features need it (promotion threshold).
 
-The cells above say *which paths* a cross-feature import may name. Whether the edge is allowed at all is a separate decision, and the default is open: any feature may import any other feature's public API. A project can flip that default to deny with [api/feature-visibility](lint/structural/api/feature-visibility.md), which requires the importee to name each permitted consumer in its own `visibility.json`. Decide this in Phase 2 alongside the matrix — it changes the answer in every `features/` cell — and take it when agents write most of the code.
+The cells above say *which paths* a cross-feature import may name. Whether the edge is allowed at all is a separate decision, and the default is open: any feature may import any other feature's public API. A project can flip that default to deny with [api/feature-visibility](lint/structural/api/feature-visibility.ts), which requires the importee to name each permitted consumer in its own `visibility.json`. Decide this in Phase 2 alongside the matrix — it changes the answer in every `features/` cell — and take it when agents write most of the code.
 
 ---
 
@@ -105,7 +105,7 @@ Domains import other domains through barrels only.
 | `@/domains/<name>/index.server` (resolves to `index.server.ts`) | YES |
 | `@/domains/<name>/<internal>/*` | NO |
 
-Enforced by `api/domain-public-api`. `graph/domain-cycles` fails the build on a cross-domain cycle, direct or transitive — domains are the floor, so a cycle there has nowhere to break.
+Enforced by `boundary/import-policy`, whose domain column says `barrel` for the four positions that may reach a domain at all — a feature's `controllers/` and `service/`, a module at a feature's root, and another domain — and `deny` for the other eight, which may not name a domain by any spelling, barrel included. The table above is the *domain-to-domain* row; it is not what a route or a `shared/` helper gets. `graph/domain-cycles` fails the build on a cross-domain cycle, direct or transitive — domains are the floor, so a cycle there has nowhere to break.
 
 ---
 

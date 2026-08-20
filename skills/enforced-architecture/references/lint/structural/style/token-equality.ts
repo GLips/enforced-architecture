@@ -1,23 +1,28 @@
 // ─── style/token-equality ─────────────────────────────────────────────
 //
-// Tag:       style
-// Mechanism: structural check (reads the project's own token source)
-// Blocking:  Yes
+// Makes sure: Each call site that uses a spacing or radius token writes the
+// token name, not the equal px number. To change `md` from 16px to 14px, you
+// edit the theme module, and every call site follows. You do not search the
+// source for each `16` and decide, one by one, which of them mean `md`.
 //
-// Prevents:  A raw value that is EXACTLY a token on the relevant closed scale —
-//            `gap={16}` where `gap="md"` means the same thing. Nothing reads as
-//            wrong at the call site, because the value is right; but only one of
-//            the two spellings moves when the scale moves.
+// Off-scale values (`gap={7}`, `h={37}`) pass in silence. Do not widen the
+// check to all raw dimensions. No check can tell a one-off `w={360}` from
+// drift. The author renames the number to `const PANEL_WIDTH = 360`. The
+// check accepts the new name, and the code holds one more constant with no
+// meaning. An exact match is the one case where the correct fix is already
+// known.
 //
-// The scales arrive through `config`, which the PROJECT's config file fills in by
-// importing its theme module — see `harness/structural-fixtures/config.ts` for the
-// worked example. Never restate a scale here: an enforcer carrying its own copy
-// of the design system drifts from the thing it guards, and reading the token
-// source is the entire reason this axis is a script rather than a lint rule.
+// The scales come from `config` at run time. Do not write a scale into this
+// file. A copy of the design system in the enforcer goes out of date, and then
+// the check reports nothing while the scale moves.
 //
-// Off-scale values (`gap={7}`) pass in silence. That restraint is the design and
-// not a gap in it — see style/token-equality.md, "The narrow claim".
+// An empty scale gives no findings, and empty is the default. A project that
+// does not point the check at its theme module gets a run with no findings.
+// Test adoption with a finding you see, never with a clean run.
 //
+// Do not add an ignore-comment convention. A raw value that is equal to a token
+// is almost always the token with the wrong spelling. A true exception is a
+// reason to change the scale, not a reason to make the check quiet.
 // ──────────────────────────────────────────────────────────────────────
 
 import {

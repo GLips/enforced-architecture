@@ -16,9 +16,16 @@
 // Applies:  All src/routes/** files EXCEPT:
 //           - Test files
 //
-// Error:    "Routes must be thin adapters. Import data via feature
-//            barrels (@/features/<feature>),
-//            not directly from DB or env.server."
+// Error:    "Routes are isomorphic thin adapters. Import data through
+//            the client-safe feature barrel (@/features/<feature>),
+//            not DB or env.server."
+//
+// Not here:  `*/index.server` in a route — api/server-import-context owns it,
+//            and owns it with a distinction this rule cannot make: a route
+//            file named `*.server.ts` is a server context and MAY import a
+//            server barrel, while `routes/invoices.tsx` may not. This rule
+//            gates on the routes directory alone, so an arm here would fire
+//            on `routes/api.users.server.ts` and deny what that one permits.
 //
 // ── Adapt ─────────────────────────────────────────────────────────────
 //
@@ -54,9 +61,10 @@ import { visitModuleSources } from "../lib/module-source-visitor.ts";
 
 const ROUTE_LAYER = /\/src\/routes\//;
 
-// The message also names `index.server`, which is guidance rather than a third arm here:
-// api/server-import-context already fences server barrels out of every client context, routes
-// included, and two rules reporting the same specifier trains people to ignore both.
+// Two arms, and deliberately not three. `*/index.server` belongs to api/server-import-context: it
+// splits routes by file naming — `routes/invoices.tsx` is a client context and denied,
+// `routes/api.users.server.ts` is a server context and permitted — and this rule, gating on
+// ROUTE_LAYER alone, cannot make that split. An arm here would fire on the permitted spelling.
 const BANNED_SPECIFIERS = [/^@\/infrastructure\/db(?:\/|$)/, /^@\/env\.server$/];
 
 export const routeThinnessRule = defineRule({
@@ -64,7 +72,7 @@ export const routeThinnessRule = defineRule({
     type: "problem",
     messages: {
       serverOnlyImportInRoute:
-        "Routes are isomorphic thin adapters. Import data through the client-safe feature barrel (@/features/<feature>), not DB, env.server, or index.server.",
+        "Routes are isomorphic thin adapters. Import data through the client-safe feature barrel (@/features/<feature>), not DB or env.server.",
     },
   },
   create(context) {

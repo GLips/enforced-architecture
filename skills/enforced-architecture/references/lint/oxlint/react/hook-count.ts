@@ -1,26 +1,28 @@
 // ─── react/hook-count ─────────────────────────────────────────────────
 //
-// Tag:       react
-// Mechanism: oxlint JS plugin (per-file, real-time)
-// Blocking:  No — a warning. A crowded component is sometimes a genuine
-//            orchestrator, and the author decides which.
+// Shows: Each exported component that makes 7 or more hook calls, and the
+// count. To test such a component, a developer must set up every one of its
+// hooks, and this count is that number. The rule warns and does not fail the
+// build, because some components collect independent hooks by design.
 //
-// Prevents:  Components that have quietly accumulated responsibilities. Data
-//            fetching, form state, subscriptions, and animation in one render
-//            body is a set of custom hooks that was never extracted.
+// The count is per component and not per file. A file that holds a component
+// and the custom hook extracted out of it is the shape this rule asks for. A
+// sum over the file reports that shape as the problem.
 //
-// The count is per COMPONENT, not per file: a file holding a component and the
-// custom hook extracted out of it is the shape this rule asks for, and summing
-// the file reports the fix as the problem.
+// A custom hook is never a subject. It is the target of the extraction, and a
+// report against it tells the author that the extraction was of no use. The
+// classifier keys on the capital letter, thus `usePanelState` is not a
+// component and gets no count of its own.
 //
-// See react/hook-count.md for the rest.
+// Hook calls in nested callbacks and in conditionals count. To skip them looks
+// more correct, because the rules of hooks do not permit them there. But then
+// this rule and the React lint plugin disagree about what a hook call is.
 //
-// ── Adapt ──
-// `threshold` is a rule option — `["warn", { "threshold": 7 }]`. Raise it for a
-// codebase whose components legitimately orchestrate; calibrate against the
-// current tree and set it just above, so it signals growth rather than firing on
-// day one.
+// No kind of hook counts for more than another. Seven `useState` calls and
+// seven different hooks are the same finding, and which hooks matter most is
+// a judgement for the reader.
 //
+// Two components in one file is react/single-component-export's finding.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree, type Range } from "@oxlint/plugins";

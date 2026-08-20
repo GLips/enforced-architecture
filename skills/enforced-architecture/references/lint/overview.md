@@ -3,9 +3,10 @@
 67 enforcement rules in one tree, split by **tier** first and **tag** second. Read this file to
 choose tags, a tier's tag `overview.md` to choose rules within it, then the rule itself to adapt it.
 
-Where the rule's documentation and its *Adapt* section live differs by tier, because the tiers are
-copied differently: an oxlint rule carries both in its own file header, and a structural check
-carries them in the `<name>.md` beside the implementation.
+Each rule carries its documentation in the header of its own file, in both tiers. The header names
+what the rule buys, and then guards the reader against a wrong edit. An oxlint rule carries its
+*Adapt* section in that header too; the keys a structural check reads are in
+[structural/config.ts](structural/config.ts).
 
 ```
 policy/       runtime-neutral tables both tiers read
@@ -42,7 +43,7 @@ it says what the rule can see.
 | **types** | [12](oxlint/types/overview.md) | — | Whether a type declaration says anything — untyped bags, `unknown` contracts, unjustified `as` |
 | **placement** | [7](oxlint/placement/overview.md) | [2](structural/placement/overview.md) | Where code may *live*, so the paths other rules match are the paths code is in |
 | **style** | [6](oxlint/style/overview.md) | [3](structural/style/overview.md) | Design-system adherence — tokens, primitives, no raw values |
-| **api** | [3](oxlint/api/overview.md) | [2](structural/api/overview.md) | How deep a permitted import may reach. Barrels and public surface |
+| **api** | [2](oxlint/api/overview.md) | [2](structural/api/overview.md) | How deep a permitted import may reach. Barrels and public surface |
 | **react** | [6](oxlint/react/overview.md) | — | Component-level smells that survive review because each looks reasonable |
 | **effect** | [6](oxlint/effect/overview.md) | — | Effect-TS policy bans — the syntactic residue after @effect/language-service, which owns everything type-aware |
 | **health** | [1](oxlint/health/overview.md) | [3](structural/health/overview.md) | Size and shape signals. Nothing here is a correctness defect |
@@ -60,7 +61,7 @@ Not every project needs every rule. Use audit findings to guide selection.
 | If the project has... | Include these rules |
 |---|---|
 | Database layer | `boundary/db-isolation`, `placement/schema-placement`, `placement/no-raw-result` |
-| `domains/` directory | `api/domain-public-api`, `graph/domain-cycles` — domain purity is a row in `boundary/import-policy`, not a rule to add |
+| `domains/` directory | `graph/domain-cycles` — both domain purity and how deep an import may reach into a domain are columns in `boundary/import-policy`, not rules to add |
 | Multiple features | `graph/feature-deps` — the public-API restriction is a row in `boundary/import-policy` |
 | Multiple features **and** agents writing most of the code | `api/feature-visibility` — pair-wise opt-in on top of the above |
 | SSR / bundle splitting | `api/barrel-direction`, `api/barrel-purity`, `api/server-import-context`, `boundary/client-server-infra` |
@@ -108,11 +109,13 @@ visible in the project as it is here.
    `lint/structural/`: `check-substrate.ts`, `import-graph.ts`, `config.ts`, `registry.ts` and the orchestrator.
    Each exports a check that **returns findings**; the orchestrator owns reporting and the exit
    code. These are **copied, not adapted** — adopting one means writing config, not reimplementing
-   an algorithm. See [structural/config.ts](structural/config.ts) for the shape and every rule's
-   *Adapt* section for its keys.
-4. **Build [graph/import-graph](structural/graph/import-graph.md) before its consumers.** Most
+   an algorithm. See [structural/config.ts](structural/config.ts) for the shape and for the
+   keys each check reads.
+4. **Build [graph/import-graph](structural/import-graph.ts) before its consumers.** Most
    structural checks answer *where an import lands* rather than *how it is spelled*, and they are
-   the ones that break silently when they don't.
+   the ones that break silently when they don't. This is the **fourth** reason a check cannot live
+   in the per-file tier, alongside cross-file analysis, filesystem awareness, and counting across a
+   file set: the answer is a function of the importing file's location, not of the import string.
 5. **Every rule ships with its specs**, including one adversarial case — see *Rule Specs* in
    [enforcement-implementation.md](../enforcement-implementation.md).
 

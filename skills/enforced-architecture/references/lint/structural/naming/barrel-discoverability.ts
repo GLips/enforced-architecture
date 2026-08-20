@@ -1,22 +1,23 @@
 // ─── naming/barrel-discoverability ────────────────────────────────────
 //
-// Tag:       naming
-// Mechanism: structural check (a declared set of files, not a handed one)
-// Blocking:  Yes
+// Makes sure: Every barrel that barrelGlobs names lists each name it exports,
+// with the same name the definition has. To learn what a module offers, you
+// read the one barrel file, not the files below it. A search for a public name
+// finds the definition, and a search for the definition finds the callers.
 //
-// Prevents:  A public barrel hiding or renaming what it exposes. A wildcard
-//            advertises no names at all, so grepping the barrel for a module's
-//            surface finds nothing and every new export leaks through the
-//            public API unreviewed. A rename leaves the public name and the
-//            definition sharing no text, so a reverse lookup on either one
-//            finds half the story.
+// Do not widen barrelGlobs past the public barrels. Inside a module, a wildcard
+// or an alias changes nothing that code outside the module can find. A check on
+// every file then reports on correct code.
 //
-// Nothing here is structural: every question this asks is decidable from the
-// one file in hand. It is a script because barrels are few and short, so the
-// glob costs nothing and it rides along with naming/test-file-mirror, which
-// does need the filesystem. See naming/barrel-discoverability.md for what
-// porting it to the lint tier would take.
+// A glob that matches no file is not an error. A spelling mistake in
+// barrelGlobs keeps the check green while it reads no barrel at all.
 //
+// `export { default as Button }` is a finding. Do not add an exception for
+// `default`. A default export has no name to search for, so the barrel holds
+// the only name of that symbol. Give the definition the name.
+//
+// What a barrel reaches through its re-exports is api/barrel-purity's finding,
+// not this one's.
 // ──────────────────────────────────────────────────────────────────────
 
 import {

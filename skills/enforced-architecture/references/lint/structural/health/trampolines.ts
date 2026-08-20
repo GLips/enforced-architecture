@@ -1,20 +1,23 @@
 // ─── health/trampolines ───────────────────────────────────────────────
 //
-// Tag:       health
-// Mechanism: structural check (counts across a file set)
-// Blocking:  No — warning only
+// Shows: each exported function in a target layer whose body has no variable,
+// no branch, and no try or throw. Such a function usually only forwards a call,
+// so you delete it or you write `export { repoFn as serviceFn }`. Then a change
+// to the repo function is an edit to one file, not two.
 //
-// Prevents:  Pass-through wrappers that add nothing beyond forwarding a call to
-//            the next layer. These are the failure mode of layered
-//            architecture: enforcement creates the layers, and agents dutifully
-//            populate them with functions that just call through.
+// The layer, and not the body text, decides the result. The same body is a finding
+// under service/ and correct under repo/, where a thin wrapper on a query is the
+// job. Thus the check walks layer roots, and repo is never a target layer.
 //
-// A body with no variable declarations, no control flow and no error handling is
-// almost always `return repo.doThing(args)`, which is why this reads keywords
-// rather than an AST — see health/trampolines.md for why the precision of the
-// TypeScript compiler API is not worth its weight in a pre-commit check, and for
-// the false positives that make this non-blocking.
+// Do not add `return` to behaviorKeywords. A function that only returns the
+// result of another function is the subject of this check. With `return` in
+// that list, the check reports nothing at all.
 //
+// This reads two forms: `export function` and a method of an exported object
+// literal. It does not read an exported arrow function
+// (`export const name = () => …`). Add that shape here if it appears. A form
+// the extractor does not find gets no finding, and a reader then believes the
+// file is correct.
 // ──────────────────────────────────────────────────────────────────────
 
 import {

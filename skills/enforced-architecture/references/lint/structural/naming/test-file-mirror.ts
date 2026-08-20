@@ -1,19 +1,24 @@
 // ─── naming/test-file-mirror ──────────────────────────────────────────
 //
-// Tag:       naming
-// Mechanism: structural check (counts across a file set)
-// Blocking:  No — warning only
+// Shows: The tests that a search for their source module does not find. A test
+// that carries the name of its source comes back in that same search. Then you
+// see the test that constrains a module before you change the module. This
+// check only warns, thus the project can keep a test name that no search
+// connects to its source.
 //
-// Prevents:  Test files whose names do not map to the source they cover. A
-//            mirrored pair surfaces together in one search for the concept;
-//            a diverged name leaves the test invisible to an agent editing the
-//            source it constrains, which then breaks it silently.
+// This is the one check whose subject is a file that every other check skips,
+// thus it is the one caller of `collectFiles` with `includeExcluded`. A person
+// who makes this walk the same as the other walks deletes that option. The
+// check then reads no test files and stays green.
 //
-// The one check whose SUBJECT is a file every other check skips, so it is also
-// the one caller of `collectFiles`'s `includeExcluded`. See
-// naming/test-file-mirror.md for why it audits the TEST side of the pairing and
-// never asks whether a source has a test at all.
+// The check never asks if a source file has a test. Tests must earn their
+// place, and many modules correctly have none. A rule that demands a test here
+// makes people add test files with no assertions.
 //
+// `base` comes from `absolute`, not from `sourcePath`, although every line
+// around it uses `sourcePath`. `existsSync` on a source-root-relative path
+// tests the current directory, and then each mirrored test becomes an orphan
+// report.
 // ──────────────────────────────────────────────────────────────────────
 
 import { existsSync } from "node:fs";

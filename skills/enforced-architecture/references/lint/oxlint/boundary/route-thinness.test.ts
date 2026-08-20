@@ -92,6 +92,16 @@ describeRule("boundary/route-thinness", routeThinnessRule, {
       code: `import { serverEnv } from "@/env.server";`,
     },
     {
+      name: "a server barrel is api/server-import-context's arm, not a third one here",
+      filename: ROUTE,
+      code: `import { listInvoices } from "@/features/billing/index.server";`,
+    },
+    {
+      name: "a route file named .server.ts is a server context that may name a server barrel, so an arm here would deny what that rule permits",
+      filename: "/repo/src/routes/api.invoices.server.ts",
+      code: `import { listInvoices } from "@/features/billing/index.server";`,
+    },
+    {
       name: "a route's test may reach across every boundary",
       filename: "/repo/src/routes/invoices.test.tsx",
       code: IMPORT_DB,

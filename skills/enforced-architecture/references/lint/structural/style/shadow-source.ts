@@ -1,21 +1,28 @@
 // ─── style/shadow-source ──────────────────────────────────────────────
 //
-// Tag:       style
-// Mechanism: structural check (a surface the linter cannot see)
-// Blocking:  Yes
+// Makes sure: Only one file declares a shadow: the file that `allowedFile`
+// names. To change how a shadow looks, you edit one named entry in that file.
+// To see all of the shadows in the project, you read that one file and not
+// each stylesheet and each component.
 //
-// Prevents:  Elevation being invented at the call site. Every shadow in the
-//            codebase lives in ONE curated file, so the set of shadows anyone
-//            has to review is one screen long rather than the whole tree.
+// Do not move this check to the lint tier. oxlint does not parse a .css file,
+// and a stylesheet is where most shadows are. A rule that reads only the .tsx
+// files reports nothing about the stylesheets, and the sentence above becomes
+// false.
 //
-// The pattern is chosen BY SURFACE: the CSS property spelling in stylesheets,
-// the JS key spelling in modules. Two branches, one per surface — a case
-// covering one of them says nothing about the other, and the branch that goes
-// unexercised is the one that silently stops matching.
+// The word boundaries in `stylesheetPattern` and `scriptPattern` are
+// necessary. `shadowRoot`, a `data-shadow` attribute and a `.shadow-panel`
+// class name are all correct code. A wider pattern fails a commit on correct
+// code, and then people disable the check.
 //
-// See style/shadow-source.md for the React Native spelling, and for why a
-// `styles` / `sx` escape hatch is the one adjustment that ends the rule.
+// Do not add an escape for a `styles` or an `sx` prop. A person asks for it
+// about one week after you add this rule. If a component can write a shadow
+// through a prop, the file is no longer the complete list. No person can
+// test the first sentence by a read of one file.
 //
+// Keep the severity at error. With a warning, the number of violations
+// increases, and the file that people still name as the complete list is not
+// complete.
 // ──────────────────────────────────────────────────────────────────────
 
 import {

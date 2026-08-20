@@ -4,9 +4,21 @@ The whole-tree half: both checks compare a name against something outside the fi
 — a barrel's re-export against the symbol it renames, a test filename against the source it should
 mirror. The per-file half is in [../../oxlint/naming/overview.md](../../oxlint/naming/overview.md).
 
-| Rule | Blocking | What it prevents |
+| Rule | Blocking | What it buys |
 |---|---|---|
-| [barrel-discoverability](barrel-discoverability.md) | Yes | Public barrels using `export *` or renamed re-exports (`export { X as Y }`) that hide or rename symbols from text search |
-| [test-file-mirror](test-file-mirror.md) | No | Test files whose names don't mirror their source, so they don't surface alongside the code they cover |
+| [barrel-discoverability](barrel-discoverability.ts) | Yes | Every barrel that `barrelGlobs` names lists each name it exports, under the name the definition has |
+| [test-file-mirror](test-file-mirror.ts) | No | The tests that a search for their source module does not find |
+
+`barrel-discoverability` reads only the barrels that `barrelGlobs` names, so a project with no
+public barrels gets no findings from it. Every question it asks is decidable from one file. It stays
+a structural check because it uses the same file walk as `test-file-mirror`. The finding thus comes
+at commit time and not in the editor. Move it to the lint tier to get the finding at author time;
+the intent does not change.
+
+`test-file-mirror` reads only tests that sit beside the code they cover. A project that keeps its
+tests in a separate tree gets one warning for each test file. A check that reports every file is a
+check the project turns off. Both of its findings have severity `warning`, and the severity is in
+the code, not in the config. A project with a fully co-located test layout can change the two values
+to `error`.
 
 Adoption mechanics, the spec contract, and cross-tag rule selection: [../../overview.md](../../overview.md).

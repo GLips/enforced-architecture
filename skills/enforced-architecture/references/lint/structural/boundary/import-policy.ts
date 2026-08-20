@@ -1,37 +1,35 @@
 // ─── boundary/import-policy ───────────────────────────────────────────
 //
-// Tag:       boundary
-// Mechanism: structural check (resolution across the tree)
-// Blocking:  Yes
+// Makes sure: Every relative import gets the same verdict as its aliased form,
+// and every import that leaves its unit uses the alias. To find each file that
+// imports a feature, you search for one string, `@/features/<name>`. A rule that
+// matches aliased paths applies to every edge, because a relative path cannot
+// avoid it.
 //
-// The resolved half of one policy. It walks every RELATIVE import edge in the
-// tree, resolves it — which the linter cannot do — and hands it to the same
-// evaluator the oxlint tier reads. Three outcomes:
+// Do not match the specifier text with a pattern. An import from
+// features/alpha/ui/ to a sibling feature, "../../beta/x", holds no `features/`
+// segment. That is the shortest form of an import out of a unit, and thus the
+// most frequent one.
 //
-//   internal        the edge stays inside one unit. Reported by nothing here;
-//                   `placement/layer-direction` and `boundary/layer-occupancy`
-//                   are what govern inside a feature.
-//   deny            the semantic denial, in the same words the linter would use
-//                   for the aliased spelling of the same edge.
-//   allow-crossing  the edge is legal and leaves its unit, so the only finding is
-//                   that it is spelled relatively.
+// Pass every relative edge, with no pre-filter — not even a filter that drops an
+// edge whose two ends share a boundary. src/shared/ui/** and src/shared/** are
+// one boundary and two units, and unit identity is what makes an edge
+// `internal`. Such a filter does not see `import { theme } from "../lib/tokens"`
+// in src/shared/ui/.
 //
-// EVERY relative edge is passed, with no pre-filter — not even the obvious one
-// of skipping edges whose two ends share a boundary. `src/shared/ui/**` and
-// `src/shared/**` are one boundary and two UNITS, so that filter cannot see
-// `import { theme } from "../lib/tokens"` written inside `src/shared/ui/`, and
-// unit identity is what the evaluator decides `internal` on. Do not reintroduce
-// a selector here: the argument in full, and why any future nested profile
-// recreates the same hole, is in boundary/import-policy.md.
+// There is no exclusion list and no per-directory scope. A path that you exclude
+// here leaves the whole import policy, and no message says so.
 //
-// See boundary/import-policy.md for the negative space and the adapt notes, and
-// graph/import-graph.md for how an edge gets resolved at all.
+// Do not drop a type-only edge. The policy reads the type mark in one row only:
+// a domain's runtime imports are narrower than its type imports. A forbidden
+// direction stays forbidden for a type.
 //
-// ── Adapt ─────────────────────────────────────────────────────────────
+// Coverage equals the coverage of structural/import-graph.ts. For an edge form
+// that does not arrive, extend the extractor there, and do not add a match here.
 //
-// Nothing here. The policy is `lint/policy/import-policy.ts` and the shape of
-// the tree is `lint/policy/layout.ts`.
-//
+// An `internal` edge gets no report here. placement/layer-direction reports an
+// edge that goes up, and boundary/layer-occupancy reports an edge that skips an
+// occupied layer.
 // ──────────────────────────────────────────────────────────────────────
 
 import { evaluateImportPolicy, renderPolicyMessage } from "../../policy/import-policy.ts";

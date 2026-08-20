@@ -1,70 +1,25 @@
 // ─── boundary/layer-occupancy ─────────────────────────────────────────
 //
-// Tag:       boundary
-// Mechanism: structural check (resolution across the tree + directory presence)
-// Blocking:  Yes
+// Makes sure: A feature uses each layer it has. If the feature has a
+// controllers directory, every call from ui goes through it. If it has a repo
+// directory, all queries to its tables are in that directory. Thus you change
+// a layer in one place, and the callers you find are all of the callers.
 //
-// Prevents:  A same-feature import reaching past a layer the feature ALREADY
-//            HAS. A feature can carry a well-organised service/ while its UI
-//            calls the repo, or a well-organised controllers/ while its UI calls
-//            the service, so the layers exist on disk and hold nothing.
+// Occupancy starts the check. To skip a layer that is not there is correct,
+// thus this cannot be a static policy. The check tests for occupancy and not
+// for a directory. An empty layer stops access to every layer below it and
+// gives you no place to put the code.
 //
-// The filesystem decides whether there is a question to ask at all. Skipping an
-// ABSENT layer is correct — a feature with no service is a feature that did not
-// need one — so what makes an edge a bypass is not its length but whether the
-// layers it jumps over are occupied. That is why presence is tested rather than
-// assumed, and why this cannot be a static policy: it depends on which
-// directories exist today.
+// Do not match "../repo/" in a specifier. The same import from a directory one
+// level deeper ("../../repo/x"), or as an alias to the same feature, looks
+// correct to a pattern. A person who moves a layer into subfolders writes the
+// deeper form.
 //
-// Occupancy rather than a bare directory test, because an empty leftover layer
-// would otherwise revoke access to everything below it while offering nowhere to
-// put the code — the fix the message names would be a directory holding nothing.
+// Type imports count. The result must not change for a type-only import; only
+// the words in the message change. If the result changes, "import type"
+// becomes the permitted spelling of the same problem.
 //
-// Presence decides WHETHER to ask; the resolved graph decides WHAT the edge is.
-// Never match `../repo/` in a specifier: the same bypass written from a nested
-// directory (`../../repo/x`) or as a same-feature alias
-// (`@/features/<self>/repo/x`) is ordinary-looking code that a pattern reports
-// as clean.
-//
-// TYPE IMPORTS COUNT, with no exception and no branch. The rule of thumb applied
-// per invariant: a check protecting BEHAVIOUR or the bundle exempts them, since
-// a type cannot make a verdict depend on env; a check protecting KNOWLEDGE
-// exempts nothing. This is the second kind. If ui/ names a type owned by
-// service/, the service's shape is part of the UI's contract — change the return
-// type and the UI breaks, and neither layer can be lifted out, which is the
-// stated reason the layers exist. Counting only runtime edges would weaken
-// "never bypass an occupied layer" into "never EXECUTE THROUGH a bypass", and
-// `import type` would become the way to bind UI straight to a repo contract with
-// the controller layer sitting right there.
-//
-// This is the line `placement/layer-direction` does NOT hold: it rejects UPWARD
-// imports and sees no downward skip at all. A downward edge that skips a layer
-// is this check's finding; a direction verdict is that one's. A check answering
-// both is a check nobody can predict.
-//
-// ── The schema arm ────────────────────────────────────────────────────
-//
-// The DB schema is not a layer, so a schema import is not a skip the slice below
-// can see — and it is the same failure. Once a feature's lowest layer is
-// occupied, query CONSTRUCTION belongs there, and anything above it assembling
-// its own query has reached past that layer to the tables themselves. The DB
-// CLIENT stays legal, permanently: the client conveys EXECUTION and the
-// transaction boundary is genuinely the caller's — see the doc.
-//
-// A second arm rather than a wider slice, because the ADVICE differs. A layer
-// skip is fixed by routing through the next hop DOWN; a schema import is fixed
-// by moving the query all the way into the lowest layer. One message covering
-// both would name the wrong destination for one of them.
-//
-// ── Adapt ─────────────────────────────────────────────────────────────
-//
-// `source.layerOrder` and what is on disk are the whole layer policy. No layer
-// is named here by role — the lowest is found by POSITION, which is what
-// `layerOrder` already means everywhere else — so a project that adds a fifth
-// layer or renames `service/` to `usecases/` gets it covered by naming it once
-// in `policy/layout.ts`. What stays configurable is `schemaTarget`, which is not
-// a layer at all.
-//
+// An import that goes up is placement/layer-direction's finding, not this one's.
 // ──────────────────────────────────────────────────────────────────────
 
 import type { Finding, StructuralCheck } from "../check-substrate.ts";

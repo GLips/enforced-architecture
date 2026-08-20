@@ -115,7 +115,7 @@ Add project-specific how-to guides as patterns emerge. Good candidates: adding a
 
 Everything above is a doc agents read while deciding where code goes — and therefore a doc agents keep appending to. Each addition is defensible on its own: a clarifying paragraph, a worked example, a note about the case that just came up. Nothing is ever removed. The CLAUDE.md section written to be read in under a minute becomes the one that is skimmed, and the reference file written to be consulted becomes the one that is grepped and abandoned.
 
-Nothing in the enforcement tiers notices, because length is not a violation of anything. So budget it: `docs/doc-budgets.manifest.json` maps each standing doc to a word ceiling, and [health/doc-budgets](lint/structural/health/doc-budgets.md) fails the build on two conditions rather than one.
+Nothing in the enforcement tiers notices, because length is not a violation of anything. So budget it: `docs/doc-budgets.manifest.json` maps each standing doc to a word ceiling, and [health/doc-budgets](lint/structural/health/doc-budgets.ts) fails the build on two conditions rather than one.
 
 - **Over the ceiling.** The doc has to be condensed, or the material moved to the doc that owns it.
 - **More than 5% of slack under the ceiling.** This is the ratchet, and it is the half that does the work. A doc that gets condensed otherwise leaves its old ceiling behind, and that headroom is room the next agent expands into with nothing to show in a diff. Reclaiming it in the same change costs one number and puts it in the hands of the person who just did the shortening.

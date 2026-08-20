@@ -1,30 +1,27 @@
 // ─── placement/layer-direction ────────────────────────────────────────
 //
-// Tag:       placement
-// Mechanism: structural check (resolution across the tree)
-// Blocking:  Yes
+// Makes sure: Inside one feature, an import only goes down the layer stack, and
+// no file in the feature imports the feature's own barrel. You can move a low
+// layer to a new feature, or replace it, and read only the layers below it. When
+// you change a high layer, no layer below it can break, because no layer below
+// it imports it.
 //
-// Prevents:  A lower layer importing from a higher one inside the same feature.
-//            The layer stack is the feature's only statement about which way
-//            dependency runs; an upward edge makes the two layers one module
-//            that happens to be spread across two directories, and every later
-//            extraction has to unpick it.
+// Direction is the only question here. A downward edge that skips a layer is
+// boundary/layer-occupancy's finding. The two are independent: an edge can be
+// wrong under one, both, or neither, and one check that answers both is a check
+// nobody can predict.
 //
-// Direction is the ONLY question here. A downward edge that skips a layer is
-// `boundary/layer-occupancy`'s finding, not this one — the two get conflated,
-// and a check answering both is a check nobody can predict.
+// Do not match "../service/" in a specifier. The same edge from a directory one
+// level deeper ("../../service/x"), or as an alias to the same feature, looks
+// correct to a pattern. The aliased spelling is what auto-import writes, thus it
+// is the most frequent spelling of an upward edge.
 //
-// Prevents:  A layer importing its OWN feature's barrel. That edge has no rank —
-//            the barrel is in no layer, so the direction comparison below skips
-//            it — and it is the sharpest upward edge a feature can contain: the
-//            barrel re-exports the layers, so a layer reaching it depends on
-//            every layer at once, including the ones above it, and the cycle
-//            runs through the file whose job is to describe the feature from
-//            outside. Reach the sibling module directly.
+// Type imports count. A type that goes up inverts the dependency as a value
+// does, and you still cannot read the low layer without the high layer.
 //
-// See placement/layer-direction.md for the negative space and the adapt notes,
-// and graph/import-graph.md for how an edge gets resolved at all.
-//
+// The barrel arm is here and not in boundary/import-policy. That engine calls
+// the edge internal, because both ends are one unit, which is correct for a
+// question about imports between units and wrong for direction inside a feature.
 // ──────────────────────────────────────────────────────────────────────
 
 import { isUnitBarrel } from "../../policy/layout.ts";
