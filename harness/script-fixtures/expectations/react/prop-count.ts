@@ -18,13 +18,28 @@ export const propCountFixtures: CheckFixtures = {
     // closing bracket merges the remaining members and scores this under the
     // threshold — silent, which is the failure this tier keeps producing.
     "WARN src/features/alpha/ui/wide-typed.tsx",
+    // Seven of this component's eight props are declared to the LEFT of the
+    // brace, as `Model & { onScanAnother }`. A reader that takes the members
+    // between the first `{` and its match scores it at 1 — silent, in the one
+    // spelling a component reaches for once its surface is wide.
+    "WARN src/features/alpha/ui/wide-intersection.tsx",
+    // The same blind spot through `interface XProps extends A, B`, which is a
+    // separate site: the base sits in a heritage clause rather than in a type
+    // expression, and it is a comma LIST, so a fix resolving one name is still
+    // silent here at five.
+    "WARN src/features/alpha/ui/wide-extends.tsx",
   ],
 
-  // Both sit one prop under the threshold, one per counting strategy, because a
+  // Each sits one prop under the threshold, one per counting strategy, because a
   // legal neighbour only detects over-counting if it is close enough to the line
   // for the over-count to cross it.
   legal: [
     "src/features/alpha/ui/narrow-neighbour.tsx",
     "src/features/alpha/ui/narrow-typed-neighbour.tsx",
+    // The third strategy's neighbour: seven counted across a base and the
+    // literal intersected with it, where a re-declared member, a member whose
+    // type is a named local type, and a nested object literal each push it over
+    // the line if the merge over-reaches.
+    "src/features/alpha/ui/narrow-intersection-neighbour.tsx",
   ],
 };

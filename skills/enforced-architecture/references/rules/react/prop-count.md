@@ -34,6 +34,23 @@ Props are declared in two ways, and each hides the other's count.
 
 The type is tried first and the destructure is the fallback, because a component with a named Props type may still take `props` whole — `function WideTyped(props: WideTypedProps)` has nothing to destructure, and a destructure-only implementation reads it as zero props and stays quiet.
 
+## Base types, and the floor
+
+Most of a wide prop surface is often declared to the *left* of the brace:
+
+```ts
+type XProps = Model & { onThing: () => void };
+interface XProps extends Model { onThing: () => void }
+```
+
+Both spellings are counted: the members of every intersection term and every heritage entry are merged in, recursively, when the named type is declared in the **same file**. This is not an edge case — the intersection is what a component reaches for once its surface has grown wide enough to want a name, so a reader that took only the members between the braces went quiet at exactly the size it exists to report.
+
+Names are merged as a **set**. `Model & { tone?: Tone }` narrowing a member `Model` already declares is one prop in TypeScript and is one prop here.
+
+**A base the check cannot read out of this file contributes nothing, and the count becomes a floor.** That is either a type declared in another file, or one declared here whose body is not an object it can enumerate — `type BoxBehaviourProps = Pick<ViewProps, …>`. The finding reports "at least N props" and names the base, not whatever is inside it. Two alternatives were available and both are worse: staying silent is the under-count that made this check miss an eight-prop component while looking green, and reporting every component with an imported base would put a permanent, unactionable warning on every `extends ViewProps` in a React Native codebase — the defect that teaches people to scroll past a check. A floor can miss a wide component; it can never invent one.
+
+Cross-file resolution would shrink that blind spot but not close it, since the common base is `ViewProps` from a `.d.ts` in `node_modules`. It is deliberately not attempted.
+
 ## Where it applies
 
 Every `.tsx` file under the configured component roots, walked from the **source root**: `features/*/ui`, `shared/ui`, `routes` by default. Every exported component declaration in those files is its own subject, so a file with two components is two counts and not one sum.
@@ -49,6 +66,10 @@ Every `.tsx` file under the configured component roots, walked from the **source
 **A `<Name>Props` declaration may carry a type-parameter list.** `interface OptionListProps<T> {` is the ordinary generic spelling, and a pattern demanding `{` or `=` immediately after the name does not see it. The declaration is then missed, the check falls through to the destructure strategy, and a component taking `props` whole reports nothing at all.
 
 **A signature the check cannot read is reported, not skipped.** When the parameter list has no closing paren within the classifier's line budget the finding is a blocking **error** naming the component — because a component the check cannot read is a component it never reports on, and silence there is indistinguishable from a pass. The usual cause is an unbalanced paren in a template literal further up the file.
+
+**Only BASES expand; member types do not.** `result: ScanResultViewModel` is one prop whose type happens to be named, and expanding it would report the very shape this check asks for — grouping props that travel together into one object — as a violation. A check that argues against its own advice is one nobody follows.
+
+**A union of prop shapes is a floor, not a count.** `type XProps = A | B` has members this walk never reaches. The count stops at the `|` and is reported as a floor rather than as a total.
 
 **Nested members are one prop.** `layout: { columns: number; dense: boolean }` is a single property signature; counting every `name:` inside the type body instead of every top-level member inflates it by the size of its own type.
 
@@ -76,6 +97,15 @@ A project whose convention is `ComponentAttrs` or `ComponentConfig` rather than 
 ```
 WARN [react/prop-count] src/features/billing/ui/plan-selector.tsx:18
   PlanSelector has 12 props (threshold: 8).
+  Decompose into smaller components, group props that always travel together
+  into one object, or lift shared data into context. If the wide surface is
+  deliberate — a design-system primitive, or a wrapper forwarding to a third
+  party — raise the threshold in the project's architecture config.
+
+WARN [react/prop-count] src/shared/ui/box.tsx:50
+  Box has at least 9 props (threshold: 8).
+  That is a floor: prop-count could not read BoxBehaviourProps out of this file, and it
+  resolves a base type by name within one file, so the real surface is wider.
   Decompose into smaller components, group props that always travel together
   into one object, or lift shared data into context. If the wide surface is
   deliberate — a design-system primitive, or a wrapper forwarding to a third
