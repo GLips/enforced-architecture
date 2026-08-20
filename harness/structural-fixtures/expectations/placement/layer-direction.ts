@@ -63,5 +63,12 @@ export const layerDirectionFixtures: CheckFixtures = {
     // having a layer. Without this case the exclusion clause is asserted by
     // nothing: delete it and the suite stays green.
     "src/features/orders/index.server.ts",
+    // The two ends in layers of DIFFERENT features, ranked so that comparing
+    // them yields an upward verdict: consumer/repo reaches provider/service.
+    // Layers rank only within one feature, and this is the ONLY edge in the tree
+    // that says so — every other cross-feature edge lands on a barrel, which
+    // sits in no layer, so the rank arm never reaches it and the same-feature
+    // guard can be deleted with the whole suite green.
+    "src/features/consumer/repo/cross-feature-neighbour.ts",
   ],
 };

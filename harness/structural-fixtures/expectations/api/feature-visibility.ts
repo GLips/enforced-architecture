@@ -145,6 +145,15 @@ export const featureVisibilityFixtures: CheckFixtures = {
     "src/features/cycle-a/visibility.json",
     "src/features/ring-one/visibility.json",
     "src/features/leaf/visibility.json",
+    // An importer that is NOT a feature: `src/routes/feature-barrel-neighbour.ts`
+    // reads leaf-two's barrel. A grant is a feature's answer about another
+    // feature, and a route has no visibility.json to be named in — so this edge
+    // needs no entry anywhere, and the guard on the importing end is what says
+    // so. Every other edge into a feature in this tree starts in another
+    // feature, so all of them pass with that half deleted; this is the only one
+    // that separates the two, and the finding it would produce reads
+    // "undefined imports leaf-two".
+    "src/features/leaf-two/visibility.json",
   ],
 
   // The branches whose only distinguishing output is their wording. Every path
