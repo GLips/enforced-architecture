@@ -52,9 +52,103 @@
   // Keep each key equal to its file name (`lint/oxlint/boundary/db-isolation.ts` ->
   // "arch/db-isolation") so the diagnostic id is also the path to the rule that
   // raised it: `error arch(db-isolation): …`
+  //
+  // Severity is not a per-rule opinion taken fifty times. Every rule's header
+  // opens with one of two labels, and the label IS the severity: `Makes sure:`
+  // claims a property the codebase can rely on, which only holds if the build
+  // stops when it breaks — `error`. `Shows:` reports something a reader learns,
+  // which a build has no business failing on — `warn`. The four warnings below
+  // are the four `Shows:` rules, and nothing else in this block is a judgement
+  // call. The spec harness fails any rule whose header carries neither label, so
+  // the two lists cannot drift apart.
+  //
+  // A project that wants a warning to block edits the severity here and leaves
+  // the header alone: the label says what the rule BUYS, not what this project
+  // decided to do about it.
   "rules": {
+    // ── api: what a unit's surface is, and who may name which half of it ──
+    "arch/barrel-direction": "error",
+    "arch/server-import-context": "error",
+
+    // ── boundary: what may cross into a tree, and what may not leave one ──
+    "arch/ambient-globals": "error",
+    "arch/client-server-infra": "error",
     "arch/db-isolation": "error",
     "arch/import-policy": "error",
+    "arch/no-test-imports": "error",
+    "arch/route-thinness": "error",
+    "arch/sdk-containment": "error",
+    "arch/server-no-upward": "error",
+
+    // ── effect: failures stay typed, services stay in the requirements ──
+    // Silent in a project that does not use Effect: each one keys off an
+    // `Effect.*` or `Schema.*` call shape such a project never writes. On
+    // anyway, so the day it does the fence is already there.
+    "arch/no-disable-validation": "error",
+    "arch/no-effect-catchallcause": "error",
+    "arch/no-nested-layer-provide": "error",
+    "arch/no-service-option": "error",
+    "arch/no-silent-error-swallow": "error",
+    "arch/no-sql-type-parameter": "error",
+
+    // ── health / naming ──
+    "arch/no-nested-ternary": "error",
+    "arch/no-vacant-symbol-names": "error",
+
+    // ── placement: the one directory each kind of declaration lives in ──
+    "arch/deprecated-paths": "error",
+    "arch/no-deprecated-input-validator": "error",
+    "arch/no-plain-export-in-server-fn-module": "error",
+    "arch/no-raw-result": "error",
+    "arch/schema-placement": "error",
+    "arch/server-fn-placement": "error",
+    "arch/server-fn-validation": "error",
+
+    // ── react ──
+    "arch/derived-state": "error",
+    "arch/no-async-effect": "error",
+    "arch/no-direct-fetch": "error",
+    // Counts, not properties. Each reports a number a reader uses to decide what
+    // to split next, and a component that collects many hooks or many props by
+    // design is not a defect.
+    "arch/hook-count": "warn",
+    "arch/prop-count": "warn",
+    "arch/single-component-export": "warn",
+
+    // ── style: every visual value names a token, and every vendor
+    //    component is reached through its wrapper ──
+    "arch/no-arbitrary-class-values": "error",
+    "arch/no-inline-color": "error",
+    "arch/no-inline-font-size": "error",
+    "arch/no-inline-style-prop": "error",
+    "arch/no-raw-primitives": "error",
+    "arch/vendor-component-containment": "error",
+
+    // ── testing ──
+    "arch/no-module-mocking": "error",
+
+    // ── types: no value arrives somewhere claiming a type nothing checked ──
+    "arch/no-broad-parameters": "error",
+    "arch/no-chained-type-assertions": "error",
+    "arch/no-known-value-widening": "error",
+    "arch/no-opaque-record": "error",
+    "arch/no-runtime-typeof": "error",
+    "arch/no-type-argument-assertion": "error",
+    "arch/no-unknown-returns": "error",
+    "arch/no-unknown-type-aliases": "error",
+    "arch/no-widen-then-assert": "error",
+    "arch/require-safety-comment": "error",
+    // A report on a spread that could have been written plainly, not a property
+    // anything depends on.
+    "arch/no-conditional-empty-object-spread": "warn",
+
+    // HELD BACK: `arch/no-reflect-access` is registered in plugin.ts and
+    // deliberately absent here, pending ea-48. It reports nothing when oxlint
+    // runs it — the global scope binds `Reflect`, so the rule's shadow check
+    // treats every use as shadowed and returns early. Its spec stays green
+    // because RuleTester populates no global scope. A key that cannot fire is
+    // worse than a missing one: it reads as coverage. The key goes back in the
+    // same change that fixes the rule.
 
     // NEGATIVE SPACE: `typescript/no-require-imports` is deliberately absent, and
     // was looked at rather than overlooked. It bans the CommonJS *form* —

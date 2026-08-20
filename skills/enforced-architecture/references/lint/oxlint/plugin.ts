@@ -51,11 +51,14 @@ import { serverNoUpwardRule } from "./boundary/server-no-upward.ts";
 import { vendorComponentContainmentRule } from "./style/vendor-component-containment.ts";
 
 // The catalog's rules, registered as one oxlint JS plugin. Copy this file into the project
-// alongside the rules taken from the catalog, drop the registrations for rules not adopted, and
-// point `.oxlintrc.json` at it:
+// alongside the rules, and point `.oxlintrc.json` at it:
 //
 //   { "jsPlugins": ["./oxlint/plugin.ts"],
 //     "rules": { "arch/db-isolation": "error", … } }
+//
+// This list and the `rules` block of `setup/oxlintrc.json` are one list wearing two hats, and the
+// shipped config already names every key below. Dropping a registration here is dropping a rule
+// from the project, which is a decision about the architecture and not about this file.
 //
 // Registration and activation are separate, and both are silent when missed: a rule absent from
 // this file is a rule the linter never loads, and a rule present here but missing from
