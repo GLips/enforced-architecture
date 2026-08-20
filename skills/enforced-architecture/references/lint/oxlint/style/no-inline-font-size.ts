@@ -40,8 +40,8 @@
 // these three rules and style/token-equality.
 // ──────────────────────────────────────────────────────────────────────
 
-import { defineRule, type ESTree } from "@oxlint/plugins";
-import { classifyFileRole } from "../../policy/declared-trees.ts";
+import { defineTreeRule } from "../lib/define-tree-rule.ts";
+import { type ESTree } from "@oxlint/plugins";
 import { isStyleSubject } from "../../policy/layout.ts";
 
 const SCALE_PROPERTIES = new Set(["fontSize"]);
@@ -71,7 +71,7 @@ function staticPropertyKeyName(
   return null;
 }
 
-export const noInlineFontSizeRule = defineRule({
+export const noInlineFontSizeRule = defineTreeRule({
   meta: {
     type: "problem",
     messages: {
@@ -79,15 +79,13 @@ export const noInlineFontSizeRule = defineRule({
         "Raw fontSize override. Use a named size from the type scale instead — a size prop on the text primitive (`size='caption'`, `variant='heading-xs'`) or the scale token (`var(--text-caption)`, `theme.typography.caption`). If the size you want is not on the scale, add it to the scale rather than writing it here. See docs/architecture/design-system.md.",
     },
   },
-  create(context) {
+  create(context, role) {
     // Two gates, one owner. `isStyleSubject` is what the whole style tier —
     // these three rules and style/token-equality — asks before reading a line,
     // and it is one function rather than four copies because the copies
     // disagreed: two of these rules had the domain gate, one did not. The token
     // source is a named MODULE in the tree's vocabulary rather than a path
     // suffix, so a `legacy-theme.ts` beside it does not inherit the exemption.
-    const role = classifyFileRole(context.filename);
-    if (role === undefined) return {};
     if (!isStyleSubject(role.tree.vocabulary, role.sourcePath)) return {};
 
     return {

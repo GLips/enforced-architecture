@@ -23,8 +23,9 @@
 // PRIMITIVES_LAYER with a reason; agents learn a suppression faster than a rule.
 // ──────────────────────────────────────────────────────────────────────
 
-import { defineRule, type ESTree } from "@oxlint/plugins";
-import { classifyFileRole, isAtProfile } from "../../policy/declared-trees.ts";
+import { defineTreeRule } from "../lib/define-tree-rule.ts";
+import { type ESTree } from "@oxlint/plugins";
+import { isAtProfile } from "../../policy/declared-trees.ts";
 
 const STYLE_PROPS = new Set(["style"]);
 
@@ -59,7 +60,7 @@ function shipsObjectLiteral(node: ESTree.Node): boolean {
   }
 }
 
-export const noInlineStylePropRule = defineRule({
+export const noInlineStylePropRule = defineTreeRule({
   meta: {
     type: "problem",
     messages: {
@@ -67,11 +68,10 @@ export const noInlineStylePropRule = defineRule({
         "Inline style object. Use the primitive's token props (padding='m', gap='s', color='text-secondary'), or move the declarations into a named stylesheet entry. An inline object accepts any property at any value, so it is the one surface where an off-system decision still typechecks. See docs/architecture/design-system.md.",
     },
   },
-  create(context) {
+  create(context, role) {
     // The primitives layer as a PROFILE, so a feature's own `shared/ui/` folder,
     // or a `shared/ui-legacy/`, does not inherit its exemption.
-    const role = classifyFileRole(context.filename);
-    if (role === undefined || isAtProfile(role, "shared-ui")) return {};
+    if (isAtProfile(role, "shared-ui")) return {};
 
     return {
       JSXAttribute(node) {

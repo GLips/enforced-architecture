@@ -27,8 +27,8 @@
 // @tanstack/start-plugin-core/src/start-compiler/handleCreateServerFn.ts.
 // ──────────────────────────────────────────────────────────────────────
 
-import { defineRule, type ESTree } from "@oxlint/plugins";
-import { classifyFileRole } from "../../policy/declared-trees.ts";
+import { defineTreeRule } from "../lib/define-tree-rule.ts";
+import { type ESTree } from "@oxlint/plugins";
 import { isServerModule } from "../../policy/layout.ts";
 
 const COMPILER_BRIDGE_FACTORIES = new Set(["createServerFn", "createMiddleware"]);
@@ -66,7 +66,7 @@ function isCompilerBridgeChain(expression: ESTree.Expression): boolean {
   return false;
 }
 
-export const noPlainExportInServerFnModuleRule = defineRule({
+export const noPlainExportInServerFnModuleRule = defineTreeRule({
   meta: {
     type: "problem",
     messages: {
@@ -76,9 +76,8 @@ export const noPlainExportInServerFnModuleRule = defineRule({
         "A createServerFn/createMiddleware bridge must be assigned to a named const — the compiler resolves it through its variable declarator. Change `export default createServerFn(…)` to `export const <name> = createServerFn(…)`.",
     },
   },
-  create(context) {
-    const role = classifyFileRole(context.filename);
-    if (role === undefined || isServerModule(role.tree.vocabulary, role.sourcePath)) return {};
+  create(context, role) {
+    if (isServerModule(role.tree.vocabulary, role.sourcePath)) return {};
 
     // Nothing can be judged during the walk. Whether this is a bridge module at all is only settled
     // once the whole file has been seen — the first export is visited long before a bridge call

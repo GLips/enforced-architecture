@@ -22,9 +22,8 @@
 // handleCreateServerFn.ts and handleCreateMiddleware.ts.
 // ──────────────────────────────────────────────────────────────────────
 
+import { defineTreeRule } from "../lib/define-tree-rule.ts";
 import type { ESTree, Range } from "@oxlint/plugins";
-import { defineRule } from "@oxlint/plugins";
-import { classifyFileRole } from "../../policy/declared-trees.ts";
 import { createRangeIndex } from "../lib/range-index.ts";
 
 const DEPRECATED_METHOD = "inputValidator";
@@ -42,7 +41,7 @@ function calledMethodName(callee: ESTree.Expression): string | null {
     : null;
 }
 
-export const noDeprecatedInputValidatorRule = defineRule({
+export const noDeprecatedInputValidatorRule = defineTreeRule({
   meta: {
     type: "problem",
     messages: {
@@ -51,7 +50,6 @@ export const noDeprecatedInputValidatorRule = defineRule({
     },
   },
   create(context) {
-    if (classifyFileRole(context.filename) === undefined) return {};
 
     // The builder is whatever the method is called ON, and the factory can sit arbitrarily deep
     // inside it — `createServerFn().middleware([auth]).inputValidator(…)`. A visitor reaches the

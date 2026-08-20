@@ -25,8 +25,8 @@
 // library.
 // ──────────────────────────────────────────────────────────────────────
 
-import { defineRule, type ESTree } from "@oxlint/plugins";
-import { classifyFileRole } from "../../policy/declared-trees.ts";
+import { defineTreeRule } from "../lib/define-tree-rule.ts";
+import { type ESTree } from "@oxlint/plugins";
 
 const SERVER_FN_FACTORIES = new Set(["createServerFn"]);
 const HANDLER_METHOD = "handler";
@@ -81,7 +81,7 @@ function handlerConsumesClientPayload(
   });
 }
 
-export const serverFnValidationRule = defineRule({
+export const serverFnValidationRule = defineTreeRule({
   meta: {
     type: "problem",
     messages: {
@@ -90,7 +90,6 @@ export const serverFnValidationRule = defineRule({
     },
   },
   create(context) {
-    if (classifyFileRole(context.filename) === undefined) return {};
 
     return {
       CallExpression(node) {

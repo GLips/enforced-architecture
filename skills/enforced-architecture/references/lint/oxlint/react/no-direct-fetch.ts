@@ -27,8 +27,9 @@
 // have tells the reader to install one.
 // ──────────────────────────────────────────────────────────────────────
 
-import { defineRule, type ESTree } from "@oxlint/plugins";
-import { classifyFileRole, isComponentFile } from "../../policy/declared-trees.ts";
+import { defineTreeRule } from "../lib/define-tree-rule.ts";
+import { type ESTree } from "@oxlint/plugins";
+import { isComponentFile } from "../../policy/declared-trees.ts";
 
 const FETCH_GLOBAL = "fetch";
 const GLOBAL_OBJECTS = new Set(["globalThis", "window", "self"]);
@@ -47,7 +48,7 @@ function isGlobalFetch(callee: ESTree.Expression): boolean {
   );
 }
 
-export const noDirectFetchRule = defineRule({
+export const noDirectFetchRule = defineTreeRule({
   meta: {
     type: "problem",
     messages: {
@@ -57,7 +58,7 @@ export const noDirectFetchRule = defineRule({
   },
   create(context) {
     const { filename } = context;
-    if (!isComponentFile(filename) || classifyFileRole(filename) === undefined) return {};
+    if (!isComponentFile(filename)) return {};
 
     return {
       CallExpression(node) {

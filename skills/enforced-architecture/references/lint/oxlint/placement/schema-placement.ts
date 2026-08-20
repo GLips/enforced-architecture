@@ -23,13 +23,12 @@
 // boundary/db-isolation's finding.
 // ──────────────────────────────────────────────────────────────────────
 
-import { defineRule } from "@oxlint/plugins";
-import { classifyFileRole } from "../../policy/declared-trees.ts";
+import { defineTreeRule } from "../lib/define-tree-rule.ts";
 import { isUnderPath } from "../../policy/layout.ts";
 
 const SCHEMA_DECLARATIONS = new Set(["pgTable", "relations"]);
 
-export const schemaPlacementRule = defineRule({
+export const schemaPlacementRule = defineTreeRule({
   meta: {
     type: "problem",
     messages: {
@@ -37,15 +36,13 @@ export const schemaPlacementRule = defineRule({
         "Schema declarations (pgTable, relations) must live in infrastructure/db/schema/*. Move this declaration to the appropriate schema file.",
     },
   },
-  create(context) {
+  create(context, role) {
     // Generated migration output sits outside every declared tree, so this rule
     // is already silent there and needs no exemption of its own. The same is
     // true of a monorepo package that IS the schema package and declares its own
     // tree: it names its schema directory in that tree's `dbSchemaPath`, and the
     // rule reads that rather than prescribing a directory the package does not
     // have.
-    const role = classifyFileRole(context.filename);
-    if (role === undefined) return {};
     // Whole segments, so a sibling that merely shares a prefix — a
     // `schema-archive/` holding retired tables, a `drizzle-helpers/` of query
     // utilities — is still governed.

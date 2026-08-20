@@ -25,8 +25,8 @@
 // Adopt boundary/import-policy in the structural tier with this rule.
 // ──────────────────────────────────────────────────────────────────────
 
-import { defineRule } from "@oxlint/plugins";
-import { classifyFileRole, isServerContext } from "../../policy/declared-trees.ts";
+import { defineTreeRule } from "../lib/define-tree-rule.ts";
+import { isServerContext } from "../../policy/declared-trees.ts";
 import { classifySpecifier, classifyTargetPath } from "../../policy/layout.ts";
 import { visitModuleSources } from "../lib/module-source-visitor.ts";
 
@@ -47,7 +47,7 @@ const CLIENT_SAFE_INFRASTRUCTURE = ["auth/client", "providers/query-client"];
  * quietly losing it.
  */
 
-export const clientServerInfraRule = defineRule({
+export const clientServerInfraRule = defineTreeRule({
   meta: {
     type: "problem",
     messages: {
@@ -55,9 +55,7 @@ export const clientServerInfraRule = defineRule({
         "Client contexts may only import client-safe infrastructure modules. From inside a feature, move it to controllers/ or to repo/ — or use the client-safe adapter. NOT service/, and NOT renaming the file to *.server.ts: a service layer imports no infrastructure at all, and a .server.ts at a feature root or as its barrel is a feature-root or feature-barrel file, which boundary/import-policy denies infrastructure to. Each of those silences this rule and lights up that one, and a pair of diagnostics forbidding each other's fix is an edit loop.",
     },
   },
-  create(context) {
-    const role = classifyFileRole(context.filename);
-    if (role === undefined) return {};
+  create(context, role) {
     if (isServerContext(role)) return {};
 
     const { vocabulary } = role.tree;

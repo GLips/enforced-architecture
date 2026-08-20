@@ -102,11 +102,26 @@ export const DECLARED_TREES: DeclaredTree[] = [
  * which is only recognised at the FIRST segment of whatever frame it was given.
  */
 export function isArchitectureExemptPath(path: string): boolean {
-  if (/\.test\.[tj]sx?$/.test(path)) return true;
-  if (/\.gen\.[tj]sx?$|\.d\.ts$/.test(path)) return true;
+  // The extension is STRIPPED before the conventions are matched, never listed
+  // alongside them. A regex spelling `[tj]sx?` covers four of the eight
+  // extensions the walkers accept, so `a.test.mts`, `a.gen.mts` and `a.d.cts`
+  // read as ordinary application source — a generated ES module drawing findings
+  // nobody can act on, and a test drawing every boundary rule in the catalog.
+  const bare = withoutSourceExtension(path);
+  if (bare !== path && EXEMPT_MODULE_SUFFIXES.some((suffix) => bare.endsWith(suffix))) return true;
   if (hasTestDirectorySegment(path)) return true;
   return path.split("/").some((segment) => segment === "scripts");
 }
+
+/**
+ * What a file's name says about who wrote it, with the extension already gone:
+ * `.test` is a test, `.gen` is generated, `.d` is an ambient declaration.
+ *
+ * A closed list of conventions, not an adopter's exemption list — each entry is
+ * a naming fact the whole ecosystem already agrees on, and adding to it is a
+ * change to this catalog rather than a knob a project turns.
+ */
+const EXEMPT_MODULE_SUFFIXES = [".test", ".gen", ".d"];
 
 /**
  * True when a path sits in a test directory: `__tests__` anywhere, or the

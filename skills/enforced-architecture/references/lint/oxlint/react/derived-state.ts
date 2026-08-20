@@ -23,8 +23,8 @@
 // hook module at all.
 // ──────────────────────────────────────────────────────────────────────
 
-import { defineRule, type ESTree, type Range } from "@oxlint/plugins";
-import { classifyFileRole } from "../../policy/declared-trees.ts";
+import { defineTreeRule } from "../lib/define-tree-rule.ts";
+import { type ESTree, type Range } from "@oxlint/plugins";
 import { createRangeIndex } from "../lib/range-index.ts";
 
 const STATE_HOOK = "useState";
@@ -36,7 +36,7 @@ const DEFERRED_METHODS = new Set(["then", "addEventListener"]);
 const NOT_DERIVED_STATE = "notDerivedState";
 const setterTag = (name: string) => `setter:${name}`;
 
-export const derivedStateRule = defineRule({
+export const derivedStateRule = defineTreeRule({
   meta: {
     type: "problem",
     messages: {
@@ -45,7 +45,6 @@ export const derivedStateRule = defineRule({
     },
   },
   create(context) {
-    if (classifyFileRole(context.filename) === undefined) return {};
 
     // "Does this effect callback contain a setter call, and nothing that excuses it?" is a question
     // about a subtree, and a visitor reaches the callback before anything inside it. Ranges recorded

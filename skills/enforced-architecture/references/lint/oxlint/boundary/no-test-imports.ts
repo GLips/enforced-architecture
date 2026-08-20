@@ -19,11 +19,11 @@
 // is the tier that sees those.
 // ──────────────────────────────────────────────────────────────────────
 
-import { defineRule } from "@oxlint/plugins";
-import { classifyFileRole, namesTestModule } from "../../policy/declared-trees.ts";
+import { defineTreeRule } from "../lib/define-tree-rule.ts";
+import { namesTestModule } from "../../policy/declared-trees.ts";
 import { visitModuleSources } from "../lib/module-source-visitor.ts";
 
-export const noTestImportsRule = defineRule({
+export const noTestImportsRule = defineTreeRule({
   meta: {
     type: "problem",
     messages: {
@@ -31,9 +31,7 @@ export const noTestImportsRule = defineRule({
         "Production code cannot import from test files. If this utility is needed by both tests and production, move it to src/shared/ or the appropriate production directory.",
     },
   },
-  create(context) {
-    const role = classifyFileRole(context.filename);
-    if (role === undefined) return {};
+  create(context, role) {
     const { aliasPrefix } = role.tree.vocabulary;
 
     return visitModuleSources((source, specifier) => {

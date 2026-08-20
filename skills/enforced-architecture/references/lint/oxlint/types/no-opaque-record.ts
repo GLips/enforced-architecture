@@ -21,8 +21,8 @@
 // `Record` reports. There is no type checker in this tier.
 // ──────────────────────────────────────────────────────────────────────
 
-import { defineRule, type ESTree } from "@oxlint/plugins";
-import { classifyFileRole } from "../../policy/declared-trees.ts";
+import { defineTreeRule } from "../lib/define-tree-rule.ts";
+import { type ESTree } from "@oxlint/plugins";
 
 const RECORD_TYPE_NAME = "Record";
 
@@ -79,7 +79,7 @@ function isUnboundedKeyDomain(type: ESTree.TSType): boolean {
   );
 }
 
-export const noOpaqueRecordRule = defineRule({
+export const noOpaqueRecordRule = defineTreeRule({
   meta: {
     type: "problem",
     messages: {
@@ -90,7 +90,6 @@ export const noOpaqueRecordRule = defineRule({
     },
   },
   create(context) {
-    if (classifyFileRole(context.filename) === undefined) return {};
 
     const aliases = new Map<string, ESTree.TSType>();
 

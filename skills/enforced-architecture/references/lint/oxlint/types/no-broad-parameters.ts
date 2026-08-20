@@ -17,8 +17,8 @@
 // here by path, rather than a disable comment on each parser.
 // ──────────────────────────────────────────────────────────────────────
 
-import { defineRule, type ESTree } from "@oxlint/plugins";
-import { classifyFileRole } from "../../policy/declared-trees.ts";
+import { defineTreeRule } from "../lib/define-tree-rule.ts";
+import { type ESTree } from "@oxlint/plugins";
 import {
   collectLocalTypeAliases,
   FUNCTION_SIGNATURE_NODES,
@@ -37,7 +37,7 @@ const OBJECT_KEYWORDS = new Set(["TSObjectKeyword"]);
 // name. Exempting by parameter name rather than by position keeps the hole searchable.
 const ALLOWED_UNKNOWN_PARAMETER_NAMES = new Set(["cause"]);
 
-export const noBroadParametersRule = defineRule({
+export const noBroadParametersRule = defineTreeRule({
   meta: {
     type: "problem",
     messages: {
@@ -48,7 +48,6 @@ export const noBroadParametersRule = defineRule({
     },
   },
   create(context) {
-    if (classifyFileRole(context.filename) === undefined) return {};
 
     let aliases: ReadonlyMap<string, ESTree.TSType> = new Map();
 

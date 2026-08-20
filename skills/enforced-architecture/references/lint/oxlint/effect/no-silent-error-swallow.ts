@@ -24,8 +24,8 @@
 // the caller. Both need the type-aware tier.
 // ──────────────────────────────────────────────────────────────────────
 
-import { defineRule, type ESTree } from "@oxlint/plugins";
-import { classifyFileRole } from "../../policy/declared-trees.ts";
+import { defineTreeRule } from "../lib/define-tree-rule.ts";
+import { type ESTree } from "@oxlint/plugins";
 
 const CATCH_METHODS = new Set(["catchAll", "catchTag", "catchTags"]);
 const VOID_EFFECT_MEMBERS = new Set(["void", "unit"]);
@@ -86,7 +86,7 @@ function returnsEmptyEffect(node: ESTree.Node | undefined): boolean {
   );
 }
 
-export const noSilentErrorSwallowRule = defineRule({
+export const noSilentErrorSwallowRule = defineTreeRule({
   meta: {
     type: "problem",
     messages: {
@@ -95,7 +95,6 @@ export const noSilentErrorSwallowRule = defineRule({
     },
   },
   create(context) {
-    if (classifyFileRole(context.filename) === undefined) return {};
 
     return {
       CallExpression(node) {

@@ -21,8 +21,8 @@
 // project cannot adopt the whole list at once.
 // ──────────────────────────────────────────────────────────────────────
 
-import { defineRule, type ESTree } from "@oxlint/plugins";
-import { classifyFileRole } from "../../policy/declared-trees.ts";
+import { defineTreeRule } from "../lib/define-tree-rule.ts";
+import { type ESTree } from "@oxlint/plugins";
 
 const VACANT_TERMS = new Set([
   "data",
@@ -73,7 +73,7 @@ function isModuleLevel(node: ESTree.Node): boolean {
   return false;
 }
 
-export const noVacantSymbolNamesRule = defineRule({
+export const noVacantSymbolNamesRule = defineTreeRule({
   meta: {
     type: "problem",
     messages: {
@@ -82,7 +82,6 @@ export const noVacantSymbolNamesRule = defineRule({
     },
   },
   create(context) {
-    if (classifyFileRole(context.filename) === undefined) return {};
 
     const report = (identifier: ESTree.Node & { name: string }) => {
       if (vacantTerm(identifier.name) === null) return;

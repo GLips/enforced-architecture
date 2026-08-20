@@ -15,14 +15,14 @@
 // values and hides no absence.
 // ──────────────────────────────────────────────────────────────────────
 
-import { defineRule, type ESTree } from "@oxlint/plugins";
-import { classifyFileRole } from "../../policy/declared-trees.ts";
+import { defineTreeRule } from "../lib/define-tree-rule.ts";
+import { type ESTree } from "@oxlint/plugins";
 
 function isEmptyObjectExpression(node: ESTree.Expression): boolean {
   return node.type === "ObjectExpression" && node.properties.length === 0;
 }
 
-export const noConditionalEmptyObjectSpreadRule = defineRule({
+export const noConditionalEmptyObjectSpreadRule = defineTreeRule({
   meta: {
     type: "suggestion",
     messages: {
@@ -31,7 +31,6 @@ export const noConditionalEmptyObjectSpreadRule = defineRule({
     },
   },
   create(context) {
-    if (classifyFileRole(context.filename) === undefined) return {};
 
     return {
       SpreadElement(node) {

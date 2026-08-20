@@ -19,8 +19,7 @@
 // them without resolving anything.
 // ──────────────────────────────────────────────────────────────────────
 
-import { defineRule } from "@oxlint/plugins";
-import { classifyFileRole } from "../../policy/declared-trees.ts";
+import { defineTreeRule } from "../lib/define-tree-rule.ts";
 import { classifySpecifier, classifyTargetPath, type TargetArea } from "../../policy/layout.ts";
 import { visitModuleSources } from "../lib/module-source-visitor.ts";
 
@@ -32,7 +31,7 @@ import { visitModuleSources } from "../lib/module-source-visitor.ts";
  */
 const UPPER_AREAS: TargetArea[] = ["feature", "domain", "route"];
 
-export const serverNoUpwardRule = defineRule({
+export const serverNoUpwardRule = defineTreeRule({
   meta: {
     type: "problem",
     messages: {
@@ -40,9 +39,8 @@ export const serverNoUpwardRule = defineRule({
         "Infrastructure modules cannot import from features, domains, or routes. Infrastructure provides services to upper layers — it does not consume them. If this module needs feature-specific behavior, accept it as a parameter.",
     },
   },
-  create(context) {
-    const role = classifyFileRole(context.filename);
-    if (role?.place?.profile !== "infrastructure") return {};
+  create(context, role) {
+    if (role.place?.profile !== "infrastructure") return {};
     const { vocabulary } = role.tree;
 
     return visitModuleSources((source, specifier) => {

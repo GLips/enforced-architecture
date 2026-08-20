@@ -190,6 +190,25 @@ export type TreeVocabulary = {
   assetExtensions: string[];
 
   /**
+   * Directories of GENERATED output, relative to this tree's source root.
+   *
+   * Two things read this, and neither is an architecture rule. The catalog's own
+   * rules already skip generated files by the `.gen` naming convention, which is
+   * a fact about the file — see `isArchitectureExemptPath`. This list exists for
+   * the code generators that do NOT stamp their output that way and write a whole
+   * directory instead (a route tree, a GraphQL client, protobuf stubs), and it is
+   * what the shipped `oxlintrc.json` derives its `ignorePatterns` from so the
+   * BUILT-IN `typescript/` and `sonarjs/` rules stay quiet there too. Those rules
+   * know nothing about `isArchitectureExemptPath`, so without this an adopting
+   * project lints its own generated output on day one.
+   *
+   * A directory NAME, never a glob: the harness builds `<root>/<dir>/**` for each
+   * declared tree, so the entry cannot name a path no tree owns, and an adopter
+   * cannot widen it into an off-switch by writing a pattern.
+   */
+  generatedDirs: string[];
+
+  /**
    * The database module inside `infrastructure/`, and the schema directory
    * within it. Two rules read these: `boundary/db-isolation` builds its
    * specifier test from `dbDir`, and `boundary/layer-occupancy` gates a schema
@@ -259,6 +278,8 @@ export const RECOMMENDED_VOCABULARY: TreeVocabulary = {
     "env.client": "env-client",
     env: "env-server",
   },
+
+  generatedDirs: ["gen"],
 
   sourceRootFiles: [
     "env.server.ts",

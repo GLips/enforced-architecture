@@ -20,8 +20,8 @@
 // the indirect spelling carries real false-positive risk.
 // ──────────────────────────────────────────────────────────────────────
 
-import { defineRule, type ESTree } from "@oxlint/plugins";
-import { classifyFileRole } from "../../policy/declared-trees.ts";
+import { defineTreeRule } from "../lib/define-tree-rule.ts";
+import { type ESTree } from "@oxlint/plugins";
 
 const BROAD_KEYWORDS = new Set(["TSUnknownKeyword", "TSAnyKeyword", "TSObjectKeyword"]);
 
@@ -83,7 +83,7 @@ function enclosingFunctionReturnType(node: ESTree.Node): ESTree.TSTypeAnnotation
   return null;
 }
 
-export const noKnownValueWideningRule = defineRule({
+export const noKnownValueWideningRule = defineTreeRule({
   meta: {
     type: "problem",
     messages: {
@@ -92,7 +92,6 @@ export const noKnownValueWideningRule = defineRule({
     },
   },
   create(context) {
-    if (classifyFileRole(context.filename) === undefined) return {};
 
     const reportIfWidened = (
       value: ESTree.Expression | null | undefined,

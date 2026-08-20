@@ -23,7 +23,7 @@
 
 import { existsSync } from "node:fs";
 import { basename } from "node:path";
-import { SOURCE_EXTENSIONS, SOURCE_FILE_GLOB } from "../../policy/layout.ts";
+import { SOURCE_EXTENSIONS, SOURCE_FILE_GLOB, withoutSourceExtension } from "../../policy/layout.ts";
 import {
   collectTreeFiles,
   toProjectPath,
@@ -67,14 +67,16 @@ export const testFileMirrorCheck: StructuralCheck = {
         continue;
       }
 
-      const suffix = longestTestSuffix(sourcePath, testSuffixes);
+      // Matched against the path with its extension already gone, so one
+      // extensionless suffix covers every spelling the walker accepts.
+      const suffix = longestTestSuffix(withoutSourceExtension(sourcePath), testSuffixes);
       if (suffix === undefined) continue;
       if (orphanAllowedDirs.some((dir) => sourcePath.startsWith(`${dir}/`))) continue;
 
-      const base = absolute.slice(0, -suffix.length);
-      // Every source extension, from the one list. Two of them here meant a
-      // `foo.test.mts` beside a `foo.mts` could not find its sibling and got
-      // reported as an orphan test.
+      const bare = withoutSourceExtension(absolute);
+      const base = bare.slice(0, -suffix.length);
+      // The sibling may be written in ANY source extension, not just this test's
+      // — a `.test.ts` beside a `.mts` module is an ordinary pairing.
       if (SOURCE_EXTENSIONS.some((extension) => existsSync(`${base}.${extension}`))) continue;
 
       const name = basename(base);

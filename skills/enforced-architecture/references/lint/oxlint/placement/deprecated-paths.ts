@@ -19,8 +19,7 @@
 // path is one this file may import at all is boundary/import-policy's finding.
 // ──────────────────────────────────────────────────────────────────────
 
-import { defineRule } from "@oxlint/plugins";
-import { classifyFileRole } from "../../policy/declared-trees.ts";
+import { defineTreeRule } from "../lib/define-tree-rule.ts";
 import { visitModuleSources } from "../lib/module-source-visitor.ts";
 
 // Anchored at the head of the specifier and closed on the trailing slash, so a live directory whose
@@ -33,7 +32,7 @@ const DEPRECATED_PATHS = [
   { pattern: /^@\/components\//, messageId: "componentsDirectoryRemoved" },
 ] as const;
 
-export const deprecatedPathsRule = defineRule({
+export const deprecatedPathsRule = defineTreeRule({
   meta: {
     type: "problem",
     messages: {
@@ -42,7 +41,6 @@ export const deprecatedPathsRule = defineRule({
     },
   },
   create(context) {
-    if (classifyFileRole(context.filename) === undefined) return {};
 
     return visitModuleSources((source, specifier) => {
       for (const { pattern, messageId } of DEPRECATED_PATHS) {

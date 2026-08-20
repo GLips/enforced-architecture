@@ -176,6 +176,49 @@ try {
   removeGeneratedFixtures();
 }
 
+/**
+ * The exact `(check id, tree)` multiset every run must produce: one run per
+ * declared tree for every tree-scoped check, and one run total for every
+ * project-scoped one.
+ *
+ * This is the assertion the merge above cannot make. Without it, a runner that
+ * quietly stops iterating trees — or one that special-cases a single check —
+ * still produces findings that merge to the expected union, and every per-check
+ * comparison passes. An external review changed the runner to skip the second
+ * tree for every tree-scoped check but `placement/topology` and this suite
+ * reported 16/16 green.
+ *
+ * Compared as a sorted multiset rather than a count, so a check run TWICE on one
+ * tree and never on another cannot balance out.
+ */
+function assertEveryCheckRanOnEveryTree(
+  source: CheckRun[],
+  trees: readonly { root: string }[],
+  label: string,
+): void {
+  const expected = structuralChecks
+    .flatMap((check) =>
+      check.scope === "project"
+        ? [`${check.id} <project>`]
+        : trees.map((tree) => `${check.id} ${tree.root}`),
+    )
+    .sort();
+  const actual = source.map((run) => `${run.id} ${run.tree ?? "<project>"}`).sort();
+
+  const missing = multisetDifference(expected, actual);
+  const unexpected = multisetDifference(actual, expected);
+  if (missing.length > 0) {
+    fail("<declared-trees>", `${label}: never ran — ${missing.join(", ")}`);
+  }
+  if (unexpected.length > 0) {
+    fail("<declared-trees>", `${label}: ran where nothing asked it to — ${unexpected.join(", ")}`);
+  }
+}
+
+assertEveryCheckRanOnEveryTree(runs, DECLARED_FIXTURE_TREES, "the declared-tree run");
+assertEveryCheckRanOnEveryTree(bothTrees, BOTH_FIXTURE_TREES, "the two-tree run");
+assertEveryCheckRanOnEveryTree(misread, PDF_TREE_MISREAD, "the wrong-vocabulary run");
+
 // ── Compare ──────────────────────────────────────────────────────────────────
 
 /** Entries of `a` with one occurrence removed for each matching entry of `b`. */
@@ -198,7 +241,10 @@ function multisetDifference(a: string[], b: string[]): string[] {
  * A tree-scoped check produces one run PER declared tree, and the expectations
  * are written against the whole fixture project rather than against one tree —
  * so they are compared against the union. What the union must NOT hide is a run
- * that never happened, which is why the caller asserts the run count separately.
+ * that never happened: merging by id ERASES the tree identity, and a check
+ * skipped on the second tree merges to exactly what it would produce if it had
+ * run there and found nothing. `assertEveryCheckRanOnEveryTree` is what makes
+ * that visible, and it runs before this is called.
  */
 function byCheckId(source: CheckRun[]): Map<string, { findings: Finding[]; crashed: Error | undefined }> {
   const merged = new Map<string, { findings: Finding[]; crashed: Error | undefined }>();

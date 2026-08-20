@@ -24,8 +24,8 @@
 // no scope resolution.
 // ──────────────────────────────────────────────────────────────────────
 
-import { defineRule, type ESTree } from "@oxlint/plugins";
-import { classifyFileRole } from "../../policy/declared-trees.ts";
+import { defineTreeRule } from "../lib/define-tree-rule.ts";
+import { type ESTree } from "@oxlint/plugins";
 
 // Keyed by `string` on purpose: every lookup is a member name read off the AST, so a map narrowed
 // to its own two keys would refuse the only argument it is ever given. The VALUE side stays a
@@ -43,7 +43,7 @@ function staticPropertyName(node: ESTree.MemberExpression): string | null {
     : null;
 }
 
-export const noEffectCatchAllCauseRule = defineRule({
+export const noEffectCatchAllCauseRule = defineTreeRule({
   meta: {
     type: "problem",
     messages: {
@@ -54,7 +54,6 @@ export const noEffectCatchAllCauseRule = defineRule({
     },
   },
   create(context) {
-    if (classifyFileRole(context.filename) === undefined) return {};
 
     return {
       // The member reference, not the call: data-last usage inside a `.pipe(…)` passes the function

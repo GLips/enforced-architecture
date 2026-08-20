@@ -17,8 +17,8 @@
 // and cannot be wrong. Remove the carve-out and people write empty sentences.
 // ──────────────────────────────────────────────────────────────────────
 
-import { defineRule, type ESTree } from "@oxlint/plugins";
-import { classifyFileRole } from "../../policy/declared-trees.ts";
+import { defineTreeRule } from "../lib/define-tree-rule.ts";
+import { type ESTree } from "@oxlint/plugins";
 
 type TypeAssertion = ESTree.TSAsExpression | ESTree.TSTypeAssertion;
 
@@ -53,7 +53,7 @@ function isConstAssertion(node: TypeAssertion): boolean {
   );
 }
 
-export const requireSafetyCommentRule = defineRule({
+export const requireSafetyCommentRule = defineTreeRule({
   meta: {
     type: "problem",
     messages: {
@@ -62,7 +62,6 @@ export const requireSafetyCommentRule = defineRule({
     },
   },
   create(context) {
-    if (classifyFileRole(context.filename) === undefined) return {};
 
     function hasSafetyComment(node: TypeAssertion): boolean {
       let current: ESTree.Node = node;

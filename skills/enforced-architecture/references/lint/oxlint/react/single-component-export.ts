@@ -20,11 +20,12 @@
 // names and leaves the decision to the author.
 // ──────────────────────────────────────────────────────────────────────
 
-import { defineRule, type ESTree } from "@oxlint/plugins";
-import { classifyFileRole, isComponentFile, namesBarrel } from "../../policy/declared-trees.ts";
+import { defineTreeRule } from "../lib/define-tree-rule.ts";
+import { type ESTree } from "@oxlint/plugins";
+import { isComponentFile, namesBarrel } from "../../policy/declared-trees.ts";
 import { exportedComponents } from "../lib/component-declarations.ts";
 
-export const singleComponentExportRule = defineRule({
+export const singleComponentExportRule = defineTreeRule({
   meta: {
     type: "suggestion",
     messages: {
@@ -32,9 +33,8 @@ export const singleComponentExportRule = defineRule({
         "This file exports {{names}}. Each is found by the name of this file rather than its own, so all but the first are invisible to a grep for where they are defined. Give each its own file, or namespace them under one export with Object.assign if they are genuinely a compound component.",
     },
   },
-  create(context) {
-    const role = classifyFileRole(context.filename);
-    if (role === undefined || !isComponentFile(context.filename)) return {};
+  create(context, role) {
+    if (!isComponentFile(context.filename)) return {};
     // A barrel re-exports by design: every name in one is defined elsewhere.
     // The barrel's NAME comes from the tree, not from a literal — a tree that
     // renames its barrel would otherwise lose the exemption and get every

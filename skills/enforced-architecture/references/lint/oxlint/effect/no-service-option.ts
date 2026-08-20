@@ -22,8 +22,8 @@
 // aliased import reports nothing; this tier has no scope resolution.
 // ──────────────────────────────────────────────────────────────────────
 
-import { defineRule, type ESTree } from "@oxlint/plugins";
-import { classifyFileRole } from "../../policy/declared-trees.ts";
+import { defineTreeRule } from "../lib/define-tree-rule.ts";
+import { type ESTree } from "@oxlint/plugins";
 
 const OPTIONAL_SERVICE_ACCESSORS = new Set(["serviceOption"]);
 
@@ -35,7 +35,7 @@ function staticPropertyName(node: ESTree.MemberExpression): string | null {
     : null;
 }
 
-export const noServiceOptionRule = defineRule({
+export const noServiceOptionRule = defineTreeRule({
   meta: {
     type: "problem",
     messages: {
@@ -44,7 +44,6 @@ export const noServiceOptionRule = defineRule({
     },
   },
   create(context) {
-    if (classifyFileRole(context.filename) === undefined) return {};
 
     return {
       // The member reference rather than the call, so a data-last use inside `.pipe(…)` — which

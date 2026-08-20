@@ -22,8 +22,8 @@
 // and get no finding. They are the shape this rule asks for.
 // ──────────────────────────────────────────────────────────────────────
 
-import { defineRule, type ESTree, type Range } from "@oxlint/plugins";
-import { classifyFileRole } from "../../policy/declared-trees.ts";
+import { defineTreeRule } from "../lib/define-tree-rule.ts";
+import { type ESTree, type Range } from "@oxlint/plugins";
 
 const LAYER_NAMESPACES = new Set(["Layer"]);
 const PROVIDE_METHOD = "provide";
@@ -43,7 +43,7 @@ function isLayerProvideCall(node: ESTree.CallExpression): boolean {
   return staticPropertyName(callee) === PROVIDE_METHOD;
 }
 
-export const noNestedLayerProvideRule = defineRule({
+export const noNestedLayerProvideRule = defineTreeRule({
   meta: {
     type: "problem",
     messages: {
@@ -52,7 +52,6 @@ export const noNestedLayerProvideRule = defineRule({
     },
   },
   create(context) {
-    if (classifyFileRole(context.filename) === undefined) return {};
 
     // The walk is pre-order, so an outer call is visited before anything nested in it — the
     // containment question is only answerable once every call in the file has been seen.

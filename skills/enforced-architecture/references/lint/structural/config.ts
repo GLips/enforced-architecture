@@ -128,7 +128,16 @@ export type BarrelDiscoverabilityConfig = {
 };
 
 export type TestFileMirrorConfig = {
-  /** The blessed suffixes. Pick ONE convention and enforce it. */
+  /**
+   * The blessed suffixes, WITHOUT an extension. Pick ONE convention and enforce
+   * it.
+   *
+   * Extensionless because the extension is not part of the convention: a project
+   * that writes `.test.ts` writes `.test.mts` too, and spelling each pairing out
+   * meant `SOURCE_EXTENSIONS` grew to eight while this list covered two — so an
+   * `.mts` test was not recognised as a test, and the check that exists to make
+   * tests findable said nothing about them.
+   */
   testSuffixes: string[];
   /** Off-convention spellings, actively steered toward the canonical suffix. */
   nonconforming: RegExp[];
@@ -242,12 +251,7 @@ export const defaultCheckConfigs: CheckConfigs = {
   },
 
   "naming/test-file-mirror": {
-    testSuffixes: [
-      ".test.ts",
-      ".test.tsx",
-      ".integration.test.ts",
-      ".integration.test.tsx",
-    ],
+    testSuffixes: [".test", ".integration.test"],
     nonconforming: [/\.spec\.[tj]sx?$/, /(^|\/)test_[^/]+\.[tj]sx?$/],
     orphanAllowedDirs: [],
   },

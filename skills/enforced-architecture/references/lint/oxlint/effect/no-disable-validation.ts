@@ -27,8 +27,8 @@
 // not exist in production.
 // ──────────────────────────────────────────────────────────────────────
 
-import { defineRule, type ESTree } from "@oxlint/plugins";
-import { classifyFileRole } from "../../policy/declared-trees.ts";
+import { defineTreeRule } from "../lib/define-tree-rule.ts";
+import { type ESTree } from "@oxlint/plugins";
 
 const OPT_OUT_PROPERTY = "disableValidation";
 const SCHEMA_CONSTRUCTOR_METHODS = new Set(["make"]);
@@ -80,7 +80,7 @@ function isSchemaConstructorArgument(objectLiteral: ESTree.Node): boolean {
   return method !== null && SCHEMA_CONSTRUCTOR_METHODS.has(method);
 }
 
-export const noDisableValidationRule = defineRule({
+export const noDisableValidationRule = defineTreeRule({
   meta: {
     type: "problem",
     messages: {
@@ -91,7 +91,6 @@ export const noDisableValidationRule = defineRule({
     },
   },
   create(context) {
-    if (classifyFileRole(context.filename) === undefined) return {};
 
     return {
       Property(node) {

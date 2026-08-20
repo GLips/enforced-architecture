@@ -15,8 +15,8 @@
 // `types/no-widen-then-assert` reads that flow; neither rule covers the other.
 // ──────────────────────────────────────────────────────────────────────
 
-import { defineRule, type ESTree } from "@oxlint/plugins";
-import { classifyFileRole } from "../../policy/declared-trees.ts";
+import { defineTreeRule } from "../lib/define-tree-rule.ts";
+import { type ESTree } from "@oxlint/plugins";
 
 type TypeAssertion = ESTree.TSAsExpression | ESTree.TSTypeAssertion;
 
@@ -40,7 +40,7 @@ function isOutermostAssertion(node: TypeAssertion): boolean {
   return !isTypeAssertion(node.parent) || node.parent.expression !== node;
 }
 
-export const noChainedTypeAssertionsRule = defineRule({
+export const noChainedTypeAssertionsRule = defineTreeRule({
   meta: {
     type: "problem",
     messages: {
@@ -49,7 +49,6 @@ export const noChainedTypeAssertionsRule = defineRule({
     },
   },
   create(context) {
-    if (classifyFileRole(context.filename) === undefined) return {};
 
     const checkAssertion = (node: TypeAssertion) => {
       if (!isOutermostAssertion(node)) return;

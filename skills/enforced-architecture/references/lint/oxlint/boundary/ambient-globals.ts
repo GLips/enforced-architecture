@@ -55,13 +55,14 @@
 // substitution-free template — are this rule's too.
 // ──────────────────────────────────────────────────────────────────────
 
+import { defineTreeRule } from "../lib/define-tree-rule.ts";
 import {
   defineRule,
   type ESTree,
   type Reference,
   type SourceCode,
 } from "@oxlint/plugins";
-import { classifyFileRole, type FileRole, isModule } from "../../policy/declared-trees.ts";
+import { type FileRole, isModule } from "../../policy/declared-trees.ts";
 import type { TreeVocabulary } from "../../policy/layout.ts";
 import {
   exportedName,
@@ -198,7 +199,7 @@ function ambientGlobalReferences(sourceCode: SourceCode): Reference[] {
   return [...globalScope.through, ...declared.flatMap((variable) => variable.references)];
 }
 
-export const ambientGlobalsRule = defineRule({
+export const ambientGlobalsRule = defineTreeRule({
   meta: {
     type: "problem",
     messages: {
@@ -210,9 +211,7 @@ export const ambientGlobalsRule = defineRule({
         "`{{globalPath}}` is not available in this codebase — no module owns it. {{why}}",
     },
   },
-  create(context) {
-    const role = classifyFileRole(context.filename);
-    if (role === undefined) return {};
+  create(context, role) {
 
     const enforced = restrictedAmbientGlobals(role.tree.vocabulary).filter(
       (policy) => !isOwnerModule(role, policy),

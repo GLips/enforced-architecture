@@ -20,8 +20,8 @@
 // `types/no-broad-parameters` read a signature alike.
 // ──────────────────────────────────────────────────────────────────────
 
-import { defineRule, type ESTree } from "@oxlint/plugins";
-import { classifyFileRole } from "../../policy/declared-trees.ts";
+import { defineTreeRule } from "../lib/define-tree-rule.ts";
+import { type ESTree } from "@oxlint/plugins";
 import {
   collectLocalTypeAliases,
   FUNCTION_SIGNATURE_NODES,
@@ -33,7 +33,7 @@ type SignatureNode = ESTree.Node & { returnType?: ESTree.TSTypeAnnotation | null
 
 const BROAD_RETURN_KEYWORDS = new Set(["TSUnknownKeyword", "TSAnyKeyword"]);
 
-export const noUnknownReturnsRule = defineRule({
+export const noUnknownReturnsRule = defineTreeRule({
   meta: {
     type: "problem",
     messages: {
@@ -42,7 +42,6 @@ export const noUnknownReturnsRule = defineRule({
     },
   },
   create(context) {
-    if (classifyFileRole(context.filename) === undefined) return {};
 
     let aliases: ReadonlyMap<string, ESTree.TSType> = new Map();
 

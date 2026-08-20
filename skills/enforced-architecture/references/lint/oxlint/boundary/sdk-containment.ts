@@ -24,13 +24,12 @@
 // in the file, not the one import the entrypoint needs.
 // ──────────────────────────────────────────────────────────────────────
 
-import { defineRule } from "@oxlint/plugins";
-import { classifyFileRole } from "../../policy/declared-trees.ts";
+import { defineTreeRule } from "../lib/define-tree-rule.ts";
 import { aliasSpecifierFor, classifySpecifier } from "../../policy/layout.ts";
 import { PACKAGE_OWNERS } from "../../policy/package-owners.ts";
 import { visitModuleSources } from "../lib/module-source-visitor.ts";
 
-export const sdkContainmentRule = defineRule({
+export const sdkContainmentRule = defineTreeRule({
   meta: {
     type: "problem",
     messages: {
@@ -42,9 +41,7 @@ export const sdkContainmentRule = defineRule({
       rawSdkOutsideOwner: "{{package}} may only be imported by {{ownerNames}}. {{why}}",
     },
   },
-  create(context) {
-    const role = classifyFileRole(context.filename);
-    if (role === undefined) return {};
+  create(context, role) {
     const { vocabulary } = role.tree;
 
     // An owning module is exempt for its OWN package only, which is what keeps the

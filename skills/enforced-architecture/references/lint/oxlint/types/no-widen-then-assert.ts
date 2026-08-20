@@ -24,8 +24,8 @@
 // test fails if a later version surfaces them.
 // ──────────────────────────────────────────────────────────────────────
 
-import { defineRule, type ESTree, type Scope, type SourceCode, type Variable } from "@oxlint/plugins";
-import { classifyFileRole } from "../../policy/declared-trees.ts";
+import { defineTreeRule } from "../lib/define-tree-rule.ts";
+import { type ESTree, type Scope, type SourceCode, type Variable } from "@oxlint/plugins";
 
 type TypeAssertion = ESTree.TSAsExpression | ESTree.TSTypeAssertion;
 type BroadKind = "top" | "object" | "record";
@@ -169,7 +169,7 @@ function assertionOf(expression: ESTree.Expression): TypeAssertion | null {
     : null;
 }
 
-export const noWidenThenAssertRule = defineRule({
+export const noWidenThenAssertRule = defineTreeRule({
   meta: {
     type: "problem",
     messages: {
@@ -178,7 +178,6 @@ export const noWidenThenAssertRule = defineRule({
     },
   },
   create(context) {
-    if (classifyFileRole(context.filename) === undefined) return {};
 
     const sourceCode = context.sourceCode;
 

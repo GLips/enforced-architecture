@@ -20,13 +20,13 @@
 // the alias clears them all.
 // ──────────────────────────────────────────────────────────────────────
 
-import { defineRule, type ESTree } from "@oxlint/plugins";
-import { classifyFileRole } from "../../policy/declared-trees.ts";
+import { defineTreeRule } from "../lib/define-tree-rule.ts";
+import { type ESTree } from "@oxlint/plugins";
 import { collectLocalTypeAliases, resolvesToBroadType } from "../lib/type-annotations.ts";
 
 const BROAD_KEYWORDS = new Set(["TSUnknownKeyword", "TSAnyKeyword"]);
 
-export const noUnknownTypeAliasesRule = defineRule({
+export const noUnknownTypeAliasesRule = defineTreeRule({
   meta: {
     type: "problem",
     messages: {
@@ -35,7 +35,6 @@ export const noUnknownTypeAliasesRule = defineRule({
     },
   },
   create(context) {
-    if (classifyFileRole(context.filename) === undefined) return {};
 
     return {
       // Judged at Program rather than on TSTypeAliasDeclaration, because resolving one alias needs

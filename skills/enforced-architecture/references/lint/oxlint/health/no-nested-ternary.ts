@@ -16,8 +16,8 @@
 // gate makes the rule silent on every file that is not `.tsx`.
 // ──────────────────────────────────────────────────────────────────────
 
-import { defineRule, type ESTree, type Range } from "@oxlint/plugins";
-import { classifyFileRole } from "../../policy/declared-trees.ts";
+import { defineTreeRule } from "../lib/define-tree-rule.ts";
+import { type ESTree, type Range } from "@oxlint/plugins";
 
 const MAX_TERNARY_DEPTH = 2;
 
@@ -28,7 +28,7 @@ function isInsideBranch(inner: Range, outer: ESTree.ConditionalExpression): bool
   return branches.some(([start, end]) => inner[0] >= start && inner[1] <= end);
 }
 
-export const noNestedTernaryRule = defineRule({
+export const noNestedTernaryRule = defineTreeRule({
   meta: {
     type: "problem",
     messages: {
@@ -37,7 +37,6 @@ export const noNestedTernaryRule = defineRule({
     },
   },
   create(context) {
-    if (classifyFileRole(context.filename) === undefined) return {};
 
     const conditionals: ESTree.ConditionalExpression[] = [];
     const depths = new Map<ESTree.ConditionalExpression, number>();

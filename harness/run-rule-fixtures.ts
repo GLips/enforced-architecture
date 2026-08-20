@@ -26,6 +26,7 @@ import { spawnSync } from "node:child_process";
 import { readFile, readdir } from "node:fs/promises";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isTreeScopedRule } from "../skills/enforced-architecture/references/lint/oxlint/lib/define-tree-rule.ts";
 
 const HARNESS_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HARNESS_DIR, "..");
@@ -301,9 +302,10 @@ function stripLineComments(source: string): string {
  * without declaring the root gets rules that load and return early on every file.
  * Both read as green.
  *
- * WHICH BLOCK each rule belongs in is also asserted, and derived rather than
- * listed: a rule that resolves its filename against the declared trees is
- * tree-scoped, and one that does not is global. `testing/no-module-mocking` is
+ * WHICH BLOCK each rule belongs in is also asserted, and read off the loaded
+ * rule objects rather than listed: a rule built with `defineTreeRule` carries
+ * the tree gate and is tree-scoped, one built with plain `defineRule` does not
+ * and is global. `testing/no-module-mocking` is
  * the only rule in the second group — its subject is tests, which
  * `classifyFileRole` deliberately reports as no subject at all — and putting it
  * behind a tree glob silently stops it reporting on every suite outside a
@@ -322,27 +324,47 @@ function stripLineComments(source: string): string {
  */
 async function checkTreeScoping(): Promise<string[]> {
   const { DECLARED_TREES } = (await import(join(POLICY_ROOT, "declared-trees.ts"))) as {
-    DECLARED_TREES: { root: string }[];
+    DECLARED_TREES: { root: string; vocabulary: { generatedDirs: string[] } }[];
   };
   const config = JSON.parse(stripLineComments(await readFile(OXLINTRC_PATH, "utf8"))) as {
     rules?: Record<string, unknown>;
+    ignorePatterns?: string[];
     overrides?: { files?: string[]; rules?: Record<string, unknown> }[];
   };
 
   const failures: string[] = [];
 
-  // A rule is tree-dependent when its own source resolves the filename it is
-  // handed against the declared trees. Every rule that does must be glob-scoped
-  // to those trees, and every rule that does not must be global — otherwise the
-  // glob is the only thing scoping it, and narrowing the glob narrows the rule.
+  // A rule is tree-dependent when it was built with `defineTreeRule`, which is
+  // the same act that gives it the gate — so this cannot disagree with what the
+  // rule actually does. Asked of the LOADED rule object, never of its source
+  // text: a grep for `classifyFileRole` proves the identifier is present, not
+  // that it controls execution, and a rule whose gate is deleted with its import
+  // left behind passes that grep with every spec still green. That was this
+  // guard, and an external review deleted a gate to prove it.
   const treeDependent = new Set<string>();
   for (const rulePath of rulePaths) {
-    const source = await readFile(rulePath, "utf8");
-    if (/\bclassifyFileRole\b|\bdeclaredTreeFor\b/.test(source)) {
+    const exported = await import(rulePath).then((module) => Object.values(module));
+    if (exported.some((value) => isTreeScopedRule(value))) {
       // `arch/<basename>`, which is the key the plugin registers and the config
       // spells — NOT the `<category>/<name>` path `ruleIdOf` gives.
       treeDependent.add(`arch/${basename(rulePath, ".ts")}`);
     }
+  }
+
+  // `ignorePatterns` is the third place this file could spell a tree root, and
+  // it is derived from the same two lists as the rest: one glob per declared
+  // tree per generated directory that tree names. An entry no tree implies is
+  // either a stale root or a hand-written exemption, and both read as coverage.
+  const expectedIgnores = DECLARED_TREES.flatMap((tree) =>
+    tree.vocabulary.generatedDirs.map((dir) => `${tree.root}/${dir}/**`),
+  ).sort();
+  const actualIgnores = [...(config.ignorePatterns ?? [])].sort();
+  if (expectedIgnores.join("|") !== actualIgnores.join("|")) {
+    failures.push(
+      `setup/oxlintrc.json's ignorePatterns is [${actualIgnores.join(", ")}], but the declared ` +
+        `trees and their generatedDirs imply [${expectedIgnores.join(", ")}] — a hand-written ` +
+        `entry is an exemption nothing declared, and a missing one lints generated output`,
+    );
   }
 
   const globalArchKeys = Object.keys(config.rules ?? {}).filter((key) => key.startsWith("arch/"));

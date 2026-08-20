@@ -33,6 +33,10 @@ export const topologyFixtures: CheckFixtures = {
   // and a file the architecture recommends and this rule rejects is the failure
   // that gets the whole check disabled rather than fixed.
   legal: [
+    // A generated root file. Silent because `isArchitectureExemptPath` reads the
+    // `.gen` convention with the extension already stripped — spelled as a regex
+    // over four extensions it misses this one and reports it.
+    "src/generated-manifest.gen.mts",
     // A source-root file. Not a layer, has no layer to move to, and rejected by
     // a whitelist of directory names alone.
     "src/env.server.ts",

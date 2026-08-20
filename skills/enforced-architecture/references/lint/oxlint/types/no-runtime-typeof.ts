@@ -23,9 +23,8 @@
 // restore the full ban, delete `isInsideTypeGuard` and its call.
 // ──────────────────────────────────────────────────────────────────────
 
-import { defineRule } from "@oxlint/plugins";
+import { defineTreeRule } from "../lib/define-tree-rule.ts";
 import type { ESTree } from "@oxlint/plugins";
-import { classifyFileRole } from "../../policy/declared-trees.ts";
 
 const STATEMENT_LIST_NODES = new Set([
   "BlockStatement",
@@ -95,7 +94,7 @@ function isInsideTypeGuard(node: ESTree.Node): boolean {
   return false;
 }
 
-export const noRuntimeTypeofRule = defineRule({
+export const noRuntimeTypeofRule = defineTreeRule({
   meta: {
     type: "problem",
     messages: {
@@ -104,7 +103,6 @@ export const noRuntimeTypeofRule = defineRule({
     },
   },
   create(context) {
-    if (classifyFileRole(context.filename) === undefined) return {};
 
     return {
       // Only the runtime operator. TypeScript's type-level `typeof X` parses to TSTypeQuery, so

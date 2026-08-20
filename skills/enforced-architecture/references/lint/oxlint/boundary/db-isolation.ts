@@ -18,8 +18,8 @@
 // Adopt boundary/import-policy in the structural tier with this rule.
 // ──────────────────────────────────────────────────────────────────────
 
-import { defineRule } from "@oxlint/plugins";
-import { classifyFileRole, isAtProfile } from "../../policy/declared-trees.ts";
+import { defineTreeRule } from "../lib/define-tree-rule.ts";
+import { isAtProfile } from "../../policy/declared-trees.ts";
 import { aliasSpecifierFor, isUnderPath, type SourceProfile } from "../../policy/layout.ts";
 import { visitModuleSources } from "../lib/module-source-visitor.ts";
 
@@ -35,7 +35,7 @@ const DATA_ACCESS_PROFILES: SourceProfile[] = [
   "feature-controllers",
 ];
 
-export const dbIsolationRule = defineRule({
+export const dbIsolationRule = defineTreeRule({
   meta: {
     type: "problem",
     messages: {
@@ -43,13 +43,11 @@ export const dbIsolationRule = defineRule({
         "DB client/schema imports are restricted to infrastructure/*, features/*/repo/*, and features/*/controllers/*. Move this DB access to a repo or controller module.",
     },
   },
-  create(context) {
+  create(context, role) {
     // The ORM config file needs no exemption of its own any more: it sits at the
     // project root, outside every declared tree, so this rule is already silent
     // there. That is the same reason `vite.config.ts` and `tailwind.config.ts`
     // need none.
-    const role = classifyFileRole(context.filename);
-    if (role === undefined) return {};
     if (isAtProfile(role, ...DATA_ACCESS_PROFILES)) return {};
 
     const { vocabulary } = role.tree;

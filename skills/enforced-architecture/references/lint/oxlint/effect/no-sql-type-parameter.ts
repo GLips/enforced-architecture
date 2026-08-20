@@ -20,8 +20,8 @@
 // carries the message that names the fix its own tag asks for.
 // ──────────────────────────────────────────────────────────────────────
 
-import { defineRule, type ESTree } from "@oxlint/plugins";
-import { classifyFileRole } from "../../policy/declared-trees.ts";
+import { defineTreeRule } from "../lib/define-tree-rule.ts";
+import { type ESTree } from "@oxlint/plugins";
 
 const SQL_TAG_NAMES = new Set(["sql"]);
 
@@ -47,7 +47,7 @@ function isSqlTag(tag: ESTree.Expression): boolean {
   return isSqlTag(tag.object);
 }
 
-export const noSqlTypeParameterRule = defineRule({
+export const noSqlTypeParameterRule = defineTreeRule({
   meta: {
     type: "problem",
     messages: {
@@ -56,7 +56,6 @@ export const noSqlTypeParameterRule = defineRule({
     },
   },
   create(context) {
-    if (classifyFileRole(context.filename) === undefined) return {};
 
     return {
       TaggedTemplateExpression(node) {

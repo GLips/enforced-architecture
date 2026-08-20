@@ -29,8 +29,8 @@
 // as a value.
 // ──────────────────────────────────────────────────────────────────────
 
-import { defineRule } from "@oxlint/plugins";
-import { classifyFileRole, isAtProfile, isModule } from "../../policy/declared-trees.ts";
+import { defineTreeRule } from "../lib/define-tree-rule.ts";
+import { isAtProfile, isModule } from "../../policy/declared-trees.ts";
 import { exportedName, visitImportedNames } from "../lib/imported-names.ts";
 import { sourceOrderedReports } from "../lib/source-ordered-reports.ts";
 
@@ -48,7 +48,7 @@ const PLATFORM_RENDERING_PRIMITIVES = new Set([
   "View", "Text", "Pressable", "TouchableOpacity", "ScrollView", "TextInput", "Image",
 ]);
 
-export const noRawPrimitivesRule = defineRule({
+export const noRawPrimitivesRule = defineTreeRule({
   meta: {
     type: "problem",
     messages: {
@@ -60,14 +60,13 @@ export const noRawPrimitivesRule = defineRule({
         "A star re-export of react-native republishes every rendering primitive under this module's name, so any importer gets View/Text/Pressable without ever naming react-native. Re-export the named utility APIs you actually need instead. See docs/architecture/design-system.md.",
     },
   },
-  create(context) {
+  create(context, role) {
     // The primitives layer as a PROFILE, so a feature's own `shared/ui/` folder,
     // or a `shared/ui-legacy/`, does not inherit its exemption. The render
     // boundary is a named module in the tree's vocabulary for the same reason:
     // it is one file, and a suffix match would hand the exemption to any
     // `__root.tsx` anywhere.
-    const role = classifyFileRole(context.filename);
-    if (role === undefined || isAtProfile(role, "shared-ui")) return {};
+    if (isAtProfile(role, "shared-ui")) return {};
     if (isModule(role, role.tree.vocabulary.rootRouteModule)) return {};
 
     // Both arms report, and the React Native one only finds its names once the whole file is

@@ -28,8 +28,8 @@
 // needs the token source, which a per-file linter cannot import.
 // ──────────────────────────────────────────────────────────────────────
 
-import { defineRule, type ESTree } from "@oxlint/plugins";
-import { classifyFileRole } from "../../policy/declared-trees.ts";
+import { defineTreeRule } from "../lib/define-tree-rule.ts";
+import { type ESTree } from "@oxlint/plugins";
 import { isStyleSubject } from "../../policy/layout.ts";
 
 const RAW_COLOR = /#[0-9a-fA-F]{3,8}\b|(?:rgb|rgba|hsl|hsla)\([^)]*[0-9]/;
@@ -51,7 +51,7 @@ function staticStringValue(node: ESTree.Node): string | null {
   return null;
 }
 
-export const noInlineColorRule = defineRule({
+export const noInlineColorRule = defineTreeRule({
   meta: {
     type: "problem",
     messages: {
@@ -59,15 +59,13 @@ export const noInlineColorRule = defineRule({
         "Raw color value. Use a color token instead — `var(--app-text-secondary)`, `theme.colors.textSecondary`, or a closed color prop on the primitive (`c='dimmed'`). Tokens carry both schemes, so light and dark stay in sync and there is no dark variant to forget. See docs/architecture/design-system.md.",
     },
   },
-  create(context) {
+  create(context, role) {
     // Two gates, one owner. `isStyleSubject` is what the whole style tier —
     // these three rules and style/token-equality — asks before reading a line,
     // and it is one function rather than four copies because the copies
     // disagreed: two of these rules had the domain gate, one did not. The token
     // source is a named MODULE in the tree's vocabulary rather than a path
     // suffix, so a `legacy-theme.ts` beside it does not inherit the exemption.
-    const role = classifyFileRole(context.filename);
-    if (role === undefined) return {};
     if (!isStyleSubject(role.tree.vocabulary, role.sourcePath)) return {};
 
     return {

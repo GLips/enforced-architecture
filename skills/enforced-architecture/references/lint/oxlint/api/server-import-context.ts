@@ -25,12 +25,12 @@
 // which is the coupling every boundary rule in this catalog counts.
 // ─────────────────────────────────────────────────────────────────────
 
-import { defineRule } from "@oxlint/plugins";
-import { classifyFileRole, isServerContext } from "../../policy/declared-trees.ts";
+import { defineTreeRule } from "../lib/define-tree-rule.ts";
+import { isServerContext } from "../../policy/declared-trees.ts";
 import { withoutSourceExtension } from "../../policy/layout.ts";
 import { visitModuleSources } from "../lib/module-source-visitor.ts";
 
-export const serverImportContextRule = defineRule({
+export const serverImportContextRule = defineTreeRule({
   meta: {
     type: "problem",
     messages: {
@@ -38,9 +38,7 @@ export const serverImportContextRule = defineRule({
         "*/index.server is a server-only barrel and this is a client context. Routes are isomorphic; use the client-safe barrel there. This rule answers the CONTEXT question only — which server context may reach a given barrel is boundary/import-policy's answer, and from inside a feature that is controllers/, service/ and a .server.ts module at the feature ROOT. Not the feature's own index.server.ts, which is a barrel and may name nothing outside its feature; not repo/, which is a leaf; not infrastructure/, which sits below features.",
     },
   },
-  create(context) {
-    const role = classifyFileRole(context.filename);
-    if (role === undefined) return {};
+  create(context, role) {
     if (isServerContext(role)) return {};
 
     const { serverBarrelModule } = role.tree.vocabulary;

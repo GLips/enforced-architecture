@@ -29,8 +29,9 @@
 // have tells the reader to install one.
 // ──────────────────────────────────────────────────────────────────────
 
-import { defineRule, type ESTree, type Range } from "@oxlint/plugins";
-import { classifyFileRole, isComponentFile } from "../../policy/declared-trees.ts";
+import { defineTreeRule } from "../lib/define-tree-rule.ts";
+import { type ESTree, type Range } from "@oxlint/plugins";
+import { isComponentFile } from "../../policy/declared-trees.ts";
 import { createRangeIndex } from "../lib/range-index.ts";
 
 const EFFECT_HOOK = "useEffect";
@@ -39,7 +40,7 @@ const CALLBACK_HOOK = "useCallback";
 const ASYNC_WORK = "asyncWork";
 const CLEANUP = "cleanup";
 
-export const noAsyncEffectRule = defineRule({
+export const noAsyncEffectRule = defineTreeRule({
   meta: {
     type: "problem",
     messages: {
@@ -51,7 +52,7 @@ export const noAsyncEffectRule = defineRule({
   },
   create(context) {
     const { filename } = context;
-    if (!isComponentFile(filename) || classifyFileRole(filename) === undefined) return {};
+    if (!isComponentFile(filename)) return {};
 
     // Async work and cleanup are both facts about the effect callback's whole subtree, which a
     // visitor cannot know when it reaches the callback. Every async spelling records its range on

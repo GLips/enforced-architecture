@@ -23,8 +23,9 @@
 // report one that is not wide.
 // ──────────────────────────────────────────────────────────────────────
 
-import { defineRule, type ESTree } from "@oxlint/plugins";
-import { classifyFileRole, isComponentFile } from "../../policy/declared-trees.ts";
+import { defineTreeRule } from "../lib/define-tree-rule.ts";
+import { type ESTree } from "@oxlint/plugins";
+import { isComponentFile } from "../../policy/declared-trees.ts";
 import { exportedComponents, type ComponentFunction } from "../lib/component-declarations.ts";
 import { numericRuleOption } from "../lib/rule-options.ts";
 
@@ -50,7 +51,7 @@ type PropSurface = {
   unresolved: string[];
 };
 
-export const propCountRule = defineRule({
+export const propCountRule = defineTreeRule({
   meta: {
     type: "suggestion",
     schema: [
@@ -69,7 +70,7 @@ export const propCountRule = defineRule({
     },
   },
   create(context) {
-    if (classifyFileRole(context.filename) === undefined || !isComponentFile(context.filename)) return {};
+    if (!isComponentFile(context.filename)) return {};
 
     const threshold = numericRuleOption(context.options[0], "threshold", DEFAULT_THRESHOLD);
 

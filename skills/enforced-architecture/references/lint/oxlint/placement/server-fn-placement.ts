@@ -21,13 +21,13 @@
 // placement/no-plain-export-in-server-fn-module's.
 // ──────────────────────────────────────────────────────────────────────
 
-import { defineRule } from "@oxlint/plugins";
-import { classifyFileRole, isAtProfile } from "../../policy/declared-trees.ts";
+import { defineTreeRule } from "../lib/define-tree-rule.ts";
+import { isAtProfile } from "../../policy/declared-trees.ts";
 import { visitIdentifierNamed } from "../lib/identifier-occurrences.ts";
 
 const SERVER_FN_FACTORY = "createServerFn";
 
-export const serverFnPlacementRule = defineRule({
+export const serverFnPlacementRule = defineTreeRule({
   meta: {
     type: "problem",
     messages: {
@@ -35,13 +35,12 @@ export const serverFnPlacementRule = defineRule({
         "createServerFn must be placed in feature controllers/ modules. Server functions are application delivery endpoints. Move this to features/<name>/controllers/.",
     },
   },
-  create(context) {
+  create(context, role) {
     // The profile, not a path: a top-level `src/controllers/` is not a feature's
     // controllers layer, and a `legacy-controllers/` holding endpoints nobody
     // migrated classifies as nothing at all — which is exactly what this rule
     // exists to find.
-    const role = classifyFileRole(context.filename);
-    if (role === undefined || isAtProfile(role, "feature-controllers")) return {};
+    if (isAtProfile(role, "feature-controllers")) return {};
 
     return visitIdentifierNamed(SERVER_FN_FACTORY, (node) => {
       context.report({ node, messageId: "serverFnOutsideControllers" });

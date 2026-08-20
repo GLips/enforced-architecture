@@ -25,8 +25,8 @@
 // runQuery<Row>(sql)` reports only if `runQuery` is in the list, by design.
 // ──────────────────────────────────────────────────────────────────────
 
-import { defineRule, type ESTree } from "@oxlint/plugins";
-import { classifyFileRole } from "../../policy/declared-trees.ts";
+import { defineTreeRule } from "../lib/define-tree-rule.ts";
+import { type ESTree } from "@oxlint/plugins";
 
 // Matched against the LAST segment of the callee, so the receiver never has to be enumerated. Every
 // name here reads external bytes: the HTTP verbs (axios, ky, ofetch and every wrapper of them),
@@ -82,7 +82,7 @@ function calledName(expression: ESTree.Expression): string | null {
   return callee.property.type === "Identifier" ? callee.property.name : null;
 }
 
-export const noTypeArgumentAssertionRule = defineRule({
+export const noTypeArgumentAssertionRule = defineTreeRule({
   meta: {
     type: "problem",
     messages: {
@@ -91,7 +91,6 @@ export const noTypeArgumentAssertionRule = defineRule({
     },
   },
   create(context) {
-    if (classifyFileRole(context.filename) === undefined) return {};
 
     const sourceCode = context.sourceCode;
 

@@ -25,8 +25,9 @@
 // Two components in one file is react/single-component-export's finding.
 // ──────────────────────────────────────────────────────────────────────
 
-import { defineRule, type ESTree, type Range } from "@oxlint/plugins";
-import { classifyFileRole, isComponentFile } from "../../policy/declared-trees.ts";
+import { defineTreeRule } from "../lib/define-tree-rule.ts";
+import { type ESTree, type Range } from "@oxlint/plugins";
+import { isComponentFile } from "../../policy/declared-trees.ts";
 import { exportedComponents } from "../lib/component-declarations.ts";
 import { numericRuleOption } from "../lib/rule-options.ts";
 
@@ -35,7 +36,7 @@ const HOOK_NAME = /^use[A-Z]/;
 
 const DEFAULT_THRESHOLD = 7;
 
-export const hookCountRule = defineRule({
+export const hookCountRule = defineTreeRule({
   meta: {
     type: "suggestion",
     schema: [
@@ -52,7 +53,7 @@ export const hookCountRule = defineRule({
     },
   },
   create(context) {
-    if (classifyFileRole(context.filename) === undefined || !isComponentFile(context.filename)) return {};
+    if (!isComponentFile(context.filename)) return {};
 
     const threshold = numericRuleOption(context.options[0], "threshold", DEFAULT_THRESHOLD);
     // Recorded on the way past and attributed at the end: a visitor reaches a component's function

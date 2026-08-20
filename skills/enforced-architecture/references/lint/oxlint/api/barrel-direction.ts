@@ -22,8 +22,8 @@
 // is `api/barrel-purity`'s finding, so green here is not a clean bundle.
 // ─────────────────────────────────────────────────────────────────────
 
-import { defineRule } from "@oxlint/plugins";
-import { classifyFileRole, isModule } from "../../policy/declared-trees.ts";
+import { defineTreeRule } from "../lib/define-tree-rule.ts";
+import { isModule } from "../../policy/declared-trees.ts";
 import { withoutSourceExtension } from "../../policy/layout.ts";
 import { visitModuleSources } from "../lib/module-source-visitor.ts";
 
@@ -38,7 +38,7 @@ function namesServerBarrel(specifier: string, serverBarrelModule: string): boole
   return bare === serverBarrelModule || bare.endsWith(`/${serverBarrelModule}`);
 }
 
-export const barrelDirectionRule = defineRule({
+export const barrelDirectionRule = defineTreeRule({
   meta: {
     type: "problem",
     messages: {
@@ -46,7 +46,7 @@ export const barrelDirectionRule = defineRule({
         "Barrel index.ts must not import from index.server.ts — this pulls server-only code into client bundles. If the export is client-safe (types, createServerFn references), re-export it from controllers/ instead. If it is server-only, it belongs in index.server.ts only.",
     },
   },
-  create(context) {
+  create(context, role) {
     // The CLIENT barrel of a feature or a domain, and nothing else. Read off the
     // classification rather than off a path regex, so
     // `features-legacy/billing/index.ts` and `features/billing/ui/index.ts` are
@@ -55,8 +55,6 @@ export const barrelDirectionRule = defineRule({
     // file allowed to import in either direction — which is why this tests the
     // client barrel module rather than the `feature-barrel` profile, and why the
     // domain arm (no barrel profile of its own) is reachable at all.
-    const role = classifyFileRole(context.filename);
-    if (role === undefined) return {};
     const { vocabulary } = role.tree;
     const unit = role.place?.unit;
     if (unit === undefined) return {};

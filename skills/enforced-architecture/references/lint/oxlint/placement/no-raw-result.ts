@@ -26,8 +26,9 @@
 // in another layer is boundary/db-isolation's finding.
 // ──────────────────────────────────────────────────────────────────────
 
-import { defineRule, type ESTree } from "@oxlint/plugins";
-import { classifyFileRole, isAtProfile } from "../../policy/declared-trees.ts";
+import { defineTreeRule } from "../lib/define-tree-rule.ts";
+import { type ESTree } from "@oxlint/plugins";
+import { isAtProfile } from "../../policy/declared-trees.ts";
 import type { SourceProfile } from "../../policy/layout.ts";
 
 /** The layers that run queries. Profiles, so a renamed layer keeps its scope. */
@@ -93,7 +94,7 @@ function leaksRawWriteResult(expression: ESTree.Expression): boolean {
   );
 }
 
-export const noRawResultRule = defineRule({
+export const noRawResultRule = defineTreeRule({
   meta: {
     type: "problem",
     messages: {
@@ -103,9 +104,8 @@ export const noRawResultRule = defineRule({
         "An expression-bodied function returns an unserializable Drizzle write result. Add .returning() or use a block body and await without returning.",
     },
   },
-  create(context) {
-    const role = classifyFileRole(context.filename);
-    if (role === undefined || !isAtProfile(role, ...DATA_ACCESS_PROFILES)) return {};
+  create(context, role) {
+    if (!isAtProfile(role, ...DATA_ACCESS_PROFILES)) return {};
 
     return {
       ReturnStatement(node) {

@@ -30,8 +30,9 @@
 // interpolated specifier, and a namespace passed on as a value.
 // ──────────────────────────────────────────────────────────────────────
 
-import { defineRule, type ESTree } from "@oxlint/plugins";
-import { classifyFileRole, isModule } from "../../policy/declared-trees.ts";
+import { defineTreeRule } from "../lib/define-tree-rule.ts";
+import { type ESTree } from "@oxlint/plugins";
+import { isModule } from "../../policy/declared-trees.ts";
 import { aliasSpecifierFor } from "../../policy/layout.ts";
 import { exportedName, visitImportedNames } from "../lib/imported-names.ts";
 import { sourceOrderedReports } from "../lib/source-ordered-reports.ts";
@@ -52,7 +53,7 @@ const WRAPPED_COMPONENTS: Record<string, { wrapperModule: string; why: string }>
   },
 };
 
-export const vendorComponentContainmentRule = defineRule({
+export const vendorComponentContainmentRule = defineTreeRule({
   meta: {
     type: "problem",
     messages: {
@@ -62,9 +63,7 @@ export const vendorComponentContainmentRule = defineRule({
         "A star re-export of {{vendor}} republishes every wrapped component under this module's name, so an importer reaches the unwrapped original without ever naming the library. Re-export the specific components you mean instead. See docs/architecture/design-system.md.",
     },
   },
-  create(context) {
-    const role = classifyFileRole(context.filename);
-    if (role === undefined) return {};
+  create(context, role) {
     const { vocabulary } = role.tree;
     const wrapperPathOf = (wrapperModule: string) =>
       `${vocabulary.sharedUiDir}/${wrapperModule}`;

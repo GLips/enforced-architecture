@@ -22,17 +22,16 @@
 // invariant at once, which no single case justifies.
 // ──────────────────────────────────────────────────────────────────────
 
-import { defineRule } from "@oxlint/plugins";
+import { defineTreeRule } from "../lib/define-tree-rule.ts";
 import {
   describeKnownAreas,
   evaluateImportPolicy,
   POLICY_MESSAGES,
 } from "../../policy/import-policy.ts";
-import { classifyFileRole } from "../../policy/declared-trees.ts";
 import { classifySpecifier } from "../../policy/layout.ts";
 import { isTypeOnlyDeclaration, visitModuleSources } from "../lib/module-source-visitor.ts";
 
-export const importPolicyRule = defineRule({
+export const importPolicyRule = defineTreeRule({
   meta: {
     type: "problem",
     // Spread rather than restated, so a template added to the policy reaches this
@@ -42,7 +41,7 @@ export const importPolicyRule = defineRule({
     messages: { ...POLICY_MESSAGES },
   },
 
-  create(context) {
+  create(context, role) {
     // Outside every declared tree this rule is silent, `unclassifiedSource`
     // included — which is the whole point of the declaration. This is the one
     // rule whose no-match answer is a BLOCKING error rather than nothing, so
@@ -50,8 +49,6 @@ export const importPolicyRule = defineRule({
     // correct package with its own layout draws that error on 100% of its
     // files, imports or not, and the only way to clear it is to stop using the
     // linter.
-    const role = classifyFileRole(context.filename);
-    if (role === undefined) return {};
 
     const { vocabulary } = role.tree;
     const { sourcePath } = role;

@@ -16,8 +16,7 @@
 // Adopt boundary/import-policy in the structural tier with this rule.
 // ──────────────────────────────────────────────────────────────────────
 
-import { defineRule } from "@oxlint/plugins";
-import { classifyFileRole } from "../../policy/declared-trees.ts";
+import { defineTreeRule } from "../lib/define-tree-rule.ts";
 import {
   aliasSpecifierFor,
   isUnderPath,
@@ -41,7 +40,7 @@ function bannedSpecifiers(vocabulary: TreeVocabulary): string[] {
   return [aliasSpecifierFor(vocabulary, vocabulary.dbDir), ...serverEnv];
 }
 
-export const routeThinnessRule = defineRule({
+export const routeThinnessRule = defineTreeRule({
   meta: {
     type: "problem",
     messages: {
@@ -49,9 +48,8 @@ export const routeThinnessRule = defineRule({
         "Routes are isomorphic thin adapters. Import data through the client-safe feature barrel (@/features/<feature>), not DB or env.server.",
     },
   },
-  create(context) {
-    const role = classifyFileRole(context.filename);
-    if (role?.place?.profile !== "route") return {};
+  create(context, role) {
+    if (role.place?.profile !== "route") return {};
     const banned = bannedSpecifiers(role.tree.vocabulary);
 
     return visitModuleSources((source, specifier) => {

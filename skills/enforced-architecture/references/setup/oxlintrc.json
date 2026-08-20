@@ -21,18 +21,23 @@
   // reach for that only to scope a plugin to a subtree.
   "jsPlugins": ["./lint/oxlint/plugin.ts", "eslint-plugin-sonarjs"],
 
-  // NO `ignorePatterns` for the architecture tier, deliberately. Generated and
-  // ambient files are exempt from every `arch/` rule already, by
-  // `isArchitectureExemptPath` — a `.gen.ts` or a `.d.ts` is a structural FACT
-  // about the file, and both tiers read the one answer. A directory glob here
-  // would be a second answer to the same question, spelled as a path this config
-  // is otherwise forbidden to name, and an array an adopter grows one entry at a
-  // time until the tier is off. If a code generator writes to a directory, name
-  // its output `*.gen.ts` and it is exempt everywhere at once.
+  // One `<root>/<dir>/**` entry per declared tree per `generatedDirs` entry, and
+  // `harness/run-rule-fixtures.ts` fails the build when this list is not exactly
+  // that. The names live in each tree's vocabulary; this file spells the globs
+  // the names imply, the same way the `overrides` block below spells the tree
+  // roots.
   //
-  // A project that needs the BUILT-IN rules off somewhere — `typescript/`,
-  // `sonarjs/` — adds the key back for those and should say which rules and why;
-  // it does not reach the `arch/` block, which is scoped by tree.
+  // This is here for the BUILT-IN rules. Every `arch/` rule already skips
+  // generated output by the `.gen` naming convention — a structural fact about
+  // the file, in `isArchitectureExemptPath`, read by both tiers — but
+  // `typescript/` and `sonarjs/` know nothing about that predicate, so without
+  // this an adopting project lints its own code generator's output on day one.
+  //
+  // Adding a hand-written path here is the menu re-entering: the guard rejects
+  // any entry no tree's vocabulary implies, so widening it means declaring the
+  // directory as generated, which is a claim about the tree rather than a rule
+  // switched off.
+  "ignorePatterns": ["src/gen/**"],
 
   // `typeAware` needs the `oxlint-tsgolint` dev dependency. Without it oxlint
   // aborts — "Failed to find tsgolint executable", exit 1, nothing linted — so a
