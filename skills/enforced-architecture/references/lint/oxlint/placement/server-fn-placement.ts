@@ -19,6 +19,12 @@
 // server function checks its input is placement/server-fn-validation's finding.
 // What else the module exports is
 // placement/no-plain-export-in-server-fn-module's.
+//
+// SCOPE, and it is the same for every rule in this catalog: this rule is silent
+// outside the declared trees, and silent on the files `isArchitectureExemptPath`
+// names inside them — tests, scripts, generated and ambient modules. Neither
+// silence is coverage. `lib/define-tree-rule.ts` owns both, which is why no rule
+// body checks either one.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineTreeRule } from "../lib/define-tree-rule.ts";
@@ -32,7 +38,7 @@ export const serverFnPlacementRule = defineTreeRule({
     type: "problem",
     messages: {
       serverFnOutsideControllers:
-        "createServerFn must be placed in feature controllers/ modules. Server functions are application delivery endpoints. Move this to features/<name>/controllers/.",
+        "createServerFn must be placed in feature {{layer}}/ modules. Server functions are application delivery endpoints. Move this to {{featuresDir}}/<name>/{{layer}}/.",
     },
   },
   create(context, role) {
@@ -43,7 +49,14 @@ export const serverFnPlacementRule = defineTreeRule({
     if (isAtProfile(role, "feature-controllers")) return {};
 
     return visitIdentifierNamed(SERVER_FN_FACTORY, (node) => {
-      context.report({ node, messageId: "serverFnOutsideControllers" });
+      context.report({
+        node,
+        messageId: "serverFnOutsideControllers",
+        data: {
+          featuresDir: role.tree.vocabulary.featuresDir,
+          layer: role.tree.vocabulary.featureLayerDirs.controllers,
+        },
+      });
     });
   },
 });

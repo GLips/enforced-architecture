@@ -13,6 +13,12 @@
 // The split spelling is invisible here. `const b: unknown = a; const c = b as T`
 // is the same claim across two statements, and the assertions are not nested.
 // `types/no-widen-then-assert` reads that flow; neither rule covers the other.
+//
+// SCOPE, and it is the same for every rule in this catalog: this rule is silent
+// outside the declared trees, and silent on the files `isArchitectureExemptPath`
+// names inside them — tests, scripts, generated and ambient modules. Neither
+// silence is coverage. `lib/define-tree-rule.ts` owns both, which is why no rule
+// body checks either one.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineTreeRule } from "../lib/define-tree-rule.ts";

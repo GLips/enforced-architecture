@@ -25,6 +25,12 @@
 // The rule reads one file. It does not prove that the client reaches this
 // module; the boundary/ graph checks answer that. The compiler behaviour is in
 // @tanstack/start-plugin-core/src/start-compiler/handleCreateServerFn.ts.
+//
+// SCOPE, and it is the same for every rule in this catalog: this rule is silent
+// outside the declared trees, and silent on the files `isArchitectureExemptPath`
+// names inside them — tests, scripts, generated and ambient modules. Neither
+// silence is coverage. `lib/define-tree-rule.ts` owns both, which is why no rule
+// body checks either one.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineTreeRule } from "../lib/define-tree-rule.ts";

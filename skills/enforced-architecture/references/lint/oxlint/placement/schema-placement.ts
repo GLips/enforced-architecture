@@ -21,6 +21,12 @@
 //
 // A table at the right address says nothing about who may query it. That is
 // boundary/db-isolation's finding.
+//
+// SCOPE, and it is the same for every rule in this catalog: this rule is silent
+// outside the declared trees, and silent on the files `isArchitectureExemptPath`
+// names inside them — tests, scripts, generated and ambient modules. Neither
+// silence is coverage. `lib/define-tree-rule.ts` owns both, which is why no rule
+// body checks either one.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineTreeRule } from "../lib/define-tree-rule.ts";
@@ -36,7 +42,7 @@ export const schemaPlacementRule = defineTreeRule({
     type: "problem",
     messages: {
       schemaOutsideSchemaDirectory:
-        "Schema declarations (pgTable, relations) must live in infrastructure/db/schema/*. Move this declaration to the appropriate schema file.",
+        "Schema declarations (pgTable, relations) must live in {{schemaDir}}/*. Move this declaration to the appropriate schema file.",
     },
   },
   create(context, role) {
@@ -57,7 +63,14 @@ export const schemaPlacementRule = defineTreeRule({
       // what keeps `queryBuilder.relations(...)` — an unrelated method that shares the name — out.
       CallExpression(node) {
         if (node.callee.type === "Identifier" && SCHEMA_DECLARATIONS.has(node.callee.name)) {
-          context.report({ node, messageId: "schemaOutsideSchemaDirectory" });
+          context.report({
+            node,
+            messageId: "schemaOutsideSchemaDirectory",
+            // The tree's own path. A destination spelled into the message is a
+            // prescription a renamed tree cannot follow — the directory it
+            // names does not exist there.
+            data: { schemaDir: dbSchemaPath(role.tree.vocabulary) },
+          });
         }
       },
     };

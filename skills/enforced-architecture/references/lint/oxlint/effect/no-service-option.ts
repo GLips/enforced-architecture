@@ -20,6 +20,12 @@
 // The name is matched without a namespace test, so `Effect.serviceOption`,
 // a namespace alias, and a bare imported `serviceOption(…)` all report. An
 // aliased import reports nothing; this tier has no scope resolution.
+//
+// SCOPE, and it is the same for every rule in this catalog: this rule is silent
+// outside the declared trees, and silent on the files `isArchitectureExemptPath`
+// names inside them — tests, scripts, generated and ambient modules. Neither
+// silence is coverage. `lib/define-tree-rule.ts` owns both, which is why no rule
+// body checks either one.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineTreeRule } from "../lib/define-tree-rule.ts";

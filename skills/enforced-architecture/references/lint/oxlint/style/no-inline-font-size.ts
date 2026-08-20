@@ -38,6 +38,12 @@
 // source is skipped because it defines what everything else names. Both are
 // `isStyleSubject` in lint/policy/layout.ts, which the whole style tier calls —
 // these three rules and style/token-equality.
+//
+// SCOPE, and it is the same for every rule in this catalog: this rule is silent
+// outside the declared trees, and silent on the files `isArchitectureExemptPath`
+// names inside them — tests, scripts, generated and ambient modules. Neither
+// silence is coverage. `lib/define-tree-rule.ts` owns both, which is why no rule
+// body checks either one.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineTreeRule } from "../lib/define-tree-rule.ts";

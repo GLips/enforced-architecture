@@ -53,6 +53,12 @@
 // spellings share lib/imported-names.ts with the two style rules that fence on
 // names, so its blind spots — chiefly a specifier that is not a literal or a
 // substitution-free template — are this rule's too.
+//
+// SCOPE, and it is the same for every rule in this catalog: this rule is silent
+// outside the declared trees, and silent on the files `isArchitectureExemptPath`
+// names inside them — tests, scripts, generated and ambient modules. Neither
+// silence is coverage. `lib/define-tree-rule.ts` owns both, which is why no rule
+// body checks either one.
 // ──────────────────────────────────────────────────────────────────────
 
 import { apiClientModule, browserStorageModule } from "../../policy/layout.ts";

@@ -20,6 +20,12 @@
 // Suppress per line and never per file: `// oxlint-disable-next-line
 // arch/import-policy`. A file-level disable of a merged rule removes every
 // invariant at once, which no single case justifies.
+//
+// SCOPE, and it is the same for every rule in this catalog: this rule is silent
+// outside the declared trees, and silent on the files `isArchitectureExemptPath`
+// names inside them — tests, scripts, generated and ambient modules. Neither
+// silence is coverage. `lib/define-tree-rule.ts` owns both, which is why no rule
+// body checks either one.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineTreeRule } from "../lib/define-tree-rule.ts";

@@ -22,6 +22,12 @@
 // (`Effect.catchAll(ignoreFailure)`) to its declaration. A handler that
 // returns `Effect.logError(…)` has the same type and the same result at
 // the caller. Both need the type-aware tier.
+//
+// SCOPE, and it is the same for every rule in this catalog: this rule is silent
+// outside the declared trees, and silent on the files `isArchitectureExemptPath`
+// names inside them — tests, scripts, generated and ambient modules. Neither
+// silence is coverage. `lib/define-tree-rule.ts` owns both, which is why no rule
+// body checks either one.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineTreeRule } from "../lib/define-tree-rule.ts";

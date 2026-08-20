@@ -18,6 +18,12 @@
 // from a call: `const x: unknown = parse(text)` is a boundary. To follow a
 // binding you need the scope resolution in `types/no-widen-then-assert`, and
 // the indirect spelling carries real false-positive risk.
+//
+// SCOPE, and it is the same for every rule in this catalog: this rule is silent
+// outside the declared trees, and silent on the files `isArchitectureExemptPath`
+// names inside them — tests, scripts, generated and ambient modules. Neither
+// silence is coverage. `lib/define-tree-rule.ts` owns both, which is why no rule
+// body checks either one.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineTreeRule } from "../lib/define-tree-rule.ts";

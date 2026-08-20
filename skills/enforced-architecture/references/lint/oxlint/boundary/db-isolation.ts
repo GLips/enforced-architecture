@@ -16,6 +16,12 @@
 //
 // A relative specifier reaches the same module and no pattern here sees it.
 // Adopt boundary/import-policy in the structural tier with this rule.
+//
+// SCOPE, and it is the same for every rule in this catalog: this rule is silent
+// outside the declared trees, and silent on the files `isArchitectureExemptPath`
+// names inside them — tests, scripts, generated and ambient modules. Neither
+// silence is coverage. `lib/define-tree-rule.ts` owns both, which is why no rule
+// body checks either one.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineTreeRule } from "../lib/define-tree-rule.ts";
@@ -45,7 +51,7 @@ export const dbIsolationRule = defineTreeRule({
     type: "problem",
     messages: {
       dbOutsideDataLayer:
-        "DB client/schema imports are restricted to infrastructure/*, features/*/repo/*, and features/*/controllers/*. Move this DB access to a repo or controller module.",
+        "DB client/schema imports are restricted to {{infrastructureDir}}/*, {{featuresDir}}/*/{{repoLayer}}/*, and {{featuresDir}}/*/{{controllersLayer}}/*. Move this DB access to a {{repoLayer}} or {{controllersLayer}} module.",
     },
   },
   create(context, role) {
@@ -62,7 +68,16 @@ export const dbIsolationRule = defineTreeRule({
       // Whole segments: `@/infrastructure/db` and anything under it, and never
       // `@/infrastructure/db-legacy`.
       if (isUnderPath(specifier, dbAlias)) {
-        context.report({ node: source, messageId: "dbOutsideDataLayer" });
+        context.report({
+          node: source,
+          messageId: "dbOutsideDataLayer",
+          data: {
+            infrastructureDir: vocabulary.infrastructureDir,
+            featuresDir: vocabulary.featuresDir,
+            repoLayer: vocabulary.featureLayerDirs.repo,
+            controllersLayer: vocabulary.featureLayerDirs.controllers,
+          },
+        });
       }
     });
   },

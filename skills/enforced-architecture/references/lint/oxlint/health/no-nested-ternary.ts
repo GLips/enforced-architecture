@@ -14,6 +14,12 @@
 // Do not gate this rule on `isComponentFile`. A JSX attribute holds many of
 // these chains, but the same chain in a `.ts` file is as hard to read. That
 // gate makes the rule silent on every file that is not `.tsx`.
+//
+// SCOPE, and it is the same for every rule in this catalog: this rule is silent
+// outside the declared trees, and silent on the files `isArchitectureExemptPath`
+// names inside them — tests, scripts, generated and ambient modules. Neither
+// silence is coverage. `lib/define-tree-rule.ts` owns both, which is why no rule
+// body checks either one.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineTreeRule } from "../lib/define-tree-rule.ts";

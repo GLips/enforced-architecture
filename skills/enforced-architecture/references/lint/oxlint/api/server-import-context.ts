@@ -23,6 +23,12 @@
 // erased at build time, thus the exemption looks free. A client file that
 // names a type from a server barrel still depends on that barrel's shape,
 // which is the coupling every boundary rule in this catalog counts.
+//
+// SCOPE, and it is the same for every rule in this catalog: this rule is silent
+// outside the declared trees, and silent on the files `isArchitectureExemptPath`
+// names inside them — tests, scripts, generated and ambient modules. Neither
+// silence is coverage. `lib/define-tree-rule.ts` owns both, which is why no rule
+// body checks either one.
 // ─────────────────────────────────────────────────────────────────────
 
 import { defineTreeRule } from "../lib/define-tree-rule.ts";
