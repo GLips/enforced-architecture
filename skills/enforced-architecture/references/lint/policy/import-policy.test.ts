@@ -354,6 +354,22 @@ describeSuite("classification: what is deliberately not classified", () => {
     assert.equal(classifySpecifier(VOCABULARY, "@/styles.css?url"), undefined);
   });
 
+  // The last arm, and the one a list of "aliases pointing outside the tree" used
+  // to intercept. That list could not tell an alias from a package name, so
+  // every entry was a package whose import policy the adopter had switched off
+  // in a field that read like a path mapping. A second alias root is a package
+  // here, which is what it is: something this tree imports and does not contain.
+  testCase("a second alias root is a package, not a hole in the policy", () => {
+    assert.deepEqual(classifySpecifier(VOCABULARY, "@assets/logo"), {
+      kind: "package",
+      name: "@assets/logo",
+    });
+    assert.deepEqual(classifySpecifier(VOCABULARY, "@core/money/decimal"), {
+      kind: "package",
+      name: "@core/money",
+    });
+  });
+
 });
 
 /** The evaluator, in the shape the OXLINT adapter calls it: a specifier. */
@@ -693,39 +709,14 @@ describeSuite("the unclassified message names a destination in the tree's own wo
 });
 
 describeSuite("a vocabulary cannot declare its own tree out of existence", () => {
-  // `nonSourceAliases` is the one field that REMOVES subjects, so it is the one
-  // an adopter can turn into an off-switch. The recommended vocabulary is
-  // checked here alongside the rejections, because a validator that rejects
-  // everything passes the negative cases just as well.
+  // Every case below is a vocabulary that reads as fully adopted and leaves a
+  // position, a tree, or a whole rule governed by nothing. The recommended
+  // vocabulary is checked alongside the rejections, because a validator that
+  // rejects everything passes the negative cases just as well.
   testCase("the recommended vocabulary is accepted", () => {
     assert.doesNotThrow(() => assertGoverningVocabulary(RECOMMENDED_VOCABULARY, "src"));
   });
 
-  testCase("an alias for a genuinely external tree is accepted", () => {
-    const external: TreeVocabulary = { ...RECOMMENDED_VOCABULARY, nonSourceAliases: ["@assets/"] };
-    assert.doesNotThrow(() => assertGoverningVocabulary(external, "src"));
-  });
-
-  testCase("declaring the tree's own alias root is refused", () => {
-    const silenced: TreeVocabulary = { ...RECOMMENDED_VOCABULARY, nonSourceAliases: ["@/"] };
-    assert.throws(() => assertGoverningVocabulary(silenced, "src"), /overlaps its own aliasPrefix/);
-  });
-
-  testCase("a PREFIX of the alias root is the same silence written shorter", () => {
-    const silenced: TreeVocabulary = { ...RECOMMENDED_VOCABULARY, nonSourceAliases: ["@"] };
-    assert.throws(() => assertGoverningVocabulary(silenced, "src"), /overlaps its own aliasPrefix/);
-  });
-
-  testCase("a subtree of the alias root is refused too, because it is an area with no policy", () => {
-    const silenced: TreeVocabulary = { ...RECOMMENDED_VOCABULARY, nonSourceAliases: ["@/features/"] };
-    assert.throws(() => assertGoverningVocabulary(silenced, "src"), /overlaps its own aliasPrefix/);
-  });
-
-  // The three below are what lets `import-graph.ts` NOT consult this field: a
-  // relative or absolute entry names paths the structural tier resolves by
-  // walking the filesystem, so it would drop edges the linter — which resolves
-  // no relative specifier at all — goes on policing. Loosen this and the
-  // deliberate asymmetry between the tiers becomes a silent disagreement.
   // `generatedDirs` REMOVES subjects too, in both tiers and in the shipped
   // ignore pattern the harness derives from it. `["**"]` is the whole catalog
   // switched off while every rule still appears enabled.
@@ -757,9 +748,7 @@ describeSuite("a vocabulary cannot declare its own tree out of existence", () =>
     assert.throws(() => assertGoverningVocabulary(silenced, "src"), /not a directory name/);
   });
 
-  // A name collision does not fail loudly — it ERASES. Every case below is a
-  // vocabulary that reads as fully adopted and leaves a whole position, or a
-  // whole tree, governed by nothing.
+  // A name collision does not fail loudly — it ERASES.
   testCase("two top-level positions sharing a name would classify one as the other", () => {
     const collided: TreeVocabulary = { ...RECOMMENDED_VOCABULARY, domainsDir: "features" };
     assert.throws(() => assertGoverningVocabulary(collided, "src"), /spells both/);
@@ -858,25 +847,6 @@ describeSuite("a vocabulary cannot declare its own tree out of existence", () =>
     assert.doesNotThrow(() => assertDistinctDeclaredRoots(both));
   });
 
-  testCase("a relative prefix is not an alias", () => {
-    const notAnAlias: TreeVocabulary = { ...RECOMMENDED_VOCABULARY, nonSourceAliases: ["./vendor/"] };
-    assert.throws(() => assertGoverningVocabulary(notAnAlias, "src"), /is not an alias/);
-  });
-
-  testCase("a parent-relative prefix is not an alias either", () => {
-    const notAnAlias: TreeVocabulary = { ...RECOMMENDED_VOCABULARY, nonSourceAliases: ["../"] };
-    assert.throws(() => assertGoverningVocabulary(notAnAlias, "src"), /is not an alias/);
-  });
-
-  testCase("an absolute prefix is not an alias either", () => {
-    const notAnAlias: TreeVocabulary = { ...RECOMMENDED_VOCABULARY, nonSourceAliases: ["/opt/"] };
-    assert.throws(() => assertGoverningVocabulary(notAnAlias, "src"), /is not an alias/);
-  });
-
-  testCase("an empty entry matches every specifier, so it is the widest silence of all", () => {
-    const silenced: TreeVocabulary = { ...RECOMMENDED_VOCABULARY, nonSourceAliases: [""] };
-    assert.throws(() => assertGoverningVocabulary(silenced, "src"), /is not an alias/);
-  });
 });
 
 describeSuite("a renamed parent directory moves every path derived from it", () => {

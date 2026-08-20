@@ -204,18 +204,6 @@ export type TreeVocabulary = {
   tokenStylesheetName: string;
 
   /**
-   * Aliases that resolve OUTSIDE this tree's source root. A tsconfig path
-   * mapping onto a sibling directory — `@/assets/*` onto the repo's `assets/` —
-   * is not an unpoliced area, it is not an application module at all. Without
-   * this, the fail-closed reading of an unknown `@/…` prefix reports every font
-   * and image as a new top-level directory.
-   *
-   * Empty in the standard layout, which maps only `@/` onto `src/`. Add the
-   * prefix WITH its trailing slash when the project maps a second one.
-   */
-  nonSourceAliases: string[];
-
-  /**
    * Specifier suffixes that resolve inside the source root but are not module
    * edges. Load-bearing rather than defensive: a stylesheet or an image imported
    * for its URL otherwise surfaces as a crossing with a filename where an area
@@ -335,8 +323,6 @@ export const RECOMMENDED_VOCABULARY: TreeVocabulary = {
   stylesheetExtensions: ["css"],
   tokenStylesheetName: "styles.css",
 
-  nonSourceAliases: [],
-
   assetExtensions: [
     "css",
     "scss",
@@ -440,28 +426,22 @@ export function carriesPresentation(profile: SourceProfile): boolean {
 }
 
 /**
- * Rejects a vocabulary whose `nonSourceAliases` would silence the tree it
- * belongs to. Throws, and throwing is the point.
+ * Rejects a vocabulary whose names would silence the tree it belongs to. Throws,
+ * and throwing is the point: every case here is a value that reads like an unset
+ * field and behaves like a rule deleted, so a run that reported nothing would be
+ * indistinguishable from a clean one.
  *
- * `nonSourceAliases` is the one field in this vocabulary that REMOVES subjects:
- * a specifier it matches is "not this tier's question" in both tiers. Declaring
- * the governed alias root itself — `["@/"]` — therefore turns off every aliased
- * import policy in the catalog, quietly, with a green run and no rule appearing
- * to be disabled. That is the exact off-switch-in-a-costume CLAUDE.md's
- * "knobs are names and numbers" rule exists to refuse, and the field survives
- * only because it is checked here.
+ * Checked at MODULE LOAD by `declared-trees.ts`, which is what makes it an
+ * adopting project's problem on its first import rather than this repo's problem
+ * in its own harness.
  *
- * The test is overlap in EITHER direction: an entry the alias prefix starts with
- * (`@/` under `@/`, `@` under `@/`) and an entry that starts with it are both
- * ways of writing the same silence. An alias that merely shares a prefix
- * character with a DIFFERENT root is untouched.
- *
- * An entry must also BE an alias — bare, and neither relative nor absolute. That
- * is not tidiness: `./` or `/` here would match specifiers the structural tier
- * resolves by walking the filesystem, and a relative import inside a governed
- * directory would leave the import graph while the linter, which never resolves
- * relative paths, went on policing it. The two tiers agree about non-source
- * aliases only because this field cannot name anything but an alias.
+ * Three kinds of value are refused. A name that is not one segment, because the
+ * classifiers compare it against one. A name that COLLIDES with another,
+ * because the classifiers take the first match and a collision therefore erases
+ * a position rather than failing. And a value that makes a predicate a
+ * tautology — the empty string is the prefix of every specifier, the suffix of
+ * every filename and the tail of every path, and an empty list is a walk over
+ * nothing.
  */
 export function assertGoverningVocabulary(vocabulary: TreeVocabulary, treeRoot: string): void {
   // Every name that has to BE one segment, checked before anything compares
@@ -567,26 +547,6 @@ export function assertGoverningVocabulary(vocabulary: TreeVocabulary, treeRoot: 
     );
   }
 
-  for (const alias of vocabulary.nonSourceAliases) {
-    if (alias === "" || alias.startsWith(".") || alias.startsWith("/")) {
-      throw new Error(
-        `The tree at "${treeRoot}" declares nonSourceAliases entry "${alias}", which is not an ` +
-          `alias. Entries name ALIAS prefixes that resolve outside this tree — a relative or ` +
-          `absolute prefix names paths inside it, and the two tiers would answer such a ` +
-          `specifier differently: the graph would drop the edge, the linter would police it.`,
-      );
-    }
-    if (!alias.startsWith(vocabulary.aliasPrefix) && !vocabulary.aliasPrefix.startsWith(alias)) {
-      continue;
-    }
-    throw new Error(
-      `The tree at "${treeRoot}" declares nonSourceAliases entry "${alias}", which overlaps its ` +
-        `own aliasPrefix "${vocabulary.aliasPrefix}". Every aliased specifier in the tree would ` +
-        `read as pointing outside it, and every import rule would go silent with nothing to say ` +
-        `so. nonSourceAliases names aliases that resolve OUTSIDE this tree; it cannot name the ` +
-        `tree's own root.`,
-    );
-  }
 }
 
 /**
@@ -956,12 +916,23 @@ export function aliasSpecifierFor(vocabulary: TreeVocabulary, pathFromSourceRoot
  * What a specifier names, for the tier that reads specifiers rather than a
  * resolved graph.
  *
- * `undefined` means "not this tier's question", and it covers three unrelated
- * cases on purpose: an asset, an alias resolving outside the source root, and a
- * RELATIVE path — which oxlint cannot resolve at all and which the structural
- * adapter owns completely. The two tiers need no agreement about that split
- * because it follows from the data: a package has no relative spelling, and a
- * relative path has no meaning without the tree.
+ * `undefined` means "not this tier's question", and it covers two unrelated
+ * cases on purpose: an asset, and a RELATIVE path — which oxlint cannot resolve
+ * at all and which the structural adapter owns completely. The two tiers need no
+ * agreement about that split because it follows from the data: a package has no
+ * relative spelling, and a relative path has no meaning without the tree.
+ *
+ * NEGATIVE SPACE, and it is the last arm: anything that is neither relative nor
+ * under this tree's alias prefix is a PACKAGE. That includes a SECOND alias root
+ * — `@assets/logo`, `@core/money` — which is the right answer rather than a
+ * missing case: an alias that resolves outside this tree names something this
+ * tree imports and does not contain, which is what a package is, and the package
+ * rows of the policy table are the ones that should govern it.
+ *
+ * There is deliberately no list of "aliases that point outside". A prefix list
+ * cannot tell an alias from a package name — `["effect", "@tanstack/"]` is a
+ * well-formed one — so every entry is a package whose import policy the adopter
+ * has switched off, in a field that reads like a path mapping.
  */
 export function classifySpecifier(
   vocabulary: TreeVocabulary,
@@ -969,7 +940,6 @@ export function classifySpecifier(
 ): { kind: "module"; path: string } | { kind: "package"; name: string } | undefined {
   if (isAssetSpecifier(vocabulary, specifier)) return undefined;
   if (specifier.startsWith(".") || specifier.startsWith("/")) return undefined;
-  if (namesNonSourceAlias(vocabulary, specifier)) return undefined;
   if (specifier.startsWith(vocabulary.aliasPrefix)) {
     const path = normalizeSourcePath(specifier.slice(vocabulary.aliasPrefix.length));
     // A path that climbed out of the source root is not an application module. Undefined here
@@ -977,23 +947,6 @@ export function classifySpecifier(
     return path === undefined || path === "" ? undefined : { kind: "module", path };
   }
   return { kind: "package", name: packageNameOf(specifier) };
-}
-
-/**
- * True when `specifier` is reached through an alias this tree declares as
- * pointing OUTSIDE it.
- *
- * The only spelling of this test, and the only caller is `classifySpecifier` —
- * which is deliberate rather than an accident waiting to be shared. The
- * structural tier does not ask: `assertGoverningVocabulary` refuses any entry
- * that overlaps the tree's own alias prefix or that is relative, so a specifier
- * matching an entry here is neither aliased into the tree nor a relative path,
- * and the graph's resolver already declines it as a bare package name. A second
- * call there would be a second owner of a question with one answer — and the
- * copy that was there consulted a DIFFERENT field list than this one.
- */
-export function namesNonSourceAlias(vocabulary: TreeVocabulary, specifier: string): boolean {
-  return vocabulary.nonSourceAliases.some((prefix) => specifier.startsWith(prefix));
 }
 
 /**
