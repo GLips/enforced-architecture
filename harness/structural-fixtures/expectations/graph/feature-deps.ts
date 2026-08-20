@@ -18,7 +18,7 @@ export const featureDepsFixtures: CheckFixtures = {
     // Fan-out: hub imports cycle-a, ring-one, and leaf. Acyclic and granted
     // throughout; the finding is about width, not legality.
     "WARN src/features/hub",
-    // Total edges (12) over the threshold (4), filed against the features
+    // Total edges over the threshold (4), filed against the features
     // directory because no single feature owns the number.
     "WARN src/features",
   ],

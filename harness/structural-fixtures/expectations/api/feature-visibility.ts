@@ -42,6 +42,13 @@ export const featureVisibilityFixtures: CheckFixtures = {
     // rejected whole. An empty grant with no matching edge would be reported
     // either way, as malformed or as stale, and prove nothing.
     "FAIL src/features/bribed/visibility.json",
+    // nulled/visibility.json is the literal `null`. It parses, and it is not an
+    // object — the third malformed arm, and the only one whose deletion is not a
+    // wording change: `Object.entries(null)` throws, the check crashes, and the
+    // orchestrator reports the whole check as having run and found nothing,
+    // which is this tier's stated worst failure mode. `broken` (unparseable) and
+    // `bribed` (empty justification) both leave this arm untouched.
+    "FAIL src/features/nulled/visibility.json",
     // broken/visibility.json does not parse. ONE finding — the file itself.
     // trespasser imports broken, and treating an unreadable file as deny-all
     // would add a second finding that buries the only one worth reading under a
@@ -65,6 +72,13 @@ export const featureVisibilityFixtures: CheckFixtures = {
     // that reconciles grants only against client-barrel edges reports this
     // correct, declared architecture, and no firing fixture can tell.
     "src/features/dispatch/visibility.json",
+    // `hidden`'s twin: the same `.mts`-only shape, but it grants its importer.
+    // `hidden` proves an unenumerated feature is DENIED; only this proves the
+    // deny can be CLEARED. A rule that hard-codes absence for features its
+    // enumeration missed passes `hidden` and fails here — and the gap between
+    // those two is an author who writes exactly the grant the message asks for
+    // and watches nothing change.
+    "src/features/remote/visibility.json",
     // The cycle cluster, granted in every direction. `graph/feature-deps` fails
     // on these features and this check must not — the two questions are
     // independent, and a grant is a complete answer to exactly one of them.
@@ -93,6 +107,11 @@ export const featureVisibilityFixtures: CheckFixtures = {
     // the entry-level check rather than JSON.parse, and a check that dropped that
     // arm reports nothing at all here rather than a differently-worded finding.
     { path: "src/features/bribed/visibility.json", contains: "needs a non-empty justification string" },
+    // ...and `nulled` reaches it through the third arm again, which is why all
+    // three carry a wording assertion: the path multiset cannot tell one
+    // rejected file from another, and these are the sentences that say which
+    // edit clears it.
+    { path: "src/features/nulled/visibility.json", contains: "must be a JSON object" },
     // The two stale-grant branches, which differ in wording and nothing else.
     // Both entries have to hold, so a check that collapsed them to one sentence
     // fails one of them while the WARN count stays at two.
