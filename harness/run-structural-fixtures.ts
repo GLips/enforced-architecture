@@ -40,7 +40,7 @@ import {
   PDF_TREE_MISREAD,
 } from "./structural-fixtures/config.ts";
 import type { CheckFixtures, GeneratedFixture } from "./structural-fixtures/expectations.ts";
-import type { Finding } from "../skills/enforced-architecture/references/lint/structural/check-substrate.ts";
+import type { Finding, StructuralCheck } from "../skills/enforced-architecture/references/lint/structural/check-substrate.ts";
 import {
   runStructuralChecks,
   type CheckRun,
@@ -156,19 +156,51 @@ function removeGeneratedFixtures(): void {
   for (const { path } of generated) rmSync(join(FIXTURE_TREE, path), { force: true });
 }
 
+/**
+ * Every `(run label, check id, tree root)` the harness OBSERVED being invoked.
+ *
+ * Recorded by wrapping each check's `run` before handing it to the runner, so
+ * the evidence is produced here rather than by the code under test. That
+ * distinction is the whole point: `CheckRun[]` is the runner's own report of
+ * what it did, and a runner that skips a check while still emitting a record
+ * with the right id and tree satisfies any assertion made from it. A review did
+ * exactly that and the suite reported 16/16.
+ */
+const invocations: string[] = [];
+
+function spiedChecks(label: string): StructuralCheck[] {
+  return structuralChecks.map((check) =>
+    check.scope === "project"
+      ? {
+          ...check,
+          run: (context: Parameters<typeof check.run>[0]) => {
+            invocations.push(`${label} | ${check.id} | <project>`);
+            return check.run(context);
+          },
+        }
+      : {
+          ...check,
+          run: (context: Parameters<typeof check.run>[0]) => {
+            invocations.push(`${label} | ${check.id} | ${context.tree.root}`);
+            return check.run(context);
+          },
+        },
+  );
+}
+
 writeGeneratedFixtures();
 let runs: CheckRun[];
 let bothTrees: CheckRun[];
 let misread: CheckRun[];
 try {
-  runs = runStructuralChecks(structuralChecks, fixtureConfig, DECLARED_FIXTURE_TREES);
+  runs = runStructuralChecks(spiedChecks("declared"), fixtureConfig, DECLARED_FIXTURE_TREES);
   // The probe reuses the same registry and config and varies ONLY the tree list,
   // because that is the claim: declaring a tree is the whole of what turns the
   // catalog on over it.
-  bothTrees = runStructuralChecks(structuralChecks, fixtureConfig, BOTH_FIXTURE_TREES);
+  bothTrees = runStructuralChecks(spiedChecks("both"), fixtureConfig, BOTH_FIXTURE_TREES);
   // The positive control for the vocabulary assertion below. Same root, wrong
   // vocabulary — see PDF_TREE_MISREAD for why the negative alone is not enough.
-  misread = runStructuralChecks(structuralChecks, fixtureConfig, PDF_TREE_MISREAD);
+  misread = runStructuralChecks(spiedChecks("misread"), fixtureConfig, PDF_TREE_MISREAD);
 } finally {
   // Removed whether the run passed, failed, or threw, so by the first assertion
   // below the tree is back to its committed fixtures and nothing surprising is
@@ -192,18 +224,17 @@ try {
  * tree and never on another cannot balance out.
  */
 function assertEveryCheckRanOnEveryTree(
-  source: CheckRun[],
-  trees: readonly { root: string }[],
   label: string,
+  trees: readonly { root: string }[],
 ): void {
   const expected = structuralChecks
     .flatMap((check) =>
       check.scope === "project"
-        ? [`${check.id} <project>`]
-        : trees.map((tree) => `${check.id} ${tree.root}`),
+        ? [`${label} | ${check.id} | <project>`]
+        : trees.map((tree) => `${label} | ${check.id} | ${tree.root}`),
     )
     .sort();
-  const actual = source.map((run) => `${run.id} ${run.tree ?? "<project>"}`).sort();
+  const actual = invocations.filter((entry) => entry.startsWith(`${label} | `)).sort();
 
   const missing = multisetDifference(expected, actual);
   const unexpected = multisetDifference(actual, expected);
@@ -215,9 +246,9 @@ function assertEveryCheckRanOnEveryTree(
   }
 }
 
-assertEveryCheckRanOnEveryTree(runs, DECLARED_FIXTURE_TREES, "the declared-tree run");
-assertEveryCheckRanOnEveryTree(bothTrees, BOTH_FIXTURE_TREES, "the two-tree run");
-assertEveryCheckRanOnEveryTree(misread, PDF_TREE_MISREAD, "the wrong-vocabulary run");
+assertEveryCheckRanOnEveryTree("declared", DECLARED_FIXTURE_TREES);
+assertEveryCheckRanOnEveryTree("both", BOTH_FIXTURE_TREES);
+assertEveryCheckRanOnEveryTree("misread", PDF_TREE_MISREAD);
 
 // ── Compare ──────────────────────────────────────────────────────────────────
 

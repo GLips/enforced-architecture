@@ -334,21 +334,24 @@ async function checkTreeScoping(): Promise<string[]> {
 
   const failures: string[] = [];
 
-  // A rule is tree-dependent when it was built with `defineTreeRule`, which is
-  // the same act that gives it the gate — so this cannot disagree with what the
-  // rule actually does. Asked of the LOADED rule object, never of its source
-  // text: a grep for `classifyFileRole` proves the identifier is present, not
-  // that it controls execution, and a rule whose gate is deleted with its import
-  // left behind passes that grep with every spec still green. That was this
-  // guard, and an external review deleted a gate to prove it.
+  // A rule is tree-dependent when the object the PLUGIN REGISTERS was built with
+  // `defineTreeRule`, which is the same act that gives it the gate — so this
+  // cannot disagree with what the rule actually does.
+  //
+  // Two things this deliberately does not do, each because a review defeated the
+  // version that did. It does not read the rule's SOURCE: a grep for
+  // `classifyFileRole` proves an identifier is present, not that it controls
+  // execution, and a rule whose gate is deleted with its import left behind
+  // passes that grep with every spec green. And it does not ask whether the
+  // module exports SOMETHING tree-scoped: a file can export a gated decoy beside
+  // the ungated rule the plugin actually loads. The registered object is the one
+  // oxlint runs, so it is the only one whose scope means anything.
   const treeDependent = new Set<string>();
   for (const rulePath of rulePaths) {
-    const exported = await import(rulePath).then((module) => Object.values(module));
-    if (exported.some((value) => isTreeScopedRule(value))) {
-      // `arch/<basename>`, which is the key the plugin registers and the config
-      // spells — NOT the `<category>/<name>` path `ruleIdOf` gives.
-      treeDependent.add(`arch/${basename(rulePath, ".ts")}`);
-    }
+    const name = basename(rulePath, ".ts");
+    // `arch/<basename>` is the key the plugin registers and the config spells —
+    // NOT the `<category>/<name>` path `ruleIdOf` gives.
+    if (isTreeScopedRule(registered[name])) treeDependent.add(`arch/${name}`);
   }
 
   // `ignorePatterns` is the third place this file could spell a tree root, and
@@ -379,7 +382,6 @@ async function checkTreeScoping(): Promise<string[]> {
   const scopedEntries = (config.overrides ?? []).filter((entry) =>
     Object.keys(entry.rules ?? {}).some((key) => key.startsWith("arch/")),
   );
-  const scopedGlobs = new Set(scopedEntries.flatMap((entry) => entry.files ?? []));
 
   const scopedArchKeys = scopedEntries.flatMap((entry) =>
     Object.keys(entry.rules ?? {}).filter((key) => key.startsWith("arch/")),
@@ -395,23 +397,61 @@ async function checkTreeScoping(): Promise<string[]> {
     );
   }
 
-  const declaredGlobs = new Set(DECLARED_TREES.map((tree) => `${tree.root}/**`));
+  // The exact (rule, tree root) MATRIX, not two unions.
+  //
+  // Comparing the set of scoped rules against the set of scoped globs passes
+  // whenever every rule appears somewhere and every glob appears somewhere — so
+  // an override naming one rule for a second tree satisfies both unions while
+  // the other 48 rules never run there at all. A review declared a second tree,
+  // gave its override a single rule, and the harness stayed green.
+  //
+  // Built from the rules this config ENABLES, not from every rule that exists:
+  // whether a rule is enabled at all is the separate registration-versus-
+  // enablement question, and the config records one deliberate instance of a
+  // rule held back (see the HELD BACK note on `arch/no-reflect-access`, tracked
+  // by ea-48). This guard asks only that a rule enabled for one declared tree is
+  // enabled for all of them.
+  const enabledTreeRules = [...new Set(scopedArchKeys)].filter((key) => treeDependent.has(key));
+  const expectedPairs = enabledTreeRules
+    .flatMap((key) => DECLARED_TREES.map((tree) => `${key} @ ${tree.root}/**`))
+    .sort();
+  const actualPairs = scopedEntries
+    .flatMap((entry) =>
+      Object.keys(entry.rules ?? {})
+        .filter((key) => key.startsWith("arch/"))
+        .flatMap((key) => (entry.files ?? []).map((glob) => `${key} @ ${glob}`)),
+    )
+    .sort();
 
-  for (const glob of declaredGlobs) {
-    if (!scopedGlobs.has(glob)) {
-      failures.push(
-        `policy/declared-trees.ts declares a tree setup/oxlintrc.json never scopes the rules to ` +
-          `(no "${glob}" glob), so oxlint runs no architecture rule over it`,
-      );
-    }
+  const unscoped = expectedPairs.filter((pair) => !actualPairs.includes(pair));
+  // A root missing EVERY pairing is a whole tree nothing runs over, which is the
+  // common case and deserves its own sentence rather than 49 near-identical ones.
+  const rootsWithNothing = DECLARED_TREES.map((tree) => `${tree.root}/**`).filter(
+    (glob) => !actualPairs.some((pair) => pair.endsWith(` @ ${glob}`)),
+  );
+  for (const glob of rootsWithNothing) {
+    failures.push(
+      `policy/declared-trees.ts declares a tree setup/oxlintrc.json never scopes the rules to ` +
+        `(no "${glob}" glob), so oxlint runs no architecture rule over it`,
+    );
   }
-  for (const glob of scopedGlobs) {
-    if (!declaredGlobs.has(glob)) {
-      failures.push(
-        `setup/oxlintrc.json scopes the arch rules to "${glob}", which no tree in ` +
-          `policy/declared-trees.ts declares, so every rule returns early on those files`,
-      );
-    }
+  const partial = unscoped.filter((pair) => !rootsWithNothing.some((glob) => pair.endsWith(` @ ${glob}`)));
+  if (partial.length > 0) {
+    failures.push(
+      `setup/oxlintrc.json never runs ${partial.length} rule/tree ${partial.length === 1 ? "pairing" : "pairings"} ` +
+        `its declared trees imply — e.g. ${partial.slice(0, 3).join(", ")}. Every tree-dependent rule ` +
+        `must be enabled for every declared root; a rule present for one tree and absent for another ` +
+        `is a rule that tree adopted and never runs`,
+    );
   }
+  const unowned = actualPairs.filter((pair) => !expectedPairs.includes(pair));
+  if (unowned.length > 0) {
+    failures.push(
+      `setup/oxlintrc.json scopes ${unowned.slice(0, 3).join(", ")} — a rule/tree pairing no ` +
+        `declared tree and tree-dependent rule imply, so either the glob names a root nothing ` +
+        `declares or the rule reads no tree`,
+    );
+  }
+
   return failures;
 }
