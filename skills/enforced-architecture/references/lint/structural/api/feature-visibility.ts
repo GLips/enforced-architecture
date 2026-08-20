@@ -24,7 +24,7 @@
 
 import type { Finding, StructuralCheck } from "../check-substrate.ts";
 import { readFile } from "../check-substrate.ts";
-import { existsSync, statSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 
 /** Importing feature name → why the importee accepts that consumer. */
@@ -81,10 +81,29 @@ export const featureVisibilityCheck: StructuralCheck = {
     // Type-only imports count. A type crossing a feature boundary still couples
     // the two — the importee cannot reshape it without breaking the importer —
     // so erasure at runtime buys no exemption.
+    // Two names for one directory are ONE feature, and the collapsing happens
+    // HERE rather than at lookup, so the deny arm and the stale-grant arm key off
+    // the same identity. Canonicalise on lookup instead and a grant written in
+    // the real file clears the error while the grant itself reads as stale —
+    // the author is told to delete what they just wrote.
+    //
+    // `realpathSync` is what makes a spelling into an identity: it resolves a
+    // symlinked feature to its target, and on a case-insensitive filesystem it
+    // returns the directory as stored, so `@/features/Closed` and
+    // `@/features/closed` are the one feature the module resolver already
+    // treats them as. A name that resolves to no feature directory — the loose
+    // file at the features root, or a path that is simply not there — has no
+    // canonical form and is skipped; see `canonicalFeature`.
+    const canonicalFeature = featureCanonicaliser(join(config.projectRoot, featuresDir), [
+      ...visibility.keys(),
+    ]);
+
     const importersByEdge = new Map<string, Set<string>>();
     for (const edge of importGraph()) {
       const importer = edge.from.feature;
-      const importee = edge.to.feature;
+      // Only the importee end. `edge.file` comes from walking the tree, never
+      // from a specifier, so the importing end is already the name on disk.
+      const importee = canonicalFeature(edge.to.feature);
       if (importer === undefined || importee === undefined || importer === importee) continue;
       const key = `${importer}\0${importee}`;
       importersByEdge.set(key, (importersByEdge.get(key) ?? new Set()).add(edge.file));
@@ -92,26 +111,10 @@ export const featureVisibilityCheck: StructuralCheck = {
 
     for (const [key, files] of importersByEdge) {
       const [importer = "", importee = ""] = key.split("\0");
-      // Missing from the map is not the same question as missing from the tree,
-      // and conflating them is how this rule has been wrong twice. The map is
-      // keyed by directory names as the filesystem SPELLS them; `classify`
-      // derives the importee from the resolved path TEXT. Every name where those
-      // disagree — a case-mismatched specifier that a case-insensitive
-      // filesystem happily loads, a symlinked feature — is an importee the map
-      // has no key for while the module resolver reaches real code. Skipping
-      // those is deny-by-default with a hole in it, written as ordinary code.
-      //
-      // So ask the tree, and skip only for a name that is genuinely not a
-      // directory. That is the loose-file case and nothing else: `classify`
-      // reads `features/orphan-module.ts` as a feature named `orphan-module.ts`,
-      // and denying it would file at `orphan-module.ts/visibility.json`, a path
-      // nobody can create and a finding nobody can clear. `placement/topology`
-      // already reports the loose file, which is the actionable half.
-      const file =
-        visibility.get(importee) ??
-        (isFeatureDirectory(join(config.projectRoot, featuresDir), importee)
-          ? readGrantsFor(importee)
-          : undefined);
+      // Every importee reaching this loop is a canonical feature name, so the
+      // map has an entry — `canonicalFeature` dropped the edges whose importee
+      // resolves to no feature directory.
+      const file = visibility.get(importee);
       if (file === undefined) continue;
       // A malformed file already reported itself. Deriving deny-all violations
       // from it would bury that one real error under every edge into the feature.
@@ -144,10 +147,14 @@ export const featureVisibilityCheck: StructuralCheck = {
           file: pathOf(feature),
           // The existence test picks between two messages that send the reader
           // to two different places, so it has to be the same answer the deny
-          // arm uses. Keyed off a narrower walker it tells someone their valid
-          // grant names nothing and sends them to fix a spelling that is already
-          // right — a wording-only divergence, which is the class no count or
-          // path assertion can see.
+          // arm uses — the map, which is every feature directory. Keyed off the
+          // occupancy walker instead it tells someone their valid grant names
+          // nothing and sends them to fix a spelling that is already right: a
+          // wording-only divergence, which is the class no count or path
+          // assertion can see. A grant is written by hand, so unlike an importee
+          // it has no resolved spelling to canonicalise — an entry naming a
+          // symlink rather than the directory reads as naming nothing, which is
+          // the safe direction and the one the message already describes.
           message: visibility.has(importer)
             ? `Grants "${importer}", which imports nothing from ${feature}. Drop the entry —\n` +
               `a grant outliving its import lets the coupling return with no diff, which is\n` +
@@ -163,12 +170,47 @@ export const featureVisibilityCheck: StructuralCheck = {
 };
 
 /**
- * Whether `name` is a directory under the features root, asked of the tree
- * rather than of a listing. A listing answers in the filesystem's spelling; this
- * answers in the importer's, which is what the module resolver used.
+ * Maps a classified feature name onto the feature it actually IS, or undefined
+ * when it is not a feature at all.
+ *
+ * The classification names features by path text, and the same directory has
+ * more than one spelling: a symlink beside it, or any casing of it on a
+ * case-insensitive filesystem. Resolving each name and matching on the real path
+ * is what makes those one identity — the identity the module resolver already
+ * uses, which is the only one that governs the same tree the imports do.
+ *
+ * Undefined covers the two ways a name resolves to no feature. A loose file at
+ * the features root classifies as a feature (`features/orphan-module.ts` becomes
+ * a feature named `orphan-module.ts`) and denying an import of it would file
+ * against `orphan-module.ts/visibility.json`, a path nobody can create and a
+ * finding nobody can clear — `placement/topology` reports the file itself, which
+ * is the half that can be acted on. And a name resolving to nothing at all is an
+ * import that does not load; whatever is wrong with it, it is not a visibility
+ * question.
  */
-function isFeatureDirectory(featuresRoot: string, name: string): boolean {
-  return statSync(join(featuresRoot, name), { throwIfNoEntry: false })?.isDirectory() === true;
+function featureCanonicaliser(
+  featuresRoot: string,
+  features: string[],
+): (name: string | undefined) => string | undefined {
+  const byRealPath = new Map(
+    features.map((feature) => [realpathSync(join(featuresRoot, feature)), feature]),
+  );
+
+  return (name) => {
+    if (name === undefined) return undefined;
+    // Already the name on disk in every ordinary case, which is worth short-
+    // circuiting: this runs once per edge and the resolve is a syscall.
+    if (byRealPath.has(join(featuresRoot, name))) return name;
+    let real: string;
+    try {
+      real = realpathSync(join(featuresRoot, name));
+    } catch {
+      // The path is not there. Reading a specifier is reading arbitrary text, so
+      // this is a boundary rather than an impossible case.
+      return undefined;
+    }
+    return byRealPath.get(real);
+  };
 }
 
 function readVisibilityFile(absolute: string): VisibilityFile {

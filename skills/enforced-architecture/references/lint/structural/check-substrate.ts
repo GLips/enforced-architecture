@@ -14,7 +14,7 @@
 //
 // ──────────────────────────────────────────────────────────────────────
 
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { relative, resolve } from "node:path";
 import type { ArchitectureConfig } from "./config.ts";
 import { buildImportGraph, type ImportEdge } from "./import-graph.ts";
@@ -59,9 +59,14 @@ export type CheckContext = {
    * than the one that matches its question, is how the two arms of one rule end
    * up disagreeing about what a feature is.
    *
-   * A symlink to a directory counts. It resolves to real, loadable code, so a
-   * check treating it as a non-directory governs a smaller tree than the module
-   * resolver does — which is a bypass written as ordinary code.
+   * A symlink to a directory is NOT one, and deliberately: `collectFiles` runs
+   * `Bun.Glob.scanSync`, which does not traverse symlinks, so a symlinked
+   * directory could never satisfy the occupancy filter anyway and listing it
+   * here would only make the two disagree. A check that has to treat an aliased
+   * directory and its target as one boundary resolves the name itself — see
+   * `featureCanonicaliser` in `api/feature-visibility.ts`, which is where that
+   * belongs, because identity is the consuming rule's question and not the
+   * walker's.
    */
   subdirs(sourceRelativeDir: string): string[];
   /**
@@ -87,17 +92,6 @@ export type StructuralCheck = {
   run(context: CheckContext): Finding[];
 };
 
-/**
- * Whether a path IS a directory, following symlinks. `Dirent.isDirectory()` is
- * false for a symlink entry, and a symlinked boundary resolves to real code the
- * module resolver loads — so classifying it as a non-directory governs a smaller
- * tree than the imports do. `throwIfNoEntry: false` is for a broken symlink,
- * which is an entry whose target is not there.
- */
-function isDirectory(absolute: string): boolean {
-  return statSync(absolute, { throwIfNoEntry: false })?.isDirectory() === true;
-}
-
 export function createCheckContext(config: ArchitectureConfig): CheckContext {
   let graph: ImportEdge[] | undefined;
   const subdirectories = new Map<string, string[]>();
@@ -118,8 +112,8 @@ export function createCheckContext(config: ArchitectureConfig): CheckContext {
       const absolute = resolve(sourceRoot(config), sourceRelativeDir);
       const names = existsSync(absolute)
         ? readdirSync(absolute, { withFileTypes: true })
+            .filter((entry) => entry.isDirectory())
             .map((entry) => entry.name)
-            .filter((name) => isDirectory(resolve(absolute, name)))
             .sort()
         : [];
 

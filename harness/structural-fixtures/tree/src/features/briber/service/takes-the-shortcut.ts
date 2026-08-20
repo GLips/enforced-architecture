@@ -11,3 +11,11 @@
 import { rateCard } from "@/features/bribed/index.ts";
 
 export const tier = rateCard.tier;
+
+// A second ungranted edge, into `listed`, whose visibility.json is a JSON ARRAY.
+// Delete the `Array.isArray` disjunct and `Object.entries(["briber"])` yields a
+// grant map keyed "0" — the file silently becomes a grant list that grants
+// nobody, and THIS edge is then denied with the ordinary ungranted-edge message
+// instead of the one naming the file's shape. Without an edge into `listed`,
+// that substitution has nothing to show up in.
+export { entry } from "@/features/listed/index.ts";

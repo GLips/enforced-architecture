@@ -51,21 +51,26 @@ export const featureVisibilityFixtures: CheckFixtures = {
     // to produce. The fixture is what turns a silent deletion into that noise.
     "FAIL src/features/nulled/visibility.json",
     // stray imports `aliased-target` through `aliased-link`, a symlink beside it.
-    // The grant-file map is keyed by directory names as the filesystem SPELLS
-    // them; `classify` derives the importee from the resolved specifier text, so
-    // the resolver reaches real code under a name the listing does not contain.
-    // A check that looks the importee up and skips on a miss is deny-by-default
-    // with a hole in it. This is the portable half of that case — the other,
-    // a case-mismatched specifier, passes on macOS and fails on the Linux runner,
-    // so it is stated in the rule's negative space instead of fixtured.
-    "FAIL src/features/aliased-link/visibility.json",
-    // listed/visibility.json is a JSON ARRAY. It parses and it is an object, so
-    // it reaches the rejection through neither of the arms above — and dropping
-    // just this disjunct is not a crash and not a wording change:
-    // `Object.entries([])` returns `[]`, so the file quietly becomes an empty
-    // grant map and every edge into the feature is denied with the ORDINARY
-    // ungranted-edge message. That sends the author to add a grant to a file
-    // whose shape is the actual problem.
+    // `classify` names the importee from the specifier text, so the resolver
+    // reaches real code under a name no directory listing contains — and a check
+    // that looks that name up and skips on a miss is deny-by-default with a hole
+    // in it, reachable by writing ordinary code.
+    //
+    // The ADDRESS is the second half of the assertion. It is the target, not the
+    // link: the finding has to name the file an author can open and edit, and a
+    // check that collapses the two names anywhere later than here files against
+    // whichever spelling the import happened to use. `granted-target` below is
+    // the same pair with the grant written, and the two only pass together.
+    "FAIL src/features/aliased-target/visibility.json",
+    // listed/visibility.json is a JSON ARRAY. It parses and it IS an object, so
+    // it reaches the rejection through neither of the arms above, and dropping
+    // just that disjunct is neither a crash nor a wording change:
+    // `Object.entries(["briber"])` returns `[["0", "briber"]]`, so the file
+    // silently becomes a grant map keyed "0" that grants nobody. `briber`
+    // imports `listed`, so that edge is then denied with the ORDINARY
+    // ungranted-edge message — sending the author to add a grant to a file whose
+    // SHAPE is the problem. The edge is what makes the substitution visible; a
+    // malformed file nothing imports would report the same either way.
     "FAIL src/features/listed/visibility.json",
     // A feature directory holding no source at all, only a grant file. It is
     // invisible to `occupiedDirs` — whose occupancy test exists so an empty
@@ -109,6 +114,18 @@ export const featureVisibilityFixtures: CheckFixtures = {
     // those two is an author who writes exactly the grant the message asks for
     // and watches nothing change.
     "src/features/remote/visibility.json",
+    // The cleared half of the symlink pair, and the step `aliased-target` above
+    // stops short of. renderer imports `granted-target` through `granted-link`
+    // and the grant is written in the real directory — so this asserts that
+    // doing what the failure message SAYS actually works.
+    //
+    // Without it, a check that treats the two names as two features still passes
+    // every denial here, and then audits one physical file twice: the grant
+    // clears the error and reads as stale under the other name, so the author is
+    // told to drop the entry they just wrote, and dropping it brings the error
+    // back. An unclearable finding is invisible to every fixture that only ever
+    // checks the denial — which is what this legal neighbour exists to say.
+    "src/features/granted-target/visibility.json",
     // The cycle cluster, granted in every direction. `graph/feature-deps` fails
     // on these features and this check must not — the two questions are
     // independent, and a grant is a complete answer to exactly one of them.

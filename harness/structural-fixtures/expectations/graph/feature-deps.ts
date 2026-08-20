@@ -45,7 +45,7 @@ export const featureDepsFixtures: CheckFixtures = {
     "src/features/ring-two",
     // Imported by hub, importing nothing. An edge on its own is not a finding.
     "src/features/leaf",
-    // The importee of the 8-file pair. Saturation is the importer's problem —
+    // The importee of the 9-file pair. Saturation is the importer's problem —
     // beta cannot fix it and should not be told to.
     "src/features/beta",
   ],
