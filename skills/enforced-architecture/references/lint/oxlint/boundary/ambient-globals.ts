@@ -37,6 +37,13 @@
 // (`const g = globalThis; g.localStorage`) and a computed key that is not a
 // string literal are not matched: nothing per-file can follow either one. A
 // type-only import is erased and reads nothing.
+//
+// Where `alsoImportedFrom` names a module, every spelling that reaches it is
+// one read: a named or namespace import, `require()`, `await import()` — bound
+// or destructured — and a bare `(await import("node:process")).env`. What is
+// NOT followed is the capability passed on as a value (`f(process)`), and
+// `import("node:process").then(({ env }) => …)`, where the name is a callback
+// parameter and following it means following the promise.
 // ──────────────────────────────────────────────────────────────────────
 
 import {
@@ -46,6 +53,8 @@ import {
   type SourceCode,
 } from "@oxlint/plugins";
 import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
+import { exportedName, runtimeImportSpecifier } from "../lib/imported-names.ts";
+import { staticKeyName } from "../lib/static-key-name.ts";
 
 type AmbientGlobalPolicy = {
   /** The read as it is spelled in source, host-free: `fetch`, `process.env`. */
@@ -112,18 +121,6 @@ const TRANSPARENT_WRAPPERS = new Set([
 ]);
 
 /**
- * The name a member expression or object-pattern property reads, whichever way it is spelled.
- *
- * `process.env` and `process["env"]` are the same read and different nodes, and the computed form
- * is the one a linted codebase drifts toward. Resolving both through one helper is what keeps the
- * two spellings from needing two arms in every caller below.
- */
-function staticKeyName(key: ESTree.Node, computed: boolean): string | undefined {
-  if (!computed) return key.type === "Identifier" ? key.name : undefined;
-  return key.type === "Literal" && typeof key.value === "string" ? key.value : undefined;
-}
-
-/**
  * Every identifier in the file that references an ambient global, and no identifier that does not.
  *
  * TWO sources, and a rule reading either one alone goes silent on half the projects that adopt it.
@@ -144,20 +141,6 @@ function ambientGlobalReferences(sourceCode: SourceCode): Reference[] {
   if (globalScope === null) return [];
   const declared = [...globalScope.set.values()].filter((variable) => variable.defs.length === 0);
   return [...globalScope.through, ...declared.flatMap((variable) => variable.references)];
-}
-
-/** The exporting module's name for a specifier, which is the one a local alias cannot change. */
-function exportedName(name: ESTree.ModuleExportName): string {
-  return name.type === "Literal" ? name.value : name.name;
-}
-
-/** The module specifier of a `require("…")` call, which an ImportDeclaration visitor never sees. */
-function requiredSpecifier(node: ESTree.Node | null | undefined): string | undefined {
-  if (node === null || node === undefined || node.type !== "CallExpression") return undefined;
-  if (node.callee.type !== "Identifier" || node.callee.name !== "require") return undefined;
-  const [argument] = node.arguments;
-  if (argument === undefined || argument.type !== "Literal") return undefined;
-  return typeof argument.value === "string" ? argument.value : undefined;
 }
 
 export const ambientGlobalsRule = defineRule({
@@ -358,10 +341,31 @@ export const ambientGlobalsRule = defineRule({
         }
       },
 
+      // `(await import("node:process")).env` loads the module and reads the capability in one
+      // expression, binding nothing — so no declaration and no reference names it, and only the
+      // AST has it. Restricted to the member read: the two spellings that DO bind a name are the
+      // VariableDeclarator arm's below, and two arms reaching one read report it twice.
+      ImportExpression(node) {
+        const specifier = runtimeImportSpecifier(node);
+        if (specifier === undefined) return;
+        const loaded: ESTree.Node = node.parent?.type === "AwaitExpression" ? node.parent : node;
+        const parent: ESTree.Node | null | undefined = loaded.parent;
+        if (parent === null || parent === undefined) return;
+        if (parent.type !== "MemberExpression" || parent.object !== loaded) return;
+        for (const policy of enforced) {
+          const segments = capabilitySegments(policy, specifier);
+          if (segments === undefined) continue;
+          // A dotted path starts at its first segment; a bare global IS the module's export, so
+          // the namespace is not its parent and the path starts empty. Same split as a destructure.
+          roots.push({ node: loaded, path: segments.length >= 2 ? segments[0] : "" });
+        }
+      },
+
       // `const process = require("node:process")` is the CommonJS spelling of the same reach, and
-      // no import visitor sees it.
+      // `const { env } = await import("node:process")` is the ESM one. No import visitor sees
+      // either.
       VariableDeclarator(node) {
-        const specifier = requiredSpecifier(node.init);
+        const specifier = runtimeImportSpecifier(node.init);
         if (specifier === undefined) return;
         for (const policy of enforced) {
           const segments = capabilitySegments(policy, specifier);

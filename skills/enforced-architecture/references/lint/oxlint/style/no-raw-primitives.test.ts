@@ -45,6 +45,60 @@ describeRule("style/no-raw-primitives", noRawPrimitivesRule, {
       errors: [{ messageId: "platformPrimitive" }],
     },
     {
+      name: "a namespace import names no specifier, so the primitive arrives under a member read",
+      filename: COMPONENT,
+      code: `import * as RN from "react-native";\nexport const Row = () => <RN.View />;`,
+      errors: [{ messageId: "platformPrimitive" }],
+    },
+    {
+      name: "the CommonJS spelling, where the binding carries no link to the module",
+      filename: COMPONENT,
+      code: `const { View } = require("react-native");\nexport const used = View;`,
+      errors: [{ messageId: "platformPrimitive" }],
+    },
+    {
+      name: "a dynamic-import destructure, deferred past every static import visitor",
+      filename: COMPONENT,
+      code: `const { View } = await import("react-native");\nexport const used = View;`,
+      errors: [{ messageId: "platformPrimitive" }],
+    },
+    {
+      name: "loading and reading in one expression, which binds no name at all",
+      filename: COMPONENT,
+      code: `export const used = (await import("react-native")).View;`,
+      errors: [{ messageId: "platformPrimitive" }],
+    },
+    {
+      name: "the CommonJS load read straight off the call, binding nothing",
+      filename: COMPONENT,
+      code: `export const used = require("react-native").View;`,
+      errors: [{ messageId: "platformPrimitive" }],
+    },
+    {
+      name: "the whole module bound to one name, then read a member at a time",
+      filename: COMPONENT,
+      code: `const RN = require("react-native");\nexport const used = RN.View;`,
+      errors: [{ messageId: "platformPrimitive" }],
+    },
+    {
+      name: "a namespace import destructured later, so no member read appears either",
+      filename: COMPONENT,
+      code: `import * as RN from "react-native";\nconst { View } = RN;\nexport const used = View;`,
+      errors: [{ messageId: "platformPrimitive" }],
+    },
+    {
+      name: "the TypeScript import-equals form, which reaches no ImportDeclaration",
+      filename: COMPONENT,
+      code: `import RN = require("react-native");\nexport const used = RN.View;`,
+      errors: [{ messageId: "platformPrimitive" }],
+    },
+    {
+      name: "the default export wearing a named specifier's shape, so the module object binds as RN",
+      filename: COMPONENT,
+      code: `import { default as RN } from "react-native";\nexport const used = RN.View;`,
+      errors: [{ messageId: "platformPrimitive" }],
+    },
+    {
       name: "a re-export hands the primitive on without the word import appearing",
       filename: COMPONENT,
       code: `export { Text } from "react-native";`,
@@ -79,6 +133,21 @@ describeRule("style/no-raw-primitives", noRawPrimitivesRule, {
       name: "a type-only import renders nothing",
       filename: COMPONENT,
       code: `import type { View } from "react-native";\nexport type Ref = View;`,
+    },
+    {
+      name: "an inline type specifier is erased too, even beside a value one",
+      filename: COMPONENT,
+      code: `import { Platform, type View } from "react-native";\nexport const os = Platform.OS;\nexport type Ref = View;`,
+    },
+    {
+      name: "the type-only import-equals form binds a namespace that exists only in type position",
+      filename: COMPONENT,
+      code: `import type RN = require("react-native");\nexport type Ref = RN.View;`,
+    },
+    {
+      name: "a utility API reached through a namespace import is still a utility API",
+      filename: COMPONENT,
+      code: `import * as RN from "react-native";\nexport const os = RN.Platform.OS;`,
     },
     {
       name: "a member tag is never an intrinsic element",

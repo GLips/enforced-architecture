@@ -39,6 +39,30 @@ describeRule("style/vendor-component-containment", vendorComponentContainmentRul
       errors: [{ messageId: "unwrappedVendorComponent" }],
     },
     {
+      name: "a namespace import names no specifier, so the component arrives under a member read",
+      filename: COMPONENT,
+      code: `import * as Mantine from "@mantine/core";\nexport const Compose = () => <Mantine.Textarea />;`,
+      errors: [{ messageId: "unwrappedVendorComponent" }],
+    },
+    {
+      name: "the CommonJS spelling, where the binding carries no link to the module",
+      filename: COMPONENT,
+      code: `const { Textarea } = require("@mantine/core");\nexport const used = Textarea;`,
+      errors: [{ messageId: "unwrappedVendorComponent" }],
+    },
+    {
+      name: "a dynamic-import destructure, deferred past every static import visitor",
+      filename: COMPONENT,
+      code: `const { Textarea } = await import("@mantine/core");\nexport const used = Textarea;`,
+      errors: [{ messageId: "unwrappedVendorComponent" }],
+    },
+    {
+      name: "loading and reading in one expression, which binds no name at all",
+      filename: COMPONENT,
+      code: `export const used = (await import("@mantine/core")).Textarea;`,
+      errors: [{ messageId: "unwrappedVendorComponent" }],
+    },
+    {
       name: "a re-export hands the unwrapped component on without the word import appearing",
       filename: COMPONENT,
       code: `export { Textarea } from "@mantine/core";`,
@@ -78,6 +102,11 @@ describeRule("style/vendor-component-containment", vendorComponentContainmentRul
       name: "an identifier that merely starts the same way is a different component",
       filename: COMPONENT,
       code: `import { TextareaAutosize } from "@mantine/core";\nexport const used = TextareaAutosize;`,
+    },
+    {
+      name: "an unwrapped sibling reached through a namespace import is still nobody's to contain",
+      filename: COMPONENT,
+      code: `import * as Mantine from "@mantine/core";\nexport const used = Mantine.Button;`,
     },
     {
       name: "a different library that happens to export the same name",

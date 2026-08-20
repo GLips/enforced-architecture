@@ -102,6 +102,18 @@ describeRule("boundary/ambient-globals", ambientGlobalsRule, {
       errors: [{ messageId: "ambientGlobalOutsideOwner" }],
     },
     {
+      name: "the dynamic-import spelling of the same destructure, which the require arm alone misses",
+      filename: SERVICE,
+      code: `const { env } = await import("node:process");\nexport const key = env.STRIPE_KEY;`,
+      errors: [{ messageId: "ambientGlobalOutsideOwner" }],
+    },
+    {
+      name: "loading and reading in one expression, which binds no name for a scope lookup to find",
+      filename: SERVICE,
+      code: `export const key = (await import("node:process")).env.STRIPE_KEY;`,
+      errors: [{ messageId: "ambientGlobalOutsideOwner" }],
+    },
+    {
       name: "the host spellings of a bare global, which a name-only pattern misses",
       filename: SERVICE,
       code: `export const load = () => window.fetch("/api/a");\nexport const also = () => self["fetch"]("/api/b");`,

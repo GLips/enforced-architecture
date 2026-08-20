@@ -20,13 +20,17 @@
 // `useWindowDimensions` are correct in feature code, and a rule that fails a
 // commit on correct code is one people disable.
 //
-// A namespace import (`import * as RN from "react-native"`, then `<RN.View>`)
-// names no specifier, and neither arm reports it. Ban that import shape on its
-// own if the codebase writes it.
+// The platform arm fences on the NAME react-native hands over, however the file
+// gets at it: a named import, an alias, a namespace or default import read as
+// `RN.View`, a `require()` or `await import()` destructure, and a bare
+// `(await import("react-native")).View`. See lib/imported-names.ts for the
+// spellings that deliberately report nothing — chiefly a computed key and a
+// namespace passed on as a value.
 // ──────────────────────────────────────────────────────────────────────
 
-import { defineRule, type ESTree } from "@oxlint/plugins";
+import { defineRule } from "@oxlint/plugins";
 import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
+import { exportedName, visitImportedNames } from "../lib/imported-names.ts";
 
 const RAW_HTML_ELEMENTS = new Set([
   "div", "span", "p", "main", "section", "header", "footer", "nav", "aside", "article",
@@ -46,11 +50,6 @@ const PLATFORM_RENDERING_PRIMITIVES = new Set([
 // not inherit the primitives layer's exemption.
 const PRIMITIVES_LAYER = /\/src\/shared\/ui\//;
 const RENDER_BOUNDARY = /\/src\/routes\/__root\.tsx$/;
-
-/** The exporting module's name for a specifier, which is the one a local alias cannot change. */
-function exportedName(name: ESTree.ModuleExportName): string {
-  return name.type === "Literal" ? name.value : name.name;
-}
 
 export const noRawPrimitivesRule = defineRule({
   meta: {
@@ -82,19 +81,13 @@ export const noRawPrimitivesRule = defineRule({
       },
 
       // --- React Native arm ---
-      ImportDeclaration(node) {
-        if (node.source.value !== PLATFORM_MODULE) return;
-        // A type-only import renders nothing.
-        if (node.importKind === "type") return;
-
-        for (const specifier of node.specifiers) {
-          if (specifier.type !== "ImportSpecifier" || specifier.importKind === "type") continue;
-          // The imported name, not the local one, so `View as Screen` cannot dodge the check.
-          if (PLATFORM_RENDERING_PRIMITIVES.has(exportedName(specifier.imported))) {
-            context.report({ node: specifier, messageId: "platformPrimitive" });
-          }
+      // Every name the file takes from the platform module, under react-native's own spelling —
+      // so `View as Screen` and `RN.View` are the same finding as `View`.
+      ...visitImportedNames(context.sourceCode, PLATFORM_MODULE, (name, node) => {
+        if (PLATFORM_RENDERING_PRIMITIVES.has(name)) {
+          context.report({ node, messageId: "platformPrimitive" });
         }
-      },
+      }),
 
       // `export { View } from "react-native"` hands the primitive to every importer of this
       // module without the word `import` appearing anywhere — the same leak, one keyword over.

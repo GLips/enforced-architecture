@@ -47,6 +47,7 @@ Rules share a `lib/`, and the sharing is load-bearing rather than tidy. One modu
 
 - [lib/architecture-exempt-paths.ts](lint/oxlint/lib/architecture-exempt-paths.ts) — the one global test/script exemption.
 - [lib/module-source-visitor.ts](lint/oxlint/lib/module-source-visitor.ts) — every place a module specifier can appear.
+- [lib/imported-names.ts](lint/oxlint/lib/imported-names.ts) — every name a file takes from one module, under the exporting module's spelling.
 - [lib/range-index.ts](lint/oxlint/lib/range-index.ts) — subtree questions answered at `Program:exit`.
 - [lib/rule-options.ts](lint/oxlint/lib/rule-options.ts) — reading a configured option without trusting `meta.schema` to have held.
 - [lib/rule-spec.ts](lint/oxlint/lib/rule-spec.ts) — the three-kind spec contract.
@@ -117,11 +118,25 @@ A hand-rolled `ImportDeclaration` visitor is the natural thing to write and cove
 
 ### When the rule cares which names were imported
 
-No shared module covers this: the names are on the `ImportDeclaration` node, and you loop its `specifiers` yourself. Three details carry the weight.
+Go through [lib/imported-names.ts](lint/oxlint/lib/imported-names.ts). It calls back once per name the file takes from one module, with the node to blame:
 
-- **Every specifier is tested, because it is a loop.** `import { Button, Textarea }` reports `Textarea`. A rule reading `node.specifiers[0]` passes that import silently — the second name in a clause is the cheapest thing in this catalog to miss.
-- **`imported` is the exported name, `local` is the binding.** `{ Textarea as TA }` is one `ImportSpecifier` with `imported.name === "Textarea"` and `local.name === "TA"` — match on `imported` for a rule about the package's API, on `local` for a rule about what this file calls. Default and namespace clauses carry only `local`.
-- **Type-only is two flags, not one.** `import type { X }` sets `importKind: "type"` on the *declaration*; `import { type X }` sets it on the *specifier* — and the specifiers of a type-only declaration each report `"value"`, so a rule checking one level and not the other lets the other spelling through. Most rules exempt type imports because they pull in no runtime value; a rule about coupling rather than about the bundle does not — `boundary/db-isolation` reports `import type { Invoice }` from the schema, because knowing the schema's shape is the dependency it exists to prevent.
+```ts
+return {
+  ...visitImportedNames(context.sourceCode, "@mantine/core", (component, node) => {
+    if (WRAPPED_COMPONENTS[component] !== undefined) {
+      context.report({ node, messageId: "unwrappedVendorComponent" });
+    }
+  }),
+};
+```
+
+**Do not loop an `ImportDeclaration`'s specifiers instead.** That is the natural thing to write and it is a fence with a hole in it: `import * as RN from "react-native"` names no specifier, so the primitive arrives as `RN.View` with nothing for a specifier loop to see, and `require()` and `await import()` bind the name without an `ImportDeclaration` at all. The module reads oxlint's scope analysis, which hands over the binding and every reference to it already resolved — that is the only way the namespace form is answerable per file, and it is shadow-correct for free.
+
+What the module settles, and what each costs to get wrong:
+
+- **The name is the EXPORTING module's, never the local one.** `{ Textarea as TA }` reports `Textarea`. A rule matching the binding lets one rename through. (On the export side you still read specifiers yourself: `imported` is the exported name, `local` the binding, and a re-export's `local` is the name the source module used.)
+- **Every name is tested.** `import { Button, Textarea }` reports `Textarea`. A rule reading `node.specifiers[0]` passes that import silently — the second name in a clause is the cheapest thing in this catalog to miss.
+- **Type-only is two flags, not one.** `import type { X }` sets `importKind: "type"` on the *declaration*; `import { type X }` sets it on the *specifier* — and the specifiers of a type-only declaration each report `"value"`, so a rule checking one level and not the other lets the other spelling through. `visitImportedNames` drops both, because a type import binds no runtime value. A rule about coupling rather than about the bundle wants the opposite and reads specifiers itself — `boundary/db-isolation` reports `import type { Invoice }` from the schema, because knowing the schema's shape is the dependency it exists to prevent.
 
 Compare against a `Set` of exact names, so `TextareaProps` cannot match. Reach for a regex only when the name has real shape, and anchor it end to end.
 

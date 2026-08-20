@@ -20,10 +20,18 @@
 // Do not add a second exempt path to a row. A call site that needs the
 // unwrapped component names a missing prop on the wrapper. Add the prop; a
 // second exempt file is the second implementation this rule exists to stop.
+//
+// The import arm fences on the NAME the library hands over, however the file
+// gets at it: a named import, an alias, a namespace or default import read as
+// `Mantine.Textarea`, a `require()` or `await import()` destructure, and a bare
+// `(await import("@mantine/core")).Textarea`. See lib/imported-names.ts for the
+// spellings that deliberately report nothing — chiefly a computed key and a
+// namespace passed on as a value.
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree } from "@oxlint/plugins";
 import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
+import { exportedName, visitImportedNames } from "../lib/imported-names.ts";
 
 const VENDOR_MODULE = "@mantine/core";
 
@@ -36,11 +44,6 @@ const WRAPPED_COMPONENTS: Record<string, { wrapper: string; why: string; wrapper
 };
 
 const SOURCE_ROOT = /\/src\//;
-
-/** The exporting module's name for a specifier, which is the one a local alias cannot change. */
-function exportedName(name: ESTree.ModuleExportName): string {
-  return name.type === "Literal" ? name.value : name.name;
-}
 
 export const vendorComponentContainmentRule = defineRule({
   meta: {
@@ -68,19 +71,12 @@ export const vendorComponentContainmentRule = defineRule({
     };
 
     return {
-      ImportDeclaration(node) {
-        if (node.source.value !== VENDOR_MODULE) return;
-        // A type-only import pulls in no runtime component, so it cannot bypass a wrapper.
-        if (node.importKind === "type") return;
-
-        for (const specifier of node.specifiers) {
-          if (specifier.type !== "ImportSpecifier" || specifier.importKind === "type") continue;
-          // The imported name, not the local one, so `Textarea as MantineTextarea` cannot dodge
-          // the check. The table is keyed on exact names, so `TextareaProps` and
-          // `TextareaAutosize` are different components rather than prefix matches.
-          reportIfWrapped(specifier, exportedName(specifier.imported));
-        }
-      },
+      // The library's name for the component, not the local one, so `Textarea as MantineTextarea`
+      // cannot dodge the check. The table is keyed on exact names, so `TextareaProps` and
+      // `TextareaAutosize` are different components rather than prefix matches.
+      ...visitImportedNames(context.sourceCode, VENDOR_MODULE, (component, node) => {
+        reportIfWrapped(node, component);
+      }),
 
       // `export { Textarea } from "@mantine/core"` hands the unwrapped component to every importer
       // of this module without the word `import` appearing anywhere — the same bypass, one
