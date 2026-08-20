@@ -36,7 +36,7 @@ Always include, regardless of architectural choices:
 | **Feature barrel convention** | `index.ts` vs `index.server.ts`, what goes in each, barrel direction rule. |
 | **Server/client file naming** | `createServerFn` definitions use plain `.ts`; raw server-only helpers use `.server.ts`. |
 | **Controller file naming** | Keep RPC definitions client-importable and re-export them through `index.ts`. |
-| **Route imports** | Import from `@/features/<name>`, not deep paths. |
+| **Route imports** | Import a feature's barrel or its `ui/` subtree, and no other deep path. Which of the two barrels a route may name turns on the route file's own name. |
 | **Server function naming** | The `Fn` suffix convention (or project-specific convention). |
 | **Test placement** | Co-located `thing.test.ts` next to `thing.ts`. |
 
