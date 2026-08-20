@@ -15,7 +15,7 @@ describeRule("style/no-raw-primitives", noRawPrimitivesRule, {
       name: "a core rendering primitive imported from the platform module",
       filename: COMPONENT,
       code: `import { View } from "react-native";\nexport const used = View;`,
-      errors: [{ messageId: "platformPrimitive" }],
+      errors: [{ message: "Core react-native rendering primitive (highlighted) \u2014 import the app equivalent from @/shared/ui instead (Box/Stack for View, Text for Text, a Button/Pressable wrapper for touchables). Those take token props, so an off-system value cannot be passed. Utility APIs from react-native (Platform, StyleSheet, useWindowDimensions) are fine in feature code; only the rendering primitives are the design system's to own. See docs/architecture/design-system.md." }],
     },
   ],
 

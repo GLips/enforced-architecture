@@ -27,6 +27,7 @@
 // body checks either one.
 // ──────────────────────────────────────────────────────────────────────
 
+import { aliasSpecifierFor, sharedUiDir } from "../../policy/layout.ts";
 import { defineTreeRule } from "../lib/define-tree-rule.ts";
 import { visitModuleSources } from "../lib/module-source-visitor.ts";
 
@@ -45,14 +46,20 @@ export const deprecatedPathsRule = defineTreeRule({
     type: "problem",
     messages: {
       componentsDirectoryRemoved:
-        "The @/components/ directory no longer exists. Import from @/shared/ui/* (generic primitives) or @/features/*/ui/* (feature-owned UI) instead.",
+        "The @/components/ directory no longer exists. Import from {{sharedUi}}/* (generic primitives) or {{featureUi}}/*/{{uiLayer}}/* (feature-owned UI) instead.",
     },
   },
-  create(context) {
+  create(context, role) {
+    const { vocabulary } = role.tree;
+    const data = {
+      sharedUi: aliasSpecifierFor(vocabulary, sharedUiDir(vocabulary)),
+      featureUi: aliasSpecifierFor(vocabulary, vocabulary.featuresDir),
+      uiLayer: vocabulary.featureLayerDirs.ui,
+    };
 
     return visitModuleSources((source, specifier) => {
       for (const { pattern, messageId } of DEPRECATED_PATHS) {
-        if (pattern.test(specifier)) context.report({ node: source, messageId });
+        if (pattern.test(specifier)) context.report({ node: source, messageId, data });
       }
     });
   },

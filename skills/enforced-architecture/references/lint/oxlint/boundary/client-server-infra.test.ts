@@ -11,7 +11,7 @@ describeRule("boundary/client-server-infra", clientServerInfraRule, {
       name: "a client component importing the server-only DB wrapper",
       filename: PANEL,
       code: IMPORT_DB,
-      errors: [{ messageId: "serverOnlyInfraInClient" }],
+      errors: [{ message: "Client contexts may only import client-safe infrastructure/ modules. From inside a feature, move it to controllers/ or to repo/ \u2014 or use the client-safe adapter. NOT service/, and NOT renaming the file to *.server: a service layer imports no infrastructure at all, and a .server module at a feature root or as its barrel is a feature-root or feature-barrel file, which boundary/import-policy denies infrastructure to. Each of those silences this rule and lights up that one, and a pair of diagnostics forbidding each other's fix is an edit loop." }],
     },
     {
       name: "a route module is isomorphic, so its loader's imports reach the client too",

@@ -11,7 +11,7 @@ describeRule("boundary/route-thinness", routeThinnessRule, {
       name: "a route reaching straight past the feature layer to the DB",
       filename: ROUTE,
       code: IMPORT_DB,
-      errors: [{ messageId: "serverOnlyImportInRoute" }],
+      errors: [{ message: "Routes are isomorphic thin adapters. Import data through the client-safe feature barrel (@/features/<feature>), not @/infrastructure/db or @/env.server or @/env." }],
     },
     {
       name: "a route reading server-only env, which is a secret in the transport layer",

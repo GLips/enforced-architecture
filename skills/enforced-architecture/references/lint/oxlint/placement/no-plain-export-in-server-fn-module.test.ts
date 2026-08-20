@@ -14,7 +14,7 @@ const inBridgeModule = (name: string, code: string) => ({
 /** A spelling that must fire exactly once, as the plain runtime-export leak. */
 const leaks = (name: string, code: string) => ({
   ...inBridgeModule(name, code),
-  errors: [{ messageId: "runtimeExportLeak" }],
+  errors: [{ message: "Only createServerFn/createMiddleware bridges and types may be exported from a compiler-processed module. Move this runtime export to a client-safe or .server module sibling." }],
 });
 
 describeRule(

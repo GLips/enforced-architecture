@@ -51,7 +51,7 @@ export const barrelDirectionRule = defineTreeRule({
     type: "problem",
     messages: {
       clientBarrelImportsServerBarrel:
-        "Barrel index.ts must not import from index.server.ts — this pulls server-only code into client bundles. If the export is client-safe (types, createServerFn references), re-export it from controllers/ instead. If it is server-only, it belongs in index.server.ts only.",
+        "Barrel {{clientBarrel}} must not import from {{serverBarrel}} — this pulls server-only code into client bundles. If the export is client-safe (types, createServerFn references), re-export it from {{controllersLayer}}/ instead. If it is server-only, it belongs in {{serverBarrel}} only.",
     },
   },
   create(context, role) {
@@ -71,7 +71,15 @@ export const barrelDirectionRule = defineTreeRule({
 
     return visitModuleSources((source, specifier) => {
       if (namesServerBarrel(specifier, vocabulary.serverBarrelModule)) {
-        context.report({ node: source, messageId: "clientBarrelImportsServerBarrel" });
+        context.report({
+          node: source,
+          messageId: "clientBarrelImportsServerBarrel",
+          data: {
+            clientBarrel: vocabulary.clientBarrelModule,
+            serverBarrel: vocabulary.serverBarrelModule,
+            controllersLayer: vocabulary.featureLayerDirs.controllers,
+          },
+        });
       }
     });
   },

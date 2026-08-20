@@ -11,7 +11,7 @@ describeRule("placement/deprecated-paths", deprecatedPathsRule, {
       name: "a feature component importing from the directory that no longer exists",
       filename: UI,
       code: IMPORT_DEPRECATED,
-      errors: [{ messageId: "componentsDirectoryRemoved" }],
+      errors: [{ message: "The @/components/ directory no longer exists. Import from @/shared/ui/* (generic primitives) or @/features/*/ui/* (feature-owned UI) instead." }],
     },
     {
       name: "a route reaching the same removed directory",

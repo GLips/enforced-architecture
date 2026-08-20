@@ -11,7 +11,7 @@ describeRule("api/server-import-context", serverImportContextRule, {
       name: "a client-context component importing a feature's server barrel",
       filename: UI,
       code: IMPORT_SERVER_BARREL,
-      errors: [{ messageId: "serverBarrelInClientContext" }],
+      errors: [{ message: "*/index.server is a server-only barrel and this is a client context. Routes are isomorphic; use the client-safe barrel index there. This rule answers the CONTEXT question only \u2014 which server context may reach a given barrel is boundary/import-policy's answer, and from inside a feature that is controllers/, service/ and a .server module at the feature ROOT. Not the feature's own index.server, which is a barrel and may name nothing outside its feature; not repo/, which is a leaf; not infrastructure/, which sits below features/." }],
     },
     {
       name: "route files are isomorphic and cannot reach a server barrel",

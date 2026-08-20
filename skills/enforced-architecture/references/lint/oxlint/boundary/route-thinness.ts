@@ -54,16 +54,26 @@ export const routeThinnessRule = defineTreeRule({
     type: "problem",
     messages: {
       serverOnlyImportInRoute:
-        "Routes are isomorphic thin adapters. Import data through the client-safe feature barrel (@/features/<feature>), not DB or env.server.",
+        "Routes are isomorphic thin adapters. Import data through the client-safe feature barrel ({{featureBarrel}}), not {{banned}}.",
     },
   },
   create(context, role) {
     if (role.place?.profile !== "route") return {};
-    const banned = bannedSpecifiers(role.tree.vocabulary);
+    const { vocabulary } = role.tree;
+    const banned = bannedSpecifiers(vocabulary);
+    const featureBarrel = `${aliasSpecifierFor(vocabulary, vocabulary.featuresDir)}/<feature>`;
 
     return visitModuleSources((source, specifier) => {
       if (banned.some((prefix) => isUnderPath(specifier, prefix))) {
-        context.report({ node: source, messageId: "serverOnlyImportInRoute" });
+        context.report({
+          node: source,
+          messageId: "serverOnlyImportInRoute",
+          // The banned list itself, so the message names what this tree spells
+          // rather than the standard layout's `@/infrastructure/db` — the same
+          // list the verdict was reached from, which is the only way the two
+          // cannot drift.
+          data: { featureBarrel, banned: banned.join(" or ") },
+        });
       }
     });
   },

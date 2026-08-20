@@ -10,7 +10,12 @@ describeRule("api/barrel-direction", barrelDirectionRule, {
       name: "a client barrel re-exporting its server barrel wholesale",
       filename: FEATURE_BARREL,
       code: `export * from "./index.server";`,
-      errors: [{ messageId: "clientBarrelImportsServerBarrel" }],
+      errors: [
+        {
+          message:
+            "Barrel index must not import from index.server — this pulls server-only code into client bundles. If the export is client-safe (types, createServerFn references), re-export it from controllers/ instead. If it is server-only, it belongs in index.server only.",
+        },
+      ],
     },
     {
       name: "the rule governs the domains layer too, not only features",

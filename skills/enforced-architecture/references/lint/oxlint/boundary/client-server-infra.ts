@@ -60,7 +60,7 @@ export const clientServerInfraRule = defineTreeRule({
     type: "problem",
     messages: {
       serverOnlyInfraInClient:
-        "Client contexts may only import client-safe infrastructure modules. From inside a feature, move it to controllers/ or to repo/ — or use the client-safe adapter. NOT service/, and NOT renaming the file to *.server.ts: a service layer imports no infrastructure at all, and a .server.ts at a feature root or as its barrel is a feature-root or feature-barrel file, which boundary/import-policy denies infrastructure to. Each of those silences this rule and lights up that one, and a pair of diagnostics forbidding each other's fix is an edit loop.",
+        "Client contexts may only import client-safe {{infrastructureDir}}/ modules. From inside a feature, move it to {{controllersLayer}}/ or to {{repoLayer}}/ — or use the client-safe adapter. NOT {{serviceLayer}}/, and NOT renaming the file to *{{serverSuffix}}: a {{serviceLayer}} layer imports no infrastructure at all, and a {{serverSuffix}} module at a feature root or as its barrel is a feature-root or feature-barrel file, which boundary/import-policy denies infrastructure to. Each of those silences this rule and lights up that one, and a pair of diagnostics forbidding each other's fix is an edit loop.",
     },
   },
   create(context, role) {
@@ -77,7 +77,17 @@ export const clientServerInfraRule = defineTreeRule({
       const to = classifyTargetPath(vocabulary, target.path);
       if (to?.area !== "infrastructure") return;
       if (clientSafe.includes(to.path)) return;
-      context.report({ node: source, messageId: "serverOnlyInfraInClient" });
+      context.report({
+        node: source,
+        messageId: "serverOnlyInfraInClient",
+        data: {
+          infrastructureDir: vocabulary.infrastructureDir,
+          controllersLayer: vocabulary.featureLayerDirs.controllers,
+          repoLayer: vocabulary.featureLayerDirs.repo,
+          serviceLayer: vocabulary.featureLayerDirs.service,
+          serverSuffix: vocabulary.serverModuleSuffix,
+        },
+      });
     });
   },
 });

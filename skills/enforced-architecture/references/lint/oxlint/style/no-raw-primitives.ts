@@ -37,7 +37,7 @@
 // body checks either one.
 // ──────────────────────────────────────────────────────────────────────
 
-import { rootRouteModule } from "../../policy/layout.ts";
+import { aliasSpecifierFor, rootRouteModule, sharedUiDir } from "../../policy/layout.ts";
 import { defineTreeRule } from "../lib/define-tree-rule.ts";
 import { isAtProfile, isModule } from "../../policy/declared-trees.ts";
 import { exportedName, visitImportedNames } from "../lib/imported-names.ts";
@@ -64,7 +64,7 @@ export const noRawPrimitivesRule = defineTreeRule({
       rawHtmlElement:
         "Raw HTML element (highlighted) — compose from the UI primitives instead (Box/Stack/Group for layout, Text/Title for type, Button, Anchor, Image), or `<Box as='...'>` with the tag name when you need the semantic element. A raw element has no token-aware defaults, so every value on it has to be invented. See docs/architecture/design-system.md.",
       platformPrimitive:
-        "Core react-native rendering primitive (highlighted) — import the app equivalent from @/shared/ui instead (Box/Stack for View, Text for Text, a Button/Pressable wrapper for touchables). Those take token props, so an off-system value cannot be passed. Utility APIs from react-native (Platform, StyleSheet, useWindowDimensions) are fine in feature code; only the rendering primitives are the design system's to own. See docs/architecture/design-system.md.",
+        "Core react-native rendering primitive (highlighted) — import the app equivalent from {{sharedUi}} instead (Box/Stack for View, Text for Text, a Button/Pressable wrapper for touchables). Those take token props, so an off-system value cannot be passed. Utility APIs from react-native (Platform, StyleSheet, useWindowDimensions) are fine in feature code; only the rendering primitives are the design system's to own. See docs/architecture/design-system.md.",
       platformStarReExport:
         "A star re-export of react-native republishes every rendering primitive under this module's name, so any importer gets View/Text/Pressable without ever naming react-native. Re-export the named utility APIs you actually need instead. See docs/architecture/design-system.md.",
     },
@@ -82,6 +82,7 @@ export const noRawPrimitivesRule = defineTreeRule({
     // walked — so without a single ordering owner a file's diagnostics come out with every
     // imported name after every raw element, whatever their line numbers.
     const ordered = sourceOrderedReports(context);
+    const sharedUi = { sharedUi: aliasSpecifierFor(role.tree.vocabulary, sharedUiDir(role.tree.vocabulary)) };
 
     return {
       // --- React Native arm ---
@@ -89,7 +90,7 @@ export const noRawPrimitivesRule = defineTreeRule({
       // so `View as Screen` and `RN.View` are the same finding as `View`.
       ...visitImportedNames(context.sourceCode, [PLATFORM_MODULE], (name, node) => {
         if (PLATFORM_RENDERING_PRIMITIVES.has(name)) {
-          ordered.report({ node, messageId: "platformPrimitive" });
+          ordered.report({ node, messageId: "platformPrimitive", data: sharedUi });
         }
       }),
 
@@ -113,7 +114,7 @@ export const noRawPrimitivesRule = defineTreeRule({
         for (const specifier of node.specifiers) {
           if (specifier.exportKind === "type") continue;
           if (PLATFORM_RENDERING_PRIMITIVES.has(exportedName(specifier.local))) {
-            ordered.report({ node: specifier, messageId: "platformPrimitive" });
+            ordered.report({ node: specifier, messageId: "platformPrimitive", data: sharedUi });
           }
         }
       },

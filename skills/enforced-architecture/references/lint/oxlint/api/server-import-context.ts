@@ -43,13 +43,14 @@ export const serverImportContextRule = defineTreeRule({
     type: "problem",
     messages: {
       serverBarrelInClientContext:
-        "*/index.server is a server-only barrel and this is a client context. Routes are isomorphic; use the client-safe barrel there. This rule answers the CONTEXT question only — which server context may reach a given barrel is boundary/import-policy's answer, and from inside a feature that is controllers/, service/ and a .server.ts module at the feature ROOT. Not the feature's own index.server.ts, which is a barrel and may name nothing outside its feature; not repo/, which is a leaf; not infrastructure/, which sits below features.",
+        "*/{{serverBarrel}} is a server-only barrel and this is a client context. Routes are isomorphic; use the client-safe barrel {{clientBarrel}} there. This rule answers the CONTEXT question only — which server context may reach a given barrel is boundary/import-policy's answer, and from inside a feature that is {{controllersLayer}}/, {{serviceLayer}}/ and a {{serverSuffix}} module at the feature ROOT. Not the feature's own {{serverBarrel}}, which is a barrel and may name nothing outside its feature; not {{repoLayer}}/, which is a leaf; not {{infrastructureDir}}/, which sits below {{featuresDir}}/.",
     },
   },
   create(context, role) {
     if (isServerContext(role)) return {};
 
-    const { serverBarrelModule } = role.tree.vocabulary;
+    const { vocabulary } = role.tree;
+    const { serverBarrelModule } = vocabulary;
 
     return visitModuleSources((source, specifier) => {
       // Requires a preceding `/`, matching the relative
@@ -57,7 +58,20 @@ export const serverImportContextRule = defineTreeRule({
       // segment boundary so a neighbour named `index.server-config` is a
       // different module.
       if (withoutSourceExtension(specifier).endsWith(`/${serverBarrelModule}`)) {
-        context.report({ node: source, messageId: "serverBarrelInClientContext" });
+        context.report({
+          node: source,
+          messageId: "serverBarrelInClientContext",
+          data: {
+            serverBarrel: serverBarrelModule,
+            clientBarrel: vocabulary.clientBarrelModule,
+            controllersLayer: vocabulary.featureLayerDirs.controllers,
+            serviceLayer: vocabulary.featureLayerDirs.service,
+            repoLayer: vocabulary.featureLayerDirs.repo,
+            serverSuffix: vocabulary.serverModuleSuffix,
+            infrastructureDir: vocabulary.infrastructureDir,
+            featuresDir: vocabulary.featuresDir,
+          },
+        });
       }
     });
   },

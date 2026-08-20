@@ -79,7 +79,7 @@ export const noPlainExportInServerFnModuleRule = defineTreeRule({
     type: "problem",
     messages: {
       runtimeExportLeak:
-        "Only createServerFn/createMiddleware bridges and types may be exported from a compiler-processed module. Move this runtime export to a client-safe or .server.ts sibling.",
+        "Only createServerFn/createMiddleware bridges and types may be exported from a compiler-processed module. Move this runtime export to a client-safe or {{serverSuffix}} sibling.",
       defaultBridgeExport:
         "A createServerFn/createMiddleware bridge must be assigned to a named const — the compiler resolves it through its variable declarator. Change `export default createServerFn(…)` to `export const <name> = createServerFn(…)`.",
     },
@@ -175,7 +175,13 @@ export const noPlainExportInServerFnModuleRule = defineTreeRule({
         if (!definesCompilerBridge) return;
         for (const node of exports) {
           const messageId = classifyExport(node);
-          if (messageId !== null) context.report({ node, messageId });
+          if (messageId !== null) {
+            context.report({
+              node,
+              messageId,
+              data: { serverSuffix: `${role.tree.vocabulary.serverModuleSuffix} module` },
+            });
+          }
         }
       },
     };
