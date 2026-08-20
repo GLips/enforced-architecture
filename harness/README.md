@@ -5,10 +5,18 @@ Runs every rule in `skills/enforced-architecture/references/lint/` against the c
 It proves the **chosen examples**, not the header claim in general. The cases and the rule come from the same author, so an unimagined violation spelling is unimagined in both. Treat a green run as "the contract I wrote down still holds", not as "this rule is correct."
 
 ```
-bun run check          # both tiers
-bun run check:rules    # 54 oxlint rules, under real Node
-bun run check:structural  # 16 structural checks, under Bun
+bun run check          # types then fixtures, both tiers
+bun run typecheck      # both tier programs, under the tsconfigs the skill hands out
+bun run check:rules    # oxlint rules, under real Node
+bun run check:structural  # structural checks, under Bun
 ```
+
+`typecheck` is not this harness's and does not overlap with it. A fixture run proves what a
+template *does*; only a compiler proves it is typed, and a template with a type error passes every
+`RuleTester` case — `context.options[0]?.threshold` reading `undefined` compares every count
+against NaN and governs nothing while running green. It is in `check` because the catalog ships
+tsconfigs telling an adopting repo to gate on exactly these programs, and a catalog that fails the
+gate it hands out is a catalog nobody should copy.
 
 Two runners because the two tiers read differently, not because the standard differs. Each runner owns one directory — `lint/oxlint/` and `lint/structural/` — so neither has to ask which tier a file belongs to; the path already said. An oxlint rule is handed one file, so it is exercised through `RuleTester` against inline sources. A structural check scans declared roots and several scan more than one, so its cases are real files in one shared tree. Both are held to the same three-kind contract below. The structural side has its own README at [structural-fixtures/README.md](structural-fixtures/README.md); the rest of this file is the oxlint side plus what the two share.
 

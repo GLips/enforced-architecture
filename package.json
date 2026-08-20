@@ -3,13 +3,18 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "bun run check:rules && bun run check:structural",
+    "check": "bun run typecheck && bun run check:rules && bun run check:structural",
+    "typecheck": "bun run typecheck:oxlint && bun run typecheck:structural",
+    "typecheck:oxlint": "tsc --noEmit -p tsconfig.oxlint.json",
+    "typecheck:structural": "tsc --noEmit -p tsconfig.structural.json",
     "check:rules": "harness/with-real-node.sh harness/run-rule-fixtures.ts",
     "check:structural": "bun harness/run-structural-fixtures.ts"
   },
   "devDependencies": {
     "@oxlint/plugins": "^1.77.0",
     "@types/bun": "^1.3.14",
-    "oxlint": "^1.77.0"
+    "@types/node": "^26.2.0",
+    "oxlint": "^1.77.0",
+    "typescript": "^7.0.2"
   }
 }

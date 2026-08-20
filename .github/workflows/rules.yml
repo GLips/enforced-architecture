@@ -15,8 +15,12 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
-      # Both tiers. `check:rules` needs real Node — oxlint's RuleTester refuses
-      # Bun by name — and `harness/with-real-node.sh` arranges that; `check:structural`
-      # runs under Bun. Running only one leaves the other tier free to go green
-      # while matching nothing, which is the failure this job exists to catch.
+      # Types then fixtures, both tiers. `typecheck` is a separate proof, not a
+      # duplicate of the fixtures: a template with a type error passes every
+      # RuleTester case, and `context.options[0]?.threshold` reading `undefined`
+      # compares against NaN and governs nothing while still running green.
+      # `check:rules` needs real Node — oxlint's RuleTester refuses Bun by name —
+      # and `harness/with-real-node.sh` arranges that; `check:structural` runs
+      # under Bun. Running only one tier leaves the other free to go green while
+      # matching nothing, which is the failure this job exists to catch.
       - run: bun run check

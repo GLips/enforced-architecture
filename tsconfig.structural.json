@@ -1,0 +1,19 @@
+// The Bun-typed half of the catalog's own typecheck gate.
+//
+// `extends` points at the template an adopting repo copies, for the reason given
+// in `tsconfig.oxlint.json`. `harness/` belongs to this program: it runs under
+// Bun, so it needs the same `types: ["bun"]` the structural tier does.
+{
+  "extends": "./skills/enforced-architecture/references/setup/structural.tsconfig.json",
+  "include": [
+    "skills/enforced-architecture/references/lint/structural/**/*.ts",
+    "skills/enforced-architecture/references/lint/policy/**/*.ts",
+    "harness/**/*.ts"
+  ],
+  // The fixture tree is INPUT to the structural checks, not code that runs: it is
+  // a deliberately broken codebase whose imports dangle and whose layers are
+  // misplaced on purpose. `structural-fixtures/config.ts` still imports the
+  // tree's theme module, and tsc follows that import, so the one tree file the
+  // harness actually reads as a value is typechecked while the rest stays out.
+  "exclude": ["harness/structural-fixtures/tree"]
+}

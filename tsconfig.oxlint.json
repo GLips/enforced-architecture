@@ -1,0 +1,20 @@
+// The Node-typed half of the catalog's own typecheck gate.
+//
+// `extends` points at the template an adopting repo copies, so the options this
+// gate runs under ARE the options it hands out. Restating them here would make
+// this a second copy of a list that could drift green — the catalog would prove
+// the templates compile under settings nobody has.
+//
+// Only `include` is overridden, because the paths differ: an adopter copies the
+// tier to `lint/oxlint/` and the config sits inside it, whereas here the tier is
+// catalog content and the config sits at the repo root.
+{
+  "extends": "./skills/enforced-architecture/references/setup/oxlint.tsconfig.json",
+  // `policy/` joins both programs — see `tsconfig.structural.json`. It is listed
+  // in each rather than split out, because the point is that one policy
+  // typechecks under `types: ["node"]` and `types: ["bun"]` alike.
+  "include": [
+    "skills/enforced-architecture/references/lint/oxlint/**/*.ts",
+    "skills/enforced-architecture/references/lint/policy/**/*.ts"
+  ]
+}
