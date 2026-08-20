@@ -24,8 +24,16 @@
 // What remains here is what has no bearing on WHERE the architecture is: the
 // project root every relative path resolves against, the build fact of which
 // package injects JSX runtime imports, and per-check thresholds, manifests,
-// trace limits and allowlists. Every one of those is a number or a name that
+// trace limits and package names. Every one of those is a number or a name that
 // says nothing about the shape of the tree.
+//
+// And every one of them is a number or a NAME. No field here is a regex, a glob
+// or a list an adopter grows: a predicate is a rule's own claim, and handed over
+// as configuration it becomes an off-switch that leaves the check listed as
+// enabled — `behaviorKeywords: /.*/` took `health/trampolines` from four
+// findings to zero in this repo's own fixtures. Where a check needed a
+// predicate, it now holds one; where it needed an exemption, it reads a
+// structural fact. A check with nothing left to configure has no entry at all.
 //
 // ── Adapt ─────────────────────────────────────────────────────────────
 //
@@ -58,8 +66,19 @@
 import type { FeatureLayerRole } from "../policy/layout.ts";
 
 export type BarrelPurityConfig = {
-  /** Packages that break a client bundle. Regexes: `^name$` exact, `^name/` for subpaths. */
-  serverOnlyPatterns: RegExp[];
+  /**
+   * Packages that break a client bundle, by NAME. A subpath import
+   * (`drizzle-orm/pg-core`) is the same package, so one entry covers it — that
+   * is `packageNameOf`, shared with the oxlint tier, rather than each entry
+   * carrying its own anchoring.
+   *
+   * Names rather than regexes because a pattern list is a predicate: `^$` in one
+   * entry matches nothing and reads exactly like a package that happens not to
+   * be installed. Node builtins are not listed — `node:` is a protocol, and a
+   * builtin in a client barrel is server-only by construction rather than by
+   * this project's opinion.
+   */
+  serverOnlyPackages: string[];
   /** Bounds cost only — cycle detection is what stops infinite recursion. Report when hit. */
   maxTraceDepth: number;
   /**
@@ -104,10 +123,13 @@ export type FileSizeConfig = {
   warnThreshold: number;
   failThreshold: number;
   /**
-   * Known-oversized files, matched by path suffix. An escape hatch, never a
-   * permanent pass: every entry carries a TODO naming how it gets back under.
+   * NEGATIVE SPACE: there is no exclusion list. A per-file pass is how a size
+   * limit becomes advisory — the list grows by one entry per commit that would
+   * otherwise fail, each with a TODO nobody returns to, and the threshold ends
+   * up describing the files nobody had a reason to exempt. The thresholds are
+   * the knob; a project whose files are legitimately longer raises them, in one
+   * place, visibly.
    */
-  exclusions: string[];
 };
 
 export type TrampolinesConfig = {
@@ -118,8 +140,6 @@ export type TrampolinesConfig = {
    * job, and a check that reports them reports the layer working.
    */
   targetLayerRoles: FeatureLayerRole[];
-  /** Any of these in a function body means it does something beyond forwarding. */
-  behaviorKeywords: RegExp;
 };
 
 export type BarrelDiscoverabilityConfig = {
@@ -127,43 +147,14 @@ export type BarrelDiscoverabilityConfig = {
   flagTypeAliases: boolean;
 };
 
-export type TestFileMirrorConfig = {
-  /**
-   * The blessed suffixes, WITHOUT an extension. Pick ONE convention and enforce
-   * it.
-   *
-   * Extensionless because the extension is not part of the convention: a project
-   * that writes `.test.ts` writes `.test.mts` too, and spelling each pairing out
-   * meant `SOURCE_EXTENSIONS` grew to eight while this list covered two — so an
-   * `.mts` test was not recognised as a test, and the check that exists to make
-   * tests findable said nothing about them.
-   */
-  testSuffixes: string[];
-  /**
-   * Source-root-relative directories where a test with no sibling source is
-   * legitimate — cross-cutting suites that map to no single module.
-   */
-  orphanAllowedDirs: string[];
-};
-
-export type CssTokensConfig = {
-  /** Stylesheet extensions walked, without the dot. */
-  stylesheetExtensions: string[];
-  /**
-   * Source-root-relative token-source stylesheets. These DEFINE the raw values,
-   * which is what a token declaration is.
-   */
-  exemptFiles: string[];
-};
-
 export type ShadowSourceConfig = {
-  /** The one curated home, source-root-relative. Readable in one screen. */
+  /**
+   * The one curated home, source-root-relative. Readable in one screen.
+   *
+   * A name, and singular: the check's claim is that ONE file lists every shadow,
+   * so a list here would be the claim itself made adjustable.
+   */
   allowedFile: string;
-  /** Extensions scanned, without the dot. Stylesheets and TS together — that is the point. */
-  scannedExtensions: string[];
-  /** The property spelling per surface: CSS in stylesheets, the JS key in TS/TSX. */
-  stylesheetPattern: RegExp;
-  scriptPattern: RegExp;
 };
 
 export type TokenEqualityConfig = {
@@ -195,22 +186,13 @@ export type CheckConfigs = {
   "health/file-size": FileSizeConfig;
   "health/trampolines": TrampolinesConfig;
   "naming/barrel-discoverability": BarrelDiscoverabilityConfig;
-  "naming/test-file-mirror": TestFileMirrorConfig;
-  "style/css-tokens": CssTokensConfig;
   "style/shadow-source": ShadowSourceConfig;
   "style/token-equality": TokenEqualityConfig;
 };
 
 export const defaultCheckConfigs: CheckConfigs = {
   "api/barrel-purity": {
-    serverOnlyPatterns: [
-      /^node:/,
-      /^drizzle-orm/,
-      /^pg$/,
-      /^postgres$/,
-      /^better-auth/,
-      /^stripe$/,
-    ],
+    serverOnlyPackages: ["drizzle-orm", "pg", "postgres", "better-auth", "stripe"],
     maxTraceDepth: 6,
     serverFnMarkers: ["createServerFn"],
   },
@@ -236,33 +218,18 @@ export const defaultCheckConfigs: CheckConfigs = {
     roots: ["src"],
     warnThreshold: 500,
     failThreshold: 600,
-    exclusions: [],
   },
 
   "health/trampolines": {
     targetLayerRoles: ["service"],
-    behaviorKeywords: /\b(const|let|var|if|for|while|switch|try|throw|catch)\b/,
   },
 
   "naming/barrel-discoverability": {
     flagTypeAliases: true,
   },
 
-  "naming/test-file-mirror": {
-    testSuffixes: [".test", ".integration.test"],
-    orphanAllowedDirs: [],
-  },
-
-  "style/css-tokens": {
-    stylesheetExtensions: ["css"],
-    exemptFiles: ["styles.css"],
-  },
-
   "style/shadow-source": {
     allowedFile: "shadows.css",
-    scannedExtensions: ["css", "ts", "tsx"],
-    stylesheetPattern: /\bbox-shadow\b/,
-    scriptPattern: /\bboxShadow\b/,
   },
 
   // Empty scales mean the check has nothing to compare against and stays silent.

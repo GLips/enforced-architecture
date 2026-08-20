@@ -185,6 +185,36 @@ export type TreeVocabulary = {
   extraSourceRootModules: string[];
 
   /**
+   * The extensions that make a file a STYLESHEET, without the dot.
+   *
+   * Two checks read it — `style/css-tokens` walks these files, `style/shadow-source`
+   * decides which of two property spellings to look for by whether a file is one
+   * — and each used to carry its own list, so a project adopting `.scss` could
+   * have its stylesheets scanned for shadows and not for raw colours.
+   *
+   * Every entry must also be an `assetExtensions` entry: a stylesheet is an
+   * asset from the IMPORT side, and a tree that scans `.scss` files while the
+   * boundary rules read `@/x.scss` as an unclassified module target is one tree
+   * with two answers about the same file.
+   */
+  stylesheetExtensions: string[];
+
+  /**
+   * The stylesheet at this tree's source root that DEFINES the tokens, with its
+   * extension. `style/css-tokens` exempts it and nothing else.
+   *
+   * Singular, and that is the point: a list of exempt stylesheets is an
+   * exemption an adopter grows one entry at a time until the check has no
+   * subject left. A token source is one file by the same argument the check
+   * makes — if the raw values live in two places, changing a colour means
+   * finding both.
+   *
+   * `sourceRootModules()` includes it, so it is also permitted at the root
+   * without being named a second time.
+   */
+  tokenStylesheetName: string;
+
+  /**
    * Aliases that resolve OUTSIDE this tree's source root. A tsconfig path
    * mapping onto a sibling directory — `@/assets/*` onto the repo's `assets/` —
    * is not an unpoliced area, it is not an application module at all. Without
@@ -317,7 +347,10 @@ export const RECOMMENDED_VOCABULARY: TreeVocabulary = {
 
   generatedDirs: ["gen"],
 
-  extraSourceRootModules: ["router", "client", "server", "styles.css", "routeTree.gen"],
+  extraSourceRootModules: ["router", "client", "server", "routeTree.gen"],
+
+  stylesheetExtensions: ["css"],
+  tokenStylesheetName: "styles.css",
 
   nonSourceAliases: [],
 
@@ -497,6 +530,23 @@ export function assertGoverningVocabulary(vocabulary: TreeVocabulary, treeRoot: 
     },
     "barrel",
   );
+
+  if (vocabulary.stylesheetExtensions.length === 0) {
+    throw new Error(
+      `The tree at "${treeRoot}" declares no stylesheetExtensions. Both CSS checks walk this ` +
+        `list, so an empty one is those checks switched off with nothing in the config saying ` +
+        `so — and the tier has no other way to find a stylesheet.`,
+    );
+  }
+  for (const extension of vocabulary.stylesheetExtensions) {
+    if (vocabulary.assetExtensions.includes(extension)) continue;
+    throw new Error(
+      `The tree at "${treeRoot}" names "${extension}" a stylesheet extension but not an asset ` +
+        `extension. A stylesheet is an asset from the import side, so the CSS checks would read ` +
+        `the file while the boundary rules reported every import of it as an unclassified ` +
+        `module target.`,
+    );
+  }
 
   for (const dir of vocabulary.generatedDirs) {
     const collision = Object.entries(topLevelDirsByField(vocabulary)).find(
@@ -757,7 +807,16 @@ export function featureRootModules(vocabulary: TreeVocabulary): string[] {
  * env modules the tree declares plus whatever else it names.
  */
 export function sourceRootModules(vocabulary: TreeVocabulary): string[] {
-  return [...Object.keys(vocabulary.envModules), ...vocabulary.extraSourceRootModules];
+  return [
+    ...Object.keys(vocabulary.envModules),
+    ...vocabulary.extraSourceRootModules,
+    vocabulary.tokenStylesheetName,
+  ];
+}
+
+/** Every stylesheet in a tree, in one walk: `**\/*.{css,…}`. */
+export function stylesheetGlob(vocabulary: TreeVocabulary): string {
+  return `**/*.{${vocabulary.stylesheetExtensions.join(",")}}`;
 }
 
 export function barrelModules(vocabulary: TreeVocabulary): string[] {

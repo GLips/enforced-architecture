@@ -25,7 +25,12 @@
 
 import { statSync } from "node:fs";
 import { dirname, extname, resolve } from "node:path";
-import { SOURCE_EXTENSIONS, subdividedDirs, type TreeVocabulary } from "../../policy/layout.ts";
+import {
+  packageNameOf,
+  SOURCE_EXTENSIONS,
+  subdividedDirs,
+  type TreeVocabulary,
+} from "../../policy/layout.ts";
 import { scanDeclaredImports } from "../import-graph.ts";
 import {
   blankComments,
@@ -113,13 +118,27 @@ const RESOLUTION_NOTE =
   `does (./target.js → target.ts), so a hop spelled that way ends the trace without\n` +
   `a word.`;
 
+/**
+ * True when `specifier` reaches a package that cannot be in a client bundle.
+ *
+ * The `node:` arm is not configurable and does not belong in the list: a Node
+ * builtin in a barrel every client component may import is server-only by
+ * construction, not by a project's opinion about its dependencies. Everything
+ * else is compared by package NAME, so `drizzle-orm/pg-core` is `drizzle-orm`
+ * and no entry has to anticipate the subpaths a package ships.
+ */
+function isServerOnlySpecifier(specifier: string, serverOnlyPackages: string[]): boolean {
+  if (specifier.startsWith("node:")) return true;
+  return serverOnlyPackages.includes(packageNameOf(specifier));
+}
+
 export const barrelPurityCheck: StructuralCheck = {
   id: "api/barrel-purity",
   scope: "tree",
 
   run(context) {
     const { config, vocabulary } = context;
-    const { serverOnlyPatterns, maxTraceDepth, serverFnMarkers } =
+    const { serverOnlyPackages, maxTraceDepth, serverFnMarkers } =
       config.checks["api/barrel-purity"];
     const { jsxImportSource } = config;
     const findings: Finding[] = [];
@@ -183,8 +202,7 @@ export const barrelPurityCheck: StructuralCheck = {
               const line =
                 depth === 0 ? lineOfSpecifier(source, lineStarts, specifier) : originLine;
 
-              const serverOnly = serverOnlyPatterns.find((pattern) => pattern.test(specifier));
-              if (serverOnly !== undefined) {
+              if (isServerOnlySpecifier(specifier, serverOnlyPackages)) {
                 report(
                   line,
                   `Transitively pulls in the server-only package "${specifier}".\n` +
@@ -192,7 +210,7 @@ export const barrelPurityCheck: StructuralCheck = {
                     `Every client component and route may import this barrel, so the whole chain\n` +
                     `lands in the client bundle and the build breaks. Move the server-only export\n` +
                     `to the sibling ${serverBarrel}, or put it behind a server function.\n` +
-                    `The package list is \`serverOnlyPatterns\` in the project's architecture config.\n` +
+                    `The package list is \`serverOnlyPackages\` in the project's architecture config.\n` +
                     RESOLUTION_NOTE,
                 );
                 continue;

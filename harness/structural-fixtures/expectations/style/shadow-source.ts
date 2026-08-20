@@ -12,7 +12,13 @@ export const shadowSourceFixtures: CheckFixtures = {
   // The JS key. A separate branch, selected by extension, so a CSS-only
   // implementation is silent here while looking entirely correct against the
   // obvious case — the whole reason this tier needs an adversarial kind.
-  adversarial: ["FAIL src/features/alpha/ui/inline-shadow.tsx"],
+  adversarial: [
+    "FAIL src/features/alpha/ui/inline-shadow.tsx",
+    // The same JS key in an extension a configured scan list did not name. What
+    // is READ was a knob until now, and a knob that can be emptied is the check
+    // switched off with the config still listing it.
+    "FAIL src/features/alpha/ui/modern-shadow.mts",
+  ],
 
   legal: [
     // The curated allowlist itself. It holds a real `box-shadow`, so it is the

@@ -32,5 +32,9 @@ export const testFileMirrorFixtures: CheckFixtures = {
     // A correctly-named .mts test beside its .mts module: recognised as a test,
     // and its sibling found across a different extension than its own.
     "src/features/mirror/service/ledgers.test.mts",
+    // A cross-cutting suite with no module of its name, in a test directory.
+    // The only thing that keeps it quiet is the shared directory convention —
+    // which replaced a config list of allowed orphan directories.
+    "src/features/mirror/__tests__/checkout-flow.test.ts",
   ],
 };

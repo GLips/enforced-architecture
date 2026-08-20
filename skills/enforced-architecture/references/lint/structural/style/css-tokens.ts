@@ -19,11 +19,12 @@
 // guess which lengths are on one. style/shadow-source checks `box-shadow`, so
 // one violation gives one message and not two.
 //
-// exemptFiles is for the files that define the scales. Per-line suppression is
-// absent on purpose. A value no token can express is a gap in the scale, not a
-// false positive to silence.
+// The tree's token stylesheet is the one exempt file, because it DEFINES the
+// scales. Per-line suppression is absent on purpose. A value no token can
+// express is a gap in the scale, not a false positive to silence.
 // ──────────────────────────────────────────────────────────────────────
 
+import { stylesheetGlob } from "../../policy/layout.ts";
 import {
   collectTreeFiles,
   lineNumberAt,
@@ -58,22 +59,14 @@ export const cssTokensCheck: StructuralCheck = {
   scope: "tree",
 
   run(context) {
-    const { config } = context;
-    const { stylesheetExtensions, exemptFiles } = config.checks["style/css-tokens"];
+    const { config, vocabulary } = context;
     const findings: Finding[] = [];
 
-    const stylesheets = new Set<string>();
-    for (const extension of stylesheetExtensions) {
-      for (const absolute of collectTreeFiles(context, `**/*.${extension}`)) {
-        stylesheets.add(absolute);
-      }
-    }
-
-    for (const absolute of [...stylesheets].sort()) {
-      // The token sources DEFINE the raw values, which is what a token is. They
-      // are exempt whole, because a global stylesheet also carries base rules
+    for (const absolute of collectTreeFiles(context, stylesheetGlob(vocabulary))) {
+      // The token source DEFINES the raw values, which is what a token is. It is
+      // exempt whole, because a global stylesheet also carries base rules
       // (`body { color: … }`) that the by-shape skip above does not cover.
-      if (exemptFiles.includes(toSourcePath(context, absolute))) continue;
+      if (toSourcePath(context, absolute) === vocabulary.tokenStylesheetName) continue;
 
       const file = toProjectPath(config, absolute);
       const source = blankCssComments(readFile(absolute));

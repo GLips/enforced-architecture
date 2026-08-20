@@ -9,10 +9,6 @@
 // under service/ and correct under repo/, where a thin wrapper on a query is the
 // job. Thus the check walks layer roots, and repo is never a target layer.
 //
-// Do not add `return` to behaviorKeywords. A function that only returns the
-// result of another function is the subject of this check. With `return` in
-// that list, the check reports nothing at all.
-//
 // This reads two forms: `export function` and a method of an exported object
 // literal. It does not read an exported arrow function
 // (`export const name = () => …`). Add that shape here if it appears. A form
@@ -33,6 +29,21 @@ import {
   type Finding,
   type StructuralCheck,
 } from "../check-substrate.ts";
+
+/**
+ * The tokens that mean a body DOES something beyond forwarding: a binding, a
+ * branch, a loop, a throw.
+ *
+ * Fixed, and that is the difference between a knob and an off-switch. What
+ * counts as behaviour is this check's entire claim — `behaviorKeywords: /.*\/`
+ * as a config field took the trampoline findings in this repo's own fixtures
+ * from four to zero while the check still read as enabled. Which LAYERS are
+ * scanned stays configurable, because that is a name.
+ *
+ * Do not add `return`. A function that only returns another function's result is
+ * the subject of this check, and with `return` here it reports nothing at all.
+ */
+const BEHAVIOR_KEYWORDS = /\b(const|let|var|if|for|while|switch|try|throw|catch)\b/;
 
 /** `export function name` at the start of a line, which is the only place a real one sits. */
 const EXPORTED_FUNCTION = /^[ \t]*export\s+(?:default\s+)?(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/gm;
@@ -59,7 +70,7 @@ export const trampolinesCheck: StructuralCheck = {
 
   run(context) {
     const { config, vocabulary } = context;
-    const { targetLayerRoles, behaviorKeywords } = config.checks["health/trampolines"];
+    const { targetLayerRoles } = config.checks["health/trampolines"];
     const findings: Finding[] = [];
 
     for (const role of targetLayerRoles) {
@@ -75,7 +86,7 @@ export const trampolinesCheck: StructuralCheck = {
           .join("\n");
 
         for (const { name, line, body } of exportedFunctions(scrubbed)) {
-          if (behaviorKeywords.test(body)) continue;
+          if (BEHAVIOR_KEYWORDS.test(body)) continue;
 
           findings.push({
             severity: "warning",

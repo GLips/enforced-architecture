@@ -23,6 +23,10 @@
 
 import { existsSync } from "node:fs";
 import { basename } from "node:path";
+import {
+  hasTestDirectorySegment,
+  TEST_MODULE_SUFFIX,
+} from "../../policy/declared-trees.ts";
 import { SOURCE_EXTENSIONS, SOURCE_FILE_GLOB, withoutSourceExtension } from "../../policy/layout.ts";
 import {
   collectTreeFiles,
@@ -36,12 +40,12 @@ import {
  * The two spellings a test carries when it is NOT named after its module —
  * matched against the path with its extension already stripped.
  *
- * Not configuration. `testSuffixes` is vocabulary, because which suffix a
- * project blesses is a name it chooses; "a `.spec` file is off-convention" is
- * the check's own claim about every project, and handing it over as a regex list
- * hands over the check. An adopter who writes `.spec` sets `testSuffixes` to
- * `[".spec"]` and this list stops applying to them, because a blessed suffix is
- * matched before it — see the ordering in `run`.
+ * Not configuration, in either direction. "A `.spec` file is off-convention" is
+ * this check's claim about every project, and as a regex list it was the check
+ * itself handed to the adopter — one `[]` and the branch reports nothing. The
+ * blessed spelling it steers toward is `TEST_MODULE_SUFFIX`, which the whole
+ * catalog reads, so this branch and the exemption every other rule inherits
+ * cannot disagree about what a test is.
  */
 const OFF_CONVENTION_TEST_SPELLINGS = [/\.spec$/, /(^|\/)test_[^/]+$/];
 
@@ -51,7 +55,6 @@ export const testFileMirrorCheck: StructuralCheck = {
 
   run(context) {
     const { config } = context;
-    const { testSuffixes, orphanAllowedDirs } = config.checks["naming/test-file-mirror"];
     const findings: Finding[] = [];
 
     for (const absolute of collectTreeFiles(context, SOURCE_FILE_GLOB, { includeExempt: true })) {
@@ -62,22 +65,19 @@ export const testFileMirrorCheck: StructuralCheck = {
       // a pattern that names extensions governs the ones it lists.
       const bareSourcePath = withoutSourceExtension(sourcePath);
 
-      // The blessed suffixes are asked FIRST, and that ordering is the whole
-      // reason a project may bless `.spec`: the off-convention list below is
-      // fixed, so a project whose convention IS `.spec` would otherwise be told
-      // its every test is misnamed by a list it cannot edit.
-      const suffix = longestTestSuffix(bareSourcePath, testSuffixes);
-
-      // An off-convention name typically DOES sit beside its source, so the
-      // orphan branch has nothing to say about it. Reporting it here is the only
-      // thing that steers the file toward the name a search would find.
-      if (suffix === undefined) {
+      // The blessed suffix is asked FIRST: a name carrying it is on-convention
+      // whatever else it contains, and only a name that does NOT carry it can be
+      // an off-convention spelling of the same thing.
+      if (!bareSourcePath.endsWith(TEST_MODULE_SUFFIX)) {
+        // An off-convention name typically DOES sit beside its source, so the
+        // orphan branch has nothing to say about it. Reporting it here is the
+        // only thing that steers the file toward the name a search would find.
         if (OFF_CONVENTION_TEST_SPELLINGS.some((pattern) => pattern.test(bareSourcePath))) {
           findings.push({
             severity: "warning",
             file,
             message:
-              `Off-convention test name — this project's suffixes are ${testSuffixes.join(", ")}.\n` +
+              `Off-convention test name — this project's test suffix is ${TEST_MODULE_SUFFIX}.\n` +
               `Spelled this way the test does not surface in a search for the module it\n` +
               `covers. Rename it to that module's name plus the suffix, so the code and the\n` +
               `test that constrains it are one search apart.`,
@@ -86,23 +86,30 @@ export const testFileMirrorCheck: StructuralCheck = {
         continue;
       }
 
-      if (orphanAllowedDirs.some((dir) => sourcePath.startsWith(`${dir}/`))) continue;
+      // A cross-cutting suite maps to no single module by design, and where such
+      // a suite lives is already a fact this catalog reads everywhere else.
+      if (hasTestDirectorySegment(sourcePath)) continue;
 
       const bare = withoutSourceExtension(absolute);
-      const base = bare.slice(0, -suffix.length);
-      // The sibling may be written in ANY source extension, not just this test's
-      // — a `.test.ts` beside a `.mts` module is an ordinary pairing.
-      if (SOURCE_EXTENSIONS.some((extension) => existsSync(`${base}.${extension}`))) continue;
+      const base = bare.slice(0, -TEST_MODULE_SUFFIX.length);
+      if (hasSiblingModule(base)) continue;
+      // `imports.integration.test.ts` covers `imports.ts`: one QUALIFIER before
+      // the suffix is part of the convention, not part of the module name. A
+      // configured list of compound suffixes said the same thing in a form an
+      // adopter could extend until every orphan was spelled legal.
+      const qualified = base.slice(0, base.lastIndexOf("."));
+      if (qualified.includes("/") && hasSiblingModule(qualified)) continue;
 
       const name = basename(base);
       findings.push({
         severity: "warning",
         file,
         message:
-          `No ${name}.ts or ${name}.tsx sits beside this test, so a search for the code it\n` +
-          `covers never turns it up. Rename the test after the module it exercises. If it\n` +
-          `is a cross-cutting suite that maps to no single module, add its directory to\n` +
-          `orphanAllowedDirs in the project's architecture config.`,
+          `No ${name} module sits beside this test, so a search for the code it covers\n` +
+          `never turns it up. Rename the test after the module it exercises. If it is a\n` +
+          `cross-cutting suite that maps to no single module, move it to a test directory\n` +
+          `— \`test/\` at the top of the tree, or a \`__tests__/\` beside the code — which is\n` +
+          `where this check and every other rule already expect one to live.`,
       });
     }
 
@@ -111,17 +118,13 @@ export const testFileMirrorCheck: StructuralCheck = {
 };
 
 /**
- * The longest suffix the path ends with, because the suffixes nest:
- * `.integration.test.ts` also ends with `.test.ts`. Taking the shorter match
- * leaves `imports.integration.test.ts` hunting for a source called
- * `imports.integration`, and reports a correctly mirrored test as an orphan —
- * a false positive on the convention the check is trying to teach.
+ * True when a module of this base name sits beside the test, in ANY source
+ * extension — a `.test.ts` beside a `.mts` module is an ordinary pairing.
+ *
+ * `base` is ABSOLUTE, not source-root-relative: `existsSync` on a relative path
+ * tests the current working directory, and every mirrored test then reads as an
+ * orphan.
  */
-function longestTestSuffix(path: string, suffixes: string[]): string | undefined {
-  let longest: string | undefined;
-  for (const suffix of suffixes) {
-    if (!path.endsWith(suffix)) continue;
-    if (longest === undefined || suffix.length > longest.length) longest = suffix;
-  }
-  return longest;
+function hasSiblingModule(base: string): boolean {
+  return SOURCE_EXTENSIONS.some((extension) => existsSync(`${base}.${extension}`));
 }

@@ -10,10 +10,10 @@
 // files reports nothing about the stylesheets, and the sentence above becomes
 // false.
 //
-// The word boundaries in `stylesheetPattern` and `scriptPattern` are
-// necessary. `shadowRoot`, a `data-shadow` attribute and a `.shadow-panel`
-// class name are all correct code. A wider pattern fails a commit on correct
-// code, and then people disable the check.
+// The word boundaries in the two patterns are necessary. `shadowRoot`, a
+// `data-shadow` attribute and a `.shadow-panel` class name are all correct code.
+// A wider pattern fails a commit on correct code, and then people disable the
+// check.
 //
 // Do not add an escape for a `styles` or an `sx` prop. A person asks for it
 // about one week after you add this rule. If a component can write a shadow
@@ -24,12 +24,13 @@
 // increases, and the file that people still name as the complete list is not
 // complete.
 //
-// NEGATIVE SPACE: `scannedExtensions` is what is READ, and it is deliberately
-// NOT the source-extension list. It ships as `css`, `ts`, `tsx`, so a shadow
-// written in an `.mts` or a `.js` file is not scanned and reports nothing — the
-// three extensions are the ones a design system writes in, and widening the
-// scan means reading every module in the tree for two regexes. A project that
-// writes components in another extension adds it there.
+// NEGATIVE SPACE: the two spellings are the WEB ones. A React Native project
+// writes `shadowColor` / `shadowOffset` / `shadowRadius`, and this check says
+// nothing about any of them — the file it names as the complete inventory is
+// complete for `box-shadow` and `boxShadow` alone. Adding those spellings is a
+// change to this catalog, not a config field: what counts as a shadow IS this
+// check, and as a regex knob it was one `/a^/` away from reporting nothing while
+// still reading as enabled.
 // ──────────────────────────────────────────────────────────────────────
 
 import { SOURCE_EXTENSIONS } from "../../policy/layout.ts";
@@ -51,26 +52,35 @@ import {
 // here drifts SILENTLY and in one direction, classifying newly-added source
 // extensions as stylesheets and reporting them clean.
 //
-// `scannedExtensions` decides what is READ; this decides what is looked for.
+// The scan itself takes every stylesheet extension the tree declares plus every
+// source extension the catalog knows, so "what is read" is not a knob either: a
+// list of scanned extensions can be emptied, and an empty one is a check that
+// walks nothing and reports clean.
+
+/** The stylesheet spelling. */
+const STYLESHEET_SHADOW = /\bbox-shadow\b/;
+
+/** The script spelling — the JS property key, which no stylesheet can carry. */
+const SCRIPT_SHADOW = /\bboxShadow\b/;
 
 export const shadowSourceCheck: StructuralCheck = {
   id: "style/shadow-source",
   scope: "tree",
 
   run(context) {
-    const { config } = context;
-    const { allowedFile, scannedExtensions, stylesheetPattern, scriptPattern } =
-      config.checks["style/shadow-source"];
+    const { config, vocabulary } = context;
+    const { allowedFile } = config.checks["style/shadow-source"];
     const findings: Finding[] = [];
 
-    for (const absolute of collectTreeFiles(context, `**/*.{${scannedExtensions.join(",")}}`)) {
+    const scanned = [...vocabulary.stylesheetExtensions, ...SOURCE_EXTENSIONS];
+    for (const absolute of collectTreeFiles(context, `**/*.{${scanned.join(",")}}`)) {
       // The curated home is the one file permitted to hold a shadow. Without
       // this skip the rule fires on its own inventory and has nowhere left to
       // send people.
       if (toSourcePath(context, absolute) === allowedFile) continue;
 
       const extension = absolute.slice(absolute.lastIndexOf(".") + 1);
-      const pattern = SOURCE_EXTENSIONS.includes(extension) ? scriptPattern : stylesheetPattern;
+      const pattern = SOURCE_EXTENSIONS.includes(extension) ? SCRIPT_SHADOW : STYLESHEET_SHADOW;
 
       // Blanked rather than stripped: the reported line is an index into this
       // array, so it is only true while the blanked copy has the same shape as

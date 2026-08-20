@@ -95,8 +95,8 @@ export const topologyCheck: StructuralCheck = {
 
     // Compared without extensions, on both sides. The permitted names are
     // MODULES — a barrel is a barrel whether it is spelled `index.ts` or
-    // `index.mts` — and `classifyTargetPath` reads `sourceRootFiles` the same
-    // way, so a file this check permitted and the import policy called an
+    // `index.mts` — and `classifyTargetPath` reads `sourceRootModules()` the
+    // same way, so a file this check permitted and the import policy called an
     // unpoliced area was the shape the two lists disagreed in.
     const namesModule = (permitted: string[], filename: string): boolean =>
       permitted.some((file) => withoutSourceExtension(file) === withoutSourceExtension(filename));
@@ -121,8 +121,9 @@ export const topologyCheck: StructuralCheck = {
             `The files that belong there are: ${allowedRootFiles.join(", ")}.\n` +
             `Move this under one of the layers — ${layers} — into whichever one's job it\n` +
             `is doing. If it genuinely is an entrypoint or an env module, add its name to\n` +
-            `this tree's \`sourceRootFiles\` in lint/policy/declared-trees.ts — where the\n` +
-            `import policy reads the same list.`,
+            `this tree's \`extraSourceRootModules\` in lint/policy/layout.ts — which is what\n` +
+            `\`sourceRootModules()\` adds to the env modules, and what the import policy\n` +
+            `reads too.`,
         );
         continue;
       }
@@ -173,7 +174,8 @@ export const topologyCheck: StructuralCheck = {
             `${root}/${name}/ holds ${grammar.rootFiles.join(", ")} and nothing else.\n` +
             `Move this into ${boundaryLayers} — whichever layer's job it is doing.\n` +
             `If every ${root} boundary needs a file by this name, it goes in this tree's\n` +
-            `\`featureRootFiles\` in lint/policy/declared-trees.ts.`,
+            `\`extraFeatureRootModules\` in lint/policy/layout.ts, which is what\n` +
+            `\`featureRootModules()\` adds to the two barrels.`,
         );
         continue;
       }

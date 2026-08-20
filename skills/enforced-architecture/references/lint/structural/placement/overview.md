@@ -16,11 +16,11 @@ half is in [../../oxlint/placement/overview.md](../../oxlint/placement/overview.
 `topology` says a file is at a permitted path. It never says the imports in that file are permitted.
 `layer-direction` and the `boundary/` rules keep those subjects.
 
-Before you take `topology`, compare the tree's `sourceRootFiles` and `featureRootFiles` with the
-directory model the project chose. A file that the project's own model recommends, and this rule
-rejects, makes a person turn the whole check off on the first commit. Both lists live in the tree
-declaration rather than beside this check, because the import policy reads the same names — two
-lists meant a file this check permitted and the policy called an unpoliced area.
+Before you take `topology`, compare what the tree's `sourceRootModules()` and `featureRootModules()`
+return with the directory model the project chose. A file that the project's own model recommends,
+and this rule rejects, makes a person turn the whole check off on the first commit. Both are derived
+from the tree's vocabulary rather than listed beside this check, because the import policy reads the
+same names — two lists meant a file this check permitted and the policy called an unpoliced area.
 
 `layer-direction` does not report a downward import that skips a layer. `boundary/layer-occupancy`
 asks that question, from the same layer order — which is the ORDER of the shared layer roles, so the

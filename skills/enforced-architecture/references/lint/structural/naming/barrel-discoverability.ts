@@ -1,16 +1,18 @@
 // ─── naming/barrel-discoverability ────────────────────────────────────
 //
-// Makes sure: Every barrel that barrelGlobs names lists each name it exports,
-// with the same name the definition has. To learn what a module offers, you
-// read the one barrel file, not the files below it. A search for a public name
-// finds the definition, and a search for the definition finds the callers.
+// Makes sure: Every PUBLIC barrel lists each name it exports, with the same name
+// the definition has. To learn what a module offers, you read the one barrel
+// file, not the files below it. A search for a public name finds the
+// definition, and a search for the definition finds the callers.
 //
-// Do not widen barrelGlobs past the public barrels. Inside a module, a wildcard
-// or an alias changes nothing that code outside the module can find. A check on
-// every file then reports on correct code.
+// Which files those are is derived from the tree's vocabulary — one barrel per
+// unit of each subdivided directory — and it must not widen past them. Inside a
+// module, a wildcard or an alias changes nothing that code outside the module
+// can find. A check on every file then reports on correct code.
 //
-// A glob that matches no file is not an error. A spelling mistake in
-// barrelGlobs keeps the check green while it reads no barrel at all.
+// A walk that matches no file is not an error, and that is this check's loudest
+// blind spot: a tree whose barrels are somewhere the vocabulary does not
+// describe reports clean while reading no barrel at all.
 //
 // `export { default as Button }` is a finding. Do not add an exception for
 // `default`. A default export has no name to search for, so the barrel holds

@@ -188,6 +188,22 @@ export function isArchitectureExemptProjectPath(
 }
 
 /**
+ * The suffix that makes a module a TEST, with the extension already gone.
+ *
+ * ONE owner, and it has to be: `naming/test-file-mirror` reads this same
+ * constant to decide what it is auditing. While that check carried its own
+ * configurable `testSuffixes`, a project could bless a spelling the catalog-wide
+ * exemption did not recognise — the file was a test to one owner and ordinary
+ * application source to every rule in both tiers.
+ *
+ * Not vocabulary. `.test`, `.gen` and `.d` are naming facts the ecosystem
+ * already agrees on, in the same sense `.ts` is; changing one is a change to
+ * this catalog. The off-convention branch of `naming/test-file-mirror` exists to
+ * steer a project that spells tests some other way toward this one.
+ */
+export const TEST_MODULE_SUFFIX = ".test";
+
+/**
  * What a file's name says about who wrote it, with the extension already gone:
  * `.test` is a test, `.gen` is generated, `.d` is an ambient declaration.
  *
@@ -195,17 +211,21 @@ export function isArchitectureExemptProjectPath(
  * a naming fact the whole ecosystem already agrees on, and adding to it is a
  * change to this catalog rather than a knob a project turns.
  */
-const EXEMPT_MODULE_SUFFIXES = [".test", ".gen", ".d"];
+const EXEMPT_MODULE_SUFFIXES = [TEST_MODULE_SUFFIX, ".gen", ".d"];
 
 /**
  * True when a path sits in a test directory: `__tests__` anywhere, or the
  * cross-cutting `test/` directory at the root of the frame.
  *
- * One owner, because two callers ask the same question about different inputs —
- * `isArchitectureExemptPath` about a file on disk, `namesTestModule` about a
- * specifier. Extending the convention here reaches both.
+ * One owner, because three callers ask the same question about different inputs
+ * — the exemption about a file on disk, `namesTestModule` about a specifier, and
+ * `naming/test-file-mirror` about where a test with no sibling module is
+ * legitimate. That last one replaced a configurable `orphanAllowedDirs`: a
+ * directory list an adopter grows is the orphan branch switched off one entry at
+ * a time, while "a cross-cutting suite lives in a test directory" is a fact
+ * about the layout the catalog already recognises everywhere else.
  */
-function hasTestDirectorySegment(path: string): boolean {
+export function hasTestDirectorySegment(path: string): boolean {
   const segments = path.split("/");
   return segments[0] === "test" || segments.includes("__tests__");
 }

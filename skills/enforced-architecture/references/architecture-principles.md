@@ -214,7 +214,7 @@ Cross-feature UI is banned. When Feature A needs something in Feature B's UI dir
 
 ## File Size Discipline
 
-Large files are architecture smells: a file past a few hundred lines is doing too many things or working at too many levels of abstraction. Enforce it with graduated thresholds — a warning giving an agent room to split as part of work it is already doing, and a hard failure behind it. Exceptions go in one centralized list with a TODO each, never as per-file ignore comments: scattered exemptions are invisible, a list is auditable. Thresholds and exclusions: [lint/structural/health/file-size.ts](lint/structural/health/file-size.ts).
+Large files are architecture smells: a file past a few hundred lines is doing too many things or working at too many levels of abstraction. Enforce it with graduated thresholds — a warning giving an agent room to split as part of work it is already doing, and a hard failure behind it. There is no exception list, centralized or otherwise: a per-file pass makes the limit advisory, one entry per commit that would have failed. A project whose files are legitimately longer raises the threshold, visibly and in one place. Thresholds: [lint/structural/health/file-size.ts](lint/structural/health/file-size.ts).
 
 ---
 

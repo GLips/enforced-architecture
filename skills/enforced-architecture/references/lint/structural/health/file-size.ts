@@ -42,15 +42,12 @@ export const fileSizeCheck: StructuralCheck = {
   scope: "project",
 
   run({ config }) {
-    const { roots, warnThreshold, failThreshold, exclusions } = config.checks["health/file-size"];
+    const { roots, warnThreshold, failThreshold } = config.checks["health/file-size"];
     const findings: Finding[] = [];
 
     for (const root of roots) {
       for (const absolute of collectProjectFiles(config, root, SOURCE_FILE_GLOB)) {
         const file = toProjectPath(config, absolute);
-        // Suffix match, so an entry works regardless of which root prefix the
-        // file was found under.
-        if (exclusions.some((excluded) => file.endsWith(excluded))) continue;
 
         const lines = lineCount(readFile(absolute));
 
