@@ -70,6 +70,18 @@ export const layerOccupancyFixtures: CheckFixtures = {
       path: "src/features/billing/controllers/typed-repo-neighbour.ts",
       contains: "This import is type-only, which is the same bypass",
     },
+    // Both ENDS named, in the arm that has two layers to name. The sentence is
+    // the only thing in the finding that says which two, so a note that names
+    // the wrong layer — or the same layer twice — is a note the reader cannot
+    // act on and no path-and-severity fixture can see.
+    {
+      path: "src/features/billing/controllers/typed-repo-neighbour.ts",
+      contains: "naming a repo type",
+    },
+    {
+      path: "src/features/billing/controllers/typed-repo-neighbour.ts",
+      contains: "what controllers is written against",
+    },
     // And it is made ONLY to the reader who wrote one. A blocking message that
     // argues a case the reader is not in is a message they learn to skim, so the
     // runtime bypass right next to it must not carry the same paragraph. This is
@@ -78,6 +90,14 @@ export const layerOccupancyFixtures: CheckFixtures = {
     {
       path: "src/features/billing/controllers/nested/jobs.ts",
       contains: "Route the call through features/billing/service/ instead",
+    },
+    // The layer reached PAST is named from the slice; the layer reached INTO is
+    // named from the edge. Two different derivations, and this is the one that
+    // holds the second: `bypasses service/` above is right whichever layer the
+    // import actually landed in.
+    {
+      path: "src/features/billing/controllers/nested/jobs.ts",
+      contains: "from repo directly",
     },
     {
       path: "src/features/billing/controllers/nested/jobs.ts",
@@ -95,10 +115,12 @@ export const layerOccupancyFixtures: CheckFixtures = {
       path: "src/features/billing/controllers/invoices.ts",
       contains: "It is query CONSTRUCTION that has to be concentrated in repo/",
     },
-    // What the type-only note calls the far end when the far end has no layer.
-    // The schema arm reaches infrastructure by construction, so anything reading
-    // the importee's LAYER here reads an absence — and the sentence degrades to
-    // "naming a undefined type" without a single verdict changing.
+    // What the type-only note calls the far end in the arm where the far end is
+    // not a layer. Under the default `schemaTarget` it sits in `infrastructure`,
+    // which has no layer to read; under one pointing inside a layered boundary
+    // it has a layer, and naming it would contradict the finding's own first
+    // line, which says "imports DB schema". Both ways the answer is fixed by the
+    // arm, and this is the only place that says so.
     {
       path: "src/features/billing/controllers/typed-schema-neighbour.ts",
       contains: "naming a schema type",

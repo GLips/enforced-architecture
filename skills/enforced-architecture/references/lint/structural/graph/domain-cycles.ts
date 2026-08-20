@@ -50,9 +50,12 @@ export const domainCyclesCheck: StructuralCheck = {
       if (edge.from.kind !== "domain" || edge.to.kind !== "domain") continue;
       const from = edge.from.domain;
       const to = edge.to.domain;
-      // The two ends must sit in DIFFERENT `domains/<name>` boundaries. A
-      // relative hop inside one domain is how a module moves within itself and
-      // is not an edge in this graph at all.
+      // The two ends must be DIFFERENT domains. A hop inside one domain is how a
+      // module moves within itself and is not an edge in this graph at all.
+      // Counted as one it cannot invent a cycle — the component pass below needs
+      // two members — but it does put "x -> x" in the trail of a cycle the domain
+      // is genuinely in, which sends the reader to an import that is not part of
+      // the ring and cannot be cut from it.
       if (from === to) continue;
 
       const pair = `${from}\0${to}`;

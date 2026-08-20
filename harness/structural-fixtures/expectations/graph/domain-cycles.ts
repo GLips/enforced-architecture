@@ -32,4 +32,17 @@ export const domainCyclesFixtures: CheckFixtures = {
     "src/domains/ledger/index.ts",
     "src/domains/ledger/errors.ts",
   ],
+
+  messages: [
+    // A within-domain import inside a domain that IS in a cycle. The verdict is
+    // right either way — the SCC pass needs two members, so a self-edge can
+    // never invent a cycle — which is exactly why nothing above can see this.
+    // What breaks is the TRAIL: the finding's whole value is the list of imports
+    // to go and cut, and "alerts -> alerts" sends someone to a file that is not
+    // part of the ring and cannot be removed from it.
+    { path: "src/domains/alerts", absent: "alerts -> alerts" },
+    // The other half of the same assertion — the trail must still name the ring
+    // it does have, so the line above cannot be passed by reporting no trail.
+    { path: "src/domains/alerts", contains: "alerts -> quota" },
+  ],
 };

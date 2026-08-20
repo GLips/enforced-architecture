@@ -47,7 +47,7 @@ export const layerOccupancyCheck: StructuralCheck = {
       const bypass = classifyBypass({
         edge,
         feature,
-        from: layerOrder.indexOf(fromLayer),
+        fromRank: layerOrder.indexOf(fromLayer),
         layerOrder,
         occupied: occupiedDirs(`${featuresDirName}/${feature}`),
         schemaTarget,
@@ -72,7 +72,7 @@ export const layerOccupancyCheck: StructuralCheck = {
                 fromLayer,
                 toLayer: bypass.toLayer,
                 skipped: bypass.skipped,
-              })) + typeNote(edge, fromLayer, reachedName(bypass)),
+              })) + typeNote(edge, fromLayer, importeeName(bypass)),
       });
     }
 
@@ -81,17 +81,20 @@ export const layerOccupancyCheck: StructuralCheck = {
 };
 
 /**
- * Each arm carries the far end's NAME as well as its verdict. The skip arm has
- * already established that the importee sits in a layer, and the schema arm has
- * already established that it does not — so a message that re-derives either
- * from `edge.to` is asking a question this type has answered.
+ * Each arm carries the far end's NAME as well as its verdict, because each arm
+ * names it for a different reason and neither reason is readable off `edge.to`.
+ * The skip arm has already established a layer for the importee and so can
+ * name it. The schema arm names the far end for what the arm is ABOUT — its
+ * headline is "imports DB schema" — and not for wherever the tables happen to
+ * live: `schemaTarget` is free to point inside a layered boundary, and a message
+ * that called the far end "repo" there would contradict its own first line.
  */
 type Bypass =
   | { kind: "skip"; skipped: string[]; toLayer: string }
   | { kind: "schema"; dataLayer: string };
 
 /** What the far end of the bypass is called, for the type-only note. */
-function reachedName(bypass: Bypass): string {
+function importeeName(bypass: Bypass): string {
   return bypass.kind === "schema" ? "schema" : bypass.toLayer;
 }
 
@@ -106,25 +109,28 @@ function reachedName(bypass: Bypass): string {
 function classifyBypass(input: {
   edge: ImportEdge;
   feature: string;
-  from: number;
+  /** The importer's position in `layerOrder`. */
+  fromRank: number;
   layerOrder: string[];
   occupied: string[];
   schemaTarget: string;
-  dataLayer: string | undefined;
+  dataLayer: string;
 }): Bypass | undefined {
-  const { edge, feature, from, layerOrder, occupied, schemaTarget, dataLayer } = input;
+  const { edge, feature, fromRank, layerOrder, occupied, schemaTarget, dataLayer } = input;
 
   if (edge.to.kind === "feature" && edge.to.feature === feature) {
     const toLayer = edge.to.layer;
     if (toLayer === undefined) return undefined;
-    const to = layerOrder.indexOf(toLayer);
+    const toRank = layerOrder.indexOf(toLayer);
     // Upward and sideways edges are not skips, and the SLICE is what excludes
-    // them: `from + 1 > to` for an upward edge and `from + 1 === to` for a
-    // sideways one both yield an empty span, so there is no separate direction
+    // them: `fromRank + 1 > toRank` for an upward edge and `fromRank + 1 === toRank`
+    // for a sideways one both yield an empty span, so there is no separate direction
     // guard here to keep in step. `placement/layer-direction` reports the upward
     // ones. Both bounds are load-bearing — widening either end by one over-matches
     // an adjacent edge that skips nothing.
-    const skipped = layerOrder.slice(from + 1, to).filter((layer) => occupied.includes(layer));
+    const skipped = layerOrder
+      .slice(fromRank + 1, toRank)
+      .filter((layer) => occupied.includes(layer));
     return skipped.length === 0 ? undefined : { kind: "skip", skipped, toLayer };
   }
 
@@ -142,8 +148,8 @@ function classifyBypass(input: {
   // accesses infrastructure directly and is correct to, which is what stops this
   // demanding three directories before a young feature can read a table — and a
   // file already IN that layer is where the query belongs.
-  if (dataLayer === undefined || !occupied.includes(dataLayer)) return undefined;
-  if (from >= layerOrder.length - 1) return undefined;
+  if (!occupied.includes(dataLayer)) return undefined;
+  if (fromRank >= layerOrder.length - 1) return undefined;
   return { kind: "schema", dataLayer };
 }
 

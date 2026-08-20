@@ -18,7 +18,7 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { readFileSync } from "node:fs";
-import { basename, dirname, relative, resolve } from "node:path";
+import { dirname, relative, resolve } from "node:path";
 import type { ArchitectureConfig } from "./config.ts";
 import {
   blankComments,
@@ -30,21 +30,30 @@ import {
 } from "./check-substrate.ts";
 
 /**
- * Where one end of an edge sits. `boundary` is always known; `kind` is the
- * finer question, and it carries only the fields that end actually has.
+ * Where one end of an edge sits, as far as any rule here asks.
  *
  * A union rather than a record of optional fields, because the mutual exclusions
- * here are facts about the tree and belong in the type. A path is in a feature
- * or in a domain and never both; a layer is a position INSIDE a feature, so a
- * domain end and an `infrastructure` end have no layer to read. As a product
- * type every one of those combinations typechecked, and the consumers carried
- * runtime guards recovering the shape the type declined to state.
+ * are facts about the tree and belong in the type. A path is in a feature or in
+ * a domain and never both; a layer is a position INSIDE a feature, so a domain
+ * end and an `infrastructure` end have no layer to read. As a product type every
+ * one of those combinations typechecked, and the consumers carried runtime
+ * guards recovering the shape the type declined to state.
+ *
+ * The boundary STRING is deliberately not here. For a feature or a domain it is
+ * `<dirName>/<name>` and the consumer that wants it already holds both halves;
+ * for anything else no rule asked. A consumer needing more about an end than
+ * this says reads `edge.target`, which is the resolved path — see the note on
+ * that field.
+ *
+ * A project that gave `featuresDirName` and `domainsDirName` the same spelling
+ * gets `feature`, because features are tested first. That is one directory
+ * claiming to be two subdivisions, and nothing here rejects it: `graph/domain-cycles`
+ * and every other domain rule would simply go quiet, which is silence rather
+ * than coverage.
  */
 export type Classification =
   | {
       kind: "feature";
-      /** `<featuresDirName>/<name>`. */
-      boundary: string;
       feature: string;
       /**
        * First segment inside the feature, when it names a configured layer.
@@ -54,21 +63,15 @@ export type Classification =
        */
       layer: string | undefined;
     }
-  | {
-      kind: "domain";
-      /** `<domainsDirName>/<name>`. */
-      boundary: string;
-      domain: string;
-    }
+  | { kind: "domain"; domain: string }
   /**
-   * An end with nothing finer than a boundary to say. Three unrelated positions
-   * collapse here on purpose, because no consumer distinguishes them: a file
-   * sitting directly in the source root, an unsubdivided top-level directory
-   * (`infrastructure`, `shared`, `routes`), and a subdivided directory that is
-   * neither the features nor the domains one. A consumer needing more than the
-   * boundary about such an end reads `edge.target`, which is the resolved path.
+   * In neither a feature nor a domain. Three unrelated positions collapse here
+   * on purpose, because no rule distinguishes them: a file sitting directly in
+   * the source root, an undivided top-level directory (`infrastructure`,
+   * `shared`, `routes`), and a subdivided directory that is neither the features
+   * nor the domains one.
    */
-  | { kind: "boundary-only"; boundary: string };
+  | { kind: "neither" };
 
 export type ImportEdge = {
   /** Importing file, project-relative. */
@@ -321,34 +324,36 @@ export function classify(config: ArchitectureConfig, pathFromSourceRoot: string)
   const [top, second, third] = pathFromSourceRoot.split("/");
 
   // No directory component means a file sitting directly in the source root — an
-  // entrypoint, an env module, a generated route tree. They share ONE boundary.
-  // Naming each such file its own boundary makes `./router` from `client.tsx`
-  // read as a crossing, which is the first false positive this produces if the
-  // general case is left to handle them.
-  if (top === undefined || second === undefined) {
-    return { kind: "boundary-only", boundary: basename(sourceRoot(config)) };
-  }
+  // entrypoint, an env module, a generated route tree. They compose the app
+  // rather than living in a part of it, so they are in no feature and no domain
+  // and `./router` from `client.tsx` is two files at one position rather than a
+  // crossing. Reading them one at a time is where that false positive comes from.
+  if (top === undefined || second === undefined) return { kind: "neither" };
 
-  if (!subdividedDirs.includes(top)) return { kind: "boundary-only", boundary: top };
-
-  const boundary = `${top}/${second}`;
+  // A top-level directory the project has not declared subdivided is one
+  // position whole — `infrastructure`, `shared`, `routes`. Nothing inside it
+  // ranks or grants.
+  if (!subdividedDirs.includes(top)) return { kind: "neither" };
 
   if (top === featuresDirName) {
     return {
       kind: "feature",
-      boundary,
       feature: second,
       layer: third !== undefined && layerOrder.includes(third) ? third : undefined,
     };
   }
 
-  if (top === domainsDirName) return { kind: "domain", boundary, domain: second };
+  if (top === domainsDirName) return { kind: "domain", domain: second };
 
   // A subdivided directory that is neither the features nor the domains one —
-  // `packages/`, `modules/`, whatever else a project lists. Its children are
-  // boundaries, which is the whole of what subdivision buys; no rule here speaks
-  // about layers or grants inside one, so there is nothing finer to report.
-  return { kind: "boundary-only", boundary };
+  // `packages/`, `modules/`, whatever else a project lists. Subdivision alone
+  // buys a rule nothing here asks for: layers are a feature idea and grants are
+  // a feature idea, so `packages/pdf` and `infrastructure` answer the same.
+  //
+  // Reachable, and no fixture reaches it: the harness config subdivides exactly
+  // features and domains. An adopter who subdivides a third directory runs a
+  // branch this catalog never has.
+  return { kind: "neither" };
 }
 
 /**
