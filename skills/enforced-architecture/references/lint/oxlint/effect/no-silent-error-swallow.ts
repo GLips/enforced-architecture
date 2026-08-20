@@ -137,9 +137,10 @@ function returnsEmptyEffect(node: ESTree.Node | undefined): boolean {
     return isEmptyEffect(node.body);
   }
   if (node.type !== "ArrowFunctionExpression" && node.type !== "FunctionExpression") return false;
-  // An overload signature (`function handler(e: E): Effect<void>;`) is a FunctionExpression-shaped
-  // node with no body at all. It declares a handler rather than being one, so there is nothing to
-  // read and nothing to report.
+  // oxlint models all four function kinds as ONE node interface, and the two body-less kinds —
+  // an overload signature, an ambient declaration — keep `body` nullable for every kind. Testing
+  // `type` above does not narrow it, so a FunctionExpression that always has a body still has to
+  // say so here.
   const body = node.body;
   if (body === null || body.type !== "BlockStatement") return false;
   return body.body.some(

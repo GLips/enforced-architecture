@@ -119,7 +119,7 @@ function handlerConsumesClientPayload(
     // An identifier or rest binding takes the whole options object, `data` included.
     return true;
   }
-  return binding.properties.some((property: ESTree.BindingProperty | ESTree.BindingRestElement) => {
+  return binding.properties.some((property) => {
     // `({ ...rest })` sweeps up `data` along with everything else.
     if (property.type === "RestElement") return true;
     if (property.computed) return false;

@@ -92,6 +92,11 @@ const NON_UI_LAYER = /\/src\/domains\//;
  * The parameter is the full `Property` visitor union, not just the object-literal member: oxlint
  * fires that visitor for destructuring and assignment-target properties too, and all four kinds
  * carry the same `key`/`computed` pair this reads.
+ *
+ * Every kind the visitor delivers is reported, because this rule judges the KEY and nothing else.
+ * `effect/no-disable-validation` reads the same union and filters it down to object literals —
+ * not a house style, but because what it reports on is the call the object is passed to, which a
+ * binding pattern has no equivalent of.
  */
 function staticPropertyKeyName(
   property:
