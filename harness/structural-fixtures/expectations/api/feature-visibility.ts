@@ -72,6 +72,19 @@ export const featureVisibilityFixtures: CheckFixtures = {
     // SHAPE is the problem. The edge is what makes the substitution visible; a
     // malformed file nothing imports would report the same either way.
     "FAIL src/features/listed/visibility.json",
+    // numbered/visibility.json is the scalar `42` — a generator serialising the
+    // wrong variable, or a hand-edit that got as far as a count. It parses, it
+    // is not null, it is not an array, and it is the ONLY reachable input that
+    // reaches the `typeof parsed !== "object"` disjunct: `nulled` and `listed`
+    // each take one of the other two and leave this one deletable with the whole
+    // suite green.
+    //
+    // The deletion is invisible here on purpose. `Object.entries(42)` returns an
+    // EMPTY list, so the file becomes a grant map granting nobody and `counter`'s
+    // edge is denied at this same path with this same severity — one finding
+    // either way. The `messages` entry below is the entire assertion; this line
+    // only puts an edge in the tree for the substitution to happen in.
+    "FAIL src/features/numbered/visibility.json",
     // A feature directory holding no source at all, only a grant file. It is
     // invisible to `occupiedDirs` — whose occupancy test exists so an empty
     // directory cannot manufacture a feature for `graph/feature-deps` — and it
@@ -138,6 +151,13 @@ export const featureVisibilityFixtures: CheckFixtures = {
   // assertion above is satisfied by a check that reports the right number of
   // findings at the right addresses saying the wrong thing.
   messages: [
+    // The deny message names the importing FILES. Replace that list with "" and
+    // every path, severity and count assertion in this file still passes — the
+    // finding is filed against the importee's visibility.json, so nothing else in
+    // the suite ever mentions the importer's side. It is the actionable half for
+    // whoever has to remove or justify the import, and the doc's example output
+    // shows it, so it is a documented behaviour with no witness otherwise.
+    { path: "src/features/closed/visibility.json", contains: "src/features/trespasser/service/sneaks.ts" },
     // The malformed file must report ITSELF. Path and severity alone cannot say
     // that: a check that dropped the parse branch and kept the deny-all one
     // reports exactly one error at exactly this address, and passes everything
@@ -160,6 +180,12 @@ export const featureVisibilityFixtures: CheckFixtures = {
     // edit clears it.
     { path: "src/features/nulled/visibility.json", contains: "must be a JSON object" },
     { path: "src/features/listed/visibility.json", contains: "must be a JSON object" },
+    // ...and `numbered` is the third. Unlike the other two this one has NO other
+    // symptom: drop the disjunct it takes and the finding stays at this path,
+    // this severity, this count, and starts telling the author to add a grant to
+    // a file that cannot hold one. This line is the only thing in the suite that
+    // fails when that happens.
+    { path: "src/features/numbered/visibility.json", contains: "must be a JSON object" },
     // The load-bearing half of the branch-oracle case. `leftover` is a real
     // feature, so this grant is stale rather than misspelled, and the reader
     // belongs at "drop the entry" rather than at "fix the name". An oracle keyed
