@@ -19,6 +19,12 @@
 // asks for. Nothing here stops the bound value being handed to a style prop
 // afterwards; the object literal that receives it is where that is caught.
 //
+// A default inside that pattern — `({ fontSize = 13 }: Props)` — is not read
+// either, and that one costs real coverage: 13 is a raw size the file decides.
+// It is left out because reporting it would mean judging the value on one
+// branch while the rest of the rule judges only the key, and the two together
+// read as arbitrary. A caller that passes the prop is still caught.
+//
 // Add `fontWeight`, `lineHeight` or `letterSpacing` to SCALE_PROPERTIES only
 // when the tokens bundle them into one named variant. Where the tokens expose
 // them separately, the ban names no fix, and a rule with no fix to name is one

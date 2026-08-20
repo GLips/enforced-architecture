@@ -51,6 +51,12 @@ describeRule("style/no-inline-font-size", noInlineFontSizeRule, {
       errors: [{ messageId: "rawFontSize" }],
     },
     {
+      name: "the destructured token spent on a style object is shorthand, and still the banned key",
+      filename: COMPONENT,
+      code: `export const Row = (theme: Theme) => {\n  const { fontSize } = theme.typography.caption;\n  return <span style={{ fontSize }} />;\n};`,
+      errors: [{ messageId: "rawFontSize" }],
+    },
+    {
       name: "a directory that merely starts like the primitives layer is not the token source",
       filename: "/repo/src/shared/ui-legacy/theme.ts",
       code: `export const styles = { fontSize: 13 };`,
@@ -85,7 +91,7 @@ describeRule("style/no-inline-font-size", noInlineFontSizeRule, {
       code: `export const styles = (key: string) => ({ [key]: 13 });`,
     },
     {
-      name: "reading the scale token off the theme is the remedy the message names",
+      name: "reading a scale token off the theme binds a name; it does not set a size",
       filename: COMPONENT,
       code: `export const size = (theme: Theme) => {\n  const { fontSize } = theme.typography.caption;\n  return fontSize;\n};`,
     },
@@ -93,6 +99,11 @@ describeRule("style/no-inline-font-size", noInlineFontSizeRule, {
       name: "the same read written as an assignment target binds the name too, it does not set a size",
       filename: COMPONENT,
       code: `export const size = (theme: Theme) => {\n  let fontSize;\n  ({ fontSize } = theme.typography.caption);\n  return fontSize;\n};`,
+    },
+    {
+      name: "a default inside a pattern is the blind spot the header names, not coverage",
+      filename: COMPONENT,
+      code: `export const Row = ({ fontSize = 13 }: Props) => <span data-size={fontSize} />;`,
     },
     {
       name: "the token source has to write the numbers the named sizes resolve to",
