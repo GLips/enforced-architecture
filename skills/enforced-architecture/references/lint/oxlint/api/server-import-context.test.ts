@@ -87,6 +87,11 @@ describeRule("api/server-import-context", serverImportContextRule, {
       code: IMPORT_SERVER_BARREL,
     },
     {
+      name: "a route names itself a server context, which is the only way routes/ gets one — boundary/route-thinness has no arm here for exactly this reason",
+      filename: "/repo/src/routes/api.invoices.server.ts",
+      code: IMPORT_SERVER_BARREL,
+    },
+    {
       name: "a module whose name merely starts with the server barrel's",
       filename: UI,
       code: `import { SERVER_TIMEOUT_MS } from "@/features/billing/index.server-config";`,

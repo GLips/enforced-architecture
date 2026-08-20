@@ -61,10 +61,8 @@ import { visitModuleSources } from "../lib/module-source-visitor.ts";
 
 const ROUTE_LAYER = /\/src\/routes\//;
 
-// Two arms, and deliberately not three. `*/index.server` belongs to api/server-import-context: it
-// splits routes by file naming — `routes/invoices.tsx` is a client context and denied,
-// `routes/api.users.server.ts` is a server context and permitted — and this rule, gating on
-// ROUTE_LAYER alone, cannot make that split. An arm here would fire on the permitted spelling.
+// Two arms, and deliberately not three — see `Not here:` in the header for why `*/index.server`
+// belongs to api/server-import-context and cannot be added back here.
 const BANNED_SPECIFIERS = [/^@\/infrastructure\/db(?:\/|$)/, /^@\/env\.server$/];
 
 export const routeThinnessRule = defineRule({

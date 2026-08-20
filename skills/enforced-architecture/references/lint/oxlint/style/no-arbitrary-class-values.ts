@@ -93,6 +93,12 @@ import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
 // A bracket holding BOTH a var and a literal — `bg-[var(--surface,#0a0c10)]`, a token with a raw
 // fallback — does draw both arms, and that is right rather than a leak: it has both defects, the two
 // messages name different halves of it, and doing what either one says leaves the other still true.
+//
+// NEGATIVE SPACE, both directions, and the unit list is the whole of it. Only `px`, `rem`, `em` and
+// `%` are units here, so `h-[100vh]`, `w-[2ch]` and `m-[10pt]` carry raw values and pass — extend
+// the alternation if the project writes those. And a real value inside an arbitrary VARIANT rather
+// than an arbitrary value (`data-[size=2em]:flex`) reports, because nothing in a class string
+// distinguishes the two; it is rarer than what the digit closes, and it is the residue.
 const ARBITRARY_VALUE_UTILITY =
   /\b[a-z-]+-\[[^\]]*(?:\d(?:px|rem|em|%)|#[0-9a-fA-F]{3,8})[^\]]*\]/;
 
@@ -147,7 +153,7 @@ export const noArbitraryClassValuesRule = defineRule({
       // case for a shape match — the count is TWO, and both are in the `messages` block above,
       // where this rule quotes `text-[13px]` and `bg-[var(--background)]` as the examples it tells
       // people not to write. The rule reports on itself, and an adopter who copies it into a linted
-      // tree gets both on day one; suppress those two lines or exempt the rule's own file. Two
+      // tree gets both on day one; suppress those two lines where they sit. Two
       // findings in the most hostile input available is what catching the const, the array and the
       // `cva` table costs, and it is the right trade.
       Literal(node) {

@@ -71,7 +71,7 @@ Each feature has two barrels that control the server/client boundary:
 
 **`index.server.ts`, not `server.ts`,** because `**/*.server.*` already catches it: the naming fence covers the barrel for free rather than costing another file pattern in the protection config, and `index.ts` / `index.server.ts` resolve from the same directory.
 
-Which direction re-exports may run between the two, and what each may hold: [import-boundaries.md](import-boundaries.md#barrel-invariants). Routes import `@/features/<name>`, never a deep path — a deep import trips the lint rule and import protection both.
+Which direction re-exports may run between the two, and what each may hold: [import-boundaries.md](import-boundaries.md#barrel-invariants). Routes import a feature's barrel or its `ui/` subtree, and nothing else of it; which of the two barrels a route may name turns on the route file's own name, in [import-boundaries.md](import-boundaries.md#server-context-definition). Any other deep path trips the lint rule and import protection both.
 
 ---
 

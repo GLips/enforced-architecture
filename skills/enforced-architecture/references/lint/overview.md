@@ -1,7 +1,9 @@
 # Rule Catalog
 
-67 enforcement rules in one tree, split by **tier** first and **tag** second. Read this file to
+Every enforcement rule in one tree, split by **tier** first and **tag** second. Read this file to
 choose tags, a tier's tag `overview.md` to choose rules within it, then the rule itself to adapt it.
+The per-tag counts in the table below are the only ones stated anywhere — a total in prose goes
+stale on the next add or delete and nothing checks it.
 
 Each rule carries its documentation in the header of its own file, in both tiers. The header names
 what the rule buys, and then guards the reader against a wrong edit. An oxlint rule carries its

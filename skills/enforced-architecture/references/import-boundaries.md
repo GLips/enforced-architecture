@@ -21,7 +21,7 @@ Read as: "Can `{row}` import from `{column}`?"
 | **`domains/*`** | NO | NO | NO | barrels, self (no cycles) | YES | NO | NO | NO | NO | NO | types only |
 | **`shared/*`** | NO | NO | NO | NO | self | NO | NO | NO | YES | NO | YES |
 | **`shared/ui/*`** | NO | NO | NO | NO | YES | self | NO | NO | YES | NO | YES |
-| **`routes/*`** | NO | client-safe allowlist only | YES (client-safe public API + ui) | NO | YES | YES | self | NO | YES | NO | YES |
+| **`routes/*`** | NO | client-safe allowlist only | barrels + ui (see qualifier) | NO | YES | YES | self | NO | YES | NO | YES |
 | **`features/*/index.ts`** | NO | NO | NO | NO | NO | NO | NO | NO | NO | NO | NO |
 | **`features/*` root files** | NO | NO | barrels only | barrels only | YES | NO | NO | NO | NO | NO | YES |
 | **source root** (`client.tsx`, `router.tsx`, …) | NO | YES | NO | NO | YES | YES | YES | YES | YES | self | YES |
@@ -162,7 +162,7 @@ Server contexts are the directories/files allowed to import `*/index.server` pat
 - `features/*/service/`
 - `features/*/repo/`
 - `infrastructure/*`
-- Any file named `*.server.ts` or `*.server.tsx`
+- Any file named `*.server.ts`, `*.server.tsx`, `*.server.js` or `*.server.jsx`
 
 `routes/` is deliberately absent, and the omission is the whole point: a route is isomorphic, so the same file runs on the server and ships to the browser. A route becomes a server context by NAMING itself one — `routes/api.users.server.ts` matches the last entry above — and `routes/invoices.tsx` does not.
 
