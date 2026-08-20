@@ -27,11 +27,13 @@
   // the names imply, the same way the `overrides` block below spells the tree
   // roots.
   //
-  // This is here for the BUILT-IN rules. Every `arch/` rule already skips
-  // generated output by the `.gen` naming convention — a structural fact about
-  // the file, in `isArchitectureExemptSourcePath`, read by both tiers — but
-  // `typescript/` and `sonarjs/` know nothing about that predicate, so without
-  // this an adopting project lints its own code generator's output on day one.
+  // This is here for the BUILT-IN rules. Every `arch/` rule already skips these
+  // directories — `isArchitectureExemptSourcePath` reads the same `generatedDirs`
+  // list, in both tiers — but `typescript/` and `sonarjs/` know nothing about
+  // that predicate, so without this an adopting project lints its own code
+  // generator's output on day one. The two must agree: while only this pattern
+  // read the list, `src/gen/client.ts` was a file oxlint never opened and a
+  // blocking structural finding at the same time.
   //
   // Adding a hand-written path here is the menu re-entering: the guard rejects
   // any entry no tree's vocabulary implies, so widening it means declaring the

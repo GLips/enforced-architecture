@@ -15,11 +15,14 @@ new doc has no ceiling until a person adds an entry. No other rule closes that h
 standing docs: CLAUDE.md and the `docs/architecture/` files that agents read on every task. Plans,
 ADRs and changelogs grow by design and belong outside the manifest.
 
-Both checks here are PROJECT-scoped, and they are the only two in the tier that are. Everything else
+`doc-budgets` and `file-size` are PROJECT-scoped, and they are the only two checks in the tier that
+are — `trampolines` runs per declared tree like everything else. Everything else
 runs once per declared tree; a file's length and a document's word count are not positions in an
 architecture, so neither reads a tree at all. `file-size`'s `roots` are therefore its own list rather
 than the declared trees — it measures any package you name, including code no boundary rule reads.
-Leave `roots` at the default and a sibling package you believe is covered gets no result.
+Leave `roots` at the default and a sibling package you believe is covered gets no result. There is
+no exclusion list to go with the thresholds: a per-file pass is how a size limit becomes advisory,
+so a project whose files are legitimately longer raises the numbers instead.
 
 `trampolines` reports legitimate functions. A call through a telemetry helper, a seam held for a
 test fake, and a function that grows in the next commit all look the same to it. It warns, and a
