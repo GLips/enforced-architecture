@@ -32,8 +32,6 @@ export const layerDirectionCheck: StructuralCheck = {
 
   run({ config, importGraph }) {
     const { layerOrder } = config.source;
-    const root = config.source.roots[0];
-    if (root === undefined) return [];
 
     const findings: Finding[] = [];
 
@@ -56,7 +54,7 @@ export const layerDirectionCheck: StructuralCheck = {
       // re-exporting `index.ts` is explicitly legal, and is the one edge into
       // this barrel that comes from inside the unit and should stay silent.
       const unit = `${config.source.featuresDirName}/${feature}`;
-      if (!isUnitBarrel(unit, stripRoot(edge.file, root)) && isUnitBarrel(unit, edge.target)) {
+      if (!isUnitBarrel(unit, edge.sourcePath) && isUnitBarrel(unit, edge.target)) {
         const inside = edge.from.layer ?? `${feature}'s root`;
         findings.push({
           severity: "error",
@@ -103,7 +101,3 @@ export const layerDirectionCheck: StructuralCheck = {
   },
 };
 
-/** `src/features/billing/index.ts` -> `features/billing/index.ts`, or the path unchanged. */
-function stripRoot(projectPath: string, root: string): string {
-  return projectPath.startsWith(`${root}/`) ? projectPath.slice(root.length + 1) : projectPath;
-}

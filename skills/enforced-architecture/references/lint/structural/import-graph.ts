@@ -46,6 +46,14 @@ export type Classification = {
 export type ImportEdge = {
   /** Importing file, project-relative. */
   file: string;
+  /**
+   * The importing file's path FROM THE SOURCE ROOT, the same frame `target`
+   * is in. Both ends of an edge have to be in one frame to be compared, and
+   * the graph already computes this to classify `from` — consumers that
+   * re-derived it from `file` each carried their own root-stripper, and the
+   * two disagreed on a path outside the root.
+   */
+  sourcePath: string;
   /** 1-based. Undefined is a real case — see `specifierLines`. */
   line: number | undefined;
   /** As written, for the message only. Never match on this. */
@@ -377,7 +385,8 @@ export function buildImportGraph(config: ArchitectureConfig): ImportEdge[] {
     // comments correctly.
     const source = blankComments(raw);
     const lineStarts = lineStartOffsets(source);
-    const from = classify(config, relative(root, absolute));
+    const sourcePath = relative(root, absolute);
+    const from = classify(config, sourcePath);
 
     const fileEdges: ImportEdge[] = [];
     for (const specifier of new Set([...revealed.keys(), ...runtime.keys()])) {
@@ -389,6 +398,7 @@ export function buildImportGraph(config: ArchitectureConfig): ImportEdge[] {
       for (const line of specifierLines(source, lineStarts, specifier, count)) {
         fileEdges.push({
           file,
+          sourcePath,
           line,
           specifier,
           relative: specifier.startsWith("."),

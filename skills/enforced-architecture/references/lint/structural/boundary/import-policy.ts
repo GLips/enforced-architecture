@@ -39,10 +39,7 @@ import type { Finding, StructuralCheck } from "../check-substrate.ts";
 export const importPolicyCheck: StructuralCheck = {
   id: "boundary/import-policy",
 
-  run({ config, importGraph }) {
-    const root = config.source.roots[0];
-    if (root === undefined) return [];
-
+  run({ importGraph }) {
     const findings: Finding[] = [];
     // An unclassified file is a fact about the FILE, not about each of its
     // imports, and the linter already reports it once per file — including for a
@@ -57,9 +54,7 @@ export const importPolicyCheck: StructuralCheck = {
       // linter, which sees them without resolving anything.
       if (!edge.relative) continue;
 
-      const sourcePath = stripRoot(edge.file, root);
-      if (sourcePath === undefined) continue;
-
+      const { sourcePath } = edge;
       const verdict = evaluateImportPolicy({
         sourcePath,
         target: { kind: "module", path: edge.target },
@@ -106,7 +101,3 @@ export const importPolicyCheck: StructuralCheck = {
   },
 };
 
-/** `src/features/billing/x.ts` -> `features/billing/x.ts`, or undefined if it is not under the root. */
-function stripRoot(projectPath: string, root: string): string | undefined {
-  return projectPath.startsWith(`${root}/`) ? projectPath.slice(root.length + 1) : undefined;
-}
