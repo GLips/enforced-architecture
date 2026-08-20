@@ -12,7 +12,7 @@ Most of these ship as commented files. Copy them and read the comments in place;
 | oxlint tier program | [setup/oxlint.tsconfig.json](setup/oxlint.tsconfig.json) | `lint/oxlint/tsconfig.json` |
 | Structural tier program | [setup/structural.tsconfig.json](setup/structural.tsconfig.json) | `lint/structural/tsconfig.json` |
 | Real-Node spec launcher | [setup/with-real-node.sh](setup/with-real-node.sh) | `lint/oxlint/with-real-node.sh` |
-| Shared policy tables | [lint/policy/](lint/policy/overview.md) | `lint/policy/` (copied whole; `layout.ts` is the one file repointed) |
+| Shared policy tables | [lint/policy/](lint/policy/overview.md) | `lint/policy/` (copied whole; `declared-trees.ts` is the one file edited) |
 | Structural check substrate | [lint/structural/](lint/structural/) | `lint/structural/` |
 | Rule catalog | [lint/](lint/overview.md) | `lint/` (mirrors the catalog's tier split) |
 | Framework import protection | [server-client-boundaries.md](server-client-boundaries.md) | `vite.config.ts` |
@@ -28,12 +28,41 @@ APIs, no oxlint or ESTree types, no import from either tier. See
 
 Copy it **first**. Both tiers import from it, both tsconfigs include it, and a rule whose *Adapt*
 section says "nothing here" is a rule whose adaptation happens in
-[lint/policy/layout.ts](lint/policy/layout.ts) — the source root, alias prefix, directory names and
-feature layers, stated once.
+[lint/policy/declared-trees.ts](lint/policy/declared-trees.ts) — the list of trees this project
+adopted the catalog for, each carrying the vocabulary its own directories are spelled in.
 
 The point of the contract is that one edge cannot reach two verdicts depending on how it was
 spelled. Split a table back into a per-tier copy and the two copies drift without either failing:
 each tier can only see its own.
+
+### Declare every tree, and know what an undeclared one costs
+
+`DECLARED_TREES` is a list of source roots. **A tree you did not declare is a tree you did not adopt
+for.** Every rule in this catalog — both tiers — is *silent* outside every declared tree: no
+findings, no warnings, no "unclassified" diagnostic. That silence is not coverage. A repo that adds
+`packages/reporting/` and forgets this file has added an unpoliced tree, and a clean run over it
+looks exactly like a clean run over a governed one.
+
+So the declaration list is the adoption decision, and it is the only place the answer lives:
+
+- The oxlint tier resolves the file it is handed into a tree before it matches anything, and
+  `.oxlintrc.json` scopes the `arch/` rules to the same roots — one `<root>/**` glob per declared
+  root. `harness/run-rule-fixtures.ts` fails the build when the two lists disagree in either
+  direction, because a root in one and not the other is a tree that reads as governed and is not.
+  A nested `.oxlintrc.json` inside each workspace that `extends` the root config is the same scoping
+  expressed as file placement; either way the declaration list is the source of truth.
+- The structural tier runs every tree-scoped check once per declared tree, against that tree's own
+  import graph and vocabulary. `health/file-size` and `health/doc-budgets` are the two exceptions
+  and are project-scoped by argument: a file's length and a document's word count are not positions
+  in an architecture.
+
+What a tree declaration may vary is **names and numbers** — the source root, the alias prefix, what
+the directories and feature layers are called, the thresholds. What it cannot vary is which rules
+apply to it: there is no per-tree rule list, and adding one would turn the catalog back into a menu.
+
+Two things stay outside every tree's reach, and they are worth writing in the project's own setup
+notes rather than assuming: **an edge from one declared tree into another is in neither tree's graph
+and nothing reports it**, and a file outside every declared tree is governed by nothing at all.
 
 ---
 
@@ -45,7 +74,6 @@ Three dev dependencies beyond `oxlint`. `oxlint-tsgolint` backs `options.typeAwa
 
 Rules share a `lib/`, and the sharing is load-bearing rather than tidy. One module owns each concern, so a new rule inherits the fix rather than a copy of the bug:
 
-- [lib/architecture-exempt-paths.ts](lint/oxlint/lib/architecture-exempt-paths.ts) — the one global test/script exemption.
 - [lib/module-source-visitor.ts](lint/oxlint/lib/module-source-visitor.ts) — every place a module specifier can appear.
 - [lib/imported-names.ts](lint/oxlint/lib/imported-names.ts) — every name a file takes from one module, under the exporting module's spelling, and the walk from a load expression to the module object.
 - [lib/static-key-name.ts](lint/oxlint/lib/static-key-name.ts) — the name a property key spells, dotted or computed.
@@ -76,9 +104,9 @@ Run each independently and aggregate. Reserve `&&` for steps where the second ge
 
 Structural checks ship with the modules they share, and the sharing is the point: duplicated across scripts, they drift apart on exclusions and on what counts as an import, without either copy reporting that it has.
 
-- **`config.ts`** — every per-repo value for every check, one object. The adoption surface for this tier's *thresholds and policies*; the shape of the tree is not among them. `defaultSourceConfig` derives `roots`, `aliasPrefix`, `subdividedDirs`, `layerOrder` and `assetExtensions` from [lint/policy/layout.ts](lint/policy/layout.ts) rather than restating them, so a repoint lands once and both tiers move together.
-- **`check-substrate.ts`** — file collection with the global exclusions applied once, plus the `Finding` and `StructuralCheck` shapes.
-- **`import-graph.ts`** — the resolved graph, and `scanDeclaredImports` for the one check that needs raw specifiers instead. Any check asking where an import *lands* consumes this rather than matching how the specifier is spelled.
+- **`config.ts`** — every per-repo value for every check, one object: the project root, the JSX package, and per-check thresholds, manifests, trace limits and allowlists. The shape of the tree is *not* among them and cannot be put there — where the trees are and what their directories are called is [lint/policy/declared-trees.ts](lint/policy/declared-trees.ts), which both tiers read. There is nothing to keep in step, which is why the paragraph that used to ask you to is gone.
+- **`check-substrate.ts`** — the two shapes a check can be handed. A `TreeContext` is one declared tree: its vocabulary, its source root, its import graph, and file collection with the shared exemptions applied. A `ProjectContext` is the config and nothing about any tree. `StructuralCheck` is a union over the two, so a check cannot receive a context its scope never produces.
+- **`import-graph.ts`** — the resolved graph for one tree, and `scanDeclaredImports` for the one check that needs raw specifiers instead. Any check asking where an import *lands* consumes this rather than matching how the specifier is spelled.
 - **`run-structural-checks.ts`** — the orchestrator.
 
 Centralising the *same* patterns into a shared file reduces duplication and fixes no correctness. Reach for the reader at the same time, or the shared library is only tidier, not better.
@@ -178,17 +206,18 @@ Not "implementing" — the catalog's checks are runnable modules, proved against
 
 1. Copy `lint/policy/` first if it is not already there, then `lint/structural/{config,check-substrate,import-graph,registry,run-structural-checks}.ts` into the project's `lint/structural/`, plus every `lint/structural/<tag>/<name>.ts`
 2. Register the checks in `lint/structural/registry.ts`. A check that is not registered is a file that ships and never runs
-3. Write `arch.config.ts`: spread `defaultCheckConfigs` and override what differs. Each rule's *Adapt* section names its keys, because the config object is where every per-repo *value* lives. Directory names, the alias prefix and the layer order are not per-repo values here — they come from `lint/policy/layout.ts`, and overriding one in `arch.config.ts` instead of repointing it there gives this tier a private answer the oxlint tier will not share
+3. Declare the project's trees in `lint/policy/declared-trees.ts`, then write `arch.config.ts`: spread `defaultCheckConfigs` and override what differs. Each rule's *Adapt* section names its keys, because the config object is where every per-repo *value* lives. Directory names, the alias prefix and the layer order are not among them — the config has no field for them, so the two tiers cannot end up policing two different trees
 4. Run once against the real tree and calibrate thresholds *just above* current values, so they signal growth rather than firing on day one. A check that fires on the state of the world the day it was installed gets switched off in the same week
 5. Write the project's three cases against its own code. The catalog's fixtures prove the check; yours prove the config
 6. Run `bun run check:arch`
 
 ## Adding a Genuinely New Structural Check
 
-1. Export a `StructuralCheck` — an `id` and a `run(context)` that **returns findings**. The orchestrator owns reporting and the exit code, which is what lets warnings be staged-scoped and lets one check throw without silencing the rest
-2. Take imports from `context.importGraph()` and file sets from the shared collection helpers. Do not scan files for imports directly: the union of Bun's two scans and the JSX-runtime filter are where the silent losses live
-3. Put every per-repo value in the config object, never as a constant in the check body. The test is whether a second project could adopt it by writing config alone
-4. Write its three cases, then revert-probe: disable the matcher and watch the adversarial case report as missed
+1. Export a `StructuralCheck` — an `id`, a `scope`, and a `run(context)` that **returns findings**. The orchestrator owns reporting and the exit code, which is what lets warnings be staged-scoped and lets one check throw without silencing the rest
+2. Pick the scope by what the check asks about. `"tree"` runs it once per declared tree and hands it that tree's vocabulary and graph; `"project"` is for a question with no position in it, and there are two of those. A tree-scoped check reading a project path, or the reverse, is a check whose subject and scope disagree
+3. Take imports from `context.importGraph()` and file sets from `collectTreeFiles` / `collectProjectFiles`, with the source glob from `lint/policy/layout.ts`. Do not scan files for imports directly, and do not spell your own extension list: the union of Bun's two scans and the JSX-runtime filter are where the silent losses live, and six checks each spelling their own glob is how four of them ended up wrong about `.mts`
+4. Put every per-repo value in the config object, never as a constant in the check body. Names of directories and layers are not per-repo values — read them off `context.vocabulary`. The test is whether a second project could adopt it by writing config and a tree declaration alone
+5. Write its three cases, then revert-probe: disable the matcher and watch the adversarial case report as missed
 
 ---
 

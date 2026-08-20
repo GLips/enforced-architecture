@@ -32,13 +32,22 @@ and the directory has bought nothing.
 
 | Module | What it holds | Read by |
 |---|---|---|
-| [layout.ts](layout.ts) | The shape of the tree: source root, alias prefix, directory names, feature layers, barrel and env module names — and the two classifiers that turn a source-root-relative path into a `SourceProfile` or a `TargetArea`. **This is the whole adaptation surface for the import policy.** | Both `import-policy` adapters, `boundary/sdk-containment`, `placement/layer-direction` |
+| [declared-trees.ts](declared-trees.ts) | The one list of trees this project adopted the catalog for, each a source root plus its vocabulary — and `classifyFileRole`, which resolves an absolute filename into the tree that governs it. **This is the whole adaptation surface: edit this file, never a rule.** | Every oxlint rule, `structural/check-substrate.ts` |
+| [layout.ts](layout.ts) | What a tree's vocabulary can say — directory names, feature layers, barrel and env module names, asset extensions — and the classifiers that turn a source-root-relative path into a `SourceProfile` or a `TargetArea`, given a vocabulary | Both `import-policy` adapters, `boundary/sdk-containment`, `placement/layer-direction` |
 | [import-policy.ts](import-policy.ts) | The `SourceProfile × TargetArea` table, the rationale each denial is rendered with, and `evaluateImportPolicy` | `oxlint/boundary/import-policy.ts`, `structural/boundary/import-policy.ts` |
 | [package-owners.ts](package-owners.ts) | One row per contained package: which modules may import it, and why | `oxlint/boundary/sdk-containment.ts` |
 | [import-policy.test.ts](import-policy.test.ts) | The engine's own specs — that each path reaches the cell its author intended, and that one edge spelled two ways reaches one verdict | The rule harness, under Node |
 
 The table is exhaustive by type: every `SourceProfile` must name every `TargetArea`, so adding
-either without deciding the new cells is a compile error rather than a silent `any`.
+either without deciding the new cells is a compile error rather than a silent `any`. The same
+argument runs through the layer roles: a tree may RENAME `service/` in its vocabulary, which is one
+string, but adding a layer means adding a role to `FEATURE_LAYER_ROLES`, and every row of the table
+then fails to compile until the new cells are decided.
+
+**A tree you did not declare is a tree you did not adopt for.** Both tiers are silent outside every
+root in `declared-trees.ts` — no findings, no "unclassified" diagnostic — and that silence is not
+coverage. The file's own header says it, and a project's setup notes have to say it too, because an
+undeclared package reads exactly like a clean one.
 
 ## There is a second path classifier, and which one to reach for
 

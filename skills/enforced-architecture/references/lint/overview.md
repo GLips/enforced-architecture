@@ -111,23 +111,30 @@ The consuming project mirrors this tree: a `lint/` directory at the repo root ho
 `oxlint/` and `structural/`. Copying a rule then means copying a path, and a rule's tier is as
 visible in the project as it is here.
 
-1. **`lint/policy/` goes first, whole and before either tier.** It is three modules and a spec, and
-   the only one that changes is `layout.ts` — the source root, alias prefix, directory names and
-   feature layers, repointed once at this project. Both tiers import it, so a repoint that lands
-   here reaches every rule that reads it at the same moment. Copy the spec too: it is what proves
-   the tables still mean what they meant after the repoint.
+1. **`lint/policy/` goes first, whole and before either tier.** It is four modules and a spec, and
+   the only one that changes is `declared-trees.ts` — the list of source roots this project adopts
+   the catalog for, each carrying the vocabulary its directories are spelled in. Both tiers import
+   it, so a declaration that lands here reaches every rule that reads it at the same moment. Copy
+   the spec too: it is what proves the tables still mean what they meant after the repoint.
+
+   **A tree left off that list is governed by nothing**, in either tier, with no diagnostic saying
+   so. Declaring the trees is the adoption decision; everything below is mechanics.
 2. **oxlint rules** go into `lint/oxlint/<tag>/`, are registered in `lint/oxlint/plugin.ts`, and are
    switched on in `.oxlintrc.json`. Each rule's spec (`<name>.test.ts`) is copied beside it — it is
    part of the rule, not an optional extra. Most are the tier that needs **adapting**: path
    patterns are written against one standard layout and have to be repointed. The exceptions are
-   the rules whose *Adapt* section says "nothing here" — those read `lint/policy/`, and repointing
-   `layout.ts` is their adaptation.
+   the rules whose *Adapt* section says "nothing here" — those read `lint/policy/`, and declaring
+   the trees is their adaptation. `.oxlintrc.json` scopes every `arch/` rule to the declared roots,
+   one `<root>/**` glob each, and the rule harness fails the build when that list and
+   `declared-trees.ts` disagree.
 3. **Structural checks** go into `lint/structural/<tag>/`, along with the substrate that sits at
    `lint/structural/`: `check-substrate.ts`, `import-graph.ts`, `config.ts`, `registry.ts` and the orchestrator.
-   Each exports a check that **returns findings**; the orchestrator owns reporting and the exit
-   code. These are **copied, not adapted** — adopting one means writing config, not reimplementing
-   an algorithm. See [structural/config.ts](structural/config.ts) for the shape and for the
-   keys each check reads.
+   Each exports a check that **returns findings** and declares its `scope`; the orchestrator owns
+   reporting and the exit code. Tree-scoped checks run once per declared tree against that tree's
+   own graph and vocabulary; `health/file-size` and `health/doc-budgets` are project-scoped, and
+   that pair is the whole of the exception. These are **copied, not adapted** — adopting one means
+   writing config, not reimplementing an algorithm. See
+   [structural/config.ts](structural/config.ts) for the shape and for the keys each check reads.
 4. **Build [graph/import-graph](structural/import-graph.ts) before its consumers.** Most
    structural checks answer *where an import lands* rather than *how it is spelled*, and they are
    the ones that break silently when they don't. This is the **fourth** reason a check cannot live
@@ -150,9 +157,12 @@ request. The two tiers are proved differently because they read differently:
 - **oxlint** rules are per-file, so each is exercised through oxlint's `RuleTester` against inline
   sources. The specs ship *beside* the rules, so a project stealing a rule steals its tests in the
   same copy. `bun run check:rules`.
-- **Structural** checks scan declared roots rather than being handed a file, so the cases are real
+- **Structural** checks scan declared trees rather than being handed a file, so the cases are real
   files in one shared tree under `harness/structural-fixtures/tree/`, and the checks are pointed at it
-  wholesale by one config object — which doubles as the worked example of adopting the tier.
+  wholesale by one config object — which doubles as the worked example of adopting the tier. That
+  tree also carries a second, UNDECLARED package: the harness proves it produces nothing until it is
+  declared, produces findings the moment it is, and is read with its own vocabulary rather than the
+  first tree's.
   Findings are compared as a **multiset with severity** against declared expectations, and every
   registered check must have expectations, so a check that is deleted or stubbed fails rather than
   passing on zero findings. `bun run check:structural`.

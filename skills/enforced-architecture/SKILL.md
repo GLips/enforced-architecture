@@ -97,7 +97,7 @@ Read [lint/overview.md](references/lint/overview.md) for the tag map, and *Rule 
 
 **Process:**
 1. Read `lint/<tier>/<tag>/overview.md` for every tag. The table has one column per tier, so it also tells you which halves of a tag exist.
-2. Read each rule's template in `lint/<tier>/<tag>/`. Its *Adapt* section names what this project has to repoint — a template whose *Adapt* section says **nothing here** reads `lint/policy/`, and repointing `layout.ts` is its whole adaptation.
+2. Read each rule's template in `lint/<tier>/<tag>/`. Its *Adapt* section names what this project has to repoint — a template whose *Adapt* section says **nothing here** reads `lint/policy/`, and declaring the project's trees in `lint/policy/declared-trees.ts` is its whole adaptation.
 3. Adapt each rule to the project's directory names, import patterns and thresholds.
 4. A rule's enforcement mechanism is its tier, and the tier is its directory — `lint/oxlint/` is per-file and real-time, `lint/structural/` is cross-file and pre-commit. Carry the path into the plan and the mechanism comes with it.
 5. Add project-specific rules not covered by the catalog.
@@ -106,7 +106,9 @@ Keep the plan's rule section lean — one table, not a copy of template content.
 
 - **Adaptation** — rule id (`tag/name`) and what this project repointed it at: paths, package lists, thresholds, or "Standard".
 
-A rule that looks unnecessary is usually a rule whose subject this tree does not have yet — it is silent until the tree grows one, which is the point of taking it now. When a rule's subject genuinely lives somewhere this project does not own, the answer is to say *where it lives* rather than to leave the rule out: a tree nobody declared is a tree nobody enforced, and it reads as a clean one.
+A rule that looks unnecessary is usually a rule whose subject this tree does not have yet — it is silent until the tree grows one, which is the point of taking it now. When a rule's subject genuinely lives somewhere this project does not own, the answer is to say *where it lives* rather than to leave the rule out.
+
+**Every governed tree goes in `lint/policy/declared-trees.ts`, and a tree left off it is enforced by nothing** — both tiers, no findings, no diagnostic. Record the list in the plan, and record what is deliberately outside it, because an undeclared package reads exactly like a clean one. Note too that nothing in either tier reports an import from one declared tree into another.
 
 **Done when:** Every catalog rule is registered and switched on, and every one that needed repointing records what it was repointed at.
 
@@ -118,15 +120,16 @@ Read [enforcement-implementation.md](references/enforcement-implementation.md) f
 
 ```
 lint/
-  policy/       layout.ts import-policy.ts package-owners.ts — tables both tiers read
+  policy/       declared-trees.ts layout.ts import-policy.ts package-owners.ts — the tree list and
+                the tables both tiers read
   oxlint/       plugin.ts, lib/, <tag>/ — rules and their specs
   structural/   config.ts check-substrate.ts import-graph.ts registry.ts run-structural-checks.ts,
                 arch.config.ts, <tag>/ — checks
 ```
 
 **Greenfield sequence:**
-1. `lint/policy/` — copied whole, then adapted: `layout.ts` is where the directory names, alias prefix and feature layers are repointed at this project, and it is the only file in the tree that needs it. Both tiers read it, so it lands before either
-2. `lint/oxlint/` — the rules and their specs under `<tag>/`, plus `lib/`, all registered in `lint/oxlint/plugin.ts`. Then `.oxlintrc.json` at the root from [references/setup/oxlintrc.json](references/setup/oxlintrc.json) — that file is the whole manifest, not a sample to extend: every registered rule is already named there at a deliberate severity, so copying it is the last decision about which rules run. The dev dependencies are unversioned so the project gets current releases: `bun add -d oxlint oxlint-tsgolint eslint-plugin-sonarjs jscpd`
+1. `lint/policy/` — copied whole, then adapted: `declared-trees.ts` is where this project's source roots are declared, each with the vocabulary its directories are spelled in, and it is the only file in the tree that needs an edit. Both tiers read it, so it lands before either
+2. `lint/oxlint/` — the rules and their specs under `<tag>/`, plus `lib/`, all registered in `lint/oxlint/plugin.ts`. Then `.oxlintrc.json` at the root from [references/setup/oxlintrc.json](references/setup/oxlintrc.json) — that file is the whole manifest, not a sample to extend: every registered rule is already named there at a deliberate severity, so copying it is the last decision about which rules run. Its `overrides` block scopes every `arch/` rule to the declared roots — one `<root>/**` glob per root, or a nested `.oxlintrc.json` per workspace that `extends` it — and the two lists have to match. The dev dependencies are unversioned so the project gets current releases: `bun add -d oxlint oxlint-tsgolint eslint-plugin-sonarjs jscpd`
 3. `lint/structural/` — the substrate (`config.ts`, `check-substrate.ts`, `import-graph.ts`, `registry.ts`, `run-structural-checks.ts`) and every check, all taken unmodified. Write `arch.config.ts` on top of `defaultCheckConfigs`
 4. One tsconfig per tier — [references/setup/oxlint.tsconfig.json](references/setup/oxlint.tsconfig.json) and [references/setup/structural.tsconfig.json](references/setup/structural.tsconfig.json) — and add both to the typecheck script by path. They are separate programs because the tiers run under different runtimes
 5. Package.json scripts (`check:arch`, and `duplication` for the CI-only jscpd pass), plus `.jscpd.json` from [references/setup/jscpd.json](references/setup/jscpd.json)
@@ -160,7 +163,7 @@ Combine all phases into a single document:
 
 **Important:** The plan document lives in the project repo and will be read by agents in future sessions. Include this reference for rule implementation:
 
-> Rule templates are in the `enforced-architecture` skill (`~/.claude/skills/enforced-architecture/references/lint/`), split by tier: `lint/policy/`, `lint/oxlint/<tag>/` and `lint/structural/<tag>/`. Each rule in this plan references its template by that path, so the path names the tier. The project mirrors the tree — copy into its own `lint/`. **`lint/policy/` first, before either tier:** copy it whole, then repoint `lint/policy/layout.ts` at this project's directory names, alias prefix and feature layers. Both tiers import it, and a rule whose *Adapt* section says "nothing here" is a rule whose adaptation happens in `layout.ts`. **oxlint rules:** read the template, adapt paths and patterns to this project's structure, and write the result to `lint/oxlint/<tag>/` with its spec, registered in `lint/oxlint/plugin.ts`. **Structural checks:** copy the module and the `lint/structural/` substrate unmodified, register it in `lint/structural/registry.ts`, and put every project-specific value in `lint/structural/arch.config.ts` — the rule's *Adapt* section names the keys. Do not reimplement one from its doc.
+> Rule templates are in the `enforced-architecture` skill (`~/.claude/skills/enforced-architecture/references/lint/`), split by tier: `lint/policy/`, `lint/oxlint/<tag>/` and `lint/structural/<tag>/`. Each rule in this plan references its template by that path, so the path names the tier. The project mirrors the tree — copy into its own `lint/`. **`lint/policy/` first, before either tier:** copy it whole, then declare this project's source roots in `lint/policy/declared-trees.ts`, each with the vocabulary its directories are spelled in. Both tiers import it, and a rule whose *Adapt* section says "nothing here" is a rule whose adaptation happens there. A tree that is not on that list is governed by nothing, in either tier, and nothing says so. **oxlint rules:** read the template, adapt paths and patterns to this project's structure, and write the result to `lint/oxlint/<tag>/` with its spec, registered in `lint/oxlint/plugin.ts`. **Structural checks:** copy the module and the `lint/structural/` substrate unmodified, register it in `lint/structural/registry.ts`, and put every project-specific value in `lint/structural/arch.config.ts` — the rule's *Adapt* section names the keys. Do not reimplement one from its doc.
 
 ## Tone
 

@@ -15,6 +15,14 @@
 // exists and holds a real grant, so the over-match lands in a file that IS the
 // rule's subject, where it reads as an ordinary denial rather than as a missing
 // file.
+//
+// "Legal" here means NO STRUCTURAL CHECK OWNS THIS EDGE. What judges a route
+// reaching a feature is the oxlint tier's `arch/import-policy`, which does not
+// run over this tree — and it PERMITS this one: a route composing the feature it
+// renders is the edge the route layer exists for, through the barrel. The
+// neighbour a step away is not permitted, which is why the distinction is worth
+// stating: naming a module inside the feature instead of its barrel is denied
+// there, and silent here.
 import { readLeafTwo } from "@/features/leaf-two/index.ts";
 
 export const leafTwoRow = readLeafTwo("route");

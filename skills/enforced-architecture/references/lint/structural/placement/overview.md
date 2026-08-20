@@ -10,18 +10,21 @@ half is in [../../oxlint/placement/overview.md](../../oxlint/placement/overview.
 
 | Rule | Blocking | What it buys |
 |---|---|---|
-| [topology](topology.ts) | Yes | Each `.ts` and `.tsx` file under the source root is at a path that a rule in this catalog matches |
+| [topology](topology.ts) | Yes | Each source file under a declared tree is at a path that a rule in this catalog matches |
 | [layer-direction](layer-direction.ts) | Yes | Inside one feature, an import only goes down the layer stack, and no file imports the feature's own barrel |
 
 `topology` says a file is at a permitted path. It never says the imports in that file are permitted.
 `layer-direction` and the `boundary/` rules keep those subjects.
 
-Before you take `topology`, compare `allowedRootFiles` and each boundary's `rootFiles` with the
+Before you take `topology`, compare the tree's `sourceRootFiles` and `featureRootFiles` with the
 directory model the project chose. A file that the project's own model recommends, and this rule
-rejects, makes a person turn the whole check off on the first commit.
+rejects, makes a person turn the whole check off on the first commit. Both lists live in the tree
+declaration rather than beside this check, because the import policy reads the same names — two
+lists meant a file this check permitted and the policy called an unpoliced area.
 
 `layer-direction` does not report a downward import that skips a layer. `boundary/layer-occupancy`
-asks that question, from the same `layerOrder` positions. `layer-direction` has no exclusion list,
+asks that question, from the same layer order — which is the ORDER of the shared layer roles, so the
+two cannot disagree about which layer outranks which. `layer-direction` has no exclusion list,
 and its severity is not configurable, so a codebase that adopts it must correct the upward edges it
 already has. Its coverage is the coverage of `graph/import-graph`: an import form the graph does not
 reveal is an edge this rule never receives.

@@ -6,11 +6,12 @@ mirror. The per-file half is in [../../oxlint/naming/overview.md](../../oxlint/n
 
 | Rule | Blocking | What it buys |
 |---|---|---|
-| [barrel-discoverability](barrel-discoverability.ts) | Yes | Every barrel that `barrelGlobs` names lists each name it exports, under the name the definition has |
+| [barrel-discoverability](barrel-discoverability.ts) | Yes | Every barrel of a subdivided unit lists each name it exports, under the name the definition has |
 | [test-file-mirror](test-file-mirror.ts) | No | The tests that a search for their source module does not find |
 
-`barrel-discoverability` reads only the barrels that `barrelGlobs` names, so a project with no
-public barrels gets no findings from it. Every question it asks is decidable from one file. It stays
+`barrel-discoverability` reads the barrel of each unit under the tree's subdivided directories,
+spelled the way that tree spells barrels, so a project with no public barrels gets no findings from
+it. Every question it asks is decidable from one file. It stays
 a structural check because it uses the same file walk as `test-file-mirror`. The finding thus comes
 at commit time and not in the editor. Move it to the lint tier to get the finding at author time;
 the intent does not change.

@@ -20,6 +20,11 @@
 // not run over this tree — so this file's one structural verdict is this
 // check's, and a failure here can mean nothing else.
 //
+// "Legal" here means NO STRUCTURAL CHECK OWNS THIS EDGE, not that the code is
+// allowed. The oxlint tier denies it: a repo layer may not reach a feature at
+// all, so `arch/import-policy` reports `deniedDirection` on this exact line in a
+// real project. Do not read this file as a permitted pattern.
+//
 // The pair is already granted (provider grants consumer), which is what keeps
 // `api/feature-visibility` silent, and it adds a second file to a pair well
 // under saturation rather than a new edge to `graph/feature-deps`.
