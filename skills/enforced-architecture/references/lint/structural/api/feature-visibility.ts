@@ -86,10 +86,17 @@ export const featureVisibilityCheck: StructuralCheck = {
 
     for (const [key, files] of importersByEdge) {
       const [importer = "", importee = ""] = key.split("\0");
-      const file = visibility.get(importee);
+      // Absent from the map is DENIED, not skipped, and the difference is the
+      // whole rule. `visibility` is keyed by `occupiedDirs`, which globs a
+      // narrower set of extensions than the import graph does, so the graph can
+      // hand over an edge into a feature this map has never heard of — and a
+      // `continue` there turns deny-by-default into allow-by-default for exactly
+      // the importees nobody enumerated. Whatever the two file sets disagree
+      // about, an importee that granted nothing has granted nothing.
+      const file = visibility.get(importee) ?? { kind: "absent" as const };
       // A malformed file already reported itself. Deriving deny-all violations
       // from it would bury that one real error under every edge into the feature.
-      if (file === undefined || file.kind === "malformed") continue;
+      if (file.kind === "malformed") continue;
       if (file.kind === "grants" && file.grants.has(importer)) continue;
 
       findings.push({

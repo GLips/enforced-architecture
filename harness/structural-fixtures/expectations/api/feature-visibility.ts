@@ -28,6 +28,20 @@ export const featureVisibilityFixtures: CheckFixtures = {
     // runtime crossing in the tree. The miss is invisible from the check's own
     // output; only the graph's reveal pass puts the edge back.
     "FAIL src/features/shapes/visibility.json",
+    // courier imports `hidden`, a feature made entirely of `.mts`. The grant-file
+    // enumeration globs `**/*.{ts,tsx}` and the import graph globs
+    // `**/*.{ts,tsx,mts,cts}`, so the graph hands over an edge into a feature the
+    // enumeration has never heard of. Every other firing case here reaches an
+    // enumerated importee and passes whether the unknown case denies or is
+    // skipped; this one separates them, and the skipped reading is
+    // allow-by-default for exactly the features nobody listed.
+    "FAIL src/features/hidden/visibility.json",
+    // bribed grants briber with an EMPTY justification, and briber imports
+    // bribed. Honour the entry and the edge is granted and the check falls
+    // silent — so the assertion is a FAIL that only exists because the file is
+    // rejected whole. An empty grant with no matching edge would be reported
+    // either way, as malformed or as stale, and prove nothing.
+    "FAIL src/features/bribed/visibility.json",
     // broken/visibility.json does not parse. ONE finding — the file itself.
     // trespasser imports broken, and treating an unreadable file as deny-all
     // would add a second finding that buries the only one worth reading under a
@@ -68,12 +82,17 @@ export const featureVisibilityFixtures: CheckFixtures = {
     // reports exactly one error at exactly this address, and passes everything
     // above.
     { path: "src/features/broken/visibility.json", contains: "is unreadable" },
-    // ...and the `absent` half is what states the branch is NARROW. trespasser
-    // does import broken, so a deny-all violation here is available to be
-    // reported and is the thing this case is the witness against: it would bury
-    // the one real error under a violation nobody can act on until the JSON
-    // parses.
+    // ...and the `absent` half states the branch is NARROW. It is not aimed at a
+    // check that emits the deny-all violation as a SECOND finding — the multiset
+    // catches that as SPURIOUS before wording is consulted. What it uniquely
+    // catches is the malformed sentence being WIDENED to argue the deny-all case
+    // too, inside the one finding: same path, same severity, same count, and a
+    // reader handed an argument they cannot act on until the JSON parses.
     { path: "src/features/broken/visibility.json", absent: "has not granted it" },
+    // The parse branch is not one branch. `bribed` reaches the rejection through
+    // the entry-level check rather than JSON.parse, and a check that dropped that
+    // arm reports nothing at all here rather than a differently-worded finding.
+    { path: "src/features/bribed/visibility.json", contains: "needs a non-empty justification string" },
     // The two stale-grant branches, which differ in wording and nothing else.
     // Both entries have to hold, so a check that collapsed them to one sentence
     // fails one of them while the WARN count stays at two.
