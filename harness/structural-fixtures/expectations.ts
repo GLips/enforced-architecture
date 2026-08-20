@@ -76,6 +76,11 @@ export type CheckFixtures = {
    * them. Substrings rather than whole messages, so re-wrapping a sentence does
    * not re-baseline an assertion nobody then reads.
    *
+   * `contains` is satisfied by ANY of the path's findings, so on a path that
+   * produces two it cannot say WHICH one carried the substring. No path in this
+   * tree produces two from one check today; the first that does needs a stronger
+   * comparison here rather than a second entry.
+   *
    * `absent` is not the mirror image of `contains` in importance — it is the
    * only way to state that a branch is NARROW. A paragraph written for one
    * reader and delivered to every reader passes every positive assertion there

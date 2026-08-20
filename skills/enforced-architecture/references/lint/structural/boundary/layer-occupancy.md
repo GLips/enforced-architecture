@@ -91,7 +91,7 @@ The legal neighbours carry as much weight. `alpha/ui/within-feature-neighbour.ts
 
 Four `messages` entries pin what no path comparison can see: that the type-aware paragraph is present on the type-only case, **absent** on the runtime one next to it, that the skipped layer is named from the slice rather than from a config key, and that the schema arm still makes the construction-vs-execution argument.
 
-Every guard is revert-probed: restore the controllers-only gate, drop either occupancy filter, skip type imports again, delete the type-aware wording, make it unconditional, or delete the schema arm — each turns a different case red.
+Every guard is revert-probed: restore the controllers-only gate, drop either occupancy filter, skip type imports again, delete the type-aware wording, make it unconditional, or delete the schema arm — each turns a different case red. There is deliberately no separate direction guard to probe: the slice bounds are what exclude upward and sideways edges, and widening either end by one over-matches an adjacent edge that skips nothing.
 
 ## Example output
 

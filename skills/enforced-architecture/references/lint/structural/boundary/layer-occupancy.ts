@@ -142,9 +142,12 @@ function classifyBypass(input: {
   if (edge.to.feature === feature) {
     if (edge.to.layer === undefined) return undefined;
     const to = layerOrder.indexOf(edge.to.layer);
-    // Upward and sideways edges are not skips. `placement/layer-direction`
-    // reports the upward ones.
-    if (to <= from) return undefined;
+    // Upward and sideways edges are not skips, and the SLICE is what excludes
+    // them: `from + 1 > to` for an upward edge and `from + 1 === to` for a
+    // sideways one both yield an empty span, so there is no separate direction
+    // guard here to keep in step. `placement/layer-direction` reports the upward
+    // ones. Both bounds are load-bearing — widening either end by one over-matches
+    // an adjacent edge that skips nothing.
     const skipped = layerOrder.slice(from + 1, to).filter((layer) => occupied.includes(layer));
     return skipped.length === 0 ? undefined : { kind: "skip", skipped };
   }
@@ -174,7 +177,13 @@ function skipMessage(
   featuresDirName: string,
   skipped: string[],
 ): string {
-  const skippedLayers = skipped.join("/ and ");
+  // `layerOrder` takes any number of layers, so three skipped ones are reachable
+  // the moment a project declares five — and a bare join renders them
+  // "a/ and b/ and c/".
+  const skippedLayers =
+    skipped.length > 1
+      ? `${skipped.slice(0, -1).join("/, ")}/ and ${skipped[skipped.length - 1]}`
+      : skipped[0];
   return (
     `"${edge.specifier}" bypasses ${skippedLayers}/: ${edge.from.layer} imports\n` +
     `from ${edge.to.layer} directly, and feature "${feature}" has ${skippedLayers}/ occupied.\n` +
