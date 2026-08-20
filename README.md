@@ -2,7 +2,7 @@
 
 # Encode your architecture as lint rules your agents can't ignore
 
-A catalog of 70 ready-to-steal enforcement rules for TypeScript codebases. Steal them, or point your coding agent here and have it design the equivalent for your stack.
+A catalog of dozens of ready-to-steal enforcement rules for TypeScript codebases. Steal them, or point your coding agent here and have it design the equivalent for your stack.
 
 **The problem:** agents write a lot of code, fast, like an army of interns. Documentation doesn't hold them to your conventions—they don't read it, or they read it and forget by the next file. Your architecture decays one plausible-looking PR at a time.
 
@@ -12,7 +12,7 @@ A catalog of 70 ready-to-steal enforcement rules for TypeScript codebases. Steal
 
 - **Rules that explain their own fix.** The error message *is* the instruction, so an agent resolves a violation without reading another file or asking you.
 - **Boundaries that hold.** Not a convention people remember—an import that can't exist.
-- **70 rules across 11 categories**, each with a header stating what it prevents and an **Adapt** section for repointing it at your directory layout.
+- **Dozens of rules across 11 categories**, each with a header stating what it prevents and an **Adapt** section for repointing it at your directory layout.
 
 ## Quick start
 
