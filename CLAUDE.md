@@ -27,6 +27,22 @@ change **which invariants apply to it**.
 This line is what keeps "configurable where it makes sense" from quietly becoming a menu
 again.
 
+## Where a rule applies is vocabulary too
+
+We believe every rule belongs in every project. **Where** each rule applies is
+repo-specific: a project points each rule at the tree that owns its subject. A monorepo
+saying "the layered app is `apps/web/src`; the db lives in `packages/core`" is naming
+things, in exactly the same sense as renaming a layer.
+
+What stays off the table is disabling a rule **inside** the tree that owns its subject.
+`db-isolation` scoped to the package that owns the db is correct adoption; `db-isolation`
+turned off in the app tree because it is noisy is the menu. The knob is "where does X
+live," never "does X apply."
+
+A tree you did not declare is a tree you did not adopt for. Rules are silent outside every
+declared tree, and that silence is not coverage — setup docs must say so, or an undeclared
+package reads as a clean one.
+
 ## One invariant, one owner
 
 Each architectural invariant is enforced in exactly **one** place. Two rules holding
