@@ -52,9 +52,10 @@ const ASSERTING_DATA_CALL_NAMES = new Set([
 
 // `api.get!<User>(url)` and `(api.get as Getter)<User>(url)` are the same call with a node wedged
 // between it and its callee, and either one beats a matcher that reads `callee` directly.
-// `boundary/ambient-globals` carries the same set for the same reason. `ParenthesizedExpression` is
-// listed although oxlint 1.77.0 does not surface it — the spec pins the parenthesized call as
-// reporting, so this stays correct whichever way a future version parses it.
+// `lib/transparent-wrappers.ts` names the same nodes for the same reason, for the rules that step
+// through a wrapped VALUE rather than a wrapped callee. `ParenthesizedExpression` is listed here
+// and deliberately absent there — the spec below pins the parenthesized call as reporting either
+// way, so listing it costs nothing, whereas an unreachable member of a typed union does not.
 const TRANSPARENT_CALLEE_WRAPPERS = new Set([
   "ChainExpression",
   "ParenthesizedExpression",

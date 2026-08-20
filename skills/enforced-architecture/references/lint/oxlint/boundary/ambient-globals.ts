@@ -38,10 +38,13 @@
 // string literal are not matched: nothing per-file can follow either one. A
 // type-only import is erased and reads nothing.
 //
-// Where `alsoImportedFrom` names a module, every spelling that reaches it is
-// one read: a named, default or namespace import, `import x = require()`,
-// `require()` and `await import()` — bound, destructured, or read straight off
-// the load expression. What is NOT followed is the capability passed on as a
+// Where `alsoImportedFrom` names a module for a DOTTED path — which is what
+// that field is for — every spelling that reaches it is one read: a named,
+// default or namespace import, `import x = require()`, `require()` and
+// `await import()`, bound, destructured, or read straight off the load
+// expression. On a bare `globalPath` the field is half-supported: the spellings
+// that NAME the export are caught and the ones that rebind the module object
+// are not, because a bare global has no segment above it to rebind. What is NOT followed is the capability passed on as a
 // value (`f(process)`), a module bound by assignment rather than declaration,
 // and `import("node:process").then(({ env }) => …)`, where the name is a
 // callback parameter and following it means following the promise. The module
@@ -60,7 +63,7 @@ import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
 import { exportedName, runtimeImportSpecifier } from "../lib/imported-names.ts";
 import { staticKeyName } from "../lib/static-key-name.ts";
 import {
-  TRANSPARENT_EXPRESSION_WRAPPERS,
+  isTransparentWrapper,
   outermostTransparentWrapper,
 } from "../lib/transparent-wrappers.ts";
 
@@ -264,7 +267,7 @@ export const ambientGlobalsRule = defineRule({
         const parent: ESTree.Node | null | undefined = node.parent;
         if (parent === null || parent === undefined) return;
 
-        if (TRANSPARENT_EXPRESSION_WRAPPERS.has(parent.type) && "expression" in parent && parent.expression === node) {
+        if (isTransparentWrapper(parent) && parent.expression === node) {
           node = parent;
           continue;
         }

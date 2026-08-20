@@ -48,20 +48,7 @@ export function visitModuleSources(
       onSource(node.source, node.source.value);
     },
     ImportExpression(node) {
-      // A computed specifier (`import(path)`) has nothing to fence on. A literal is checkable, and
-      // so is a template with no substitutions — `import(`@/shared/utils`)` is the same edge, and the
-      // backtick is exactly the spelling someone reaches for to make a fence stop matching.
-      if (node.source.type === "Literal" && typeof node.source.value === "string") {
-        onSource(node.source, node.source.value);
-        return;
-      }
-      if (node.source.type === "TemplateLiteral" && node.source.expressions.length === 0) {
-        const [quasi] = node.source.quasis;
-        const cooked = quasi?.value.cooked;
-        if (quasi !== undefined && typeof cooked === "string") {
-          onSource(quasi, cooked);
-        }
-      }
+      onStaticSpecifier(node.source, onSource);
     },
     TSImportEqualsDeclaration(node) {
       // `import env = require("@/env.server")` binds a value at runtime and compiles under
@@ -78,11 +65,32 @@ export function visitModuleSources(
     CallExpression(node) {
       if (!isRequireCallee(node.callee)) return;
       const [argument] = node.arguments;
-      if (argument === undefined || argument.type !== "Literal") return;
-      if (typeof argument.value !== "string") return;
-      onSource(argument, argument.value);
+      if (argument !== undefined) onStaticSpecifier(argument, onSource);
     },
   };
+}
+
+/**
+ * Reports the specifier of one dynamic form, whichever of the two static spellings it uses.
+ *
+ * A computed specifier (`import(path)`, `require(name)`) has nothing to fence on. A literal is
+ * checkable, and so is a template with no substitutions — ``import(`@/shared/utils`)`` is the same
+ * edge, and the backtick is exactly the spelling someone reaches for to make a fence stop matching.
+ * Both forms go through here rather than each arm answering for itself, because the arm that
+ * answered for itself is the one that carried the literal and forgot the template.
+ */
+function onStaticSpecifier(
+  source: ESTree.Node,
+  onSource: (source: ModuleSourceNode, specifier: string) => void,
+): void {
+  if (source.type === "Literal") {
+    if (typeof source.value === "string") onSource(source, source.value);
+    return;
+  }
+  if (source.type !== "TemplateLiteral" || source.expressions.length > 0) return;
+  const [quasi] = source.quasis;
+  const cooked = quasi?.value.cooked;
+  if (quasi !== undefined && typeof cooked === "string") onSource(quasi, cooked);
 }
 
 /**

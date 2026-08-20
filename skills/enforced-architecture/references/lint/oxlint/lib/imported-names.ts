@@ -1,6 +1,9 @@
-import type { Definition, ESTree, Scope, SourceCode, Variable, Visitor } from "@oxlint/plugins";
+import type { Definition, ESTree, SourceCode, Variable, Visitor } from "@oxlint/plugins";
 import { staticKeyName } from "./static-key-name.ts";
-import { outermostTransparentWrapper } from "./transparent-wrappers.ts";
+import {
+  outermostTransparentWrapper,
+  withoutTransparentWrappers,
+} from "./transparent-wrappers.ts";
 
 // Every name a file takes from a NAMED SET of modules, under the exporting module's spelling. A
 // rule that fences on names — `View` from react-native, `Textarea` from @mantine/core — asks this
@@ -34,9 +37,9 @@ import { outermostTransparentWrapper } from "./transparent-wrappers.ts";
 //   - Passing the namespace on as a value (`export const RN2 = RN`, `f(RN)`): the read happens in
 //     whatever code receives it, which this file never sees. `export * from "m"` is the same leak
 //     and IS catchable, so the rules here fence that one themselves.
-//   - Re-exports of any kind. This answers what the file IMPORTS; a rule that also cares about
-//     what it hands on reads `ExportNamedDeclaration` / `ExportAllDeclaration` itself, because the
-//     blame node and usually the message differ.
+//   - Re-exports of any kind, `export = RN` included. This answers what the file IMPORTS; a rule
+//     that also cares about what it hands on reads `ExportNamedDeclaration` / `ExportAllDeclaration`
+//     itself, because the blame node and usually the message differ.
 //
 // ONE CONVENTION FOR THE CONDITIONS BELOW, because a file that applies two teaches neither. A
 // condition that decides what this module FINDS is pinned by a fixture — delete it and a spec goes
@@ -68,7 +71,11 @@ export function runtimeImportSpecifier(
   sourceCode: SourceCode,
 ): string | undefined {
   if (node === null || node === undefined) return undefined;
-  const loaded = node.type === "AwaitExpression" ? node.argument : node;
+  // `require("m") as never` and `(await import("m"))!` load the same module. Stripped at both
+  // levels, because the cast can sit inside the await or around it.
+  const outer = withoutTransparentWrappers(node);
+  const loaded =
+    outer.type === "AwaitExpression" ? withoutTransparentWrappers(outer.argument) : outer;
   if (loaded.type === "ImportExpression") return staticSpecifier(loaded.source);
   if (loaded.type !== "CallExpression") return undefined;
   if (loaded.callee.type !== "Identifier" || loaded.callee.name !== "require") return undefined;
@@ -77,20 +84,29 @@ export function runtimeImportSpecifier(
 }
 
 /**
- * Whether the name this identifier reads was declared by the file rather than by the environment.
+ * Whether this `require` is the file's own rather than the module loader.
  *
- * A declared global — `env: { node: true }` — is a global-scope Variable with no definition, so the
- * definition count is the question and the mere existence of a Variable is not. Same distinction
- * `boundary/ambient-globals` draws to find an ambient read.
+ * Asks the RESOLVED reference, not the scope chain by name. A name lookup answers a different
+ * question and gets three cases wrong: `type require = number` and `interface require {}` declare
+ * nothing callable, and the loader's own ambient declaration —
+ * `declare function require(id: string): any`, the idiomatic way to tell TypeScript the loader
+ * exists — would read as a rebind and turn the fence off for the whole file.
+ *
+ * An unresolved reference is the loader: nothing in the file declares it. A resolved one is a
+ * rebind unless every definition it has is ambient, and a declared environment (`env: node`) gives
+ * a global-scope Variable with no definitions at all.
  */
-function isRebound(identifier: ESTree.Node, sourceCode: SourceCode): boolean {
-  const name = identifier.type === "Identifier" ? identifier.name : undefined;
-  if (name === undefined) return false;
-  for (let scope: Scope | null = sourceCode.getScope(identifier); scope !== null; scope = scope.upper) {
-    const variable = scope.set.get(name);
-    if (variable !== undefined) return variable.defs.length > 0;
-  }
-  return false;
+function isRebound(identifier: ESTree.IdentifierReference, sourceCode: SourceCode): boolean {
+  const scope = sourceCode.getScope(identifier);
+  const reference = scope.references.find(
+    (candidate) => candidate.identifier.range[0] === identifier.range[0],
+  );
+  const variable = reference?.resolved;
+  if (variable === null || variable === undefined) return false;
+  // An ambient declaration describes something that exists already, so it binds nothing of its own.
+  return variable.defs.some(
+    (definition) => !("declare" in definition.node && definition.node.declare === true),
+  );
 }
 
 /**
@@ -181,9 +197,11 @@ export function visitImportedNames(
     // and a `const RN = require("m")` initializer is the call rather than the identifier, so its
     // init reference matches none of the shapes below.
     for (const reference of variable.references) {
-      const parent: ESTree.Node | null | undefined = reference.identifier.parent;
+      // `(RN as never).View` reads the same binding with a TypeScript node wedged in.
+      const read = outermostTransparentWrapper(reference.identifier);
+      const parent: ESTree.Node | null | undefined = read.parent;
       if (parent === null || parent === undefined) continue;
-      if (parent.type === "MemberExpression" && parent.object === reference.identifier) {
+      if (parent.type === "MemberExpression" && parent.object === read) {
         const key = staticKeyName(parent.property, parent.computed);
         if (key !== undefined) take(key, parent, specifier);
         continue;
@@ -206,7 +224,7 @@ export function visitImportedNames(
         take(parent.property.name, parent, specifier);
         continue;
       }
-      if (parent.type === "VariableDeclarator" && parent.init === reference.identifier) {
+      if (parent.type === "VariableDeclarator" && parent.init === read) {
         takePatternKeys(parent.id, specifier);
       }
     }
@@ -287,7 +305,10 @@ export function visitImportedNames(
 
   return {
     ImportExpression(node) {
-      takeUnboundMemberRead(node.parent?.type === "AwaitExpression" ? node.parent : node);
+      // The read hangs off the AWAIT, not the import — and a cast may sit between the two
+      // (`await (import("m") as never)`), so the await is found from the outermost wrapper.
+      const loaded = outermostTransparentWrapper(node);
+      takeUnboundMemberRead(loaded.parent?.type === "AwaitExpression" ? loaded.parent : node);
     },
 
     CallExpression(node) {
@@ -299,10 +320,16 @@ export function visitImportedNames(
       // binds inside a function scope, and a module-scope-only sweep calls that file clean.
       for (const scope of sourceCode.scopeManager.scopes) {
         for (const variable of scope.variables) {
-          const [definition] = variable.defs;
+          // NOT `defs[0]`. A name declared in type space first — `type View = number` above
+          // `import { View } from "react-native"` — makes the type declaration definition zero, and
+          // reading only that one turns the fence off for a name in legal, compiling TypeScript.
+          // The first definition that BINDS is the one, and a name has at most one.
+          const definition = variable.defs.find(
+            (candidate) => candidate.type === "ImportBinding" || candidate.type === "Variable",
+          );
           if (definition === undefined) continue;
           if (definition.type === "ImportBinding") takeFromImportBinding(variable, definition);
-          if (definition.type === "Variable") takeFromRuntimeImportBinding(variable, definition);
+          else takeFromRuntimeImportBinding(variable, definition);
         }
       }
       found.sort((left, right) => left.node.range[0] - right.node.range[0]);

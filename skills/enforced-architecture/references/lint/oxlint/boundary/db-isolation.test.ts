@@ -29,6 +29,12 @@ describeRule("boundary/db-isolation", dbIsolationRule, {
       errors: [{ messageId: "dbOutsideDataLayer" }],
     },
     {
+      name: "a backtick specifier on the CommonJS spelling, where the literal arm alone misses it",
+      filename: SERVICE,
+      code: `export const db = require(\`@/infrastructure/db\`).db;`,
+      errors: [{ messageId: "dbOutsideDataLayer" }],
+    },
+    {
       name: "a re-export carries the same runtime dependency an import does",
       filename: SERVICE,
       code: `export { db } from "@/infrastructure/db";`,

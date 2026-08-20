@@ -132,7 +132,7 @@ return {
 
 **Do not loop an `ImportDeclaration`'s specifiers instead.** That is the natural thing to write and it is a fence with a hole in it: `import * as RN from "react-native"` names no specifier, so the primitive arrives as `RN.View` with nothing for a specifier loop to see, and `require()` and `await import()` bind the name without an `ImportDeclaration` at all. The module reads oxlint's scope analysis, which hands over the binding and every reference to it already resolved — that is the only way the namespace form is answerable per file, and for the four static spellings it is shadow-correct for free.
 
-**The module list is a list for a reason: call it once.** The returned visitor is spread into the rule's own, so a second call's `ImportExpression` / `CallExpression` / `Program:exit` keys overwrite the first's and one whole module goes unchecked with nothing to see — the failure mode the next section is about. Two modules go in one call.
+**The module list is a list for a reason: call it once, and spread it before your own keys.** The returned visitor is spread into the rule's own, so a second call's `ImportExpression` / `CallExpression` / `Program:exit` keys overwrite the first's and one whole module goes unchecked with nothing to see — the failure mode the next section is about. A key of the rule's own written *after* the spread silently wins the same way. Two modules go in one call; the spread goes first.
 
 What the module settles, and what each costs to get wrong:
 
@@ -140,7 +140,7 @@ What the module settles, and what each costs to get wrong:
 - **Every name is tested.** `import { Button, Textarea }` reports `Textarea`. A rule reading `node.specifiers[0]` passes that import silently — the second name in a clause is the cheapest thing in this catalog to miss.
 - **Type-only is two flags, not one.** `import type { X }` sets `importKind: "type"` on the *declaration*; `import { type X }` sets it on the *specifier* — and the specifiers of a type-only declaration each report `"value"`, so a rule checking one level and not the other lets the other spelling through. `visitImportedNames` drops both, because a type import binds no runtime value. A rule about coupling rather than about the bundle wants the opposite and reads specifiers itself — `boundary/db-isolation` reports `import type { Invoice }` from the schema, because knowing the schema's shape is the dependency it exists to prevent.
 
-- **The `require` half matches a name, not a binding.** The static forms resolve through scope analysis, so a shadowing local is not a use of the import. `require("m")` has no binding to resolve — the callee is matched by the word `require` — so a file that shadows it with a parameter of its own (`function f(require) { … }`) reads as loading the module.
+- **`require` is resolved, not matched by name.** A file that shadows it (`function f(require) { … }`) is calling its own function, and loads nothing. The resolution asks the reference rather than the scope chain, because a name lookup answers a different question: `type require = number` declares nothing callable, and the loader's own ambient declaration (`declare function require(id: string): any`) would read as a rebind and turn the fence off for the whole file.
 
 Compare against a `Set` of exact names, so `TextareaProps` cannot match. Reach for a regex only when the name has real shape, and anchor it end to end.
 

@@ -145,6 +145,42 @@ describeRule("style/no-raw-primitives", noRawPrimitivesRule, {
       errors: [{ messageId: "platformPrimitive" }],
     },
     {
+      name: "a type alias declared before the import, which takes the binding's first definition",
+      filename: COMPONENT,
+      code: `type View = number;\nimport { View } from "react-native";\nexport const used: View = 1;\nexport const also = View;`,
+      errors: [{ messageId: "platformPrimitive" }],
+    },
+    {
+      name: "a quoted key in the destructure, which is not a computed one",
+      filename: COMPONENT,
+      code: `const { "View": Screen } = require("react-native");\nexport const used = Screen;`,
+      errors: [{ messageId: "platformPrimitive" }],
+    },
+    {
+      name: "casts on the binding side rather than the read side",
+      filename: COMPONENT,
+      code: `const RN = require("react-native") as never;\nexport const used = (RN as never).View;`,
+      errors: [{ messageId: "platformPrimitive" }],
+    },
+    {
+      name: "the loader's own ambient declaration, which declares it rather than rebinding it",
+      filename: COMPONENT,
+      code: `declare function require(id: string): { View: unknown };\nexport const used = require("react-native").View;`,
+      errors: [{ messageId: "platformPrimitive" }],
+    },
+    {
+      name: "an optional call on the loader, which wraps the call in a chain node",
+      filename: COMPONENT,
+      code: `const { View } = require?.("react-native");\nexport const used = View;`,
+      errors: [{ messageId: "platformPrimitive" }],
+    },
+    {
+      name: "a cast inside the await rather than around it",
+      filename: COMPONENT,
+      code: `export const used = (await (import("react-native") as never)).View;`,
+      errors: [{ messageId: "platformPrimitive" }],
+    },
+    {
       name: "a TypeScript cast wedged between the load and the read",
       filename: COMPONENT,
       code: `export const used = (require("react-native") as never).View;`,
@@ -183,6 +219,11 @@ describeRule("style/no-raw-primitives", noRawPrimitivesRule, {
   ],
 
   legal: [
+    {
+      name: "a computed key names the identifier's VALUE, which this rule cannot see",
+      filename: COMPONENT,
+      code: `const View = "useColorScheme";\nconst { [View]: hook } = require("react-native");\nexport const used = hook;`,
+    },
     {
       name: "the app's own primitives, including one sharing a name with a platform primitive",
       filename: COMPONENT,
@@ -254,9 +295,9 @@ describeRule("style/no-raw-primitives", noRawPrimitivesRule, {
       code: `const named = "react-native";\nexport const used = [require().View, require(1).View, require(named).View];`,
     },
     {
-      name: "a local binding named require is not the module loader",
+      name: "a require shadowed by an ENCLOSING scope, which a one-scope lookup would miss",
       filename: COMPONENT,
-      code: `export function open(require: (id: string) => { View: unknown }) {\n  const { View } = require("react-native");\n  return View;\n}`,
+      code: `export function open(require: (id: string) => { View: unknown }) {\n  return function load() {\n    const { View } = require("react-native");\n    return View;\n  };\n}`,
     },
     {
       name: "a nested destructure reads the outer key, and the inner name is not an export",

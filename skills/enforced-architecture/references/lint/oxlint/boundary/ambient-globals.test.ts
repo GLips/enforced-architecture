@@ -132,6 +132,42 @@ describeRule("boundary/ambient-globals", ambientGlobalsRule, {
       errors: [{ messageId: "ambientGlobalOutsideOwner" }],
     },
     {
+      name: "a stack of TypeScript wrappers, each of which is transparent on its own",
+      filename: SERVICE,
+      code: `export const key = ((require("node:process")! as never) satisfies never).env.STRIPE_KEY;`,
+      errors: [{ messageId: "ambientGlobalOutsideOwner" }],
+    },
+    {
+      name: "an old-style type assertion, the one wrapper JSX syntax cannot spell",
+      filename: SERVICE,
+      code: `export const key = (<never>require("node:process")).env.STRIPE_KEY;`,
+      errors: [{ messageId: "ambientGlobalOutsideOwner" }],
+    },
+    {
+      name: "an optional chain off the host, which wraps the read in a node of its own",
+      filename: SERVICE,
+      code: `export const key = globalThis?.process.env.STRIPE_KEY;`,
+      errors: [{ messageId: "ambientGlobalOutsideOwner" }],
+    },
+    {
+      name: "a quoted key in the destructure, which is not a computed one",
+      filename: SERVICE,
+      code: `const { "env": e } = require("node:process");\nexport const key = e.STRIPE_KEY;`,
+      errors: [{ messageId: "ambientGlobalOutsideOwner" }],
+    },
+    {
+      name: "a cast on the binding side rather than the read side",
+      filename: SERVICE,
+      code: `const proc = require("node:process") as never;\nexport const key = proc.env.STRIPE_KEY;`,
+      errors: [{ messageId: "ambientGlobalOutsideOwner" }],
+    },
+    {
+      name: "the loader's own ambient declaration, which declares it rather than rebinding it",
+      filename: SERVICE,
+      code: `declare function require(id: string): { env: Record<string, string> };\nexport const key = require("node:process").env.STRIPE_KEY;`,
+      errors: [{ messageId: "ambientGlobalOutsideOwner" }],
+    },
+    {
       name: "a rest element beside the capability, which names no key of its own",
       filename: SERVICE,
       code: `const { env, ...rest } = require("node:process");\nexport const key = [env.STRIPE_KEY, rest];`,
