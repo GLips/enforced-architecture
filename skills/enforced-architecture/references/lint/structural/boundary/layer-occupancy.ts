@@ -35,8 +35,8 @@ export const layerOccupancyCheck: StructuralCheck = {
     const findings: Finding[] = [];
 
     for (const edge of importGraph()) {
-      const feature = edge.from.feature;
-      if (feature === undefined) continue;
+      if (edge.from.kind !== "feature") continue;
+      const { feature } = edge.from;
 
       // A file at a feature root has no layer and no rank. That it sits there at
       // all is `placement/topology`'s finding rather than this one's, and
@@ -64,8 +64,15 @@ export const layerOccupancyCheck: StructuralCheck = {
         line: edge.line,
         message:
           (bypass.kind === "schema"
-            ? schemaMessage(edge, feature, featuresDirName, bypass.dataLayer)
-            : skipMessage(edge, feature, featuresDirName, bypass.skipped)) + typeNote(edge),
+            ? schemaMessage({ edge, feature, featuresDirName, fromLayer, dataLayer: bypass.dataLayer })
+            : skipMessage({
+                edge,
+                feature,
+                featuresDirName,
+                fromLayer,
+                toLayer: bypass.toLayer,
+                skipped: bypass.skipped,
+              })) + typeNote(edge, fromLayer, reachedName(bypass)),
       });
     }
 
@@ -73,7 +80,20 @@ export const layerOccupancyCheck: StructuralCheck = {
   },
 };
 
-type Bypass = { kind: "skip"; skipped: string[] } | { kind: "schema"; dataLayer: string };
+/**
+ * Each arm carries the far end's NAME as well as its verdict. The skip arm has
+ * already established that the importee sits in a layer, and the schema arm has
+ * already established that it does not — so a message that re-derives either
+ * from `edge.to` is asking a question this type has answered.
+ */
+type Bypass =
+  | { kind: "skip"; skipped: string[]; toLayer: string }
+  | { kind: "schema"; dataLayer: string };
+
+/** What the far end of the bypass is called, for the type-only note. */
+function reachedName(bypass: Bypass): string {
+  return bypass.kind === "schema" ? "schema" : bypass.toLayer;
+}
 
 /**
  * What this edge reaches past, or undefined when it reaches past nothing this
@@ -94,9 +114,10 @@ function classifyBypass(input: {
 }): Bypass | undefined {
   const { edge, feature, from, layerOrder, occupied, schemaTarget, dataLayer } = input;
 
-  if (edge.to.feature === feature) {
-    if (edge.to.layer === undefined) return undefined;
-    const to = layerOrder.indexOf(edge.to.layer);
+  if (edge.to.kind === "feature" && edge.to.feature === feature) {
+    const toLayer = edge.to.layer;
+    if (toLayer === undefined) return undefined;
+    const to = layerOrder.indexOf(toLayer);
     // Upward and sideways edges are not skips, and the SLICE is what excludes
     // them: `from + 1 > to` for an upward edge and `from + 1 === to` for a
     // sideways one both yield an empty span, so there is no separate direction
@@ -104,7 +125,7 @@ function classifyBypass(input: {
     // ones. Both bounds are load-bearing — widening either end by one over-matches
     // an adjacent edge that skips nothing.
     const skipped = layerOrder.slice(from + 1, to).filter((layer) => occupied.includes(layer));
-    return skipped.length === 0 ? undefined : { kind: "skip", skipped };
+    return skipped.length === 0 ? undefined : { kind: "skip", skipped, toLayer };
   }
 
   // Same feature only, for the skip arm. An edge reaching into ANOTHER feature's
@@ -126,12 +147,15 @@ function classifyBypass(input: {
   return { kind: "schema", dataLayer };
 }
 
-function skipMessage(
-  edge: ImportEdge,
-  feature: string,
-  featuresDirName: string,
-  skipped: string[],
-): string {
+function skipMessage(input: {
+  edge: ImportEdge;
+  feature: string;
+  featuresDirName: string;
+  fromLayer: string;
+  toLayer: string;
+  skipped: string[];
+}): string {
+  const { edge, feature, featuresDirName, fromLayer, toLayer, skipped } = input;
   // `layerOrder` takes any number of layers, so three skipped ones are reachable
   // the moment a project declares five — and a bare join renders them
   // "a/ and b/ and c/".
@@ -140,22 +164,24 @@ function skipMessage(
       ? `${skipped.slice(0, -1).join("/, ")}/ and ${skipped[skipped.length - 1]}`
       : skipped[0];
   return (
-    `"${edge.specifier}" bypasses ${skippedLayers}/: ${edge.from.layer} imports\n` +
-    `from ${edge.to.layer} directly, and feature "${feature}" has ${skippedLayers}/ occupied.\n` +
+    `"${edge.specifier}" bypasses ${skippedLayers}/: ${fromLayer} imports\n` +
+    `from ${toLayer} directly, and feature "${feature}" has ${skippedLayers}/ occupied.\n` +
     `Route the call through ${featuresDirName}/${feature}/${skipped[0]}/ instead.\n` +
     `Reaching past a present layer splits its job in two — some calls through it, some\n` +
     `around it — and neither half looks wrong in the file it is written in.`
   );
 }
 
-function schemaMessage(
-  edge: ImportEdge,
-  feature: string,
-  featuresDirName: string,
-  dataLayer: string,
-): string {
+function schemaMessage(input: {
+  edge: ImportEdge;
+  feature: string;
+  featuresDirName: string;
+  fromLayer: string;
+  dataLayer: string;
+}): string {
+  const { edge, feature, featuresDirName, fromLayer, dataLayer } = input;
   return (
-    `${edge.from.layer}/ imports DB schema ("${edge.specifier}"),\n` +
+    `${fromLayer}/ imports DB schema ("${edge.specifier}"),\n` +
     `but feature "${feature}" has a ${dataLayer}/ layer. Move the query into a\n` +
     `function under ${featuresDirName}/${feature}/${dataLayer}/ and call that instead.\n` +
     `The DB client stays legal here — a caller passes it to ${dataLayer} functions for\n` +
@@ -169,12 +195,11 @@ function schemaMessage(
  * message that argues a case the reader is not in is a message they learn to
  * skim.
  */
-function typeNote(edge: ImportEdge): string {
+function typeNote(edge: ImportEdge, fromLayer: string, reached: string): string {
   if (!edge.typeOnly) return "";
-  const named = edge.to.layer ?? "schema";
   return (
-    `\nThis import is type-only, which is the same bypass: naming a ${named} type\n` +
-    `here makes that shape part of what ${edge.from.layer} is written against, and neither\n` +
+    `\nThis import is type-only, which is the same bypass: naming a ${reached} type\n` +
+    `here makes that shape part of what ${fromLayer} is written against, and neither\n` +
     `can be lifted out while that is true.`
   );
 }

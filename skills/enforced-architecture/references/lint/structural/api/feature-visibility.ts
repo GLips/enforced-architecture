@@ -101,11 +101,12 @@ export const featureVisibilityCheck: StructuralCheck = {
 
     const importersByEdge = new Map<string, Set<string>>();
     for (const edge of importGraph()) {
+      if (edge.from.kind !== "feature" || edge.to.kind !== "feature") continue;
       const importer = edge.from.feature;
       // Only the importee end. `edge.file` comes from walking the tree, never
       // from a specifier, so the importing end is already the name on disk.
       const importee = canonicalFeature(edge.to.feature);
-      if (importer === undefined || importee === undefined || importer === importee) continue;
+      if (importee === undefined || importer === importee) continue;
       const key = `${importer}\0${importee}`;
       importersByEdge.set(key, (importersByEdge.get(key) ?? new Set()).add(edge.file));
     }
@@ -192,13 +193,12 @@ export const featureVisibilityCheck: StructuralCheck = {
 function featureCanonicaliser(
   featuresRoot: string,
   features: string[],
-): (name: string | undefined) => string | undefined {
+): (name: string) => string | undefined {
   const byRealPath = new Map(
     features.map((feature) => [realpathSync(join(featuresRoot, feature)), feature]),
   );
 
   return (name) => {
-    if (name === undefined) return undefined;
     // Already the name on disk in every ordinary case, which is worth short-
     // circuiting: this runs once per edge and the resolve is a syscall.
     if (byRealPath.has(join(featuresRoot, name))) return name;

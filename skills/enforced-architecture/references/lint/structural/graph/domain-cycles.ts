@@ -47,13 +47,13 @@ export const domainCyclesCheck: StructuralCheck = {
     const dependencyByDomainPair = new Map<string, DomainDependency>();
 
     for (const edge of importGraph()) {
+      if (edge.from.kind !== "domain" || edge.to.kind !== "domain") continue;
       const from = edge.from.domain;
       const to = edge.to.domain;
-      if (from === undefined || to === undefined) continue;
       // The two ends must sit in DIFFERENT `domains/<name>` boundaries. A
       // relative hop inside one domain is how a module moves within itself and
       // is not an edge in this graph at all.
-      if (edge.from.boundary === edge.to.boundary) continue;
+      if (from === to) continue;
 
       const pair = `${from}\0${to}`;
       dependencies.set(from, (dependencies.get(from) ?? new Set()).add(to));

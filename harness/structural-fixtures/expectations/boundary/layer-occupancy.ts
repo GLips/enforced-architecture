@@ -27,6 +27,12 @@ export const layerOccupancyFixtures: CheckFixtures = {
     // become the supported spelling of the bypass. The verdict must not branch
     // on `typeOnly`; only the wording may, which is what `messages` pins.
     "FAIL src/features/billing/controllers/typed-repo-neighbour.ts",
+    // The same `import type` exemption attempted against the SCHEMA arm, whose
+    // importee sits in no layer. The skip arm's type-only case above cannot
+    // stand in for it: the two arms build their wording from different places,
+    // so a type-only note that works for one can be missing or nonsense in the
+    // other while both findings still land on the right path.
+    "FAIL src/features/billing/controllers/typed-schema-neighbour.ts",
   ],
 
   legal: [
@@ -88,6 +94,14 @@ export const layerOccupancyFixtures: CheckFixtures = {
     {
       path: "src/features/billing/controllers/invoices.ts",
       contains: "It is query CONSTRUCTION that has to be concentrated in repo/",
+    },
+    // What the type-only note calls the far end when the far end has no layer.
+    // The schema arm reaches infrastructure by construction, so anything reading
+    // the importee's LAYER here reads an absence — and the sentence degrades to
+    // "naming a undefined type" without a single verdict changing.
+    {
+      path: "src/features/billing/controllers/typed-schema-neighbour.ts",
+      contains: "naming a schema type",
     },
   ],
 };

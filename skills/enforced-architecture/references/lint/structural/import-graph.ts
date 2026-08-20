@@ -30,18 +30,45 @@ import {
 } from "./check-substrate.ts";
 
 /**
- * Where one end of an edge sits. `boundary` is always known; `feature`,
- * `domain`, and `layer` are the finer questions, undefined when the end is not
- * in one.
+ * Where one end of an edge sits. `boundary` is always known; `kind` is the
+ * finer question, and it carries only the fields that end actually has.
+ *
+ * A union rather than a record of optional fields, because the mutual exclusions
+ * here are facts about the tree and belong in the type. A path is in a feature
+ * or in a domain and never both; a layer is a position INSIDE a feature, so a
+ * domain end and an `infrastructure` end have no layer to read. As a product
+ * type every one of those combinations typechecked, and the consumers carried
+ * runtime guards recovering the shape the type declined to state.
  */
-export type Classification = {
-  /** Top-level directory, or `<subdivided>/<name>` under a subdivided one. */
-  boundary: string;
-  feature: string | undefined;
-  domain: string | undefined;
-  /** First segment inside a feature, when it names a configured layer. */
-  layer: string | undefined;
-};
+export type Classification =
+  | {
+      kind: "feature";
+      /** `<featuresDirName>/<name>`. */
+      boundary: string;
+      feature: string;
+      /**
+       * First segment inside the feature, when it names a configured layer.
+       * Undefined is a real answer rather than a missing one: a file at the
+       * feature root sits in no layer, and whether it may sit there at all is
+       * `placement/topology`'s question.
+       */
+      layer: string | undefined;
+    }
+  | {
+      kind: "domain";
+      /** `<domainsDirName>/<name>`. */
+      boundary: string;
+      domain: string;
+    }
+  /**
+   * An end with nothing finer than a boundary to say. Three unrelated positions
+   * collapse here on purpose, because no consumer distinguishes them: a file
+   * sitting directly in the source root, an unsubdivided top-level directory
+   * (`infrastructure`, `shared`, `routes`), and a subdivided directory that is
+   * neither the features nor the domains one. A consumer needing more than the
+   * boundary about such an end reads `edge.target`, which is the resolved path.
+   */
+  | { kind: "boundary-only"; boundary: string };
 
 export type ImportEdge = {
   /** Importing file, project-relative. */
@@ -299,24 +326,29 @@ export function classify(config: ArchitectureConfig, pathFromSourceRoot: string)
   // read as a crossing, which is the first false positive this produces if the
   // general case is left to handle them.
   if (top === undefined || second === undefined) {
+    return { kind: "boundary-only", boundary: basename(sourceRoot(config)) };
+  }
+
+  if (!subdividedDirs.includes(top)) return { kind: "boundary-only", boundary: top };
+
+  const boundary = `${top}/${second}`;
+
+  if (top === featuresDirName) {
     return {
-      boundary: basename(sourceRoot(config)),
-      feature: undefined,
-      domain: undefined,
-      layer: undefined,
+      kind: "feature",
+      boundary,
+      feature: second,
+      layer: third !== undefined && layerOrder.includes(third) ? third : undefined,
     };
   }
 
-  if (!subdividedDirs.includes(top)) {
-    return { boundary: top, feature: undefined, domain: undefined, layer: undefined };
-  }
+  if (top === domainsDirName) return { kind: "domain", boundary, domain: second };
 
-  return {
-    boundary: `${top}/${second}`,
-    feature: top === featuresDirName ? second : undefined,
-    domain: top === domainsDirName ? second : undefined,
-    layer: third !== undefined && layerOrder.includes(third) ? third : undefined,
-  };
+  // A subdivided directory that is neither the features nor the domains one —
+  // `packages/`, `modules/`, whatever else a project lists. Its children are
+  // boundaries, which is the whole of what subdivision buys; no rule here speaks
+  // about layers or grants inside one, so there is nothing finer to report.
+  return { kind: "boundary-only", boundary };
 }
 
 /**

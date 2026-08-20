@@ -49,9 +49,10 @@ export const featureDepsCheck: StructuralCheck = {
     // measures, so the importing files are kept rather than just a tally.
     const importersByEdge = new Map<string, Set<string>>();
     for (const edge of importGraph()) {
+      if (edge.from.kind !== "feature" || edge.to.kind !== "feature") continue;
       const importer = edge.from.feature;
       const importee = edge.to.feature;
-      if (importer === undefined || importee === undefined || importer === importee) continue;
+      if (importer === importee) continue;
       const key = `${importer}\0${importee}`;
       importersByEdge.set(key, (importersByEdge.get(key) ?? new Set()).add(edge.file));
     }

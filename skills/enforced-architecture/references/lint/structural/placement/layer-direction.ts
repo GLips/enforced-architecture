@@ -39,8 +39,10 @@ export const layerDirectionCheck: StructuralCheck = {
       // Layers only rank against each other WITHIN one feature: `repo` in alpha
       // and `service` in beta are not two rungs of one ladder, and comparing
       // them turns every cross-feature edge into a direction verdict.
-      const feature = edge.from.feature;
-      if (feature === undefined || feature !== edge.to.feature) continue;
+      const { from, to } = edge;
+      if (from.kind !== "feature" || to.kind !== "feature") continue;
+      if (from.feature !== to.feature) continue;
+      const { feature } = from;
 
       // The feature's own barrel is the one unranked end this check does judge,
       // and it judges it without a rank: it sits above every layer by
@@ -55,7 +57,7 @@ export const layerDirectionCheck: StructuralCheck = {
       // this barrel that comes from inside the unit and should stay silent.
       const unit = `${config.source.featuresDirName}/${feature}`;
       if (!isUnitBarrel(unit, edge.sourcePath) && isUnitBarrel(unit, edge.target)) {
-        const inside = edge.from.layer ?? `${feature}'s root`;
+        const inside = from.layer ?? `${feature}'s root`;
         findings.push({
           severity: "error",
           file: edge.file,
@@ -75,11 +77,13 @@ export const layerDirectionCheck: StructuralCheck = {
       // everything or below it, depending on the accident of how it is spelled.
       // A file at a feature root genuinely has no layer, and that it sits there
       // at all is `placement/topology`'s finding rather than this one's.
-      if (edge.from.layer === undefined || edge.to.layer === undefined) continue;
+      const fromLayer = from.layer;
+      const toLayer = to.layer;
+      if (fromLayer === undefined || toLayer === undefined) continue;
 
       // Both are in `layerOrder` by construction: the graph assigns a layer only
       // when the segment names one.
-      if (layerOrder.indexOf(edge.to.layer) >= layerOrder.indexOf(edge.from.layer)) continue;
+      if (layerOrder.indexOf(toLayer) >= layerOrder.indexOf(fromLayer)) continue;
 
       findings.push({
         severity: "error",
@@ -89,10 +93,10 @@ export const layerDirectionCheck: StructuralCheck = {
         // to the wrong place, which is worse than sending them to the file.
         line: edge.line,
         message:
-          `"${edge.specifier}" runs upward: ${edge.from.layer} imports from ${edge.to.layer}.\n` +
+          `"${edge.specifier}" runs upward: ${fromLayer} imports from ${toLayer}.\n` +
           `Direction is ${layerOrder.join(" -> ")}, highest to lowest, and an import may\n` +
-          `only run down it. Move what both layers need down into ${edge.from.layer}, or out\n` +
-          `to a domain, or invert the call so ${edge.to.layer} drives ${edge.from.layer}.\n` +
+          `only run down it. Move what both layers need down into ${fromLayer}, or out\n` +
+          `to a domain, or invert the call so ${toLayer} drives ${fromLayer}.\n` +
           `Downward imports are the normal direction and stay unreported.`,
       });
     }
