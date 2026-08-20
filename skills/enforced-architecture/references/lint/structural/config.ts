@@ -48,11 +48,15 @@ import {
   ALIAS_PREFIX,
   ASSET_EXTENSIONS,
   BARREL_MODULES,
+  CONTROLLERS_LAYER,
+  DB_SCHEMA_PATH,
   DOMAINS_DIR,
   FEATURE_LAYERS,
   FEATURES_DIR,
   INFRASTRUCTURE_DIR,
+  REPO_LAYER,
   ROUTES_DIR,
+  SERVICE_LAYER,
   SHARED_DIR,
   SOURCE_ROOT,
   SOURCE_ROOT_FILES,
@@ -365,7 +369,7 @@ export const defaultCheckConfigs: CheckConfigs = {
     ],
     maxTraceDepth: 6,
     serverFnMarkers: ["createServerFn"],
-    serverFnBoundaryDirs: ["features"],
+    serverFnBoundaryDirs: [FEATURES_DIR],
   },
 
   "api/feature-visibility": {
@@ -373,10 +377,10 @@ export const defaultCheckConfigs: CheckConfigs = {
   },
 
   "boundary/layer-occupancy": {
-    schemaTarget: "infrastructure/db/schema",
-    repoLayer: "repo",
-    serviceLayer: "service",
-    controllerLayer: "controllers",
+    schemaTarget: DB_SCHEMA_PATH,
+    repoLayer: REPO_LAYER,
+    serviceLayer: SERVICE_LAYER,
+    controllerLayer: CONTROLLERS_LAYER,
   },
 
   // Starting points, not invariants. A project with 15 features naturally has
@@ -403,7 +407,7 @@ export const defaultCheckConfigs: CheckConfigs = {
   },
 
   "health/trampolines": {
-    targetLayers: ["service"],
+    targetLayers: [SERVICE_LAYER],
     behaviorKeywords: /\b(const|let|var|if|for|while|switch|try|throw|catch)\b/,
   },
 

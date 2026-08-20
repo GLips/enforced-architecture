@@ -87,7 +87,7 @@ export const clientServerInfraRule = defineRule({
     type: "problem",
     messages: {
       serverOnlyInfraInClient:
-        "Client contexts may only import client-safe infrastructure modules. Move this import to a server context (controllers/, repo/, service/, or a .server.ts file) or use the appropriate client-safe adapter.",
+        "Client contexts may only import client-safe infrastructure modules. Move this import to controllers/, to repo/, or to an explicit .server.ts module — or use the client-safe adapter. NOT service/: a service layer imports no infrastructure at all, so moving it there trades this diagnostic for boundary/import-policy's, and the pair would forbid each other's fix.",
     },
   },
   create(context) {

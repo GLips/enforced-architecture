@@ -49,12 +49,33 @@ export const SHARED_DIR = "shared";
 export const SHARED_UI_DIR = "shared/ui";
 
 /**
+ * The database module inside `infrastructure/`, and the schema directory within
+ * it. Two checks name the schema path — `boundary/layer-occupancy` gates a
+ * controller's skip past `repo/` on it, and `boundary/db-isolation` fences the
+ * layer — so it is stated here rather than twice as a literal.
+ */
+export const DB_DIR = `${INFRASTRUCTURE_DIR}/db`;
+export const DB_SCHEMA_PATH = `${DB_DIR}/schema`;
+
+/**
  * Intra-feature layers, highest to lowest. `placement/layer-direction` reads the
  * ORDER to judge direction; this module only reads membership, because a layer's
  * rank is a question about two ends of one feature and never reaches the policy
  * table.
  */
-export const FEATURE_LAYERS = ["ui", "controllers", "service", "repo"] as const;
+export const UI_LAYER = "ui";
+export const CONTROLLERS_LAYER = "controllers";
+export const SERVICE_LAYER = "service";
+export const REPO_LAYER = "repo";
+
+// Named singly as well as ordered, because several checks are about ONE layer by
+// role rather than about the order — where a server function may live, which
+// layer a trampoline is a smell in, which layer occupancy gates a skip through.
+// Those read the name; only direction reads the position. A check restating
+// "service" as a literal is a check a project silently breaks when it renames
+// the layer here, and the break is a rule that stops matching rather than one
+// that errors.
+export const FEATURE_LAYERS = [UI_LAYER, CONTROLLERS_LAYER, SERVICE_LAYER, REPO_LAYER] as const;
 export type FeatureLayer = (typeof FEATURE_LAYERS)[number];
 
 /**

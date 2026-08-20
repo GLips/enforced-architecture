@@ -96,7 +96,7 @@ export const PACKAGE_OWNERS: PackageOwnership[] = [
   {
     package: "@loops-so/loops-js",
     owners: ["infrastructure/integrations/email.ts"],
-    why: "Take the capability the adapter exposes — the named transactional sends — rather than the client. The decisions it makes are not incidental: which template id each message uses, and that a send failure is logged rather than thrown, because a signup that succeeded must not fail on its welcome email. A second caller reaching for the SDK makes both choices again.",
+    why: "Two decisions live at the adapter and neither is incidental: which template id each message uses, and that a send failure is logged rather than thrown, because a signup that succeeded must not fail on its welcome email. A second caller reaching for the SDK makes both choices again, and the second answer is the one nobody reviews.",
   },
   {
     package: "posthog-node",

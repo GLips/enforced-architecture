@@ -87,7 +87,7 @@ export const serverImportContextRule = defineRule({
     type: "problem",
     messages: {
       serverBarrelInClientContext:
-        "Only server contexts (controllers/, repo/, service/, infrastructure/) may import */index.server paths. Routes are isomorphic; use the client-safe feature barrel there.",
+        "*/index.server is a server-only barrel and this is a client context. Routes are isomorphic; use the client-safe barrel there. This rule answers the CONTEXT question only — which server context may reach a given barrel is boundary/import-policy's answer, and from inside a feature that is controllers/, service/ and explicit .server.ts modules. repo/ is a leaf and infrastructure/ sits below features, so neither may name a feature barrel of either kind.",
     },
   },
   create(context) {

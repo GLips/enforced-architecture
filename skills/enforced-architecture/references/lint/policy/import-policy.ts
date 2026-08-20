@@ -135,7 +135,12 @@ export const IMPORT_POLICY: Record<SourceProfile, Record<TargetArea, ImportSurfa
     "shared-ui": "any",
     "env-server": "deny",
     "env-client": "any",
-    "source-root": "any",
+    // Every member of this area a route could name is an entrypoint or the
+    // generated route tree, and each of them reaches back down to the routes —
+    // so the edge is a cycle through the file that mounts the app. The env
+    // modules are their own areas and are decided two rows up; a stylesheet is
+    // not a module edge and never reaches the table.
+    "source-root": "deny",
     package: "any",
   },
 

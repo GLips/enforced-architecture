@@ -56,5 +56,12 @@ export const layerDirectionFixtures: CheckFixtures = {
     // feature's own — an arm that compares the path shape rather than the
     // feature name reports every cross-feature import in the repo.
     "src/features/consumer/service/uses-provider.ts",
+    // The feature's SERVER barrel re-exporting its client barrel. Both ends are
+    // barrels of one feature, so a naive "does this reach the feature's own
+    // barrel" test fires here — and this edge is explicitly permitted, which is
+    // why the arm excludes a barrel SOURCE rather than gating on the source
+    // having a layer. Without this case the exclusion clause is asserted by
+    // nothing: delete it and the suite stays green.
+    "src/features/orders/index.server.ts",
   ],
 };

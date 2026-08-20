@@ -219,6 +219,16 @@ describeRule("boundary/import-policy", importPolicyRule, {
       code: `import { formatDate } from "@/lib";`,
       errors: [{ messageId: "unclassifiedTarget" }],
     },
+    {
+      // A route reaching the composition root. Every member of that area a route
+      // could name is an entrypoint or the generated route tree, and each of them
+      // reaches back down to the routes — so this is a cycle through the file
+      // that mounts the app, wearing the clothes of an ordinary import.
+      name: "a route naming the composition root, which is a cycle back through itself",
+      filename: ROUTE,
+      code: `import { router } from "@/router";`,
+      errors: [{ messageId: "deniedDirection" }],
+    },
   ],
 
   legal: [

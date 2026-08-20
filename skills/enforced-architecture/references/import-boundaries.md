@@ -68,7 +68,7 @@ Three cells look like ordinary NOs and are worth stating explicitly, because eac
 | **`repo/`** | NO | NO | self | NO |
 | **`ui/`** | YES | NO | NO | self |
 
-Flow is strictly `ui/ → controllers/ → service/ → repo/`, and `repo/` is a leaf. Upward imports are denied by `boundary/server-no-upward`.
+Flow is strictly `ui/ → controllers/ → service/ → repo/`, and `repo/` is a leaf. Upward imports inside one feature are denied by `placement/layer-direction`, which is also what denies a layer reaching its own feature's barrel — the barrel re-exports every layer, so importing it takes on all of them at once. Skipping a layer that exists on disk is `boundary/layer-occupancy`, a different question. `boundary/server-no-upward` is neither: it scopes to `src/infrastructure/**` and denies infrastructure reaching `features/`, `domains/` or `routes/`.
 
 **Occupancy gates the skips.** A layer that exists may not be bypassed: with `service/` present, `controllers/` reaches `repo/` through it; with `service/` absent, directly. With `repo/` present, `controllers/` may not import `infrastructure/db/schema` — schema-based query construction belongs in `repo/` — while the DB *client* import stays legal so a controller can hand a transaction down. Enforced by `boundary/layer-occupancy`.
 
@@ -81,7 +81,7 @@ Features import other features ONLY through public API barrels. All other intern
 | Pattern | Allowed | From |
 |---|---|---|
 | `@/features/<name>` (resolves to `index.ts`) | YES | Any module |
-| `@/features/<name>/index.server` (resolves to `index.server.ts`) | YES | Controllers, service, repo, infrastructure, and explicit `.server.ts` modules |
+| `@/features/<name>/index.server` (resolves to `index.server.ts`) | YES | Controllers, service, and explicit `.server.ts` modules. Not `repo/`, which is a leaf, and not `infrastructure/`, which sits below features |
 | `@/features/<name>/ui/*` | YES | Routes only |
 | `@/features/<name>/controllers/*` | NO | --- |
 | `@/features/<name>/service/*` | NO | --- |
