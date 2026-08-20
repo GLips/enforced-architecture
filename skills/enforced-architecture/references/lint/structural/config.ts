@@ -82,8 +82,12 @@ export type BarrelPurityConfig = {
   /** Bounds cost only — cycle detection is what stops infinite recursion. Report when hit. */
   maxTraceDepth: number;
   /**
-   * Source text that marks a module as a server-function boundary. The framework
-   * replaces those bodies with RPC stubs, so the trace stops there.
+   * The framework calls that mark a module as a server-function boundary. The
+   * framework replaces those bodies with RPC stubs, so the trace stops there.
+   *
+   * A name per entry, checked at startup: an empty entry is a substring of every
+   * module, so one of them stops the trace at the first file and every
+   * transitive server-only import disappears while the check still runs.
    */
   serverFnMarkers: string[];
 };
@@ -136,15 +140,15 @@ export type TrampolinesConfig = {
   /**
    * Feature layers scanned, named by ROLE rather than by directory. The tree's
    * vocabulary spells each role, so a project renaming `service/` renames it
-   * once and this follows. Never add the repo role — thin DB wrappers are its
-   * job, and a check that reports them reports the layer working.
+   * once and this follows.
+   *
+   * Checked at startup for two things prose used to ask for: at least one role,
+   * because an empty list is the check walking nothing, and never the repo role,
+   * because thin DB wrappers are its job and a check that reports them reports
+   * the layer working. A prohibition nothing enforces is the shape this catalog
+   * exists to distrust.
    */
   targetLayerRoles: FeatureLayerRole[];
-};
-
-export type BarrelDiscoverabilityConfig = {
-  /** Whether `export type { X as Y }` is flagged too. Types are reverse-looked-up less often. */
-  flagTypeAliases: boolean;
 };
 
 export type ShadowSourceConfig = {
@@ -185,10 +189,45 @@ export type CheckConfigs = {
   "health/doc-budgets": DocBudgetsConfig;
   "health/file-size": FileSizeConfig;
   "health/trampolines": TrampolinesConfig;
-  "naming/barrel-discoverability": BarrelDiscoverabilityConfig;
   "style/shadow-source": ShadowSourceConfig;
   "style/token-equality": TokenEqualityConfig;
 };
+
+/**
+ * Rejects a config whose values would switch a check off while leaving it registered.
+ *
+ * Called by `runStructuralChecks` before anything runs, so an adopting project's own
+ * `arch.config.ts` is held to it rather than only this file's defaults. Thresholds are not checked:
+ * a number set too high reports less and says so in the diff, which is the adaptation this catalog
+ * grants. What it refuses is a value that makes a predicate a tautology — the empty string, and the
+ * empty list where empty means "walk nothing".
+ */
+export function assertGoverningConfig(config: ArchitectureConfig): void {
+  for (const marker of config.checks["api/barrel-purity"].serverFnMarkers) {
+    if (/^[A-Za-z_$][\w$]*$/.test(marker)) continue;
+    throw new Error(
+      `serverFnMarkers entry "${marker}" is not a call name. Each entry is matched as source ` +
+        `text, so an empty or partial one marks every module a server-function boundary and the ` +
+        `barrel trace stops at the first file it opens — with the check still registered and ` +
+        `still reporting nothing.`,
+    );
+  }
+
+  const { targetLayerRoles } = config.checks["health/trampolines"];
+  if (targetLayerRoles.length === 0) {
+    throw new Error(
+      `health/trampolines has no targetLayerRoles, so it walks no directory at all. Name the ` +
+        `layers whose forwarding functions are the subject — the default is the service role.`,
+    );
+  }
+  if (targetLayerRoles.includes("repo")) {
+    throw new Error(
+      `health/trampolines cannot target the repo role. A thin wrapper on a query is that layer's ` +
+        `job, so the check would report the layer working — and the flood is what gets a ` +
+        `warning-level check switched off everywhere else too.`,
+    );
+  }
+}
 
 export const defaultCheckConfigs: CheckConfigs = {
   "api/barrel-purity": {
@@ -222,10 +261,6 @@ export const defaultCheckConfigs: CheckConfigs = {
 
   "health/trampolines": {
     targetLayerRoles: ["service"],
-  },
-
-  "naming/barrel-discoverability": {
-    flagTypeAliases: true,
   },
 
   "style/shadow-source": {

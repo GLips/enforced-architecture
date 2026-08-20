@@ -494,6 +494,37 @@ export function assertGoverningVocabulary(vocabulary: TreeVocabulary, treeRoot: 
     "barrel",
   );
 
+  if (vocabulary.aliasPrefix === "") {
+    throw new Error(
+      `The tree at "${treeRoot}" declares an empty aliasPrefix. Every specifier starts with the ` +
+        `empty string, so every package import would read as a module inside this tree and every ` +
+        `import rule would police a path that does not exist.`,
+    );
+  }
+
+  if (vocabulary.serverModuleSuffix.length < 2 || !vocabulary.serverModuleSuffix.startsWith(".")) {
+    throw new Error(
+      `The tree at "${treeRoot}" spells serverModuleSuffix as "${vocabulary.serverModuleSuffix}". ` +
+        `It is a dotted suffix on a module name — ".server". An empty one ends every filename, so ` +
+        `every file in the tree reads as server-only and the three rules that ask "is this a ` +
+        `client context" have no client left to find.`,
+    );
+  }
+
+  for (const [field, extensions] of Object.entries({
+    assetExtensions: vocabulary.assetExtensions,
+    stylesheetExtensions: vocabulary.stylesheetExtensions,
+  })) {
+    for (const extension of extensions) {
+      if (isSafeExtension(extension)) continue;
+      throw new Error(
+        `The tree at "${treeRoot}" lists "${extension}" in ${field}, which is not an extension. ` +
+          `Entries are bare, without the dot — "css", "png". An empty entry matches every ` +
+          `specifier suffix, and a glob is composed straight into a walk.`,
+      );
+    }
+  }
+
   if (vocabulary.stylesheetExtensions.length === 0) {
     throw new Error(
       `The tree at "${treeRoot}" declares no stylesheetExtensions. Both CSS checks walk this ` +
@@ -616,6 +647,16 @@ function assertDistinctNames(
     }
     seen.set(name, field);
   }
+}
+
+/**
+ * True when `extension` is a bare file extension: no dot, no separator, no glob.
+ *
+ * The empty string is the case worth naming — as an extension it is the suffix
+ * of every filename, so one empty entry turns a suffix test into a tautology.
+ */
+function isSafeExtension(extension: string): boolean {
+  return extension !== "" && !/[.*?/\\]/.test(extension);
 }
 
 /**

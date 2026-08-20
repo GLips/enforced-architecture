@@ -14,7 +14,9 @@
 // blind spot: a tree whose barrels are somewhere the vocabulary does not
 // describe reports clean while reading no barrel at all.
 //
-// `export { default as Button }` is a finding. Do not add an exception for
+// `export { default as Button }` is a finding, and so is a type-only rename. Do
+// not add an exception for either — a boolean that skips a branch is the branch
+// deleted, one config line at a time. Do not add an exception for
 // `default`. A default export has no name to search for, so the barrel holds
 // the only name of that symbol. Give the definition the name.
 //
@@ -68,7 +70,6 @@ export const barrelDiscoverabilityCheck: StructuralCheck = {
 
   run(context) {
     const { config, vocabulary } = context;
-    const { flagTypeAliases } = config.checks["naming/barrel-discoverability"];
     const findings: Finding[] = [];
 
     // Where the barrels are is the tree's vocabulary, not this check's glob
@@ -129,13 +130,17 @@ export const barrelDiscoverabilityCheck: StructuralCheck = {
 
             const [, typeOnlyMember, local, exported] = member;
             if (exported === undefined || local === exported) continue;
-            if (!flagTypeAliases && (typeOnlyList || typeOnlyMember !== undefined)) continue;
 
             const origin = module === undefined ? "" : ` from "${module}"`;
+            // A type-only export is renamed at the barrel more often than a value
+            // one, and the search it splits is the same search — so it reports,
+            // and the note says which case this is rather than offering a way out
+            // of it.
             const typeNote =
               typeOnlyList || typeOnlyMember !== undefined
-                ? `\nThis one is type-only. If the project genuinely relies on aliasing types at\n` +
-                  `the barrel, turn off \`flagTypeAliases\` — but the split search is the same.`
+                ? `\nThis one is type-only. A type is reverse-looked-up less often than a value,\n` +
+                  `which is an argument for renaming the definition rather than for keeping two\n` +
+                  `names nobody greps together.`
                 : "";
 
             findings.push({

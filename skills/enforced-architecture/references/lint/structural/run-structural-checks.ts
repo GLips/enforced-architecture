@@ -31,7 +31,7 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { DECLARED_TREES, type DeclaredTree } from "../policy/declared-trees.ts";
-import type { ArchitectureConfig } from "./config.ts";
+import { assertGoverningConfig, type ArchitectureConfig } from "./config.ts";
 import {
   createTreeContexts,
   type Finding,
@@ -72,6 +72,10 @@ export function runStructuralChecks(
   config: ArchitectureConfig,
   trees: readonly DeclaredTree[] = DECLARED_TREES,
 ): CheckRun[] {
+  // Before anything runs, and it throws rather than reporting: a config that
+  // switches a check off is not a finding about the codebase, and a finding is
+  // something a run can end up with none of.
+  assertGoverningConfig(config);
   const treeContexts = createTreeContexts(config, trees);
   const runs: CheckRun[] = [];
 

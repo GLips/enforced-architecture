@@ -101,6 +101,21 @@ assertDistinctDeclaredRoots(DECLARED_TREES);
 export function assertDistinctDeclaredRoots(trees: readonly DeclaredTree[]): void {
   const seen = new Set<string>();
   for (const tree of trees) {
+    // Compared as WRITTEN, which is only sound because a root has one spelling.
+    // `src` and `./src` are the same directory to the structural tier, which
+    // resolves them, and two different strings to the oxlint tier, which
+    // searches an absolute path for `/${root}/` and finds neither `./src`. The
+    // duplicate would pass this check, one declaration would never be read, and
+    // the tree would be scanned twice by the tier that resolves.
+    if (tree.root !== canonicalRoot(tree.root)) {
+      throw new Error(
+        `The tree at "${tree.root}" is not written canonically. A root is segments joined by ` +
+          `single slashes with no "./" or "../", no leading or trailing slash, and no empty ` +
+          `segment: "src", "apps/web/src". The oxlint tier matches this string against a path ` +
+          `rather than resolving it, so a second spelling of one directory is a tree one tier ` +
+          `governs twice and the other governs once.`,
+      );
+    }
     if (seen.has(tree.root)) {
       throw new Error(
         `The tree at "${tree.root}" is declared twice. A root has ONE vocabulary: the oxlint tier ` +
@@ -111,6 +126,22 @@ export function assertDistinctDeclaredRoots(trees: readonly DeclaredTree[]): voi
     }
     seen.add(tree.root);
   }
+}
+
+/**
+ * `root` with its segments joined by single slashes — or something different from `root` when it
+ * was not written that way, which is the only thing the caller uses it for.
+ *
+ * Deliberately NOT a normalizer the caller substitutes: rewriting `./src` to `src` would leave the
+ * declaration in the file saying one thing and the classifier using another, which is the same
+ * two-spellings defect one indirection further away.
+ */
+function canonicalRoot(root: string): string {
+  const segments = root.split("/");
+  if (segments.some((segment) => segment === "" || segment === "." || segment === "..")) {
+    return `${root} (noncanonical)`;
+  }
+  return root;
 }
 
 /**

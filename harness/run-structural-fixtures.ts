@@ -40,6 +40,7 @@ import {
   PDF_TREE_MISREAD,
 } from "./structural-fixtures/config.ts";
 import type { CheckFixtures, GeneratedFixture } from "./structural-fixtures/expectations.ts";
+import type { ArchitectureConfig } from "../skills/enforced-architecture/references/lint/structural/config.ts";
 import type { Finding, StructuralCheck } from "../skills/enforced-architecture/references/lint/structural/check-substrate.ts";
 import {
   runStructuralChecks,
@@ -249,6 +250,52 @@ function assertEveryCheckRanOnEveryTree(
 assertEveryCheckRanOnEveryTree("declared", DECLARED_FIXTURE_TREES);
 assertEveryCheckRanOnEveryTree("both", BOTH_FIXTURE_TREES);
 assertEveryCheckRanOnEveryTree("misread", PDF_TREE_MISREAD);
+
+// ── The config cannot switch a check off ─────────────────────────────────────
+//
+// Three values in the structural config were predicates in a name's costume:
+// each one had a setting that left the check registered, running, and reporting
+// nothing. They are refused at startup now, and refused is a claim that has to
+// be tested — a validator nobody calls reads exactly like one that passes.
+//
+// The assertions run against the FIXTURE config, which is the one an adopting
+// project's `arch.config.ts` is shaped like, and they call the runner rather
+// than the validator so that "the runner calls it" is part of what is proved.
+const refusedConfigs: { detail: string; config: ArchitectureConfig }[] = [
+  {
+    detail: "an empty serverFnMarkers entry marks every module a server-function boundary",
+    config: withCheckConfig(fixtureConfig, "api/barrel-purity", { serverFnMarkers: [""] }),
+  },
+  {
+    detail: "no targetLayerRoles leaves health/trampolines walking nothing",
+    config: withCheckConfig(fixtureConfig, "health/trampolines", { targetLayerRoles: [] }),
+  },
+  {
+    detail: "the repo role makes health/trampolines report the layer working",
+    config: withCheckConfig(fixtureConfig, "health/trampolines", { targetLayerRoles: ["repo"] }),
+  },
+];
+
+for (const { detail, config } of refusedConfigs) {
+  let threw = false;
+  try {
+    runStructuralChecks(structuralChecks, config, DECLARED_FIXTURE_TREES);
+  } catch {
+    threw = true;
+  }
+  if (!threw) fail("<config>", `accepted a config where ${detail}`);
+}
+
+function withCheckConfig<Id extends keyof ArchitectureConfig["checks"]>(
+  base: ArchitectureConfig,
+  id: Id,
+  overrides: Partial<ArchitectureConfig["checks"][Id]>,
+): ArchitectureConfig {
+  return {
+    ...base,
+    checks: { ...base.checks, [id]: { ...base.checks[id], ...overrides } },
+  };
+}
 
 // ── Compare ──────────────────────────────────────────────────────────────────
 

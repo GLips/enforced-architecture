@@ -796,6 +796,60 @@ describeSuite("a vocabulary cannot declare its own tree out of existence", () =>
     assert.throws(() => assertDistinctDeclaredRoots(twice), /declared twice/);
   });
 
+  // The empty string is the shape every one of these shares: as a prefix it
+  // matches every specifier, as a suffix it ends every filename, and as an
+  // extension it is the tail of every path. It reads like an unset field and
+  // behaves like a rule switched off.
+  testCase("an empty alias prefix makes every package an in-tree module", () => {
+    const silenced: TreeVocabulary = { ...RECOMMENDED_VOCABULARY, aliasPrefix: "" };
+    assert.throws(() => assertGoverningVocabulary(silenced, "src"), /empty aliasPrefix/);
+  });
+
+  testCase("an empty server suffix makes every file server-only", () => {
+    const silenced: TreeVocabulary = { ...RECOMMENDED_VOCABULARY, serverModuleSuffix: "" };
+    assert.throws(() => assertGoverningVocabulary(silenced, "src"), /serverModuleSuffix/);
+  });
+
+  testCase("a server suffix without its dot is not a suffix on a module name", () => {
+    const bare: TreeVocabulary = { ...RECOMMENDED_VOCABULARY, serverModuleSuffix: "server" };
+    assert.throws(() => assertGoverningVocabulary(bare, "src"), /serverModuleSuffix/);
+  });
+
+  testCase("an empty extension entry is the suffix of every path", () => {
+    const silenced: TreeVocabulary = {
+      ...RECOMMENDED_VOCABULARY,
+      assetExtensions: [...RECOMMENDED_VOCABULARY.assetExtensions, ""],
+    };
+    assert.throws(() => assertGoverningVocabulary(silenced, "src"), /not an extension/);
+  });
+
+  testCase("an extension written with its dot is refused, because the walks add one", () => {
+    const dotted: TreeVocabulary = {
+      ...RECOMMENDED_VOCABULARY,
+      stylesheetExtensions: [".css"],
+      assetExtensions: [...RECOMMENDED_VOCABULARY.assetExtensions, ".css"],
+    };
+    assert.throws(() => assertGoverningVocabulary(dotted, "src"), /not an extension/);
+  });
+
+  testCase("a stylesheet extension the import side does not know is refused", () => {
+    const forked: TreeVocabulary = { ...RECOMMENDED_VOCABULARY, stylesheetExtensions: ["styl"] };
+    assert.throws(() => assertGoverningVocabulary(forked, "src"), /not an asset extension/);
+  });
+
+  testCase("a second spelling of one root passes a string comparison and is refused here", () => {
+    const equivalent: DeclaredTree[] = [
+      { root: "src", vocabulary: RECOMMENDED_VOCABULARY },
+      { root: "./src", vocabulary: RECOMMENDED_VOCABULARY },
+    ];
+    assert.throws(() => assertDistinctDeclaredRoots(equivalent), /not written canonically/);
+  });
+
+  testCase("a trailing slash is the same directory written a third way", () => {
+    const trailing: DeclaredTree[] = [{ root: "src/", vocabulary: RECOMMENDED_VOCABULARY }];
+    assert.throws(() => assertDistinctDeclaredRoots(trailing), /not written canonically/);
+  });
+
   testCase("two DIFFERENT roots are the monorepo case and stay legal", () => {
     const both: DeclaredTree[] = [
       { root: "apps/web/src", vocabulary: RECOMMENDED_VOCABULARY },
