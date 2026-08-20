@@ -155,6 +155,25 @@ export function WideImported(props: WideImportedProps) {
 }`,
       errors: [{ messageId: "tooManyPropsFloor" }],
     },
+    {
+      name: "four props, against a threshold of 4 set in the project's config",
+      filename: UI,
+      options: [{ threshold: 4 }],
+      // The option, proved in the direction that cannot pass by accident. Four props is silent at
+      // the default of 8, so this fires only if the configured value reached the comparison — a
+      // rule that ignored `options` reports nothing here and looks exactly like one that works.
+      code: `interface ConfiguredRowProps {
+  rowId: string;
+  label: string;
+  tone: "info" | "warn";
+  onOpen: (id: string) => void;
+}
+
+export function ConfiguredRow(props: ConfiguredRowProps) {
+  return <div data-tone={props.tone}>{props.label}</div>;
+}`,
+      errors: [{ messageId: "tooManyProps" }],
+    },
   ],
 
   legal: [
@@ -247,6 +266,28 @@ export function NarrowIntersectionNeighbour(props: NarrowIntersectionNeighbourPr
   g: string;
   h: string;
 }>(null);`,
+    },
+    {
+      name: "eight props, against a threshold of 9 set in the project's config",
+      filename: SHARED,
+      options: [{ threshold: 9 }],
+      // The other direction, and the case the rule's own message promises: a design-system
+      // primitive whose wide surface is deliberate raises the threshold and goes quiet. Eight
+      // fires at the default, so a raised value that never reached the comparison fails here.
+      code: `interface RaisedThresholdProps {
+  title: string;
+  subtitle: string;
+  tone: string;
+  size: string;
+  variant: string;
+  icon: string;
+  dense: boolean;
+  onDismiss: () => void;
+}
+
+export function RaisedThreshold(props: RaisedThresholdProps) {
+  return <section data-tone={props.tone}>{props.title}</section>;
+}`,
     },
   ],
 });

@@ -213,35 +213,6 @@ export function matchingBrace(code: string, open: number): number {
   return -1;
 }
 
-/**
- * Split on any of `separators`, but only at bracket depth zero — commas and
- * semicolons inside `{}`, `[]`, `()`, or `<>` stay with their member. Used to
- * count type members and destructured parameters without an AST.
- *
- * The `=>` guard matters more than it looks. An arrow in a member's type
- * (`onDone: (id: string) => void`) ends in a `>` that would otherwise close a
- * bracket never opened, dropping depth below zero for the rest of the input and
- * splitting the remainder in the wrong places.
- */
-export function splitTopLevel(input: string, separators: string): string[] {
-  const out: string[] = [];
-  let depth = 0;
-  let token = "";
-  let previous = "";
-  for (const ch of input) {
-    if ("{[(<".includes(ch)) depth++;
-    else if ("}])".includes(ch)) depth--;
-    else if (ch === ">" && previous !== "=") depth--;
-    previous = ch;
-    if (depth === 0 && separators.includes(ch)) {
-      out.push(token);
-      token = "";
-    } else token += ch;
-  }
-  if (token) out.push(token);
-  return out;
-}
-
 /** Offset of each line start, for converting a match offset to a 1-based line number. */
 export function lineStartOffsets(source: string): number[] {
   const starts = [0];

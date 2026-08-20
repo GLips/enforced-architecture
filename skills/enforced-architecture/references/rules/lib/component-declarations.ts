@@ -22,8 +22,11 @@ const COMPONENT_NAME = /^[A-Z]/;
 
 const WRAPPER_NAMES = new Set(["memo", "forwardRef"]);
 
-export type ComponentFunction = ESTree.ArrowFunctionExpression | ESTree.FunctionExpression |
-  ESTree.FunctionDeclaration;
+/**
+ * oxlint models `function f() {}` and `const f = function () {}` as one `Function` node carrying a
+ * `type` discriminant, so the two spellings need no separate handling here.
+ */
+export type ComponentFunction = ESTree.ArrowFunctionExpression | ESTree.Function;
 
 export type ComponentDeclaration = {
   name: string;

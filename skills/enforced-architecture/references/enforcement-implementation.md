@@ -25,6 +25,7 @@ Rules share a `lib/`, and the sharing is load-bearing rather than tidy. One modu
 - [lib/architecture-exempt-paths.ts](rules/lib/architecture-exempt-paths.ts) — the one global test/script exemption.
 - [lib/module-source-visitor.ts](rules/lib/module-source-visitor.ts) — every place a module specifier can appear.
 - [lib/range-index.ts](rules/lib/range-index.ts) — subtree questions answered at `Program:exit`.
+- [lib/rule-options.ts](rules/lib/rule-options.ts) — reading a configured option without trusting `meta.schema` to have held.
 - [lib/rule-spec.ts](rules/lib/rule-spec.ts) — the three-kind spec contract.
 
 **oxlint's JS plugins are alpha** as of 1.77 and say so. The API is ESLint's `create(context)` returning a visitor, so the exposure is churn in a young API, not a design bet.

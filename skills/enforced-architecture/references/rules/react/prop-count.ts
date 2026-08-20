@@ -37,6 +37,7 @@
 import { defineRule, type ESTree } from "@oxlint/plugins";
 import { isArchitectureExemptPath, isComponentFile } from "../lib/architecture-exempt-paths.ts";
 import { exportedComponents, type ComponentFunction } from "../lib/component-declarations.ts";
+import { numericRuleOption } from "../lib/rule-options.ts";
 
 const DEFAULT_THRESHOLD = 8;
 
@@ -81,7 +82,7 @@ export const propCountRule = defineRule({
   create(context) {
     if (isArchitectureExemptPath(context.filename) || !isComponentFile(context.filename)) return {};
 
-    const threshold = context.options[0]?.threshold ?? DEFAULT_THRESHOLD;
+    const threshold = numericRuleOption(context.options[0], "threshold", DEFAULT_THRESHOLD);
 
     return {
       "Program:exit"(program) {

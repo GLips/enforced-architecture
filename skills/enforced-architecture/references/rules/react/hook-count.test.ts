@@ -61,6 +61,22 @@ describeRule("react/hook-count", hookCountRule, {
 });`,
       errors: [{ messageId: "tooManyHooks" }],
     },
+    {
+      name: "four hooks, against a threshold of 4 set in the project's config",
+      filename: UI,
+      options: [{ threshold: 4 }],
+      // The option, proved in the direction that cannot pass by accident. Four hooks is silent at
+      // the default of 7, so this fires only if the configured value reached the comparison — a
+      // rule that ignored `options` reports nothing here and looks exactly like one that works.
+      code: `export function ConfiguredPanel({ id }: { id: string }) {
+  const [name, setName] = useState(id);
+  const [open, setOpen] = useState(false);
+  const label = useMemo(() => name, [name]);
+  useEffect(() => setName(id), [id]);
+  return <div data-open={open} onClick={() => setOpen(true)}>{label}</div>;
+}`,
+      errors: [{ messageId: "tooManyHooks" }],
+    },
   ],
 
   legal: [
@@ -97,6 +113,23 @@ describeRule("react/hook-count", hookCountRule, {
 
 export function ExtractedHookPanel({ id }: { id: string }) {
   const { count, bump, label, node, onToggle, open } = usePanelState(id);
+  return <div ref={node} data-count={count} onClick={onToggle}>{open ? label : id}</div>;
+}`,
+    },
+    {
+      name: "seven hooks, against a threshold of 8 set in the project's config",
+      filename: UI,
+      options: [{ threshold: 8 }],
+      // The other direction. Seven fires at the default, so a raised threshold that never reached
+      // the comparison shows up as a failure here rather than as a knob nobody notices is dead.
+      code: `export function RaisedThresholdPanel({ id }: { id: string }) {
+  const [name, setName] = useState(id);
+  const [open, setOpen] = useState(false);
+  const [count, bump] = useReducer((n: number) => n + 1, 0);
+  const node = useRef(null);
+  const label = useMemo(() => name, [name]);
+  const onToggle = useCallback(() => setOpen((was) => !was), []);
+  useEffect(() => setName(id), [id]);
   return <div ref={node} data-count={count} onClick={onToggle}>{open ? label : id}</div>;
 }`,
     },
