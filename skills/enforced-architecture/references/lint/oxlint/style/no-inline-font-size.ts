@@ -13,6 +13,12 @@
 // A JS plugin reads the JS and TS AST only. `font-size: 13px` in a `.css` file
 // keeps this rule green; `style/css-tokens` is the check that reads that file.
 //
+// The subject is a property being SET, so only object-literal keys and JSX
+// attribute names are read. Binding the name — `const { fontSize } = theme`, or
+// the assignment form — is not covered, because that is the read the message
+// asks for. Nothing here stops the bound value being handed to a style prop
+// afterwards; the object literal that receives it is where that is caught.
+//
 // Add `fontWeight`, `lineHeight` or `letterSpacing` to SCALE_PROPERTIES only
 // when the tokens bundle them into one named variant. Where the tokens expose
 // them separately, the ban names no fix, and a rule with no fix to name is one
@@ -42,12 +48,8 @@ const NON_UI_LAYER = /\/src\/domains\//;
  *
  * The parameter is the full `Property` visitor union, not just the object-literal member: oxlint
  * fires that visitor for destructuring and assignment-target properties too, and all four kinds
- * carry the same `key`/`computed` pair this reads.
- *
- * Every kind the visitor delivers is reported, because this rule judges the KEY and nothing else.
- * `effect/no-disable-validation` reads the same union and filters it down to object literals —
- * not a house style, but because what it reports on is the call the object is passed to, which a
- * binding pattern has no equivalent of.
+ * carry the same `key`/`computed` pair this reads. The ones that are not object literals are
+ * dropped by the caller, on the parent, where the reason for dropping them can be written down.
  */
 function staticPropertyKeyName(
   property:
@@ -77,6 +79,11 @@ export const noInlineFontSizeRule = defineRule({
 
     return {
       Property(node) {
+        // A destructuring pattern or an assignment target reads a size; it does not set one.
+        // `const { fontSize } = theme.typography.caption` is the remedy this rule's own message
+        // names, so reporting it would send the reader in a circle.
+        if (node.parent.type !== "ObjectExpression") return;
+
         const name = staticPropertyKeyName(node);
         if (name !== null && SCALE_PROPERTIES.has(name)) {
           context.report({ node, messageId: "rawFontSize" });

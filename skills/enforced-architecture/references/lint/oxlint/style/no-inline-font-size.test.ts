@@ -85,6 +85,16 @@ describeRule("style/no-inline-font-size", noInlineFontSizeRule, {
       code: `export const styles = (key: string) => ({ [key]: 13 });`,
     },
     {
+      name: "reading the scale token off the theme is the remedy the message names",
+      filename: COMPONENT,
+      code: `export const size = (theme: Theme) => {\n  const { fontSize } = theme.typography.caption;\n  return fontSize;\n};`,
+    },
+    {
+      name: "the same read written as an assignment target binds the name too, it does not set a size",
+      filename: COMPONENT,
+      code: `export const size = (theme: Theme) => {\n  let fontSize;\n  ({ fontSize } = theme.typography.caption);\n  return fontSize;\n};`,
+    },
+    {
       name: "the token source has to write the numbers the named sizes resolve to",
       filename: "/repo/src/shared/ui/theme.ts",
       code: `export const scale = { fontSize: 13 };`,
