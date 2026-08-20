@@ -25,9 +25,9 @@
 //           - Server contexts listed above
 //           - Test files and scripts
 //
-// Error:    "Only server contexts (controllers/, repo/, service/,
-//            infrastructure/) may import */index.server paths. Routes
-//            are isomorphic; use the client-safe feature barrel there."
+// Error:    "*/index.server is a server-only barrel and this is a client
+//            context. Which server context may reach a given barrel is
+//            boundary/import-policy's answer — see the message."
 //
 // Source: @tanstack/router-core/src/load-matches.ts
 //         (the shared load path invokes route.options.loader).
@@ -87,7 +87,7 @@ export const serverImportContextRule = defineRule({
     type: "problem",
     messages: {
       serverBarrelInClientContext:
-        "*/index.server is a server-only barrel and this is a client context. Routes are isomorphic; use the client-safe barrel there. This rule answers the CONTEXT question only — which server context may reach a given barrel is boundary/import-policy's answer, and from inside a feature that is controllers/, service/ and explicit .server.ts modules. repo/ is a leaf and infrastructure/ sits below features, so neither may name a feature barrel of either kind.",
+        "*/index.server is a server-only barrel and this is a client context. Routes are isomorphic; use the client-safe barrel there. This rule answers the CONTEXT question only — which server context may reach a given barrel is boundary/import-policy's answer, and from inside a feature that is controllers/, service/ and a .server.ts module at the feature ROOT. Not the feature's own index.server.ts, which is a barrel and may name nothing outside its feature; not repo/, which is a leaf; not infrastructure/, which sits below features.",
     },
   },
   create(context) {

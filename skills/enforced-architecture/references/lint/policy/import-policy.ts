@@ -140,6 +140,17 @@ export const IMPORT_POLICY: Record<SourceProfile, Record<TargetArea, ImportSurfa
     // so the edge is a cycle through the file that mounts the app. The env
     // modules are their own areas and are decided two rows up; a stylesheet is
     // not a module edge and never reaches the table.
+    //
+    // NEGATIVE SPACE: this denies a TYPE import too, so
+    // `import type { FileRouteTypes } from "@/routeTree.gen"` is denied from a
+    // route. There is no type-only escape anywhere outside the `domain` row, and
+    // that is the design rather than an oversight — a forbidden direction is
+    // forbidden for a type because the coupling it creates is what the cell is
+    // about, and the domain row is the one place where the runtime/type
+    // distinction changes an ANSWER instead of just a build artifact. The cost
+    // here is low: routes are written against typed `Link` and rarely name the
+    // generated tree directly. A project that needs the escape adds a second
+    // route profile or lifts the type into `shared/`, and does it once.
     "source-root": "deny",
     package: "any",
   },

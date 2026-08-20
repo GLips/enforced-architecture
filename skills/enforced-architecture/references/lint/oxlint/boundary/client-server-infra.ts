@@ -23,8 +23,9 @@
 //         (the shared load path invokes route.options.loader).
 //
 // Error:    "Client contexts may only import client-safe infrastructure
-//            modules. Move this import to a server context or use the
-//            appropriate client-safe adapter."
+//            modules. From inside a feature the placements that may take
+//            this import are controllers/ and repo/ — see the message for
+//            why the .server.ts suffix is not one of them."
 //
 // ── Adapt ─────────────────────────────────────────────────────────────
 //
@@ -38,9 +39,14 @@
 //
 // 2. The server-module filename convention — `SERVER_MODULE`:
 //    A file named `*.server.ts` is a server context wherever it sits,
-//    which is what lets a feature's `index.server.ts` barrel import
-//    infrastructure while its `index.ts` cannot. Change the pattern if
-//    the project marks server-only modules some other way.
+//    so this rule stops looking at it. That exemption is about BUNDLING
+//    — the file is never in a client chunk — and it is not a permission
+//    to import infrastructure. Inside a feature it usually is not one:
+//    `index.server.ts` classifies as the feature's barrel and
+//    `notify.server.ts` as a feature-root file, and `boundary/import-policy`
+//    denies infrastructure to both. The suffix silences THIS rule and
+//    lights up that one. Change the pattern if the project marks
+//    server-only modules some other way.
 //
 // 3. What counts as infrastructure — `INFRASTRUCTURE_SPECIFIER`:
 //    Adjust to the project's alias for the infrastructure directory
@@ -87,7 +93,7 @@ export const clientServerInfraRule = defineRule({
     type: "problem",
     messages: {
       serverOnlyInfraInClient:
-        "Client contexts may only import client-safe infrastructure modules. Move this import to controllers/, to repo/, or to an explicit .server.ts module — or use the client-safe adapter. NOT service/: a service layer imports no infrastructure at all, so moving it there trades this diagnostic for boundary/import-policy's, and the pair would forbid each other's fix.",
+        "Client contexts may only import client-safe infrastructure modules. From inside a feature, move it to controllers/ or to repo/ — or use the client-safe adapter. NOT service/, and NOT renaming the file to *.server.ts: a service layer imports no infrastructure at all, and a .server.ts at a feature root or as its barrel is a feature-root or feature-barrel file, which boundary/import-policy denies infrastructure to. Each of those silences this rule and lights up that one, and a pair of diagnostics forbidding each other's fix is an edit loop.",
     },
   },
   create(context) {

@@ -50,9 +50,11 @@ export const SHARED_UI_DIR = "shared/ui";
 
 /**
  * The database module inside `infrastructure/`, and the schema directory within
- * it. Two checks name the schema path — `boundary/layer-occupancy` gates a
- * controller's skip past `repo/` on it, and `boundary/db-isolation` fences the
- * layer — so it is stated here rather than twice as a literal.
+ * it. Two rules read these: `boundary/db-isolation` builds its specifier test
+ * from `DB_DIR`, and `boundary/layer-occupancy` gates a controller's skip past
+ * `repo/` on `DB_SCHEMA_PATH`. A project with a flat `@/db` moves it here once
+ * instead of editing a regex in one rule and a config key in another, which is
+ * how the two end up fencing different paths while both report clean.
  */
 export const DB_DIR = `${INFRASTRUCTURE_DIR}/db`;
 export const DB_SCHEMA_PATH = `${DB_DIR}/schema`;
@@ -63,20 +65,27 @@ export const DB_SCHEMA_PATH = `${DB_DIR}/schema`;
  * rank is a question about two ends of one feature and never reaches the policy
  * table.
  */
-export const UI_LAYER = "ui";
-export const CONTROLLERS_LAYER = "controllers";
-export const SERVICE_LAYER = "service";
-export const REPO_LAYER = "repo";
+export const FEATURE_LAYERS = ["ui", "controllers", "service", "repo"] as const;
+export type FeatureLayer = (typeof FEATURE_LAYERS)[number];
 
 // Named singly as well as ordered, because several checks are about ONE layer by
-// role rather than about the order — where a server function may live, which
+// ROLE rather than about the order — where a server function may live, which
 // layer a trampoline is a smell in, which layer occupancy gates a skip through.
 // Those read the name; only direction reads the position. A check restating
 // "service" as a literal is a check a project silently breaks when it renames
-// the layer here, and the break is a rule that stops matching rather than one
-// that errors.
-export const FEATURE_LAYERS = [UI_LAYER, CONTROLLERS_LAYER, SERVICE_LAYER, REPO_LAYER] as const;
-export type FeatureLayer = (typeof FEATURE_LAYERS)[number];
+// the layer, and the break is a rule that stops matching rather than one that
+// errors.
+//
+// The annotations run INVERSE to the array on purpose. Each constant is declared
+// as a `FeatureLayer` and assigned a literal, so dropping a layer out of
+// `FEATURE_LAYERS` above makes the matching constant here a type error rather
+// than an exported string pointing at a directory that is no longer a layer —
+// which would leave the rule reading it quietly matching nothing, the failure
+// `boundary/layer-occupancy.md` already documents from the other side.
+export const UI_LAYER: FeatureLayer = "ui";
+export const CONTROLLERS_LAYER: FeatureLayer = "controllers";
+export const SERVICE_LAYER: FeatureLayer = "service";
+export const REPO_LAYER: FeatureLayer = "repo";
 
 /**
  * The barrel filenames a unit's public surface may be spelled as, without the

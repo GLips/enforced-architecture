@@ -28,13 +28,18 @@
 //    If the project has no repo/ layer, controllers/ is the DB boundary.
 //    If the project uses a service/ layer for DB access, add it here.
 //
-// 2. What counts as a DB import — `DB_SPECIFIER`:
-//    Adjust to match the project's DB module import path.
-//    Examples:
-//      @/infrastructure/db  — layered infrastructure (this template)
-//      @/db                 — flat top-level db directory
-//    Add the raw ORM/driver packages to catch imports that skip the
-//    wrapper entirely: /^drizzle-orm(?:\/|$)|^pg$|^postgres$/.
+// 2. What counts as a DB import:
+//    Nothing here — `DB_ALIAS` is built from `DB_DIR` and the alias
+//    prefix in `lint/policy/layout.ts`, which is also where
+//    `boundary/layer-occupancy` reads the schema path from. A project
+//    with a flat `@/db` moves the directory THERE and both rules follow;
+//    restating it here is how the two end up fencing different paths.
+//    Matched as a prefix rather than a regex so a path segment
+//    containing a `.` needs no escaping.
+//
+//    Raw ORM/driver packages are a separate question and deliberately
+//    not matched here: containment of a package belongs to
+//    `boundary/sdk-containment` and its owner rows.
 //
 // 3. Registration:
 //    Add the rule to the project's oxlint plugin
@@ -44,10 +49,16 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule } from "@oxlint/plugins";
+import { aliasSpecifierFor, DB_DIR } from "../../policy/layout.ts";
 import { isArchitectureExemptPath } from "../lib/architecture-exempt-paths.ts";
 import { visitModuleSources } from "../lib/module-source-visitor.ts";
 
-const DB_SPECIFIER = /^@\/infrastructure\/db(?:\/|$)/;
+const DB_ALIAS = aliasSpecifierFor(DB_DIR);
+
+/** `@/infrastructure/db` and anything under it, and never `@/infrastructure/db-legacy`. */
+function isDbSpecifier(specifier: string): boolean {
+  return specifier === DB_ALIAS || specifier.startsWith(`${DB_ALIAS}/`);
+}
 
 // Anchored on `/src/` so a sibling directory that merely ends in the same word — `src/legacy-repo/`,
 // a package called `infrastructure-utils` — does not inherit the exemption.
@@ -72,7 +83,7 @@ export const dbIsolationRule = defineRule({
     if (ALLOWED_LAYERS.some((layer) => layer.test(filename))) return {};
 
     return visitModuleSources((source, specifier) => {
-      if (DB_SPECIFIER.test(specifier)) {
+      if (isDbSpecifier(specifier)) {
         context.report({ node: source, messageId: "dbOutsideDataLayer" });
       }
     });
