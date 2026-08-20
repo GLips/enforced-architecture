@@ -66,19 +66,19 @@ One boundary like that kills an entire class of bugs, because the import can't e
 
 | Category | Rules | Protects |
 |---|---|---|
-| **boundary** | 12 | Layer direction and import restrictions—DB isolation, SDK containment, client/server splits, thin routes |
+| **boundary** | 10 | Layer direction and import restrictions—DB isolation, SDK containment, client/server splits, thin routes |
 | **types** | 12 | Type evidence—untyped `Record` bags, `unknown` in contracts, unjustified `as`, type arguments doing an assertion's job |
 | **placement** | 9 | Where code may live—where server functions live, where schemas live, validation that can't be skipped |
 | **style** | 9 | Design-system adherence—no raw hex, no arbitrary class values, no inline styles outside the primitives layer |
-| **api** | 6 | Public API surface—barrel conventions, no deep imports past a barrel, no server-only code leaking client-side |
+| **api** | 5 | Public API surface—barrel conventions, no deep imports past a barrel, no server-only code leaking client-side |
 | **react** | 6 | Code smells—derived state, direct `fetch` in components, async effects without cleanup, oversized components |
 | **effect** | 6 | Effect-TS policy—no silent error swallowing, no unvalidated Schema opt-outs, no `sql<Row>` claims without a decoder |
 | **health** | 4 | Quality metrics—file size, doc word ceilings, nested ternaries, pass-through wrappers |
 | **naming** | 3 | Searchability—no `export *`, no renamed re-exports, no names like `UserShape` that describe a category instead of a role |
-| **graph** | 3 | Cross-file dependency analysis—dependency cycles, feature coupling thresholds |
+| **graph** | 2 | Cross-file dependency analysis—dependency cycles, feature coupling thresholds |
 | **testing** | 1 | Test design—no module mocking, so tests couple to behaviour rather than to import paths |
 
-The split is the top level of the tree. 54 rules live in `lint/oxlint/` and run as [oxlint](https://oxc.rs/docs/guide/usage/linter) plugin rules, per-file and in real time. The other 16 live in `lint/structural/` and run pre-commit against the whole tree, because questions like "does this import cross a feature boundary?" can't be answered from one file. They share one resolved import graph and one config object, so adopting one means setting a few values rather than reimplementing an algorithm. (One `graph` entry is that shared import graph, not a rule itself.)
+The split is the top level of the tree. The per-file rules live in `lint/oxlint/` and run as [oxlint](https://oxc.rs/docs/guide/usage/linter) plugin rules, in real time. The whole-tree checks live in `lint/structural/` and run pre-commit, because questions like "does this import cross a feature boundary?" can't be answered from one file. They share one resolved import graph and one config object, so adopting one means setting a few values rather than reimplementing an algorithm.
 
 Almost every rule **blocks** rather than warns. Agents treat warnings as "it's fine."
 

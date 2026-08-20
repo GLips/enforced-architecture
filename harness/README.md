@@ -98,7 +98,7 @@ Verified on oxlint 1.77.0 / bun 1.3.13 / Node 24.17.0. Re-check whether JavaScri
 
 ## Scope
 
-All 70 rules are covered: 54 oxlint rules through `check:rules`, 16 structural checks through `check:structural`. Nothing in the catalog ships as an untested description any more.
+Every rule in the catalog is covered: the oxlint rules through `check:rules`, the structural checks through `check:structural`. Nothing ships as an untested description any more.
 
 The structural tier used to be prose. Each consuming project hand-rolled an implementation from the algorithm in the `.md`, and three independent audits found the same result: the implementations drifted, and each one had silently stopped matching part of what its doc promised. One deployment's layer-occupancy check had three bypasses and hardcoded a path its own doc documented as configurable; another's barrel-purity discovered a third of the barrels it claimed to. Every one of those was green. That is the argument for shipping code and config rather than an algorithm — the adaptation step is where the silence was getting in, so the adaptation step is now writing config.
 
