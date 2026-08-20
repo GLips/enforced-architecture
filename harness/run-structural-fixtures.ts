@@ -205,6 +205,30 @@ for (const { id, findings, crashed } of runs) {
     const hits = findings.filter((finding) => finding.file === path).length;
     if (hits > 0) fail(id, `OVER-MATCHED ${path} — reported ${hits}× on a legal neighbour`);
   }
+  for (const expectation of fixtures.messages ?? []) {
+    const { path } = expectation;
+    const messages = findings.filter((finding) => finding.file === path).map((f) => f.message);
+    const quoted = () =>
+      messages.map((message) => `          ${message.replace(/\n/g, "\n          ")}`).join("\n");
+
+    if (messages.length === 0) {
+      fail(id, `UNSAID ${path} — no finding at all, so its wording asserts nothing`);
+      continue;
+    }
+    if ("contains" in expectation && !messages.some((m) => m.includes(expectation.contains))) {
+      fail(
+        id,
+        `UNSAID ${path} — no finding says ${JSON.stringify(expectation.contains)}. Reported:\n${quoted()}`,
+      );
+    }
+    if ("absent" in expectation && messages.some((m) => m.includes(expectation.absent))) {
+      fail(
+        id,
+        `OVER-SAID ${path} — a finding says ${JSON.stringify(expectation.absent)}, ` +
+          `which this case is the witness against. Reported:\n${quoted()}`,
+      );
+    }
+  }
 
   if (failures.length === before) {
     proved += 1;

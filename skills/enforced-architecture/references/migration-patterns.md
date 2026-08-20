@@ -70,7 +70,7 @@ Every phase runs the same loop — activate its rules, run `check:arch`, work th
 | 4 | Features expose public APIs through barrels | `boundary/import-policy`, `api/domain-public-api`, `api/barrel-direction`, `api/server-import-context` | What each feature's public API should expose |
 | 5 | Boundary-crossing imports use `@/` | `boundary/import-policy` | — |
 | 6 | Files live in the right layer and direction is enforced | `placement/layer-direction`, `placement/schema-placement`, `placement/server-fn-placement`, `boundary/import-policy`, `boundary/route-thinness`, `boundary/server-no-upward` | A `createServerFn` outside `controllers/` may need refactoring to move; domain logic with side effects has to land in a feature or in infrastructure |
-| 7 | Cross-file constraints are enforced | `graph/domain-cycles`, `graph/feature-deps`, `api/barrel-purity`, `boundary/layer-occupancy`, `health/file-size`, `health/trampolines` (warning) | Splitting oversized files, breaking cycles, adding repo layers where controllers bypass them |
+| 7 | Cross-file constraints are enforced | `graph/domain-cycles`, `graph/feature-deps`, `api/barrel-purity`, `boundary/layer-occupancy`, `health/file-size`, `health/trampolines` (warning) | Splitting oversized files, breaking cycles, routing edges that skip an occupied layer back through it |
 
 Phase 1 is the only one with no violation list to work, and it is all setup: `lint/oxlint/` with an empty `plugin.ts` named in `.oxlintrc.json`, `lint/structural/` with an empty registry, `check:arch` and `check:structural` in `package.json`, pre-commit hooks, and framework import protection with empty deny lists.
 

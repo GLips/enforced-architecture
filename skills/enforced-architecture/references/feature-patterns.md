@@ -64,7 +64,7 @@ Example: an admin feature with fixtures, runs, a processing pipeline, and dedica
 
 Layers are logically fixed in order: `ui -> controllers -> service -> repo`. Physical presence is optional.
 
-Repo and service occupancy is directory-wide at the controller edge.
+Occupancy is directory-wide, and it is asked at EVERY edge inside a feature — not only the ones leaving `controllers/`. What makes an edge a bypass is not its length but whether a layer it jumps over holds code.
 
 | Layers present | Valid call paths | Invalid |
 |---|---|---|
@@ -73,8 +73,10 @@ Repo and service occupancy is directory-wide at the controller edge.
 | `controllers`, `service`, `repo` | `controllers -> service -> repo -> infrastructure` | `controllers -> repo` (service exists, must use it) |
 | `controllers`, `service` (no repo) | `controllers -> service -> infrastructure` | -- |
 | `ui`, `controllers` | `ui -> controllers` | `ui -> infrastructure` |
+| `ui`, `controllers`, `service` | `ui -> controllers -> service` | `ui -> service` (controllers exists, must use it) — including `import type` |
+| `ui`, `service` (no controllers) | `ui -> service` | -- |
 
-When `repo/` exists, controller DB access must route through it. The `boundary/layer-occupancy` check enforces this directory-wide.
+A layer that exists may not be reached past. The `boundary/layer-occupancy` check enforces this directory-wide, for every layer and every source — `ui/` importing `service/` over an occupied `controllers/` is the same finding — and it counts type imports, because the shape a layer names is part of its contract whether or not the import survives compilation.
 
 **Never scaffold empty directories.** If a layer has no code, it does not exist. Create directories only when they will contain active code.
 
@@ -118,7 +120,7 @@ Controllers do NOT:
 - Import UI code, route code, or other features' internals
 - Import other features except through public API barrels
 - Contain pure business logic (that belongs in `domains/`)
-- Contain raw DB queries when a `repo/` directory exists (the `boundary/layer-occupancy` check enforces this)
+- Contain raw DB queries when a `repo/` directory exists (the `boundary/layer-occupancy` check enforces this, for every layer above `repo/` and not only controllers)
 
 ### Controller file naming and the two-file split
 

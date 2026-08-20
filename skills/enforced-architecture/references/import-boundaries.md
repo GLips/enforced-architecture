@@ -36,7 +36,7 @@ The cells that carry real information are the qualified ones — where the answe
 |---|---|---|
 | `infrastructure/db/` → `env.server` — *`client.ts` only* | The client file reads connection config. No other DB file touches env. | `boundary/ambient-globals` |
 | `infrastructure/*` → `infrastructure/db/` — *designated files* | Auth reaches `db/client` and `db/schema` for its own tables; integrations generally reach neither. Each module imports only the DB files it needs. | `boundary/db-isolation` |
-| `features/*/controllers/` → `infrastructure/db/` — *via repo, if it exists* | A present layer may not be bypassed. With no `repo/`, controllers reach DB directly and that is correct. | `boundary/layer-occupancy` |
+| `features/*/<layer>/` → `infrastructure/db/schema` — *via the lowest layer, if it is occupied* | A present layer may not be bypassed. With no `repo/`, the layer above reaches DB directly and that is correct. | `boundary/layer-occupancy` |
 | any → `features/` — *public API only* | `@/features/<name>` or `@/features/<name>/index.server`. Never a path into another feature's internals. | `boundary/import-policy` |
 | `features/*/ui/` → `infrastructure/*` — *client-safe allowlist* | A short allowlist (a browser auth client, a query client). Everything else is server-only. | `boundary/client-server-infra` |
 | `features/*/ui/` → `features/` — *own controllers, others' public API* | Relative imports within the feature; the client-safe barrel across features. Cross-feature `ui/*` is banned outright, and so is the feature's own barrel from inside it. | `boundary/import-policy`, `placement/layer-direction` |
@@ -70,7 +70,7 @@ Three cells look like ordinary NOs and are worth stating explicitly, because eac
 
 Flow is strictly `ui/ → controllers/ → service/ → repo/`, and `repo/` is a leaf. Upward imports inside one feature are denied by `placement/layer-direction`, which is also what denies a layer reaching its own feature's barrel — the barrel re-exports every layer, so importing it takes on all of them at once. Skipping a layer that exists on disk is `boundary/layer-occupancy`, a different question. `boundary/server-no-upward` is neither: it scopes to `src/infrastructure/**` and denies infrastructure reaching `features/`, `domains/` or `routes/`.
 
-**Occupancy gates the skips.** A layer that exists may not be bypassed: with `service/` present, `controllers/` reaches `repo/` through it; with `service/` absent, directly. With `repo/` present, `controllers/` may not import `infrastructure/db/schema` — schema-based query construction belongs in `repo/` — while the DB *client* import stays legal so a controller can hand a transaction down. Enforced by `boundary/layer-occupancy`.
+**Occupancy gates the skips.** A layer that holds code may not be bypassed, from any layer above it: with `controllers/` occupied, `ui/` reaches `service/` through it; with `controllers/` absent, directly. Type imports count — naming a lower layer's type binds this layer to that shape whether or not the import compiles away. With `repo/` occupied, nothing above it may import `infrastructure/db/schema` — query construction belongs in `repo/` — while the DB *client* import stays legal so a caller can hand a transaction down. Enforced by `boundary/layer-occupancy`.
 
 ---
 

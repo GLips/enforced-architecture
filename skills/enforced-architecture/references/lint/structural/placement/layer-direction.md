@@ -63,7 +63,7 @@ Every edge in the import graph whose two ends sit in the **same feature** and ca
 
 ## Negative space
 
-**It does not detect downward layer skips.** `controllers` importing straight past `service` into `repo`, or past both into the DB schema, runs the *right* way and is silent here. That is [boundary/layer-occupancy](../boundary/layer-occupancy.md), which asks a different question — whether the skipped layer exists on disk — and needs the layer names by name to ask it. The two rules get conflated constantly. Direction and occupancy are independent: an edge can be wrong under either, both, or neither, and one check answering both is a check nobody can predict.
+**It does not detect downward layer skips.** `controllers` importing straight past `service` into `repo`, or past both into the DB schema, runs the *right* way and is silent here. That is [boundary/layer-occupancy](../boundary/layer-occupancy.md), which asks a different question — whether the skipped layer holds any code — off the same `layerOrder` positions this rule reads. The two rules get conflated constantly. Direction and occupancy are independent: an edge can be wrong under either, both, or neither, and one check answering both is a check nobody can predict.
 
 **A file at a feature root is not this rule's finding — except when a barrel is on either end.** An ordinary root file has no layer, so no edge touching it can run upward or downward. Whether it belongs there at all is `placement/topology`'s question, and answering it here means an absent layer needs a rank — which it acquires by accident, `-1` from an `indexOf` or `0` from being treated as the top, and either one invents violations against ordinary code.
 

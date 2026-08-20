@@ -60,5 +60,29 @@ export type CheckFixtures = {
    */
   legal: string[];
 
+  /**
+   * Substrings a finding's MESSAGE must carry, for the checks whose wording is
+   * itself a claim.
+   *
+   * Everything above compares paths and severities, which is what catches a
+   * matcher that stopped matching. It cannot catch a message that stopped
+   * SAYING something — and a message is what a blocking check delivers. Where a
+   * branch exists only to change the wording, no path comparison can distinguish
+   * the branch working from the branch deleted, so the guard is green because no
+   * fixture asked.
+   *
+   * `path` is tree-relative and must be one this check reports on. `contains`
+   * has to hit at least one of that path's findings; `absent` has to hit none of
+   * them. Substrings rather than whole messages, so re-wrapping a sentence does
+   * not re-baseline an assertion nobody then reads.
+   *
+   * `absent` is not the mirror image of `contains` in importance — it is the
+   * only way to state that a branch is NARROW. A paragraph written for one
+   * reader and delivered to every reader passes every positive assertion there
+   * is, and a message arguing a case the reader is not in is the one they learn
+   * to skim.
+   */
+  messages?: ({ path: string; contains: string } | { path: string; absent: string })[];
+
   generated?: GeneratedFixture[];
 };

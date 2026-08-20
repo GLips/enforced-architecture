@@ -1,10 +1,16 @@
-// LEGAL: a type-only import of the very repo module the adversarial fixtures
-// are reported for. Same feature, same layer, same resolved target — the only
-// difference is that this one compiles away and couples nothing at runtime.
+// FIRES layer-occupancy: the same controllers -> repo bypass the adversarial
+// fixtures are reported for, written `import type`. Same feature, same layers,
+// same resolved target — the only difference is that this one compiles away.
 //
-// It is here because the graph reveals type imports on purpose, so this edge IS
-// handed to the check and has to be dropped deliberately rather than never
-// arriving. A check reading only the resolved target reports it.
+// Which is the argument for skipping it, and it is beside the point. A type
+// import couples nothing at RUNTIME; occupancy protects KNOWLEDGE. Naming
+// `selectInvoiceRows`'s shape here makes the repo's contract part of what this
+// controller is written against, and neither layer can be lifted out while that
+// is true — so exempting it would weaken "never bypass an occupied layer" into
+// "never execute through a bypass", and make `import type` the supported way to
+// bind a controller straight to a repo contract with service/ sitting there.
+//
+// The verdict must not branch on `typeOnly`; only the message's wording may.
 import type { selectInvoiceRows } from "@/features/billing/repo/invoice-rows.ts";
 
 export type InvoiceRows = ReturnType<typeof selectInvoiceRows>;

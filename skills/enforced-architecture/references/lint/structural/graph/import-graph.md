@@ -37,7 +37,7 @@ The failure is worse than a miss. Every other boundary rule matches the *aliased
 |---|---|---|
 | `boundary/import-policy` | What does `lint/policy/import-policy.ts` say about this resolved edge? | The policy denies the direction, or permits it and the specifier was relative — a legal crossing named with a string no other rule sees. Edges that stay inside one **unit** return `internal` and are unreported. |
 | `placement/layer-direction` | Do both ends sit in the same feature, and does the edge run upward? | The target's layer is above the source's in the configured order. Covers relative and aliased spellings identically. |
-| `boundary/layer-occupancy` | Does a controller edge bypass an on-disk repo or service? | Controller→schema while `repo/` exists, or controller→repo while `service/` and `repo/` exist. |
+| `boundary/layer-occupancy` | Does a same-feature downward edge skip a layer that holds code? | `ui`→`service` while `controllers/` is occupied, at any depth and in any spelling, `import type` included. |
 | `graph/feature-deps` | What is the feature-to-feature edge set? | Cycles (Tarjan's SCC) block; coupling counts warn. |
 | `graph/domain-cycles` | Same question between domains. | Any cycle, at any transitive depth. Domains are the floor, so a cycle there means two domains are one. |
 | `api/feature-visibility` | Same edge set again — did the importee grant this one? | The importee's `visibility.json` omits the importer. Reads the classification, so a relative spelling needs the same grant. |

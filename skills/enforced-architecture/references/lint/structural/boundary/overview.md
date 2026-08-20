@@ -12,6 +12,6 @@ true of one spelling only.
 | Rule | Blocking | What it prevents |
 |---|---|---|
 | [import-policy](import-policy.md) | Yes | Relative imports the policy denies, and permitted crossings written relatively — a bypass for every rule that matches the aliased path. Consumes the import graph |
-| [layer-occupancy](layer-occupancy.md) | Yes | Bypassing present layers (e.g., controllers importing schema when repo/ exists, or importing repo when service/ exists) |
+| [layer-occupancy](layer-occupancy.md) | Yes | Bypassing an OCCUPIED layer inside one feature — any source layer, any skipped layer, type imports included (e.g., `ui/` importing `service/` while `controllers/` holds code) |
 
 Adoption mechanics, the spec contract, and cross-tag rule selection: [../../overview.md](../../overview.md).

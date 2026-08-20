@@ -51,10 +51,11 @@ export const SHARED_UI_DIR = "shared/ui";
 /**
  * The database module inside `infrastructure/`, and the schema directory within
  * it. Two rules read these: `boundary/db-isolation` builds its specifier test
- * from `DB_DIR`, and `boundary/layer-occupancy` gates a controller's skip past
- * `repo/` on `DB_SCHEMA_PATH`. A project with a flat `@/db` moves it here once
- * instead of editing a regex in one rule and a config key in another, which is
- * how the two end up fencing different paths while both report clean.
+ * from `DB_DIR`, and `boundary/layer-occupancy` gates a schema import from any
+ * layer above the lowest one on `DB_SCHEMA_PATH`. A project with a flat `@/db`
+ * moves it here once instead of editing a regex in one rule and a config key in
+ * another, which is how the two end up fencing different paths while both report
+ * clean.
  */
 export const DB_DIR = `${INFRASTRUCTURE_DIR}/db`;
 export const DB_SCHEMA_PATH = `${DB_DIR}/schema`;
@@ -70,11 +71,18 @@ export type FeatureLayer = (typeof FEATURE_LAYERS)[number];
 
 // Named singly as well as ordered, because several checks are about ONE layer by
 // ROLE rather than about the order — where a server function may live, which
-// layer a trampoline is a smell in, which layer occupancy gates a skip through.
-// Those read the name; only direction reads the position. A check restating
-// "service" as a literal is a check a project silently breaks when it renames
-// the layer, and the break is a rule that stops matching rather than one that
-// errors.
+// layer a trampoline is a smell in. Those read the name.
+//
+// `placement/layer-direction` and `boundary/layer-occupancy` read the POSITION
+// instead and name no layer at all — occupancy finds the data layer as the LAST
+// entry of the array rather than as `REPO_LAYER`, so a project renaming a layer
+// edits `FEATURE_LAYERS` and neither rule notices. That leaves `SERVICE_LAYER`
+// as the only one of the four with a consumer today; the other three are the
+// vocabulary a project's own config reaches for, not dead constants.
+//
+// A check restating "service" as a literal is a check a project silently breaks
+// when it renames the layer, and the break is a rule that stops matching rather
+// than one that errors.
 //
 // The annotations run INVERSE to the array on purpose. Each constant is declared
 // as a `FeatureLayer` and assigned a literal, so dropping a layer out of

@@ -48,13 +48,11 @@ import {
   ALIAS_PREFIX,
   ASSET_EXTENSIONS,
   BARREL_MODULES,
-  CONTROLLERS_LAYER,
   DB_SCHEMA_PATH,
   DOMAINS_DIR,
   FEATURE_LAYERS,
   FEATURES_DIR,
   INFRASTRUCTURE_DIR,
-  REPO_LAYER,
   ROUTES_DIR,
   SERVICE_LAYER,
   SHARED_DIR,
@@ -195,12 +193,14 @@ export type LayerOccupancyConfig = {
    * Resolved path (from the source root) of the DB schema modules. Compared as a
    * resolved path, so `../../infrastructure/db/schema/x` and the aliased
    * spelling are one edge. Prefix match: anything under it counts.
+   *
+   * The only knob the check has. Which layers exist, how they rank, and which of
+   * them is the lowest all come from `source.layerOrder` and the tree — naming a
+   * layer here would be the layer vocabulary written a second time, and a name
+   * that drifts out of step with `layerOrder` is a rule that goes quiet rather
+   * than one that errors.
    */
   schemaTarget: string;
-  /** Layer directory names, so the two bypass questions can be asked by name. */
-  repoLayer: string;
-  serviceLayer: string;
-  controllerLayer: string;
 };
 
 export type FeatureDepsConfig = {
@@ -378,9 +378,6 @@ export const defaultCheckConfigs: CheckConfigs = {
 
   "boundary/layer-occupancy": {
     schemaTarget: DB_SCHEMA_PATH,
-    repoLayer: REPO_LAYER,
-    serviceLayer: SERVICE_LAYER,
-    controllerLayer: CONTROLLERS_LAYER,
   },
 
   // Starting points, not invariants. A project with 15 features naturally has
