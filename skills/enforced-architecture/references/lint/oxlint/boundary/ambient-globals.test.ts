@@ -262,9 +262,23 @@ describeRule("boundary/ambient-globals", ambientGlobalsRule, {
       code: `declare namespace NS { const env: Record<string, string>; }\nimport alias = NS;\nexport const key = alias.env.STRIPE_KEY;`,
     },
     {
-      name: "the one module allowed to read env, which is the point of the rule",
+      name: "an env module, which is the point of the rule",
       filename: "/repo/src/env.ts",
       code: `export const env = { stripeKey: process.env.STRIPE_KEY ?? "", publicUrl: import.meta.env.VITE_PUBLIC_URL ?? "" };`,
+    },
+    {
+      // EVERY module the tree declares as an env module owns the read, not just
+      // the first one. A project on the split option validates in two files, and
+      // a rule naming one of them reports the other for doing its job — a
+      // finding whose only fix is to stop validating.
+      name: "the server env module on the split option",
+      filename: "/repo/src/env.server.ts",
+      code: `export const serverEnv = { stripeKey: process.env.STRIPE_KEY ?? "" };`,
+    },
+    {
+      name: "the client env module on the split option",
+      filename: "/repo/src/env.client.ts",
+      code: `export const clientEnv = { publicUrl: import.meta.env.VITE_PUBLIC_URL ?? "" };`,
     },
     {
       name: "the API client is where fetch is configured",

@@ -208,6 +208,13 @@ function byCheckId(source: CheckRun[]): Map<string, { findings: Finding[]; crash
 
 // ── The two-tree probe ───────────────────────────────────────────────────────
 //
+// NOT a copy of run-rule-fixtures.ts's `checkTreeScoping`, which landed in the
+// same change and is the same size. That one parses the shipped
+// `setup/oxlintrc.json` and asserts its override globs name the declared roots;
+// it runs no check. This one runs the whole structural tier twice over one
+// fixture tree and asserts what changes when a root is declared. The shared
+// subject is "declared trees"; there is no shared logic under it.
+//
 // The claim the declared-tree design rests on, as a test rather than as prose:
 // an undeclared tree produces NOTHING, declaring it turns every tree-scoped
 // check on over it, and the tree is read with its own vocabulary rather than the

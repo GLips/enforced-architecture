@@ -53,6 +53,16 @@ describeRule("boundary/route-thinness", routeThinnessRule, {
       errors: [{ messageId: "serverOnlyImportInRoute" }],
     },
     {
+      // The SINGLE-env option. Nothing in this specifier says "server" — the
+      // ban comes from the tree declaring `env` as an `env-server` module, so a
+      // rule that matched the `.server` spelling read this as client-safe and
+      // let the secrets through in silence.
+      name: "the combined env module, which carries the secrets the split one isolates",
+      filename: ROUTE,
+      code: `import { env } from "@/env";`,
+      errors: [{ messageId: "serverOnlyImportInRoute" }],
+    },
+    {
       name: "a route nested two directories deep is still the transport layer",
       filename: NESTED_ROUTE,
       code: IMPORT_DB,

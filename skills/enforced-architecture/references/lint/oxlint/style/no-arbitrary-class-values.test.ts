@@ -78,9 +78,42 @@ describeRule("style/no-arbitrary-class-values", noArbitraryClassValuesRule, {
       code: `export const CLASSES = ["bg-surface", "text-2xl"];`,
       errors: [{ messageId: "genericScale" }],
     },
+    {
+      name: "a directory that merely starts like the non-UI layer is not exempt",
+      filename: "/repo/src/domains-legacy/pricing/palette.ts",
+      code: `export const badge = "text-[13px]";`,
+      errors: [{ messageId: "arbitraryValue" }],
+    },
+    {
+      // The token source is the tree's named theme module, not any file called
+      // theme-something. A path-suffix exemption would hand every neighbour the
+      // permission to define a second scale.
+      name: "a module beside the token source does not inherit its permission",
+      filename: "/repo/src/shared/ui/theme-legacy.ts",
+      code: `export const safelist = ["text-[13px]"];`,
+      errors: [{ messageId: "arbitraryValue" }],
+    },
   ],
 
   legal: [
+    {
+      // The gate this rule did NOT have while its two siblings did. A domain
+      // cannot import a primitive, so a utility class there is a placement
+      // problem that placement/topology and boundary/import-policy report; a
+      // styling diagnostic on top of theirs prescribes a token where the fix is
+      // to move the file.
+      name: "a non-UI layer is exempt because it should carry no styling at all",
+      filename: "/repo/src/domains/pricing/rules.ts",
+      code: `export const badge = "text-[13px]";`,
+    },
+    {
+      // The other gate this rule gained. The theme module maps the tokens, so
+      // the raw scale steps it writes are the definition the rest of the tree is
+      // told to name.
+      name: "the token source has to write the scale the tokens resolve to",
+      filename: "/repo/src/shared/ui/theme.ts",
+      code: `export const safelist = ["text-[13px]", "text-sm"];`,
+    },
     {
       name: "the semantic token classes the rule points people to",
       filename: COMPONENT,

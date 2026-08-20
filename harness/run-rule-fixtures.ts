@@ -285,6 +285,14 @@ function stripLineComments(source: string): string {
  * The tree-scoping guard: the shipped config's `arch/` scope equals the declared
  * tree list, one `<root>/**` glob per root.
  *
+ * NOT a copy of run-structural-fixtures.ts's two-tree probe, which landed in the
+ * same change and is the same size. That one runs the checks twice and asserts
+ * what DECLARING a tree does to the findings; this one never runs a rule, and
+ * asserts that the shipped config's globs name the same roots the policy module
+ * declares. Different tier, different artifact, no overlapping line — and no
+ * shared helper to extract, because the only thing they have in common is the
+ * word "tree".
+ *
  * This is the only thing here that reads the config file, and it deliberately
  * says nothing about severities — see the note in the config itself. What it
  * catches is the divergence that produces a silently unpoliced tree: a project
