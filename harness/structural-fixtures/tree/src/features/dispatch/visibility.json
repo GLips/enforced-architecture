@@ -1,0 +1,3 @@
+{
+  "courier": "Reads the dispatch plan version to decide whether a route needs re-quoting. Server-side only; courier never writes back."
+}

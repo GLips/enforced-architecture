@@ -77,9 +77,15 @@ export type CheckFixtures = {
    * not re-baseline an assertion nobody then reads.
    *
    * `contains` is satisfied by ANY of the path's findings, so on a path that
-   * produces two it cannot say WHICH one carried the substring. No path in this
-   * tree produces two from one check today; the first that does needs a stronger
-   * comparison here rather than a second entry.
+   * produces several it cannot say WHICH one carried the substring. Five paths
+   * in this tree do — one address is where a check files, not how many things it
+   * has to say there. Where two branches at one path differ only in wording,
+   * write one `contains` PER BRANCH: each has to hit some finding, so a check
+   * that collapses them to a single sentence fails one entry while the finding
+   * count stays right. What that still cannot pin is the PAIRING — which
+   * wording went with which grant — and a check that swapped two messages
+   * between two findings at one path passes. Nothing here catches that; a
+   * fixture needing it wants the two subjects on two paths.
    *
    * `absent` is not the mirror image of `contains` in importance — it is the
    * only way to state that a branch is NARROW. A paragraph written for one

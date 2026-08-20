@@ -22,6 +22,12 @@ export const featureVisibilityFixtures: CheckFixtures = {
     // One finding, not eight: the edge is the subject, and the 8 importing files
     // are listed inside the message.
     "FAIL src/features/beta/visibility.json",
+    // renderer imports shapes with a TYPE-ONLY import, which emits no runtime
+    // code — both of Bun's scans drop it, so a graph built from the reader alone
+    // has no edge here and this check reports nothing while still catching every
+    // runtime crossing in the tree. The miss is invisible from the check's own
+    // output; only the graph's reveal pass puts the edge back.
+    "FAIL src/features/shapes/visibility.json",
     // broken/visibility.json does not parse. ONE finding — the file itself.
     // trespasser imports broken, and treating an unreadable file as deny-all
     // would add a second finding that buries the only one worth reading under a
@@ -39,11 +45,39 @@ export const featureVisibilityFixtures: CheckFixtures = {
   legal: [
     // A granted edge, aliased: consumer imports provider, provider grants it.
     "src/features/provider/visibility.json",
+    // A granted edge landing on `index.server` rather than the client barrel.
+    // dispatch ships both barrels, so which one courier names is a choice rather
+    // than the only option. The grant covers the FEATURE — an implementation
+    // that reconciles grants only against client-barrel edges reports this
+    // correct, declared architecture, and no firing fixture can tell.
+    "src/features/dispatch/visibility.json",
     // The cycle cluster, granted in every direction. `graph/feature-deps` fails
     // on these features and this check must not — the two questions are
     // independent, and a grant is a complete answer to exactly one of them.
     "src/features/cycle-a/visibility.json",
     "src/features/ring-one/visibility.json",
     "src/features/leaf/visibility.json",
+  ],
+
+  // Four branches whose only distinguishing output is their wording. Every path
+  // assertion above is satisfied by a check that reports the right number of
+  // findings at the right addresses saying the wrong thing.
+  messages: [
+    // The malformed file must report ITSELF. Path and severity alone cannot say
+    // that: a check that dropped the parse branch and kept the deny-all one
+    // reports exactly one error at exactly this address, and passes everything
+    // above.
+    { path: "src/features/broken/visibility.json", contains: "is unreadable" },
+    // ...and the `absent` half is what states the branch is NARROW. trespasser
+    // does import broken, so a deny-all violation here is available to be
+    // reported and is the thing this case is the witness against: it would bury
+    // the one real error under a violation nobody can act on until the JSON
+    // parses.
+    { path: "src/features/broken/visibility.json", absent: "has not granted it" },
+    // The two stale-grant branches, which differ in wording and nothing else.
+    // Both entries have to hold, so a check that collapsed them to one sentence
+    // fails one of them while the WARN count stays at two.
+    { path: "src/features/stale/visibility.json", contains: "imports nothing from stale" },
+    { path: "src/features/stale/visibility.json", contains: "is not a feature" },
   ],
 };

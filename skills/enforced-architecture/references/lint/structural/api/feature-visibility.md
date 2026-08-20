@@ -48,6 +48,7 @@ The file's shape is a flat JSON object mapping importing feature name to justifi
 - **An empty justification is rejected, and the whole file with it.** A grant nobody had to think about is the exact thing this rule exists to prevent, so the file fails rather than the entry being honoured.
 - **A malformed file reports itself and nothing else.** Deriving deny-all violations from an unparseable file would bury the one real error under every edge into the feature.
 - **No feature-to-feature grant is inherited or transitive.** A grants B and B grants C says nothing about A importing C.
+- **The stale-grant warning lands in CI, not in the pre-commit hook.** The orchestrator suppresses warnings for files a commit did not stage, and a grant goes stale in the commit that deletes the importer's *last* import of the importee — which stages a file in the importing feature and has no reason to open the importee's `visibility.json`. So the half of this rule that catches coupling returning with no diff only ever reports on an unfiltered run. Take it with CI, or that half is one you do not have. The blocking half is unaffected: errors are never filtered, which is also what makes filing a finding against a file the offending commit never touched work at all.
 
 ## Example output
 
