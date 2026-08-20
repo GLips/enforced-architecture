@@ -33,7 +33,10 @@
 import { defineTreeRule } from "../lib/define-tree-rule.ts";
 import { type ESTree } from "@oxlint/plugins";
 import { isModule } from "../../policy/declared-trees.ts";
-import { aliasSpecifierFor } from "../../policy/layout.ts";
+import {
+  aliasSpecifierFor,
+  sharedUiDir,
+} from "../../policy/layout.ts";
 import { exportedName, visitImportedNames } from "../lib/imported-names.ts";
 import { sourceOrderedReports } from "../lib/source-ordered-reports.ts";
 
@@ -66,7 +69,7 @@ export const vendorComponentContainmentRule = defineTreeRule({
   create(context, role) {
     const { vocabulary } = role.tree;
     const wrapperPathOf = (wrapperModule: string) =>
-      `${vocabulary.sharedUiDir}/${wrapperModule}`;
+      `${sharedUiDir(vocabulary)}/${wrapperModule}`;
 
     // The import arm only finds its names once the whole file is walked, so without a single
     // ordering owner every one of them lands after every re-export diagnostic, whatever the lines.

@@ -20,7 +20,12 @@
 
 import { defineTreeRule } from "../lib/define-tree-rule.ts";
 import { isAtProfile } from "../../policy/declared-trees.ts";
-import { aliasSpecifierFor, isUnderPath, type SourceProfile } from "../../policy/layout.ts";
+import {
+  aliasSpecifierFor,
+  isUnderPath,
+  type SourceProfile,
+  dbDir,
+} from "../../policy/layout.ts";
 import { visitModuleSources } from "../lib/module-source-visitor.ts";
 
 /**
@@ -51,7 +56,7 @@ export const dbIsolationRule = defineTreeRule({
     if (isAtProfile(role, ...DATA_ACCESS_PROFILES)) return {};
 
     const { vocabulary } = role.tree;
-    const dbAlias = aliasSpecifierFor(vocabulary, vocabulary.dbDir);
+    const dbAlias = aliasSpecifierFor(vocabulary, dbDir(vocabulary));
 
     return visitModuleSources((source, specifier) => {
       // Whole segments: `@/infrastructure/db` and anything under it, and never

@@ -86,6 +86,7 @@ import {
   type SourceProfile,
   type TargetArea,
   type TreeVocabulary,
+  sharedUiDir,
 } from "./layout.ts";
 
 /**
@@ -379,7 +380,7 @@ export function profileLabel(vocabulary: TreeVocabulary, profile: SourceProfile)
     case "shared":
       return alias(vocabulary.sharedDir);
     case "shared-ui":
-      return alias(vocabulary.sharedUiDir);
+      return alias(sharedUiDir(vocabulary));
     case "source-root":
       return "a file in the source root";
   }
@@ -401,7 +402,7 @@ export function areaLabel(vocabulary: TreeVocabulary, area: TargetArea): string 
     case "shared":
       return alias(vocabulary.sharedDir);
     case "shared-ui":
-      return alias(vocabulary.sharedUiDir);
+      return alias(sharedUiDir(vocabulary));
     case "env-server":
       return "the server env";
     case "env-client":
@@ -431,7 +432,7 @@ export function profileRationale(vocabulary: TreeVocabulary, profile: SourceProf
   const layers = vocabulary.featureLayerDirs;
   const domains = alias(vocabulary.domainsDir);
   const shared = alias(vocabulary.sharedDir);
-  const sharedUi = alias(vocabulary.sharedUiDir);
+  const sharedUi = alias(sharedUiDir(vocabulary));
   const infrastructure = alias(vocabulary.infrastructureDir);
   const routes = alias(vocabulary.routesDir);
   const barrel = `${vocabulary.clientBarrelModule}.ts`;
@@ -526,7 +527,7 @@ export function describeKnownAreas(vocabulary: TreeVocabulary): string {
     `${vocabulary.domainsDir}/<name>`,
     vocabulary.infrastructureDir,
     vocabulary.sharedDir,
-    vocabulary.sharedUiDir,
+    sharedUiDir(vocabulary),
     "or the source root itself",
   ].join(", ");
 }

@@ -19,7 +19,12 @@
 
 import { readFileSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
-import { featureLayerRole, SOURCE_FILE_GLOB, type TreeVocabulary } from "../policy/layout.ts";
+import {
+  featureLayerRole,
+  isAssetSpecifier,
+  SOURCE_FILE_GLOB,
+  type TreeVocabulary,
+} from "../policy/layout.ts";
 import {
   blankComments,
   collectTreeFiles,
@@ -361,10 +366,14 @@ function resolveWithinSource(
   specifier: string,
 ): string | undefined {
   const { vocabulary } = context;
-  const withoutQuery = specifier.replace(/\?.*$/, "");
-  if (vocabulary.assetExtensions.some((ext) => withoutQuery.endsWith(`.${ext}`))) {
-    return undefined;
-  }
+  // Both predicates come from `policy/layout.ts`, which is also what the oxlint
+  // tier reads. A private asset test here drifted from that one silently, and
+  // `nonSourceAliases` was not consulted at all — so an alias a project declared
+  // as pointing OUTSIDE the tree was "not a boundary question" to the linter and
+  // an ordinary in-tree module to the graph. One configured edge, two verdicts,
+  // and the tier that resolved it reported findings the other never would.
+  if (isAssetSpecifier(vocabulary, specifier)) return undefined;
+  if (vocabulary.nonSourceAliases.some((prefix) => specifier.startsWith(prefix))) return undefined;
 
   const { aliasPrefix } = vocabulary;
   const aliased = specifier.startsWith(aliasPrefix);

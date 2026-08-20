@@ -91,7 +91,14 @@ export type TreeVocabulary = {
    * than a child name, because `shared/ui` is one unit with one spelling and
    * every rule that names it wants the whole thing.
    */
-  sharedUiDir: string;
+  /**
+   * The UI subdirectory INSIDE `sharedDir`, as a single segment. `sharedUiDir()`
+   * joins the two. Stored as a segment rather than as `shared/ui`, because a
+   * project renaming `shared/` to `common/` would otherwise have to remember to
+   * rewrite the composite too — and the classifier that reads the composite and
+   * the one that reads the parent would then disagree about the same directory.
+   */
+  sharedUiSubdir: string;
 
   /**
    * The directory each feature position is spelled as. Keyed by role, so a
@@ -106,7 +113,14 @@ export type TreeVocabulary = {
    * — see its `feature-root` arm for why a root file this list rejects still
    * gets an import policy.
    */
-  featureRootFiles: string[];
+  /**
+   * Modules permitted at a feature's ROOT beyond its two barrels, without
+   * extensions. `featureRootModules()` adds the barrels, which are already named
+   * by `clientBarrelModule`/`serverBarrelModule` — spelling them here too meant a
+   * renamed barrel was still permitted under its old name by topology while
+   * every other rule had followed the rename.
+   */
+  extraFeatureRootModules: string[];
 
   /**
    * The two public barrels of a unit, without extensions. Two named fields
@@ -163,7 +177,12 @@ export type TreeVocabulary = {
    * other half of the argument for the list living in the vocabulary rather than
    * in that check's config.
    */
-  sourceRootFiles: string[];
+  /**
+   * Modules permitted directly in the source root beyond the env modules,
+   * without extensions. `sourceRootModules()` adds the keys of `envModules`,
+   * which already name them.
+   */
+  extraSourceRootModules: string[];
 
   /**
    * Aliases that resolve OUTSIDE this tree's source root. A tsconfig path
@@ -217,8 +236,12 @@ export type TreeVocabulary = {
    * a config key in another, which is how the two end up fencing different paths
    * while both report clean.
    */
-  dbDir: string;
-  dbSchemaPath: string;
+  /**
+   * The database directory inside `infrastructureDir`, and the schema directory
+   * inside that — single segments, joined by `dbDir()` and `dbSchemaPath()`.
+   */
+  dbSubdir: string;
+  dbSchemaSubdir: string;
 
   /**
    * The modules that own a capability no import can fence, read by
@@ -230,8 +253,12 @@ export type TreeVocabulary = {
    * THIS tree — a project whose adapters sit in `infrastructure/` renames the
    * directory once and both entries follow.
    */
-  apiClientModule: string;
-  browserStorageModule: string;
+  /**
+   * The two capability owners inside `infrastructureDir`, as single segments.
+   * `apiClientModule()` and `browserStorageModule()` join them.
+   */
+  apiClientName: string;
+  browserStorageName: string;
 
   /**
    * The module holding the design tokens, and the route module that mounts the
@@ -239,8 +266,10 @@ export type TreeVocabulary = {
    * layer: the token source DEFINES the raw values a token resolves to, and the
    * root route is where the primitives are first composed.
    */
-  themeModule: string;
-  rootRouteModule: string;
+  /** The token source inside `sharedUiDir()`, as a single segment. `themeModule()` joins them. */
+  themeModuleName: string;
+  /** The root route inside `routesDir`, as a single segment. `rootRouteModule()` joins them. */
+  rootRouteName: string;
 };
 
 /**
@@ -258,7 +287,7 @@ export const RECOMMENDED_VOCABULARY: TreeVocabulary = {
   domainsDir: "domains",
   infrastructureDir: "infrastructure",
   sharedDir: "shared",
-  sharedUiDir: "shared/ui",
+  sharedUiSubdir: "ui",
 
   featureLayerDirs: {
     ui: "ui",
@@ -267,7 +296,7 @@ export const RECOMMENDED_VOCABULARY: TreeVocabulary = {
     repo: "repo",
   },
 
-  featureRootFiles: ["index.ts", "index.server.ts", "errors.ts"],
+  extraFeatureRootModules: ["errors"],
 
   clientBarrelModule: "index",
   serverBarrelModule: "index.server",
@@ -281,16 +310,7 @@ export const RECOMMENDED_VOCABULARY: TreeVocabulary = {
 
   generatedDirs: ["gen"],
 
-  sourceRootFiles: [
-    "env.server.ts",
-    "env.client.ts",
-    "env.ts",
-    "router.tsx",
-    "client.tsx",
-    "server.ts",
-    "styles.css",
-    "routeTree.gen.ts",
-  ],
+  extraSourceRootModules: ["router", "client", "server", "styles.css", "routeTree.gen"],
 
   nonSourceAliases: [],
 
@@ -310,14 +330,14 @@ export const RECOMMENDED_VOCABULARY: TreeVocabulary = {
     "otf",
   ],
 
-  dbDir: "infrastructure/db",
-  dbSchemaPath: "infrastructure/db/schema",
+  dbSubdir: "db",
+  dbSchemaSubdir: "schema",
 
-  apiClientModule: "infrastructure/api-client",
-  browserStorageModule: "infrastructure/browser-storage",
+  apiClientName: "api-client",
+  browserStorageName: "browser-storage",
 
-  themeModule: "shared/ui/theme",
-  rootRouteModule: "routes/__root",
+  themeModuleName: "theme",
+  rootRouteName: "__root",
 };
 
 /**
@@ -404,10 +424,42 @@ export function carriesPresentation(profile: SourceProfile): boolean {
  * before this is called — a caller that skips those checks gets a style verdict
  * on a script.
  */
+/**
+ * Rejects a vocabulary whose `nonSourceAliases` would silence the tree it
+ * belongs to. Throws, and throwing is the point.
+ *
+ * `nonSourceAliases` is the one field in this vocabulary that REMOVES subjects:
+ * a specifier it matches is "not this tier's question" in both tiers. Declaring
+ * the governed alias root itself — `["@/"]` — therefore turns off every aliased
+ * import policy in the catalog, quietly, with a green run and no rule appearing
+ * to be disabled. That is the exact off-switch-in-a-costume CLAUDE.md's
+ * "knobs are names and numbers" rule exists to refuse, and the field survives
+ * only because it is checked here.
+ *
+ * The test is overlap in EITHER direction: an entry the alias prefix starts with
+ * (`@/` under `@/`, `@` under `@/`) and an entry that starts with it are both
+ * ways of writing the same silence. An alias that merely shares a prefix
+ * character with a DIFFERENT root is untouched.
+ */
+export function assertGoverningVocabulary(vocabulary: TreeVocabulary, treeRoot: string): void {
+  for (const alias of vocabulary.nonSourceAliases) {
+    if (!alias.startsWith(vocabulary.aliasPrefix) && !vocabulary.aliasPrefix.startsWith(alias)) {
+      continue;
+    }
+    throw new Error(
+      `The tree at "${treeRoot}" declares nonSourceAliases entry "${alias}", which overlaps its ` +
+        `own aliasPrefix "${vocabulary.aliasPrefix}". Every aliased specifier in the tree would ` +
+        `read as pointing outside it, and every import rule would go silent with nothing to say ` +
+        `so. nonSourceAliases names aliases that resolve OUTSIDE this tree; it cannot name the ` +
+        `tree's own root.`,
+    );
+  }
+}
+
 export function isStyleSubject(vocabulary: TreeVocabulary, pathFromSourceRoot: string): boolean {
   const place = classifySourcePath(vocabulary, pathFromSourceRoot);
   if (place !== undefined && !carriesPresentation(place.profile)) return false;
-  return withoutSourceExtension(pathFromSourceRoot) !== vocabulary.themeModule;
+  return withoutSourceExtension(pathFromSourceRoot) !== themeModule(vocabulary);
 }
 
 /**
@@ -491,6 +543,60 @@ export type TargetPlace = { area: TargetArea; unit: string; path: string };
 export const SOURCE_ROOT_UNIT = ".";
 
 /** The two barrels a unit's public surface may be spelled as, without extensions. */
+/**
+ * The composite paths, each derived from the atomic segments above.
+ *
+ * Functions rather than stored fields, and that is the whole point: a stored
+ * `dbDir: "infrastructure/db"` beside an `infrastructureDir: "infrastructure"`
+ * is one fact written twice, and renaming the parent leaves the composite
+ * pointing at a directory that no longer exists — silently, because the rule
+ * reading the composite and the rule reading the parent both still match
+ * something. Every one of these was a stored field, and each pair could drift.
+ */
+export function sharedUiDir(vocabulary: TreeVocabulary): string {
+  return `${vocabulary.sharedDir}/${vocabulary.sharedUiSubdir}`;
+}
+
+export function dbDir(vocabulary: TreeVocabulary): string {
+  return `${vocabulary.infrastructureDir}/${vocabulary.dbSubdir}`;
+}
+
+export function dbSchemaPath(vocabulary: TreeVocabulary): string {
+  return `${dbDir(vocabulary)}/${vocabulary.dbSchemaSubdir}`;
+}
+
+export function apiClientModule(vocabulary: TreeVocabulary): string {
+  return `${vocabulary.infrastructureDir}/${vocabulary.apiClientName}`;
+}
+
+export function browserStorageModule(vocabulary: TreeVocabulary): string {
+  return `${vocabulary.infrastructureDir}/${vocabulary.browserStorageName}`;
+}
+
+export function themeModule(vocabulary: TreeVocabulary): string {
+  return `${sharedUiDir(vocabulary)}/${vocabulary.themeModuleName}`;
+}
+
+export function rootRouteModule(vocabulary: TreeVocabulary): string {
+  return `${vocabulary.routesDir}/${vocabulary.rootRouteName}`;
+}
+
+/**
+ * Every module permitted at a feature's root, without extensions: its two
+ * barrels plus whatever else the tree names.
+ */
+export function featureRootModules(vocabulary: TreeVocabulary): string[] {
+  return [...barrelModules(vocabulary), ...vocabulary.extraFeatureRootModules];
+}
+
+/**
+ * Every module permitted directly in the source root, without extensions: the
+ * env modules the tree declares plus whatever else it names.
+ */
+export function sourceRootModules(vocabulary: TreeVocabulary): string[] {
+  return [...Object.keys(vocabulary.envModules), ...vocabulary.extraSourceRootModules];
+}
+
 export function barrelModules(vocabulary: TreeVocabulary): string[] {
   return [vocabulary.clientBarrelModule, vocabulary.serverBarrelModule];
 }
@@ -722,8 +828,8 @@ export function classifySourcePath(
     return { profile: "infrastructure", unit: vocabulary.infrastructureDir };
   }
   if (top === vocabulary.sharedDir) {
-    return isUnderPath(path, vocabulary.sharedUiDir)
-      ? { profile: "shared-ui", unit: vocabulary.sharedUiDir }
+    return isUnderPath(path, sharedUiDir(vocabulary))
+      ? { profile: "shared-ui", unit: sharedUiDir(vocabulary) }
       : { profile: "shared", unit: vocabulary.sharedDir };
   }
 
@@ -764,7 +870,7 @@ export function classifyTargetPath(
     // as "a file, therefore the source root": `src/lib.ts` and `src/lib/` are one
     // string here, so falling through would hand `@/lib` the source-root row and
     // leave an unpoliced directory reachable by its bare name from anywhere.
-    if (vocabulary.sourceRootFiles.some((file) => withoutSourceExtension(file) === path)) {
+    if (sourceRootModules(vocabulary).some((file) => withoutSourceExtension(file) === path)) {
       return { area: "source-root", unit: SOURCE_ROOT_UNIT, path };
     }
     return undefined;
@@ -781,8 +887,8 @@ export function classifyTargetPath(
     return { area: "infrastructure", unit: vocabulary.infrastructureDir, path };
   }
   if (top === vocabulary.sharedDir) {
-    return isUnderPath(path, vocabulary.sharedUiDir)
-      ? { area: "shared-ui", unit: vocabulary.sharedUiDir, path }
+    return isUnderPath(path, sharedUiDir(vocabulary))
+      ? { area: "shared-ui", unit: sharedUiDir(vocabulary), path }
       : { area: "shared", unit: vocabulary.sharedDir, path };
   }
 

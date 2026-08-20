@@ -55,6 +55,7 @@
 // substitution-free template — are this rule's too.
 // ──────────────────────────────────────────────────────────────────────
 
+import { apiClientModule, browserStorageModule } from "../../policy/layout.ts";
 import { defineTreeRule } from "../lib/define-tree-rule.ts";
 import {
   defineRule,
@@ -154,14 +155,14 @@ function restrictedAmbientGlobals(vocabulary: TreeVocabulary): AmbientGlobalPoli
     },
     {
       globalPath: "fetch",
-      allowedIn: [vocabulary.apiClientModule],
-      owner: alias(vocabulary.apiClientModule),
+      allowedIn: [apiClientModule(vocabulary)],
+      owner: alias(apiClientModule(vocabulary)),
       why: "Base URL, auth headers, timeout and error decoding are decided once at the client; a bare fetch decides them again, differently, and usually omits the last one.",
     },
     {
       globalPath: "localStorage",
-      allowedIn: [vocabulary.browserStorageModule],
-      owner: alias(vocabulary.browserStorageModule),
+      allowedIn: [browserStorageModule(vocabulary)],
+      owner: alias(browserStorageModule(vocabulary)),
       why: "Key names, serialization, and the private-mode and server-render cases where the API is absent or throws belong in the wrapper, not at each call site.",
     },
   ];

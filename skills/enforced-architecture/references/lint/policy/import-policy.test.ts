@@ -41,7 +41,17 @@ import {
   classifySourcePath,
   classifyTargetPath,
   classifySpecifier,
+  assertGoverningVocabulary,
+  apiClientModule,
+  browserStorageModule,
+  dbDir,
+  dbSchemaPath,
+  featureRootModules,
   RECOMMENDED_VOCABULARY,
+  rootRouteModule,
+  sharedUiDir,
+  sourceRootModules,
+  themeModule,
   type SourceProfile,
   type TargetArea,
   type TreeVocabulary,
@@ -557,8 +567,10 @@ const APP_TREE: DeclaredTree = { root: "apps/web/src", vocabulary: RECOMMENDED_V
 const PDF_VOCABULARY: TreeVocabulary = {
   ...RECOMMENDED_VOCABULARY,
   featuresDir: "capabilities",
+  // `sharedUiDir()` derives from this, so renaming the parent is the whole edit.
+  // While the composite was a stored field it had to be restated here, and a
+  // vocabulary that restated only one of the two was accepted.
   sharedDir: "common",
-  sharedUiDir: "common/ui",
 };
 
 const PDF_TREE: DeclaredTree = { root: "packages/pdf/src", vocabulary: PDF_VOCABULARY };
@@ -672,5 +684,91 @@ describeSuite("the unclassified message names a destination in the tree's own wo
     });
     assert.equal(messageId(denied), "unclassifiedSource");
     assert.equal(denied.kind === "deny" ? denied.data.areas : "", describeKnownAreas(PDF_VOCABULARY));
+  });
+});
+
+describeSuite("a vocabulary cannot declare its own tree out of existence", () => {
+  // `nonSourceAliases` is the one field that REMOVES subjects, so it is the one
+  // an adopter can turn into an off-switch. The recommended vocabulary is
+  // checked here alongside the rejections, because a validator that rejects
+  // everything passes the negative cases just as well.
+  testCase("the recommended vocabulary is accepted", () => {
+    assert.doesNotThrow(() => assertGoverningVocabulary(RECOMMENDED_VOCABULARY, "src"));
+  });
+
+  testCase("an alias for a genuinely external tree is accepted", () => {
+    const external: TreeVocabulary = { ...RECOMMENDED_VOCABULARY, nonSourceAliases: ["@assets/"] };
+    assert.doesNotThrow(() => assertGoverningVocabulary(external, "src"));
+  });
+
+  testCase("declaring the tree's own alias root is refused", () => {
+    const silenced: TreeVocabulary = { ...RECOMMENDED_VOCABULARY, nonSourceAliases: ["@/"] };
+    assert.throws(() => assertGoverningVocabulary(silenced, "src"), /overlaps its own aliasPrefix/);
+  });
+
+  testCase("a PREFIX of the alias root is the same silence written shorter", () => {
+    const silenced: TreeVocabulary = { ...RECOMMENDED_VOCABULARY, nonSourceAliases: ["@"] };
+    assert.throws(() => assertGoverningVocabulary(silenced, "src"), /overlaps its own aliasPrefix/);
+  });
+
+  testCase("a subtree of the alias root is refused too, because it is an area with no policy", () => {
+    const silenced: TreeVocabulary = { ...RECOMMENDED_VOCABULARY, nonSourceAliases: ["@/features/"] };
+    assert.throws(() => assertGoverningVocabulary(silenced, "src"), /overlaps its own aliasPrefix/);
+  });
+});
+
+describeSuite("a renamed parent directory moves every path derived from it", () => {
+  // The pairs Codex found: each composite used to be a STORED field beside its
+  // own parent, so renaming the parent left the composite pointing at a
+  // directory that no longer existed — and both rules still matched something,
+  // so nothing went red. These assert the derivation, which is the only thing
+  // that makes CLAUDE.md's "one place to change it" true of these names.
+  const RENAMED: TreeVocabulary = {
+    ...RECOMMENDED_VOCABULARY,
+    infrastructureDir: "adapters",
+    sharedDir: "common",
+    routesDir: "screens",
+  };
+
+  testCase("the db paths follow the infrastructure directory", () => {
+    assert.equal(dbDir(RENAMED), "adapters/db");
+    assert.equal(dbSchemaPath(RENAMED), "adapters/db/schema");
+  });
+
+  testCase("the capability owners follow it too", () => {
+    assert.equal(apiClientModule(RENAMED), "adapters/api-client");
+    assert.equal(browserStorageModule(RENAMED), "adapters/browser-storage");
+  });
+
+  testCase("the shared UI directory and the token source follow the shared directory", () => {
+    assert.equal(sharedUiDir(RENAMED), "common/ui");
+    assert.equal(themeModule(RENAMED), "common/ui/theme");
+  });
+
+  testCase("the root route follows the routes directory", () => {
+    assert.equal(rootRouteModule(RENAMED), "screens/__root");
+  });
+
+  testCase("a renamed barrel is permitted at a feature root under its NEW name only", () => {
+    const renamedBarrel: TreeVocabulary = { ...RECOMMENDED_VOCABULARY, clientBarrelModule: "api" };
+    const permitted = featureRootModules(renamedBarrel);
+    assert.ok(permitted.includes("api"));
+    // The load-bearing half. While this list stored "index.ts" literally,
+    // topology kept permitting the old name after every other rule had followed
+    // the rename — a barrel the tree no longer has, allowed at every root.
+    assert.ok(!permitted.includes("index"));
+  });
+
+  testCase("the source root permits exactly the env modules the tree declares", () => {
+    const splitOnly: TreeVocabulary = {
+      ...RECOMMENDED_VOCABULARY,
+      envModules: { "env.server": "env-server", "env.client": "env-client" },
+    };
+    const permitted = sourceRootModules(splitOnly);
+    assert.ok(permitted.includes("env.server"));
+    assert.ok(permitted.includes("env.client"));
+    // A tree that dropped the combined module must not still permit it at the
+    // root: the file would sit there governed by no env row at all.
+    assert.ok(!permitted.includes("env"));
   });
 });

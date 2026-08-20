@@ -45,6 +45,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import {
+  assertGoverningVocabulary,
   barrelModules,
   classifySourcePath,
   isServerModule,
@@ -78,6 +79,11 @@ export type DeclaredTree = {
 export const DECLARED_TREES: DeclaredTree[] = [
   { root: "src", vocabulary: RECOMMENDED_VOCABULARY },
 ];
+
+// Checked at MODULE LOAD, so a project whose vocabulary would silence its own
+// tree fails on the first import of this file rather than reporting clean
+// forever. A harness assertion would cover this repo's list and no adopter's.
+for (const tree of DECLARED_TREES) assertGoverningVocabulary(tree.vocabulary, tree.root);
 
 /**
  * The architecture rules govern application source. Tests and one-off scripts sit outside that

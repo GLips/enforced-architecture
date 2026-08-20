@@ -24,7 +24,10 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineTreeRule } from "../lib/define-tree-rule.ts";
-import { isUnderPath } from "../../policy/layout.ts";
+import {
+  isUnderPath,
+  dbSchemaPath,
+} from "../../policy/layout.ts";
 
 const SCHEMA_DECLARATIONS = new Set(["pgTable", "relations"]);
 
@@ -46,7 +49,7 @@ export const schemaPlacementRule = defineTreeRule({
     // Whole segments, so a sibling that merely shares a prefix — a
     // `schema-archive/` holding retired tables, a `drizzle-helpers/` of query
     // utilities — is still governed.
-    if (isUnderPath(role.sourcePath, role.tree.vocabulary.dbSchemaPath)) return {};
+    if (isUnderPath(role.sourcePath, dbSchemaPath(role.tree.vocabulary))) return {};
 
     return {
       // The declaration is a CALL, wherever it sits: a visitor reaches one nested in a factory or an

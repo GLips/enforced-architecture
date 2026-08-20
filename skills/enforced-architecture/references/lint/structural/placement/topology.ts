@@ -32,6 +32,8 @@ import {
   topLevelDirs,
   type TreeVocabulary,
   withoutSourceExtension,
+  featureRootModules,
+  sourceRootModules,
 } from "../../policy/layout.ts";
 import {
   collectTreeFiles,
@@ -69,7 +71,7 @@ function grammarFor(vocabulary: TreeVocabulary, top: string): BoundaryGrammar | 
   if (top === vocabulary.featuresDir) {
     return {
       kind: "layered",
-      rootFiles: vocabulary.featureRootFiles,
+      rootFiles: featureRootModules(vocabulary),
       layers: orderedLayerDirs(vocabulary),
     };
   }
@@ -84,7 +86,7 @@ export const topologyCheck: StructuralCheck = {
   run(context) {
     const { config, tree, vocabulary } = context;
     const allowedRoots = topLevelDirs(vocabulary);
-    const allowedRootFiles = vocabulary.sourceRootFiles;
+    const allowedRootFiles = sourceRootModules(vocabulary);
     const { featuresDir, domainsDir } = vocabulary;
     const sourceRootName = tree.root;
 

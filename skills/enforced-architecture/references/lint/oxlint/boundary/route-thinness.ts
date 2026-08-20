@@ -21,6 +21,7 @@ import {
   aliasSpecifierFor,
   isUnderPath,
   type TreeVocabulary,
+  dbDir,
 } from "../../policy/layout.ts";
 import { visitModuleSources } from "../lib/module-source-visitor.ts";
 
@@ -37,7 +38,7 @@ function bannedSpecifiers(vocabulary: TreeVocabulary): string[] {
   const serverEnv = Object.entries(vocabulary.envModules)
     .filter(([, exposure]) => exposure === "env-server")
     .map(([module]) => aliasSpecifierFor(vocabulary, module));
-  return [aliasSpecifierFor(vocabulary, vocabulary.dbDir), ...serverEnv];
+  return [aliasSpecifierFor(vocabulary, dbDir(vocabulary)), ...serverEnv];
 }
 
 export const routeThinnessRule = defineTreeRule({

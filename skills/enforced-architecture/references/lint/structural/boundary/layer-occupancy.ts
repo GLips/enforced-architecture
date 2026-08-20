@@ -22,7 +22,7 @@
 // An import that goes up is placement/layer-direction's finding, not this one's.
 // ──────────────────────────────────────────────────────────────────────
 
-import { orderedLayerDirs } from "../../policy/layout.ts";
+import { dbSchemaPath, orderedLayerDirs } from "../../policy/layout.ts";
 import type { Finding, StructuralCheck } from "../check-substrate.ts";
 import type { ImportEdge } from "../import-graph.ts";
 
@@ -35,7 +35,8 @@ export const layerOccupancyCheck: StructuralCheck = {
     // own. A schema path or a layer name configured beside this rule is the
     // vocabulary written twice, and the copy that drifts goes quiet rather than
     // red.
-    const { dbSchemaPath: schemaTarget, featuresDir: featuresDirName } = vocabulary;
+    const schemaTarget = dbSchemaPath(vocabulary);
+    const { featuresDir: featuresDirName } = vocabulary;
     const layerOrder = orderedLayerDirs(vocabulary);
     const dataLayer = layerOrder[layerOrder.length - 1];
     const findings: Finding[] = [];

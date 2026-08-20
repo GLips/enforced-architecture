@@ -29,6 +29,7 @@
 // as a value.
 // ──────────────────────────────────────────────────────────────────────
 
+import { rootRouteModule } from "../../policy/layout.ts";
 import { defineTreeRule } from "../lib/define-tree-rule.ts";
 import { isAtProfile, isModule } from "../../policy/declared-trees.ts";
 import { exportedName, visitImportedNames } from "../lib/imported-names.ts";
@@ -67,7 +68,7 @@ export const noRawPrimitivesRule = defineTreeRule({
     // it is one file, and a suffix match would hand the exemption to any
     // `__root.tsx` anywhere.
     if (isAtProfile(role, "shared-ui")) return {};
-    if (isModule(role, role.tree.vocabulary.rootRouteModule)) return {};
+    if (isModule(role, rootRouteModule(role.tree.vocabulary))) return {};
 
     // Both arms report, and the React Native one only finds its names once the whole file is
     // walked — so without a single ordering owner a file's diagnostics come out with every
