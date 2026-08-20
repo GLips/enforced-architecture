@@ -119,6 +119,12 @@ export type ImportSurface =
  * error — the property that turns an unguarded edge from an invisible hole into
  * something the typechecker refuses.
  *
+ * `bun run typecheck` is what makes that promise observable in this repo rather
+ * than only in an adopting one: both tsconfigs compile this file, so adding an
+ * area or a profile fails here first. Do not re-assert the same completeness at
+ * runtime — a hand-written list of the areas is a second copy that cannot see
+ * the eleventh.
+ *
  * SAME-UNIT EDGES NEVER REACH THIS TABLE. The evaluator recognises unit identity
  * first and returns `internal`: a feature barrel reaching its own layers, a
  * domain barrel re-exporting its own modules, one layer importing a sibling file.

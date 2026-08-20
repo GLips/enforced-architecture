@@ -89,7 +89,9 @@ export type FeatureLayer = (typeof FEATURE_LAYERS)[number];
 // `FEATURE_LAYERS` above makes the matching constant here a type error rather
 // than an exported string pointing at a directory that is no longer a layer —
 // which would leave the rule reading it quietly matching nothing, the failure
-// `boundary/layer-occupancy.md` already documents from the other side.
+// `boundary/layer-occupancy.md` already documents from the other side. That is a
+// promise only a typechecker can keep, so `bun run typecheck` compiles this file
+// under both tiers' tsconfigs — otherwise the inversion is prose.
 export const UI_LAYER: FeatureLayer = "ui";
 export const CONTROLLERS_LAYER: FeatureLayer = "controllers";
 export const SERVICE_LAYER: FeatureLayer = "service";

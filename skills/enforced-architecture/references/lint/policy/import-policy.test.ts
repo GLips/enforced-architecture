@@ -499,7 +499,7 @@ describeSuite("the adapter contract: same-unit edges never reach the table", () 
   });
 });
 
-describeSuite("the adapter contract: the one flag, and the exhaustive key", () => {
+describeSuite("the adapter contract: the one flag, and the loud defaults", () => {
   testCase("a domain's runtime package import is denied and its type import is not", () => {
     assert.equal(messageId(verdict("domains/pricing/rate-card.ts", "zod")), "impureDomainRuntimeImport");
     assert.equal(verdict("domains/pricing/rate-card.ts", "zod", { typeOnly: true }).kind, "allow-crossing");
@@ -532,28 +532,5 @@ describeSuite("the adapter contract: the one flag, and the exhaustive key", () =
 
   testCase("an unpoliced source is loud rather than skipped", () => {
     assert.equal(messageId(verdict("lib/format-date.ts", "@/shared/utils")), "unclassifiedSource");
-  });
-
-  testCase("the table is exhaustive over both keys", () => {
-    // Not a lookup assertion: it proves the RECORD is complete at runtime, which
-    // is what makes the compile-time exhaustiveness worth relying on after a
-    // profile or an area is added.
-    const areas: TargetArea[] = [
-      "route",
-      "feature",
-      "domain",
-      "infrastructure",
-      "shared",
-      "shared-ui",
-      "env-server",
-      "env-client",
-      "source-root",
-      "package",
-    ];
-    for (const [profile, row] of Object.entries(IMPORT_POLICY)) {
-      for (const area of areas) {
-        assert.notEqual(row[area], undefined, `${profile} has no ${area} cell`);
-      }
-    }
   });
 });
