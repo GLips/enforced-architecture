@@ -58,12 +58,15 @@ import {
   browserStorageModule,
   dbDir,
   dbSchemaPath,
+  FEATURE_ROOT_ROLES,
   rootRouteModule,
+  SOURCE_ROOT_ROLES,
   sharedUiDir,
   themeModule,
   topLevelDirsByField,
   barrelModules,
   classifySourcePath,
+  isSafeDirectorySegment,
   isServerModule,
   isUnderPath,
   RECOMMENDED_VOCABULARY,
@@ -225,11 +228,18 @@ function deepFreeze<T>(value: T): T {
  * and that exemption is bounded by the collision check in
  * `assertGoverningVocabulary` instead.
  *
- * `sourceRootPositions` and `featureRootPositions` are absent for a different
- * reason: they PERMIT a file at a position rather than govern one, and the
- * recommended vocabulary spells `sourceRootPositions.routeTree` as
- * `routeTree.gen` — a file whose own name makes it exempt whether or not it is
- * declared. Nothing is silenced by naming it.
+ * The ROLE that is absent is `sourceRootPositions.routeTree`, and only that one.
+ * The recommended vocabulary spells it `routeTree.gen`: a generated file, exempt
+ * by its own name whether or not the vocabulary mentions it, so requiring a
+ * non-exempt spelling there would reject the correct declaration. Every other
+ * authored position in both records is checked like any other. "They PERMIT a
+ * file rather than govern one" was the reason the whole pair was skipped, and it
+ * does not survive contact: a review spelled `featureRootPositions.errors` as
+ * `errors.test` and `sourceRootPositions.clientEntry` as `client.test`, and both
+ * files — hand-written, sitting in a declared tree, named in the vocabulary —
+ * came back `undefined` from `classifyFileRole`, which returns early in the
+ * oxlint tier and drops them from the structural walk. Permitted and policed are
+ * the same position; only generated output is neither.
  */
 function assertGovernedPositionsAreNotExempt(vocabulary: TreeVocabulary, treeRoot: string): void {
   const unit = `${vocabulary.featuresDir}/alpha`;
@@ -261,6 +271,21 @@ function assertGovernedPositionsAreNotExempt(vocabulary: TreeVocabulary, treeRoo
     ["browserStorageName", `${browserStorageModule(vocabulary)}.ts`],
     ...Object.keys(vocabulary.envModules).map(
       (module) => [`an envModules key`, `${module}.ts`] as const,
+    ),
+    // Walked through the ROLE sets rather than `Object.values`, for the same
+    // reason the readers in `layout.ts` are: a record that arrived as
+    // `Record<string, string>` carries whatever it carries, and a key nobody
+    // enumerated would be validated by nobody.
+    ...FEATURE_ROOT_ROLES.map(
+      (role) =>
+        [`featureRootPositions.${role}`, `${unit}/${vocabulary.featureRootPositions[role]}.ts`] as const,
+    ),
+    // `routeTree` is the one exclusion, and it is excluded BY ROLE. It names
+    // generated output — `routeTree.gen` — which is exempt because nobody wrote
+    // it, so a finding against it names no edit anyone can make.
+    ...SOURCE_ROOT_ROLES.filter((role) => role !== "routeTree").map(
+      (role) =>
+        [`sourceRootPositions.${role}`, `${vocabulary.sourceRootPositions[role]}.tsx`] as const,
     ),
   ];
 
@@ -298,12 +323,14 @@ export function assertDistinctDeclaredRoots(trees: readonly DeclaredTree[]): voi
     // directory that does not exist.
     if (tree.root !== canonicalRoot(tree.root)) {
       throw new Error(
-        `The tree at "${tree.root}" is not written canonically. A root is segments joined by ` +
-          `single slashes with no "./" or "../", no leading or trailing slash, and no empty ` +
-          `segment: "src", "apps/web/src". Both tiers compare this string against a ` +
-          `project-relative path rather than resolving it, and the shipped oxlintrc builds ` +
-          `"<root>/**" from it — so a second spelling of one directory is a root nothing ` +
-          `resolves to and a glob matching nothing.`,
+        `The tree at "${tree.root}" is not written canonically. A root is LITERAL directory ` +
+          `names joined by single slashes — "src", "apps/web/src" — with no "./" or "../", no ` +
+          `leading or trailing slash, no empty segment, and no glob syntax. Both tiers compare ` +
+          `this string against a project-relative path rather than resolving it, and the shipped ` +
+          `oxlintrc builds "<root>/**" from it. A second spelling of one directory is a root ` +
+          `nothing resolves to. A PATTERN is worse: "src*/**" still lints files under "src" while ` +
+          `the classifier and the structural walk both look for a directory literally named ` +
+          `"src*" and find none, so the tree reads as declared and is policed by nothing.`,
       );
     }
     if (seen.has(tree.root)) {
@@ -327,8 +354,17 @@ export function assertDistinctDeclaredRoots(trees: readonly DeclaredTree[]): voi
  * two-spellings defect one indirection further away.
  */
 function canonicalRoot(root: string): string {
+  // The SAME segment predicate the vocabulary's names are held to, and it is one
+  // owner on purpose: a root is a directory name like any other. Spelling the
+  // test privately here let `src*` through — syntactically a root, semantically a
+  // glob, and a glob is the one thing a declared root may never be. The oxlint
+  // override built from it (`src*/**`) still matches files under `src`, while
+  // `declaredTreeFor` looks for the literal prefix `src*/` and finds nothing and
+  // the structural walk resolves a directory that does not exist. Both tiers go
+  // quiet inside a tree the config says is declared, which is the exact failure
+  // this file exists to make impossible.
   const segments = root.split("/");
-  if (segments.some((segment) => segment === "" || segment === "." || segment === "..")) {
+  if (!segments.every(isSafeDirectorySegment)) {
     return `${root} (noncanonical)`;
   }
   return root;

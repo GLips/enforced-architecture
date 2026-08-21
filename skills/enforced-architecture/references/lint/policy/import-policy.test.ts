@@ -826,6 +826,33 @@ describeSuite("a vocabulary cannot declare its own tree out of existence", () =>
     ["an api client called api.test", { ...RECOMMENDED_VOCABULARY, apiClientName: "api.test" }],
     ["browser storage called storage.gen", { ...RECOMMENDED_VOCABULARY, browserStorageName: "storage.gen" }],
     ["an env module called env.test", { ...RECOMMENDED_VOCABULARY, envModules: { "env.test": "env-server" } }],
+    // The two ROOT-POSITION records. These were skipped on the theory that a
+    // position which permits a file does not govern one — but the file is
+    // hand-written, sits in a declared tree, and is named in the vocabulary, and
+    // an exempt spelling drops it out of `classifyFileRole` exactly like any
+    // other position. `sourceRootPositions.routeTree` is the only role still
+    // excluded, and the legal case below is what says so.
+    [
+      "a feature errors module called errors.test",
+      {
+        ...RECOMMENDED_VOCABULARY,
+        featureRootPositions: { ...RECOMMENDED_VOCABULARY.featureRootPositions, errors: "errors.test" },
+      },
+    ],
+    [
+      "a client entry called client.test",
+      {
+        ...RECOMMENDED_VOCABULARY,
+        sourceRootPositions: { ...RECOMMENDED_VOCABULARY.sourceRootPositions, clientEntry: "client.test" },
+      },
+    ],
+    [
+      "a router module called router.gen",
+      {
+        ...RECOMMENDED_VOCABULARY,
+        sourceRootPositions: { ...RECOMMENDED_VOCABULARY.sourceRootPositions, router: "router.gen" },
+      },
+    ],
   ] as [string, TreeVocabulary][]) {
     testCase(`${label} exempts a governed position from every rule`, () => {
       assert.throws(
@@ -834,6 +861,19 @@ describeSuite("a vocabulary cannot declare its own tree out of existence", () =>
       );
     });
   }
+
+  // The one role excluded, and the reason the exclusion is BY ROLE rather than by
+  // record: the recommended vocabulary's own `routeTree.gen` is generated output,
+  // exempt by its own name, and a check that held every root position to a
+  // non-exempt spelling would reject the correct declaration. Its siblings in the
+  // same record are checked — the loop above proves that — so this pins a narrow
+  // exception rather than a skipped record.
+  testCase("the generated routeTree may name itself exempt and nothing else may", () => {
+    assert.doesNotThrow(() =>
+      declareTrees([{ root: "src", vocabulary: RECOMMENDED_VOCABULARY }]),
+    );
+    assert.strictEqual(RECOMMENDED_VOCABULARY.sourceRootPositions.routeTree, "routeTree.gen");
+  });
 
   // An empty list is every tree-scoped rule switched off, and it is the one value
   // the BRAND cannot refuse on its own: with the brand on the elements rather
@@ -984,6 +1024,19 @@ describeSuite("a vocabulary cannot declare its own tree out of existence", () =>
     const trailing: DeclaredTree[] = [{ root: "src/", vocabulary: RECOMMENDED_VOCABULARY }];
     assert.throws(() => assertDistinctDeclaredRoots(trailing), /not written canonically/);
   });
+
+  // A root that is a PATTERN is the config knob this catalog forbids arriving as
+  // a root instead of a rule scope, and its failure is worse than a misspelling:
+  // the oxlint override "src*/**" still matches files under src, so the tier
+  // looks configured, while `declaredTreeFor` compares the literal prefix "src*/"
+  // and the structural walk resolves a directory that is not there. Declared and
+  // policed by nothing.
+  for (const pattern of ["src*", "src?", "{src,app}", "src/[a-z]*", "!src", "src\\web"]) {
+    testCase(`a root spelled "${pattern}" is a pattern, not a directory`, () => {
+      const globbed: DeclaredTree[] = [{ root: pattern, vocabulary: RECOMMENDED_VOCABULARY }];
+      assert.throws(() => assertDistinctDeclaredRoots(globbed), /not written canonically/);
+    });
+  }
 
   testCase("two DIFFERENT roots are the monorepo case and stay legal", () => {
     const both: DeclaredTree[] = [

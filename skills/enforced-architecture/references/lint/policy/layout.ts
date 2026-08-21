@@ -772,7 +772,7 @@ function isSafeExtension(extension: string): boolean {
  * A leading `.` is fine (`.generated`), while BEING one is not: `.` and `..`
  * name a position rather than a directory.
  */
-function isSafeDirectorySegment(segment: string): boolean {
+export function isSafeDirectorySegment(segment: string): boolean {
   if (segment === "." || segment === "..") return false;
   return /^[A-Za-z0-9._-]+$/.test(segment);
 }

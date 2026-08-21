@@ -58,11 +58,22 @@ export const barrelPurityFixtures: CheckFixtures = {
     // the trace stopped at a boundary this file never crossed — a review left
     // all 16 checks green that way.
     "FAIL src/features/sconce/index.ts",
+    // The same shadow with the destructuring RENAMED, so the name sits after the
+    // colon: `{ bridge: createServerFn }`. A reader that takes only the shorthand
+    // key position misses it, and the legal `orders` fixture is why it cannot
+    // simply accept every colon — the two pin opposite sides of one distinction.
+    "FAIL src/features/valance/index.ts",
     // The boundary FABRICATED by a string: no framework import at all, just a
     // quoted one beside a local function aliased to the boundary's name. This is
     // the contract's NEVER clause — a spelling ACCEPTED as a boundary that is not
     // one — and the reason both accepting halves read literal-masked text.
     "FAIL src/features/facade/index.ts",
+    // The same fabrication where masking cannot help: the import statement is
+    // JSX TEXT, neither string nor comment. Masking one more container per review
+    // is the loop that ends at the transpiler gate — the real lexer already knows
+    // which specifiers this file imports, and no spelling of one gets into that
+    // answer without being one.
+    "FAIL src/features/awning/index.ts",
   ],
 
   legal: [

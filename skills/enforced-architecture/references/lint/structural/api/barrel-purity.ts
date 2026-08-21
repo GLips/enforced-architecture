@@ -41,9 +41,12 @@
 //
 // NEVER — the direction that would be a false NEGATIVE, a server-only package in
 // the client bundle behind a green run. No spelling is accepted as a boundary
-// without an import of the boundary's own module. `rebindsName` is one-sided for
-// exactly this reason: any doubt about which binding runs resolves to "not a
-// boundary", never to "boundary".
+// without an import of the boundary's own module, and that half is not
+// approximated at all: it is the transpiler's specifier scan, the same real lexer
+// the import graph runs on. Text that merely LOOKS like an import — in a string,
+// in JSX text, in a comment — is not in the lexer's answer and cannot fabricate a
+// boundary. `rebindsName` is one-sided for the same reason: any doubt about which
+// binding runs resolves to "not a boundary", never to "boundary".
 //
 // WHY IT STAYS AN APPROXIMATION. `placement/no-plain-export-in-server-fn-module`
 // reads the same syntax EXACTLY, with a real AST: it decides bridge-ness from the
@@ -58,13 +61,19 @@
 // a server function", and following either never violates the other.
 //
 // So this is a second, deliberately WEAKER reading of a question another rule
-// owns exactly. Treat further bypasses of it as the known approximation this
-// paragraph names, not as bugs to patch one spelling at a time. Four rounds of
-// review found four spellings; a fifth is not evidence the design is wrong, it is
-// the design. The thing that would change the design is a real parser in THIS
-// tier — `oxc-parser` is the candidate, and it is declined here because it is a
-// native `0.x` dependency with no version line to oxlint's 1.x, shipped into
-// every adopting project for one call site.
+// owns exactly. Treat further OUT-clause bypasses of it as the known
+// approximation this paragraph names, not as bugs to patch one spelling at a
+// time. What is NOT dispositioned that way is a NEVER-clause bypass, and the
+// split between the two halves is what makes them different kinds of finding:
+// the module half is a lexer and admits no spelling, the name half is text and
+// admits many. A bypass of the name half moves the file OUT — an over-report. A
+// bypass of the module half would be a false negative, and there is no longer a
+// hand-written reader there to bypass.
+//
+// A real parser in this tier would fold the name half in too. `oxc-parser` is the
+// candidate and is declined: a native `0.x` dependency with no version line to
+// oxlint's 1.x, shipped into every adopting project for one call site. The
+// transpiler is preferred precisely because it is already here.
 //
 // ──────────────────────────────────────────────────────────────────────
 
@@ -192,7 +201,25 @@ function isServerOnlySpecifier(specifier: string, serverOnlyPackages: string[]):
 function crossesServerFnBoundary(
   source: string,
   boundary: { module: string; calls: string[] },
+  runtimeImports: readonly string[],
 ): boolean {
+  // THE GATE, and the reason the NEVER clause is a claim rather than a hope.
+  // `runtimeImports` comes from `scanDeclaredImports` — Bun's transpiler, a real
+  // lexer — so a module this file does not actually import cannot be fabricated
+  // by text that merely looks like an import. Two reviews fabricated one from
+  // text the hand reader could not tell from code: first a quoted import in a
+  // string, then the same statement spelled as JSX TEXT inside a `<span>`, where
+  // masking string literals does nothing because the fabrication is not in a
+  // string. Masking the next container after that is the loop this gate ends:
+  // the lexer already knows which specifiers are real, and no spelling of an
+  // import gets into its answer without being one.
+  //
+  // What the text reading below still owns is the NAME — which local the clause
+  // bound, and whether the call reaches it — because the scan returns specifiers
+  // and no bindings. That question is only ever asked about a module the file
+  // provably imports.
+  if (!runtimeImports.includes(boundary.module)) return false;
+
   // Validated as identifiers by `assertGoverningConfig`, which is what makes
   // interpolating a call name into a matcher sound. The MODULE is compared as a
   // plain string rather than matched, so it needs no escaping and no validation
@@ -226,10 +253,13 @@ function crossesServerFnBoundary(
  * unmask the code after it.
  *
  * NEGATIVE SPACE: regex literals are not masked. Telling `/x/` from division
- * needs the parser this tier does not have, and the failure mode of guessing
- * wrong is unmasking real code — so it is not guessed. A boundary spelled inside
- * a regex literal is not reachable anyway: the masking exists to stop a STRING
- * from reading as an import, and a regex literal cannot hold one.
+ * needs the parser this tier does not have, so it is not guessed. A regex CAN
+ * hold an import statement — `/import \{ x \} from "y"/` — and this masker does
+ * not stop it. What stops it is the transpiler gate in `crossesServerFnBoundary`,
+ * which is upstream of every container question: text in a regex is not in the
+ * lexer's specifier list, so there is no module for the clause to be read
+ * against. That is why this function no longer has to enumerate containers, and
+ * why the next one found is not a new hole.
  */
 function maskLiteralContents(source: string): string {
   const out = source.split("");
@@ -315,12 +345,19 @@ const BINDING_FORMS: ((name: string) => string)[] = [
   (name) => String.raw`[(,]\s*${name}\s*[:,)=]`,
   // f => … — the arrow parameter with no parentheses at all
   (name) => String.raw`\b${name}\s*=>`,
-  // { f }, [ f ] — a destructured binding position, SHORTHAND only. A `:` after
+  // { f }, [ f ] — a destructured binding position, SHORTHAND only. A `:` AFTER
   // the name is deliberately not accepted: in a pattern, `{ f: g }` binds `g` and
   // not `f`, and in an object literal `{ f: "x" }` binds nothing at all. Accepting
   // it made an ordinary literal mentioning the name take a real boundary file out
   // of the boundary — a review reported a legal fixture that way.
   (name) => String.raw`[{[]\s*${name}\s*[},\]]`,
+  // { k: f } — the RENAMED destructuring, where the name sits AFTER the colon and
+  // is the one thing bound. The entry above reads the key position and this one
+  // reads the value position, which is why both exist and why neither is the
+  // other's superset: `{ createServerFn: "x" }` binds nothing and must not match,
+  // `{ bridge: createServerFn }` binds the shadow and must. A review shadowed the
+  // import with exactly this and was accepted as a boundary.
+  (name) => String.raw`:\s*${name}\s*[},\]=]`,
 ];
 
 /**
@@ -458,17 +495,23 @@ export const barrelPurityCheck: StructuralCheck = {
             // of the live one below it.
             const source = blankComments(raw);
 
+            // Read once and used twice: the boundary gate asks whether the
+            // framework module is among these, and the trace below walks them.
+            // One extraction, so the question "what does this file import" has
+            // the same answer for both.
+            const imported = runtimeSpecifiers(absolute, raw, jsxImportSource);
+
             if (
               shortCircuitApplies &&
               depth > 0 &&
-              crossesServerFnBoundary(source, serverFnBoundary)
+              crossesServerFnBoundary(source, serverFnBoundary, imported)
             ) {
               return;
             }
 
             const lineStarts = lineStartOffsets(source);
 
-            for (const specifier of runtimeSpecifiers(absolute, raw, jsxImportSource)) {
+            for (const specifier of imported) {
               const line =
                 depth === 0 ? lineOfSpecifier(source, lineStarts, specifier) : originLine;
 
