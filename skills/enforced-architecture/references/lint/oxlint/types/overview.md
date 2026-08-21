@@ -27,7 +27,7 @@ All three key on `as` and its angle-bracket twin, so all three are silent on the
 | [no-broad-parameters](no-broad-parameters.ts) | Yes | A body reads a parameter with no guard and no cast, and a wrong argument fails at the call site |
 | [no-unknown-returns](no-unknown-returns.ts) | Yes | A caller reads a field off the result with no narrowing of its own |
 | [no-unknown-type-aliases](no-unknown-type-aliases.ts) | Yes | A name in a signature states a contract; no alias chain ends at `unknown` |
-| [no-reflect-access](no-reflect-access.ts) | Yes | A property rename and a wrong argument count still fail to compile |
+| [no-reflect-access](no-reflect-access.ts) | Yes | A property rename and a wrong argument count still fail to compile. **Reports correct code** — see below |
 | [no-runtime-typeof](no-runtime-typeof.ts) | Yes | Each representation check sits in one named guard or one schema. **Reports correct code** — see below |
 | [no-conditional-empty-object-spread](no-conditional-empty-object-spread.ts) | No | Shows which object literals do not state their own keys. Ships non-blocking |
 
@@ -35,6 +35,13 @@ All three key on `as` and its angle-bracket twin, so all three are silent on the
 
 Neither appears in the hub's selection table. Both reject code that is often correct.
 
+- **`no-reflect-access`** hits a `namespace Reflect` that has value members, because separating it
+  from the erased kind means reimplementing TypeScript's instantiation rule out of one file's
+  syntax — and the erased kind left alone is a one-line, file-wide off-switch. A per-line disable is
+  the answer for a real one. The rule also does not see the builtin reached any other way:
+  `globalThis.Reflect.get(…)`, `const R = Reflect`, `const Reflect = globalThis.Reflect`, or a
+  destructured `const { get } = Reflect`. Closing that family takes type information, which this
+  tier has none of.
 - **`no-runtime-typeof`** hits the SSR guard (`typeof window === "undefined"`) and any union the compiler already narrowed. This tier has no type information, so the ban is a tooling limit, not a position. The one carve-out is the direct body of a type guard, where the check leaves a named predicate behind; everywhere else, expect per-line disables.
 - **`no-conditional-empty-object-spread`** targets an idiom that is deliberate under `exactOptionalPropertyTypes`. A signal about density, not a defect.
 

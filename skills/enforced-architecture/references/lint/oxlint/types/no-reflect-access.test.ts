@@ -135,6 +135,33 @@ export const value = Reflect.get(invoice, named);`,
       errors: [{ messageId: "reflectGet" }],
     },
     {
+      // The cheapest one of all in a real project: `import Reflect = NodeJS` needs
+      // only `@types/node`, and `= JSX` only React. The alias erases to nothing, so
+      // the call is the builtin's — and the definition claims `importKind: "value"`,
+      // which is why the type-only arm above does not see it.
+      name: "an alias to a type-space entity erases to nothing",
+      filename: SERVICE,
+      code: `namespace ReflectShim { export type Unused = string }
+import Reflect = ReflectShim;
+export const value = Reflect.get(invoice, key);`,
+      errors: [{ messageId: "reflectGet" }],
+    },
+    {
+      // Documented cost, asserted so nobody adopts this rule believing otherwise:
+      // an INSTANTIATED namespace binds a real value and this still reports. Telling
+      // it from the erased kind means reimplementing TypeScript's instantiation rule
+      // out of one file's syntax, to buy silence on a namespace shadowing a language
+      // builtin — while the erased half left open is a file-wide off-switch with no
+      // bound. Here so that adding a heuristic later cannot leave the header stale.
+      name: "an instantiated namespace is a real binding and still reports",
+      filename: SERVICE,
+      code: `namespace Reflect {
+  export const get = (o, k) => o[k];
+}
+export const value = Reflect.get(invoice, key);`,
+      errors: [{ messageId: "reflectGet" }],
+    },
+    {
       name: "both banned methods in one file are two findings",
       filename: SERVICE,
       code: `export const value = Reflect.get(invoice, key);
@@ -224,6 +251,39 @@ export function classify(key) {
       return 0;
   }
 }`,
+    },
+    {
+      // What separates resolving the REFERENCE from looking the NAME up, and the
+      // only case that does. A name is bound by every declaration that spells it,
+      // type space included, so the inner `type Reflect` hides the real `const`
+      // outside and a name walk reports on a call that is genuinely local.
+      name: "a type-space binding does not hide the real one outside it",
+      filename: SERVICE,
+      code: `const Reflect = { get: (o, k) => String(o[k]) };
+export function read(key) {
+  type Reflect = never;
+  const unused: Reflect | undefined = undefined;
+  return [Reflect.get({}, key), unused];
+}`,
+    },
+    {
+      // The `computed` argument to `staticKeyName`, which is the difference between
+      // a key and a variable HOLDING one. The variable is named `apply` on purpose:
+      // hardcoding the argument to `false` reads the identifier's own name as the
+      // key, and only a variable named like a banned method shows that. A key this
+      // file cannot follow names nothing, whatever the variable is called.
+      name: "a computed key that is a variable names nothing statically",
+      filename: SERVICE,
+      code: `declare const apply: "ownKeys";
+export const value = Reflect[apply](invoice, key);`,
+    },
+    {
+      // `= require(…)` is the same syntax as the entity alias above and the opposite
+      // verdict: it loads a module and binds it, so the call is not the builtin's.
+      name: "an import-equals of a module is a real binding",
+      filename: SERVICE,
+      code: `import Reflect = require("./shim");
+export const value = Reflect.get(invoice, key);`,
     },
     {
       name: "a same-named method on some other object",

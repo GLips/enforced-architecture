@@ -93,7 +93,7 @@ What it still does not check is whether **oxlint** accepts the plugin, as oppose
 
 `types/no-reflect-access` is the measured case. It asked "does any enclosing scope bind `Reflect`?" and read a hit as a local shadow. Under the CLI the global scope binds `Reflect`, so every use answered yes and the rule reported nothing at all — shipped, registered, enabled nowhere, and green across all fifteen of its specs. Two spellings of the question were available and each is wrong in one host: `sourceCode.isGlobalReference` answers `true` under the CLI and `false` under RuleTester for the same identifier (oxlint 1.77.0, both measured). The fix reads the resolved binding's **definition site**, which agrees in both.
 
-`harness/prove-no-reflect-access-live.ts` is what proves it: two files materialized on disk, linted by the real `oxlint` binary through the shipped `plugin.ts`, diagnostics read back. It covers one rule on purpose and says so in its header.
+`harness/prove-no-reflect-access-live.ts` is what proves it: files materialized on disk, linted by the real `oxlint` binary through the shipped `plugin.ts`, diagnostics read back. It covers one rule on purpose and says so in its header.
 
 **Every other rule in the catalog carries the same blind spot**, and a green `check:rules` does not mean a rule fires in the linter. Generalizing the live run across the tier is ea-49.
 

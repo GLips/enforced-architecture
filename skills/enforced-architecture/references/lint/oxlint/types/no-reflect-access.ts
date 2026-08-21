@@ -39,6 +39,11 @@
 // A codebase that wants the whole family closed wants a type-aware check, which no
 // rule in this catalog is.
 //
+// REPORTS CORRECT CODE, once: a `namespace Reflect` with value members really does
+// bind the name, and this reports on it anyway. `bindsAValue` says why the erased
+// kind and the instantiated one are refused together, and the spec asserts the cost
+// rather than leaving it to this paragraph.
+//
 // SCOPE, and it is the same for every TREE-SCOPED rule in this catalog — which
 // is every rule but `testing/no-module-mocking`, whose subject is a test file and
 // which is therefore enabled globally. This rule is silent outside the declared
@@ -71,9 +76,12 @@ const BANNED_REFLECT_METHODS = new Map<string, "reflectGet" | "reflectApply">([
 //   under RuleTester         no global scope is populated, and `isGlobalReference` is false
 //
 // So `isGlobalReference` cannot be read — it answers opposite things about the same identifier.
-// Neither can a scope-chain walk that looks the NAME up: under the CLI the global scope binds it
-// for every use, so every use reads as shadowed and the rule reports nothing at all. A spec cannot
-// catch either, because a spec runs in the host each one happens to be right in.
+// Neither can a scope-chain walk that looks the NAME up. It gets the SHADOWING wrong: a name is
+// bound by every declaration that spells it, in value space and type space alike, so a `type
+// Reflect = never` inside a function hides the real `const Reflect` outside it and the rule fires
+// on a call that is genuinely local. A reference resolves to the binding the CALL uses. (The name
+// walk is also what made this rule inert, when it returned on any binding at all rather than
+// asking each definition — the CLI's global scope binds `Reflect` for every use.)
 //
 // Asking the RESOLVED REFERENCE agrees in both, and an unresolved one is the builtin — nothing in
 // the file declares it. Under the CLI it resolves instead to a global-scope variable with no
@@ -123,6 +131,11 @@ function resolvesToLocalBinding(sourceCode: SourceCode, identifier: ESTree.Node)
 //   a type-only import      `import type { Reflect }` and `import { type Reflect }`. The resolver
 //       does NOT skip these the way it skips a type alias, so both spellings have to be read:
 //       `importKind` sits on the DECLARATION for the first and on the SPECIFIER for the second.
+//   an alias to an ENTITY    `import Reflect = NodeJS`, which is a one-line off-switch in any
+//       project carrying `@types/node` — or `= JSX` in any React one — and erases to nothing at
+//       all. Its definition claims `importKind: "value"` on both the node and its parent, which
+//       is why the arm above does not catch it. The `= require("…")` spelling of the same syntax
+//       DOES bind a value and is left alone, so the moduleReference is what separates them.
 //
 // NEGATIVE SPACE, in the false-positive direction, and it is the reason `TSModuleName` is refused
 // by kind rather than by inspection: an INSTANTIATED namespace — `namespace Reflect { export const
@@ -139,6 +152,7 @@ const TYPE_SPACE_DEFINITIONS: readonly string[] = ["Type", "TSModuleName"];
 function bindsAValue(definition: { type: string; node: ESTree.Node; parent: ESTree.Node | null }): boolean {
   if (TYPE_SPACE_DEFINITIONS.includes(definition.type)) return false;
   if (isTypeOnlyImport(definition.node) || isTypeOnlyImport(definition.parent)) return false;
+  if (isEntityAlias(definition.node)) return false;
   // `declare` sits on the DECLARATION, and a `Variable` definition's node is the DECLARATOR
   // inside it, so reading the flag off `definition.node` finds nothing there and calls every
   // ambient declaration a real binding. Unreachable in practice — every definition kind that
@@ -150,6 +164,16 @@ function bindsAValue(definition: { type: string; node: ESTree.Node; parent: ESTr
 
 function isTypeOnlyImport(node: ESTree.Node | null): boolean {
   return node !== null && "importKind" in node && node.importKind === "type";
+}
+
+// `import X = A.B` names something that already exists and is erased at emit; `import X = require(…)`
+// loads a module and binds it. One syntax, and the moduleReference is the only thing that tells
+// them apart — the definition's `importKind` says `"value"` for both.
+function isEntityAlias(node: ESTree.Node): boolean {
+  return (
+    node.type === "TSImportEqualsDeclaration" &&
+    node.moduleReference.type !== "TSExternalModuleReference"
+  );
 }
 
 export const noReflectAccessRule = defineTreeRule({

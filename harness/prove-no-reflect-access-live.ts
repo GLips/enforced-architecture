@@ -24,13 +24,18 @@
  * or one that reads the variable rather than each of its definitions does, and an
  * adopter switches the rule off in one line either way.
  *
- * REVERT-PROBE after any change here, all four. Put back the old scope walk (`if
- * (scope.set.has(name)) return true`) and the reporting case must fail; look the
- * name up in the scope chain instead of resolving the reference and the type-space
- * case must fail; delete the `resolvesToLocalBinding` call from the rule and the
- * silent case must fail; set the shipped config's key to `"off"` and the
- * enablement check must fail. A run that stays green through any of them is
- * testing nothing.
+ * REVERT-PROBE after any change here, every case. Put back the old scope walk (`if
+ * (scope.set.has(name)) return true`) and the reporting cases must fail; read the
+ * resolved VARIABLE rather than each of its definitions and the merged case must
+ * fail; stop walking to `upper` for the reference and the switch case must fail;
+ * delete the `resolvesToLocalBinding` call from the rule and the silent cases must
+ * fail; set the shipped config's key to `"off"` and the enablement check must fail.
+ * A run that stays green through any of them is testing nothing.
+ *
+ * What is NOT probed from here, deliberately: reference resolution versus a
+ * scope-chain NAME lookup. Both hosts agree once each definition is asked, so the
+ * case that separates them — a type-space binding hiding a real one outside it —
+ * is a spec case rather than a live one.
  *
  * NEGATIVE SPACE, and it is why this file is named after one rule rather than
  * after the technique:
