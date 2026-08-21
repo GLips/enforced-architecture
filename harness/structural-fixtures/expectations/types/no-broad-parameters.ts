@@ -5,12 +5,25 @@ export const noBroadParametersFixtures: CheckFixtures = {
 
   obvious: ["FAIL src/features/alpha/repo/bp-untyped.ts"],
 
-  // Six findings on one path, and the last is the load-bearing one: the guard
-  // there vouches for `value` and NOT for `extra`, so a check that exempted the
-  // whole function once it saw a predicate reports five and fails here. That is
-  // what stops `value is T` from being a blanket hatch, and no comparison of
-  // bare paths can see it.
+  // Thirteen findings on one path, and the count is doing four jobs at once.
+  //
+  // The GUARD there vouches for `value` and NOT for `extra`, so a check that
+  // exempted the whole function once it saw a predicate reports twelve — that is
+  // what stops `value is T` from being a blanket hatch. One parameter buries
+  // `unknown` in a UNION, the only row in this tree pinning `typeResolvesToFlags`'
+  // union arm. Two more are the `ReadonlyArray` and `PromiseLike` entries of
+  // `TRANSPARENT_CONTAINER_NAMES`, which nothing else reaches: that set is a
+  // COVERAGE list, so an adopter shortening it is turning a check off, and this
+  // count is the only place that shows. And one nests five containers deep, which
+  // the walk's old depth bound answered "not broad" for, silently.
   adversarial: [
+    "FAIL src/features/alpha/repo/bp-spellings.ts",
+    "FAIL src/features/alpha/repo/bp-spellings.ts",
+    "FAIL src/features/alpha/repo/bp-spellings.ts",
+    "FAIL src/features/alpha/repo/bp-spellings.ts",
+    "FAIL src/features/alpha/repo/bp-spellings.ts",
+    "FAIL src/features/alpha/repo/bp-spellings.ts",
+    "FAIL src/features/alpha/repo/bp-spellings.ts",
     "FAIL src/features/alpha/repo/bp-spellings.ts",
     "FAIL src/features/alpha/repo/bp-spellings.ts",
     "FAIL src/features/alpha/repo/bp-spellings.ts",

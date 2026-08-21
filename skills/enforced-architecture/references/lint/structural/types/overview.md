@@ -27,7 +27,8 @@ Each declared tree names the `tsconfig` whose program contains it. That is a pat
 options — the project already has a tsconfig, and a second set of options in a lint config is a
 second answer to what the code compiles as.
 
-A tree whose tsconfig does not include every `.ts`/`.tsx` file in it fails the run with the paths
+A tree whose tsconfig does not compile every `.ts`/`.tsx`/`.mts`/`.cts` file in it — minus the tests,
+scripts, generated and ambient files every check already exempts — fails the run with the paths
 named. It is not a warning, because the alternative is worse: a check whose program holds none of
 the tree's files reports nothing, and nothing is what a clean tree reports too.
 
@@ -75,11 +76,30 @@ they are closed:
 - A closed key domain with opaque values is covered by nothing. `Record<'draft' | 'paid', unknown>`
   and `{ [K in keyof T]: unknown }` are silent in all three. A misspelled key is already a compile
   error there. The reads still need casts, and no check in this catalog says so.
+- An ARRAY is not a bag. `unknown[]`, `Array<unknown>` and `ReadonlyArray<unknown>` all carry a
+  number index signature, and an open numeric domain is what an array is — the trio is silent on all
+  three spellings, in a way that does not depend on which one was written. The broadness of the
+  ELEMENT is a signature question and reports at the parameter or return type that names it.
 - An UNINSTANTIATED generic mapped type is invisible. `type Bag<K extends string> = { [P in K]: V }`
   has no index signature until `K` is bound, so the alias itself is silent and each instantiation is
   judged on its own.
 - Nothing here reads `node_modules`. An alias to a broad type from a dependency reports at the local
   alias and never at the dependency.
+
+## No per-line escape, and one list that is a coverage list
+
+This tier has no `eslint-disable`, and none is planned. Every finding in every walked file is
+reported, so the recoveries these checks name in their messages — parse at the boundary, name the
+type, write the guard — are the only ones there are. Four of these seven could be silenced a line at
+a time in the oxlint tier. The move took that away, and adopters who had the old rules should expect
+that as the visible change.
+
+The one thing an adopter genuinely edits here is `TRANSPARENT_CONTAINER_NAMES` in
+[type-shapes.ts](type-shapes.ts), which is what a signature is read THROUGH: `Promise<unknown>`
+answers as `unknown` because `Promise` is in it. Adding a project's own `Result<T, E>` is the
+adaptation it exists for. Removing one of the four shipped names is not — it makes
+`ReadonlyArray<unknown>` a contract again, which is an off-switch wearing a list. `bp-spellings.ts`
+pins all four, so the deletion fails the suite instead of going quiet.
 
 ## `no-runtime-typeof` is a redesign, not a port
 

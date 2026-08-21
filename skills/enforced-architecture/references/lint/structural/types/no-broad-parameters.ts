@@ -28,12 +28,30 @@
 // assertion and the predicate exemption covers it. No directory silences this
 // check, and the vocabulary names none for it.
 //
+// A PARAMETER is every annotated slot a caller supplies an argument for, whatever
+// the declaration also does with it: a rest parameter (`...items: unknown[]`), a
+// defaulted one (`payload: any = {}`) and a constructor parameter property
+// (`private readonly contents: unknown`) are inputs and report as inputs. The
+// initialiser narrows nothing — this check reads declared types — and the
+// parameter property's second job, declaring a field, does not stop a caller
+// passing the value.
+//
 // NEGATIVE SPACE:
+//   - There is NO per-line escape. This tier has no `eslint-disable` and none is
+//     planned; a run reports every finding in every walked file. The oxlint-tier
+//     predecessor told adopters to expect per-line disables, and the move took
+//     that away. The recoveries are the ones in the sentences: name the type,
+//     parse at the boundary, or write the function as a guard.
 //   - A parameter with NO annotation is silent. It is implicitly `any` under a
 //     loose tsconfig, which is `noImplicitAny`'s complaint and stated better
 //     there; under `strict` it is already a compile error.
 //   - A DESTRUCTURED parameter is judged as one subject. `({ a, b }: unknown)`
 //     reports once, and the finding names the pattern rather than a field.
+//   - The `this` annotation is not a parameter and is silent. It occupies a
+//     parameter slot and carries a type, but no caller passes it, so every
+//     sentence this check has is addressed to nobody. A body that then reads an
+//     untyped receiver is `types/no-runtime-typeof`'s finding at the `typeof
+//     this`, unless the function publishes a `this is T` predicate.
 //   - The shipped `typescript/no-unsafe-argument` is NOT this check with a
 //     different name: it reports an `any` VALUE arriving at a typed parameter,
 //     the exact mirror. Neither can see the other's case. See the `types` section
@@ -77,7 +95,8 @@ export const noBroadParametersCheck: StructuralCheck = {
       for (const fn of typeCheckableNodesOfKind(file, FUNCTION_LIKE_KINDS)) {
         const parameters = (fn as Node & { parameters?: readonly Node[] }).parameters ?? [];
         const annotated = parameters.filter(
-          (parameter) => (parameter as Node & { type?: Node }).type !== undefined,
+          (parameter) =>
+            (parameter as Node & { type?: Node }).type !== undefined && !isReceiver(parameter),
         );
         if (annotated.length === 0) continue;
 
@@ -133,6 +152,20 @@ export const noBroadParametersCheck: StructuralCheck = {
     return findings;
   },
 };
+
+/**
+ * Whether this "parameter" is the `this` annotation.
+ *
+ * It occupies a parameter slot and carries a type, and it is not an input. Every
+ * sentence this check has to say — name the type the caller already has, accept
+ * a named type instead — is addressed to a caller who passes nothing here. What
+ * the body then does with an untyped receiver is `types/no-runtime-typeof`'s
+ * finding, at the `typeof this`, unless the function publishes a predicate.
+ */
+function isReceiver(parameter: Node): boolean {
+  const named = parameter as Node & { name?: Node & { text?: string } };
+  return named.name?.kind === SyntaxKind.Identifier && named.name.text === "this";
+}
 
 /**
  * What to call the parameter in the finding.

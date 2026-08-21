@@ -22,19 +22,30 @@
 //   - `Record<'draft' | 'paid', unknown>` is silent. Its keys are closed, so a
 //     misspelling is already a compile error — but its reads still need casts,
 //     and NO rule in this catalog covers opaque values under a closed key domain.
+//   - An ARRAY is not a bag, in any spelling. `unknown[]`, `Array<unknown>` and
+//     `ReadonlyArray<unknown>` all carry a number index signature, and an open
+//     numeric domain is what an array IS — "declare the fields" is not advice
+//     about one. Its ELEMENT being broad is `types/no-broad-parameters`' and
+//     `types/no-unknown-returns`' finding at the signature that names it.
 //   - `Record<keyof T & string, unknown>` is silent: an intersection is closed
 //     once any member is, and `keyof T` closes it. The price is that `keyof` of a
 //     type that is ITSELF a bag stays silent.
 //   - An UNINSTANTIATED GENERIC mapped type is silent — `type Loosened<T> = {
 //     [K in keyof T as string]: unknown }` has no index signature until `T` is
-//     supplied. This is the one case the syntactic predecessor caught and this
-//     does not; `type-shapes.ts` states it once for every check that shares the
-//     predicate.
-//   - A bag REACHED THROUGH a name declared in this tree reports at the
-//     declaration and nowhere else. `type Bag = Record<string, unknown>; type
-//     Payload = Bag;` is one finding, not two. A bag imported from a package is
-//     the mirror case and reports at each use, because there is no declaration in
-//     this tree to report at.
+//     supplied, so each instantiation is judged on its own. `type-shapes.ts`
+//     states it once for every check that shares the predicate.
+//   - A bag REACHED THROUGH a name this run WALKS reports at the declaration and
+//     nowhere else. `type Bag = Record<string, unknown>; type Payload = Bag;` is
+//     one finding, not two. A bag declared anywhere this run does not walk —
+//     `node_modules`, a `.d.ts`, a test file, another declared tree — reports at
+//     each USE instead, because the declaration is somewhere nothing will report.
+//     "In the program" is deliberately NOT the test: it would make
+//     `declare type Bag = Record<string, unknown>` in an ambient file silence the
+//     check everywhere, which is an exemption an adopter grows by typing.
+//   - The cross-tree case is therefore counted twice: a bag declared in one
+//     declared tree and used in another reports at its declaration in the first
+//     run and at each use in the second. Each finding is actionable where it
+//     lands, and neither run can see the other's.
 //
 // A schema or serialization layer that needs the open bag takes the recovery the
 // second bullet allows — a CLOSED key domain — or, where the keys are unknown
@@ -50,7 +61,7 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import type { Finding, StructuralCheck, TreeContext } from "../check-substrate.ts";
-import { SyntaxKind, type Node, type Type } from "../type-checker.ts";
+import { programPathKeys, SyntaxKind, type Node, type Type } from "../type-checker.ts";
 import { findingAtNode, isOpaqueDictionary, typeCheckableNodesOfKind, treeSourceFiles } from "./type-shapes.ts";
 
 const OPAQUE_RECORD_MESSAGE =
@@ -71,11 +82,10 @@ const OPAQUE_INDEX_SIGNATURE_MESSAGE =
  * unknown }`; `InterfaceDeclaration` covers the same index signature given a
  * name, which no type-position walk reaches because an interface is a statement.
  *
- * Not `IndexSignature` itself, and that is the change the checker makes possible:
- * the syntactic predecessor matched the signature node because it could not ask
- * what the enclosing type was. Matching the enclosing type instead is what makes
- * `Partial<Record<string, unknown>>` one finding at the outermost spelling
- * rather than none.
+ * Not `IndexSignature` itself. The subject is the TYPE that carries the
+ * signature, not the signature node, and that is what makes
+ * `Partial<Record<string, unknown>>` one finding at the outermost spelling — a
+ * walk keyed on the signature node finds nothing there to match.
  */
 const BAG_SITE_KINDS: ReadonlySet<SyntaxKind> = new Set([
   SyntaxKind.TypeReference,
@@ -92,7 +102,10 @@ export const noOpaqueRecordCheck: StructuralCheck = {
     const treeChecker = await context.typeChecker();
     const findings: Finding[] = [];
 
-    for (const file of await treeSourceFiles(context, treeChecker)) {
+    const walked = await treeSourceFiles(context, treeChecker);
+    const walkedKeys = programPathKeys(walked.map((file) => file.fileName));
+
+    for (const file of walked) {
       const sites = typeCheckableNodesOfKind(file, BAG_SITE_KINDS);
       if (sites.length === 0) continue;
 
@@ -115,12 +128,14 @@ export const noOpaqueRecordCheck: StructuralCheck = {
         // same bag seen again.
         if (reported.some((seen) => seen.pos <= node.pos && node.end <= seen.end)) continue;
 
-        // A reference to a name this tree DECLARES is not the site — its
-        // declaration is, and that declaration is walked too. This is the
-        // distinction the syntactic rule could not draw at all: it matched the
-        // literal identifier `Record` and never resolved a name, so an alias
-        // chain reported nowhere and a direct `Record` reported everywhere.
-        if (node.kind === SyntaxKind.TypeReference && (await treeChecker.declaredInProgram(node))) {
+        // A reference to a name THIS RUN WALKS is not the site — its declaration
+        // is, and that declaration reports on its own. Resolving the name is what
+        // draws the line: matching the identifier `Record` instead reports every
+        // direct use and no alias chain at all.
+        if (
+          node.kind === SyntaxKind.TypeReference &&
+          (await treeChecker.declaredIn(node, walkedKeys))
+        ) {
           continue;
         }
 

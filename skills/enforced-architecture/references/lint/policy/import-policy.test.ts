@@ -1038,6 +1038,43 @@ describeSuite("a vocabulary cannot declare its own tree out of existence", () =>
     });
   }
 
+  // The tsconfig path is the `types/` checks' whole scope, and getting it wrong
+  // fails SILENTLY in the one direction that matters: the program loads, it holds
+  // none of this tree's files, and every types check on the tree reports zero.
+  // `assertTreeIsTypeChecked` catches the tree/program disagreement at run time,
+  // but only for a path that resolved to a real config in the first place — an
+  // absolute path resolves away from the project root and finds someone else's.
+  for (const spelling of [
+    "/Users/me/other/tsconfig.json",
+    "../other/tsconfig.json",
+    "./tsconfig.json",
+    "apps/web",
+    "tsconfig",
+    "apps/*/tsconfig.json",
+    "apps//web/tsconfig.json",
+    "",
+  ]) {
+    testCase(`a tsconfig spelled "${spelling}" is refused`, () => {
+      assert.throws(
+        () =>
+          declareTrees([{ root: "src", vocabulary: RECOMMENDED_VOCABULARY, tsconfig: spelling }]),
+        /not a project-relative path to a JSON file/,
+      );
+    });
+  }
+
+  testCase("a nested tsconfig with a non-default name is the monorepo case and stays legal", () => {
+    assert.doesNotThrow(() =>
+      declareTrees([
+        {
+          root: "apps/web/src",
+          vocabulary: RECOMMENDED_VOCABULARY,
+          tsconfig: "apps/web/tsconfig.build.json",
+        },
+      ]),
+    );
+  });
+
   testCase("two DIFFERENT roots are the monorepo case and stay legal", () => {
     const both: DeclaredTree[] = [
       { root: "apps/web/src", vocabulary: RECOMMENDED_VOCABULARY, tsconfig: "tsconfig.json" },

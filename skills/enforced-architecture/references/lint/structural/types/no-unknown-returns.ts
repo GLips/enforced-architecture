@@ -21,10 +21,15 @@
 // container (`Result<T, E>`, `Option<T>`) adds it there, so this check and
 // `types/no-broad-parameters` read a signature alike.
 //
-// NEGATIVE SPACE: a GENERIC return type is silent even when every call site
-// instantiates it broadly. `function load<T>(): T` returns a type parameter, not
-// `unknown`, and the widening happens at `load<unknown>()` — which this check
-// does not read, because its subject is the declaration.
+// NEGATIVE SPACE:
+//   - There is NO per-line escape. This tier has no `eslint-disable` and none is
+//     planned, so the one honest case above has to take the recovery the message
+//     names rather than a comment. The oxlint-tier predecessor could be silenced
+//     a line at a time; the move took that away, deliberately.
+//   - A GENERIC return type is silent even when every call site instantiates it
+//     broadly. `function load<T>(): T` returns a type parameter, not `unknown`,
+//     and the widening happens at `load<unknown>()` — which this check does not
+//     read, because its subject is the declaration.
 //
 // SCOPE: this is a TREE-SCOPED check. It walks the declared trees and the
 // type-carrying files inside them, minus what `isArchitectureExemptSourcePath`

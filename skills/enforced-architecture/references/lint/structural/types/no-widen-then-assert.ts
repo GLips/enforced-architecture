@@ -23,25 +23,16 @@
 // here: a dictionary with a precise value type is evidence of a known type, not a
 // widening.
 //
-// ── What the checker changed ──────────────────────────────────────────
-//
-// A CALL is now evidence. The predecessor could not see a function's return type,
-// so it treated every `const x: unknown = parse(text)` as a boundary and said so:
-// *"Follow call return types and the rule reports at every boundary in the file."*
-// The checker follows them exactly, so `const x: unknown = loadUser()` where
-// `loadUser` returns `User` is now the widening it always was, while
-// `JSON.parse` and `res.json()` return `any` and stay correctly silent — they
-// really are boundaries, and now that is a fact rather than an assumption.
-//
-// The predecessor was also blind to a bag it could not see written out:
-// `Partial<Record<string, unknown>>`, `Readonly<Record<…>>` and an INTERFACE
-// carrying an index signature were all silent as widening targets. They are not
-// any more.
+// A CALL is evidence, because the checker reads its return type. `const user:
+// unknown = loadUser()` where `loadUser` returns `User` is a widening and
+// reports; `const parsed: unknown = JSON.parse(text)` is not, because `JSON.parse`
+// returns `any` and there was no known type to lose. Which of the two a given
+// call is, is a fact here rather than a guess from its name.
 //
 // NEGATIVE SPACE:
-//   - The widened binding must be a `const` with exactly one declaration. A `let`
-//     reassigned between the two steps is not a flow this check can reason about:
-//     the value at the assertion may not be the value that was widened.
+//   - The widened binding must be a `const`. A `let` reassigned between the two
+//     steps is not a flow this check can reason about: the value at the assertion
+//     may not be the value that was widened.
 //   - The asserted expression must be a plain identifier. `(f() as unknown) as
 //     User` has no binding to follow and is `types/no-chained-type-assertions`'
 //     subject.
@@ -99,7 +90,6 @@ export const noWidenThenAssertCheck: StructuralCheck = {
 
         const declaration = await widenedConstDeclaration(treeChecker, subject);
         if (declaration === undefined) continue;
-        if (declaration.end >= assertion.pos) continue;
         if (!sameFunction(declaration, assertion)) continue;
 
         const declaredType = (declaration as Node & { type?: Node }).type;
@@ -180,21 +170,20 @@ async function wideningTypeOf(
 }
 
 /**
- * The single `const` declaration the identifier resolves to, or `undefined`.
+ * The `const` declaration the identifier resolves to, or `undefined`.
  *
- * A binding with more than one declaration, or one that is not `const`, is
- * refused rather than guessed at: the value at the assertion may not be the value
- * that was widened, and a check that reported anyway would be blaming a line that
- * is correct.
+ * `const` is the whole gate, and it carries the ordering too. A `let` reassigned
+ * between the two steps is refused rather than guessed at — the value at the
+ * assertion may not be the value that was widened — and a `const` cannot be used
+ * before its declaration in code that compiles, so there is no separate position
+ * comparison here and no arity check: a `const` has exactly one declaration.
  */
 async function widenedConstDeclaration(
   treeChecker: Awaited<ReturnType<TreeContext["typeChecker"]>>,
   identifier: Node,
 ): Promise<Node | undefined> {
   const symbol = await treeChecker.checker.getSymbolAtLocation(identifier);
-  const handles = symbol?.declarations ?? [];
-  if (handles.length !== 1) return undefined;
-  const declaration = await handles[0]?.resolve();
+  const declaration = await symbol?.declarations?.[0]?.resolve();
   if (declaration?.kind !== SyntaxKind.VariableDeclaration) return undefined;
   if ((declaration.parent.flags & NodeFlags.Const) === 0) return undefined;
   return declaration;

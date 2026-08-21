@@ -25,6 +25,13 @@ export const noOpaqueRecordFixtures: CheckFixtures = {
     // an overlap the catalog allows rather than two owners of one policy.
     "FAIL src/features/alpha/repo/bag-widening.ts",
     "FAIL src/features/alpha/repo/bag-widening.ts",
+
+    // The ambient bypass, pinned. `AmbientSettlementBag` is declared in a
+    // `.d.ts` nothing walks, so this USE is the only line a run will ever look
+    // at. A check that asks "is the declaration in the program" instead of "is
+    // it in a file I walk" stays quiet here and hands every adopter a one-alias
+    // off-switch for the whole rule.
+    "FAIL src/features/alpha/repo/opaque-record-ambient.ts",
   ],
 
   legal: ["src/features/alpha/repo/opaque-record-closed.ts"],

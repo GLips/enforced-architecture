@@ -12,10 +12,6 @@ export const wrappedSettlementHandlers: Partial<Record<string, SettlementHandler
   start: oneSettlementHandler,
 };
 
-// The two broad keywords, over a literal that knows exactly what it is.
-export const opaqueSettlement: unknown = { id: "s-1" };
-export const nonPrimitiveSettlement: object = { id: "s-1" };
-
 // A class property is the second site.
 export class SettlementTotals {
   readonly byMonth: Record<string, number> = { january: 1 };

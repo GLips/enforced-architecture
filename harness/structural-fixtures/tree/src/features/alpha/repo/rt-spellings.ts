@@ -21,3 +21,10 @@ export function objectSettlementKind(holder: { value: object }): string {
 export function isSettlementStringList(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === "string");
 }
+
+// An untyped RECEIVER with no predicate to publish. `types/no-broad-parameters`
+// is silent on a `this` annotation by design, so this line is the only place the
+// defect surfaces at all.
+export function readsSettlementReceiver(this: unknown): string {
+  return typeof this === "object" ? "bag" : "other";
+}

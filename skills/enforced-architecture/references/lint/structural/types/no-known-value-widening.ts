@@ -31,14 +31,14 @@
 // `types/no-widen-then-assert` is the check that follows a binding, and it does
 // so only where an assertion afterwards makes the round trip pointless.
 //
-// NEGATIVE SPACE, and the first two entries are what the checker changed:
-//   - A WRAPPED dictionary now reports. `Partial<Record<string, Handler>>` and
-//     `Readonly<Record<string, Handler>>` keep the index signature, so the key
-//     domain is open and the finding stands. The syntactic predecessor recorded
-//     this spelling as covered by nothing.
-//   - A key domain the predecessor could not RESOLVE — an imported alias, an
-//     imported enum, a conditional type, `Row['id']` — no longer reports when it
-//     is finite in fact. Those were documented false positives and they are gone.
+// A WRAPPED dictionary is still a dictionary. `Partial<Record<string, Handler>>`
+// and `Readonly<Record<string, Handler>>` keep the index signature, so the key
+// domain is open and the finding stands. A key domain that is FINITE IN FACT is
+// silent however it is written — an imported alias, an imported enum, a
+// conditional type, `Row['id']` — because the check reads the resolved type and
+// not the spelling.
+//
+// NEGATIVE SPACE:
 //   - An UNINSTANTIATED GENERIC annotation is silent; see `type-shapes.ts`.
 //
 // SCOPE: this is a TREE-SCOPED check. It walks the declared trees and the
@@ -121,17 +121,29 @@ export const noKnownValueWideningCheck: StructuralCheck = {
       for (const [index, type] of types.entries()) {
         const pair = pairs[index];
         if (pair === undefined || type === undefined) continue;
-        if (!(await isWideningTarget(treeChecker, type))) continue;
+
+        // Two sentences, because `satisfies` is only a fix for one of them.
+        // `satisfies unknown` and `satisfies object` compile and check nothing —
+        // prescribing them hands the reader an edit that keeps the loss and adds
+        // a keyword, and it is the tag's own position that neither states a
+        // contract.
+        const dictionary = (await openKeyDomainValueTypes(treeChecker, type)) !== undefined;
+        if (!dictionary && !(await isBroadKeyword(treeChecker, type))) continue;
+
         findings.push(
           findingAtNode(
             context,
             file,
             pair.value,
             "error",
-            `This annotation discards what TypeScript already knew about the value — the ` +
-              `literal's own keys and types. Use \`satisfies ` +
-              `${pair.annotation.getText(file)}\` to check it without widening it, or drop the ` +
-              `annotation and let inference do the work.`,
+            dictionary
+              ? `This annotation discards what TypeScript already knew about the value — the ` +
+                  `literal's own keys. Use \`satisfies ${pair.annotation.getText(file)}\` to ` +
+                  `check the values without opening the key domain, or drop the annotation and ` +
+                  `let inference do the work.`
+              : `This annotation replaces everything TypeScript knew about the value with ` +
+                  `\`${pair.annotation.getText(file)}\`, which states no contract. Drop it and ` +
+                  `let inference do the work, or name the type the literal already has.`,
           ),
         );
       }
@@ -141,20 +153,12 @@ export const noKnownValueWideningCheck: StructuralCheck = {
   },
 };
 
-/**
- * The KEY half of the shared dictionary answer, plus the broad keywords.
- *
- * `openKeyDomainValueTypes` is called for its presence, not its contents, and
- * that is the divergence this check is built on: a dictionary with a precise
- * value type still deletes the literal's keys.
- */
-async function isWideningTarget(
+/** `unknown`, `any` or `object`, through a union or a transparent container. */
+async function isBroadKeyword(
   treeChecker: Awaited<ReturnType<TreeContext["typeChecker"]>>,
   type: Parameters<typeof typeResolvesToFlags>[1],
 ): Promise<boolean> {
-  const broad = UNTYPED_TYPE_FLAGS | NON_PRIMITIVE_TYPE_FLAGS;
-  if (await typeResolvesToFlags(treeChecker, type, broad)) return true;
-  return (await openKeyDomainValueTypes(treeChecker, type)) !== undefined;
+  return typeResolvesToFlags(treeChecker, type, UNTYPED_TYPE_FLAGS | NON_PRIMITIVE_TYPE_FLAGS);
 }
 
 /** The `(value, annotation)` pair at one site, when the site has both. */

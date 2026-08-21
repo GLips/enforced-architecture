@@ -186,12 +186,11 @@ apart on exclusions and on what counts as an import, and neither copy reports th
   a union over the two, so a check cannot receive a context its scope never produces. File collection
   is a free function taking a context, not a member of one.
 - **`import-graph.ts`** — the resolved graph for one tree, plus `scanDeclaredImports` for the one
-  check needing raw specifiers. Any check asking where an import *lands* consumes the graph rather
-  than matching how the specifier is spelled.
-- **`type-checker.ts`** — one TypeScript process per run and one program per declared tree, for the
-  `types/` checks. Built lazily, so a project running none of them never spawns it. The tier's two
-  dev dependencies are `oxc-resolver` and `typescript` 7, whose `unstable/async` API this is the one
-  file to import.
+  check needing raw specifiers. A check asking where an import *lands* consumes the graph, never the
+  specifier's spelling.
+- **`type-checker.ts`** — one TypeScript process per run, one program per declared tree, built
+  lazily so a project running no `types/` check never spawns it. The tier's dev dependencies are
+  `oxc-resolver` and `typescript` 7, whose `unstable/async` API this is the one file to import.
 - **`module-resolution.ts`** — where one specifier lands, over `oxc-resolver`. It sees what path
   arithmetic cannot: `./rows.js` naming `rows.ts`, a directory naming its barrel. No knob — it reads
   the tree's vocabulary.
@@ -295,10 +294,10 @@ promises, which is what happened at three separate deployments before this tier 
    that tree's vocabulary and graph. `"project"` is for a question with no position in it, and there
    are two of those. A tree-scoped check reading a project path, or the reverse, is a check whose
    subject and scope disagree.
-3. Take imports from `context.importGraph()`, types from `context.typeChecker()`, and file sets from
-   the substrate's collectors, with the source glob from `lint/policy/layout.ts`. Do not spell your
-   own extension list: six checks each spelling their own glob is how four ended up wrong about
-   `.mts`.
+3. Take imports from `context.importGraph()`, never from your own scan of file text; types from
+   `context.typeChecker()`; file sets from the substrate's collectors, with the source glob from
+   `lint/policy/layout.ts`. Do not spell your own extension list: six checks each spelling their own
+   glob is how four ended up wrong about `.mts`.
 4. Put every per-repo value in the config object, never as a constant in the check body. Names of
    directories and layers are not per-repo values — read them off `context.vocabulary`. The test is
    whether a second project could adopt the check by writing config and a tree declaration alone.

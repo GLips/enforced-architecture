@@ -46,10 +46,12 @@
 //
 // ── Negative space ────────────────────────────────────────────────────
 //
-// - Nothing here observes the filesystem. `changed()` exists for a watch loop to
-//   call; no check calls it, and a long-lived process that never does will read
-//   a stale program forever. That is the caller's job because only the caller
-//   knows what changed.
+// - Nothing here observes the filesystem, and there is deliberately no
+//   invalidation API. A host lives for ONE run over one snapshot, and
+//   `disposeTypeCheckerHost()` ends it; a watch loop takes a fresh host. An
+//   invalidation call no run makes is a call nothing proves, and the failure mode
+//   it has is the quiet one — the wrong request shape is accepted, invalidates
+//   nothing, and every re-run answers from the stale program with better timings.
 // - A tree whose `tsconfig` misses files the tree contains is not detected here
 //   — `assertTreeIsTypeChecked` in `check-substrate.ts` owns that, because it is
 //   a question about the AGREEMENT between two declarations rather than about
@@ -89,6 +91,26 @@ export { NodeFlags, SyntaxKind, TypeFlags };
 export type { Checker, IndexInfo, Node, Program, SourceFile, Type, TypeCheckerSymbol };
 
 /**
+ * One file's identity as the PROGRAM spells it, for comparing two paths that came
+ * out of different program APIs.
+ *
+ * `SourceFile.fileName` preserves the case on disk; a declaration handle's `path`
+ * is the compiler's canonical form, which on a case-insensitive filesystem is
+ * lowercased. Comparing them raw answers "not the same file" for every
+ * declaration in a repo whose path has a capital letter — silently, and in the
+ * direction that reports rather than the one that hides, which is why it took a
+ * fixture count to notice.
+ */
+export function programPathKey(fileName: string): string {
+  return fileName.toLowerCase();
+}
+
+/** `programPathKey` over a set of file names. */
+export function programPathKeys(fileNames: Iterable<string>): ReadonlySet<string> {
+  return new Set([...fileNames].map(programPathKey));
+}
+
+/**
  * What a check gets: one tree's program and checker, plus the one cache worth
  * sharing across checks.
  */
@@ -106,19 +128,28 @@ export type TreeTypeChecker = {
    * 2,000-file tree this halves the round trips, from ~16,100 to ~8,100, and
    * round trips are what the scan costs.
    *
-   * Sound to cache for a run because a `Program` is immutable: a file edit
-   * produces a new snapshot through `changed()`, which clears this.
+   * Sound to cache because a `Program` is immutable and a host lives for one
+   * run. Nothing here reacts to a file changing on disk mid-run; see the
+   * negative space above.
    */
   indexSignatures(type: Type): Promise<readonly IndexInfo[]>;
   /**
-   * Whether the name at `node` resolves to a declaration in the program's own
-   * source rather than to `lib.d.ts` or something under `node_modules`.
+   * Whether the name at `node` resolves to a declaration in one of `fileKeys`,
+   * which is `programPathKeys` over the caller's walked file names.
    *
-   * The question a check asks before reporting a type REFERENCE: a reference to a
-   * name this tree declares is not the site of the violation, the declaration is,
-   * and reporting both files one finding per use of a bad alias.
+   * The question a check asks before staying quiet about a type REFERENCE: a
+   * reference to a name the check will ALSO walk is not the site of the
+   * violation, the declaration is, and reporting both files one finding per use.
+   *
+   * The set is the caller's walked files, not the program's, and the difference
+   * is the whole point. `lib.d.ts`, `node_modules`, a `.d.ts` inside the tree, a
+   * test file and another declared tree are all in the program and none of them
+   * is walked — so a bag declared in any of them reports at each use, which is
+   * the only place it can. Asking "is it in the program" instead makes
+   * `declare type Bag = Record<string, unknown>` in an ambient file a
+   * catalog-wide off-switch.
    */
-  declaredInProgram(node: Node): Promise<boolean>;
+  declaredIn(node: Node, fileKeys: ReadonlySet<string>): Promise<boolean>;
 };
 
 /**
@@ -132,8 +163,6 @@ export type TreeTypeChecker = {
  */
 export type TypeCheckerHost = {
   forTree(projectRoot: string, tree: DeclaredTree): Promise<TreeTypeChecker>;
-  /** Tell the server which files changed on disk. A watch loop's whole obligation. */
-  changed(absolutePaths: readonly string[]): Promise<void>;
   dispose(): void;
 };
 
@@ -220,37 +249,28 @@ export function createTypeCheckerHost(): TypeCheckerHost {
           return infos;
         },
 
-        async declaredInProgram(node) {
+        async declaredIn(node, fileKeys) {
           // The three spellings of "the name in this node": a type reference
           // (`Bag`), a `typeof` query (`typeof KEYS`), and a declaration's own
           // name. Asked here rather than in each check because getting it wrong
-          // fails OPEN — no name found means not-declared means report — and a
-          // check that quietly reports every alias use is one nobody keeps on.
+          // fails NOISY, not silent: an unanswerable question reads as
+          // not-declared, which reports. That is the safe direction for a
+          // catalog whose worst failure is a quiet zero, and the expensive one
+          // for its users — a check that reports every alias use is one nobody
+          // keeps on, so the reading is here where one fixture covers it.
           const named = node as { typeName?: Node; exprName?: Node; name?: Node };
           const name = named.typeName ?? named.exprName ?? named.name;
           if (!name) return false;
           const symbol = await checker.getSymbolAtLocation(name);
           const declarations = symbol?.declarations ?? [];
           if (declarations.length === 0) return false;
-          for (const handle of declarations) {
-            const file = await program.getSourceFile(handle.path);
-            if (!file) return false;
-            if (await program.isSourceFileDefaultLibrary(file)) return false;
-            if (await program.isSourceFileFromExternalLibrary(file)) return false;
-          }
-          return true;
+          // EVERY declaration, not any: a name that merges a walked declaration
+          // with an ambient one is reachable through the ambient half, and
+          // staying quiet on the strength of the walked half is the merge being
+          // used as a hatch.
+          return declarations.every((handle) => fileKeys.has(programPathKey(handle.path)));
         },
       };
-    },
-
-    async changed(absolutePaths) {
-      if (absolutePaths.length === 0) return;
-      typeFacts.clear();
-      // `{ changed: [...] }` and NOT `{ changedProjects: { … } }`. The second
-      // shape is the RESPONSE type on a neighbouring interface, it is accepted
-      // without complaint, and it invalidates nothing — so every re-run answers
-      // from the pre-edit program and the timings look better for it.
-      snapshot = await api.updateSnapshot({ fileChanges: { changed: [...absolutePaths] } });
     },
 
     dispose() {

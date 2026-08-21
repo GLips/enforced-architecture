@@ -57,16 +57,15 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import type { Finding, StructuralCheck, TreeContext } from "../check-substrate.ts";
-import { SyntaxKind, type Node } from "../type-checker.ts";
+import { SyntaxKind, type Node, type Type } from "../type-checker.ts";
 import {
+  declaresTypePredicate,
   enclosingFunctionLike,
   findingAtNode,
   isTypeRequestUnsafe,
   NON_PRIMITIVE_TYPE_FLAGS,
   treeSourceFiles,
   typeCheckableNodesOfKind,
-  typePredicateSubjects,
-  typeResolvesToFlags,
   UNTYPED_TYPE_FLAGS,
 } from "./type-shapes.ts";
 
@@ -95,12 +94,11 @@ export const noRuntimeTypeofCheck: StructuralCheck = {
       }
       if (tests.length === 0) continue;
 
-      const broad = UNTYPED_TYPE_FLAGS | NON_PRIMITIVE_TYPE_FLAGS;
       const types = await treeChecker.checker.getTypeAtLocation(tests.map((test) => test.operand));
       for (const [index, type] of types.entries()) {
         const test = tests[index];
         if (test === undefined || type === undefined) continue;
-        if (!(await typeResolvesToFlags(treeChecker, type, broad))) continue;
+        if (!isUntypedOperand(type)) continue;
         findings.push(findingAtNode(context, file, test.node, "error", RUNTIME_TYPEOF_MESSAGE));
       }
     }
@@ -108,6 +106,26 @@ export const noRuntimeTypeofCheck: StructuralCheck = {
     return findings;
   },
 };
+
+/**
+ * Whether the operand ITSELF is `unknown`, `any` or `object`.
+ *
+ * Deliberately NOT `typeResolvesToFlags`, which is the tag's shared reading and
+ * is wrong here in both of its transparent steps. A container of nothing is
+ * still nothing at a call site, so `Promise<unknown>` is a broad RETURN — but
+ * `typeof xs` where `xs: unknown[]` is statically `"object"` and decides nothing
+ * about untypedness. A union is broad when any member is, for the same call-site
+ * reason — but `typeof v` over `object | string` is the compiler's own narrowing,
+ * which this check exists to stop reporting. Sharing the helper here would report
+ * both.
+ *
+ * The error type is excluded: an unresolved name carries `Any`, and reporting it
+ * blames the author for a broad annotation they did not write.
+ */
+function isUntypedOperand(type: Type): boolean {
+  if (type.isErrorType()) return false;
+  return (type.flags & (UNTYPED_TYPE_FLAGS | NON_PRIMITIVE_TYPE_FLAGS)) !== 0;
+}
 
 /**
  * Whether the NEAREST enclosing function returns a type predicate.
@@ -122,5 +140,5 @@ async function isInsideTypeGuard(
 ): Promise<boolean> {
   const fn = enclosingFunctionLike(node);
   if (fn === undefined) return false;
-  return (await typePredicateSubjects(treeChecker, fn)).size > 0;
+  return declaresTypePredicate(treeChecker, fn);
 }

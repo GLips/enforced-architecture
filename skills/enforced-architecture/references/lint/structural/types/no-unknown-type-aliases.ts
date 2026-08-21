@@ -19,12 +19,13 @@
 // counting. The alias is one defect and each use is another, and one edit to the
 // alias clears them all.
 //
-// NEGATIVE SPACE, and this is what the move to a checker changed:
-//   - Depth and location no longer bound it. The predecessor read only TOP-LEVEL
-//     aliases in the file being linted, so an alias declared inside a function or
-//     a namespace was invisible and an alias to an IMPORTED broad name resolved
-//     to nothing. Both now resolve, because resolution is the compiler's job.
-//   - An alias to a broad type from a DEPENDENCY still reports here, at the local
+// Neither DEPTH nor LOCATION bounds it. An alias declared inside a function or a
+// namespace is an alias, an alias to an imported name resolves through the
+// import, and a chain resolves to its end — resolution is the compiler's job and
+// nothing here re-implements a shorter version of it.
+//
+// NEGATIVE SPACE:
+//   - An alias to a broad type from a DEPENDENCY reports here, at the local
 //     alias, and never at the dependency. Nothing in this catalog reads
 //     `node_modules`.
 //
