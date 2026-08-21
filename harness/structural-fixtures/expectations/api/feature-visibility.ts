@@ -48,7 +48,7 @@ export const featureVisibilityFixtures: CheckFixtures = {
     // cannot follow passes every other case here while quietly answering "not a
     // boundary question" for an import that plainly crosses one. It is
     // feature-visibility's entry only because this check is the one that reports
-    // it; what it holds down is the substrate underneath every check in the tier.
+    // it; what it holds down is the file collection every check in the tier shares.
     "FAIL src/features/mislaid/visibility.json",
     // bribed grants briber with an EMPTY justification, and briber imports
     // bribed. Honour the entry and the edge is granted and the check falls

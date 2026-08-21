@@ -1,6 +1,6 @@
 // ─── The scanner's own cases ──────────────────────────────────────────
 //
-// `module-scanning.ts` makes no finding, so the fixture tree can only reach it
+// `import-scanning.ts` makes no finding, so the fixture tree can only reach it
 // through a check's VERDICT — and most of what this module promises does not
 // change one. A line hard-coded to 1, an order that is not source order, a
 // specifier form dropped from a file that has three others: every one of those
@@ -31,7 +31,7 @@ import {
   scanDeclaredImports,
   type ScannedExport,
   type ScannedImport,
-} from "./module-scanning.ts";
+} from "./import-scanning.ts";
 
 // node:test's `describe` and `it` hand back the suite's promise, and the runner
 // owns and awaits the suite it created. Discarding the handle is correct rather

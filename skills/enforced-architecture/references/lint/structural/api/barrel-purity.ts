@@ -8,7 +8,7 @@
 //
 // This check does not use the resolved import graph. Graph resolution discards
 // bare package specifiers as "not a boundary question", and bare package names
-// are the subject of this check. It shares the two substrates under the graph
+// are the subject of this check. It reads the two modules under the graph
 // instead — scanDeclaredImports for the extraction, context.resolveModule for
 // the resolution — rather than a second answer to either. Do not resolve a hop here: a suffix list
 // against the disk cannot substitute `./target.js` for `target.ts`, and a hop it
@@ -27,7 +27,7 @@
 // module crosses it is a question about SYNTAX — which name an import bound,
 // whether the call reaches that binding or a shadow — and this check answers it
 // by reading text. What follows is that approximation and its contract. The
-// approximation is a CHOICE, not a limit: `module-scanning.ts` parses, so the
+// approximation is a CHOICE, not a limit: `import-scanning.ts` parses, so the
 // binding is there for a check willing to spend it. Read the contract as what
 // holds while none has.
 //
@@ -86,7 +86,7 @@
 
 import { extname } from "node:path";
 import { packageNameOf, SOURCE_EXTENSIONS, subdividedDirs } from "../../policy/layout.ts";
-import { scanDeclaredImports } from "../module-scanning.ts";
+import { scanDeclaredImports } from "../import-scanning.ts";
 import {
   blankComments,
   collectTreeFiles,
@@ -102,7 +102,7 @@ import {
 /**
  * Every specifier the file imports AT RUNTIME.
  *
- * The scan is the tier's shared one — see `module-scanning.ts`. Both narrowings
+ * The scan is the tier's shared one — see `import-scanning.ts`. Both narrowings
  * are local, and both are this check's position rather than the scanner's:
  *
  * The type-only DROP is what makes this a question about a bundle. An erased
@@ -263,7 +263,7 @@ function maskLiteralContents(source: string): string {
  * file's own binding rather than the imported one.
  *
  * Scope is approximated here, and not because it has to be: the tier parses
- * (`module-scanning.ts`), so `rebindsName` COULD be a scope walk and is not
+ * (`import-scanning.ts`), so `rebindsName` COULD be a scope walk and is not
  * one. While it is not, the approximation is deliberately one-sided: ANY local declaration or parameter of the name makes
  * the file not-a-boundary, which keeps the trace going. A shadow this does not
  * see is the expensive direction: the shadowed call reads as the imported one,

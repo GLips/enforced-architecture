@@ -288,7 +288,7 @@ assertEveryCheckRanOnEveryTree("misread", PDF_TREE_MISREAD);
 // fixture's VERDICT changes: what changes is whether the answer names a module
 // or a guess.
 //
-// So the assertion is about the substrate rather than about a finding. A target
+// So the assertion is about what the graph resolved rather than about a finding. A target
 // either names a file that is there, or names a position nothing on disk backs —
 // and the second is a real answer, not a failure: an import of a module that is
 // mid-rename or declared only in a `.d.ts` still crosses whatever boundary it
@@ -305,7 +305,7 @@ assertEveryCheckRanOnEveryTree("misread", PDF_TREE_MISREAD);
 // feature holding only `index.server.ts` is unresolvable on purpose, and its
 // target is a real directory on disk. Asserting over every directory reports
 // that shape as a defect the first time the tree grows one, and the cheap fix
-// for a false positive on a substrate assertion is to weaken it.
+// for a false positive on an assertion at this level is to weaken it.
 //
 // The second arm is the source root itself. `..` in a target means the graph
 // kept an edge that leaves this tree, and the two guards in
@@ -458,24 +458,24 @@ assertEveryCheckRanOnEveryTree("misread", PDF_TREE_MISREAD);
   }
 }
 
-// ── The tier's substrate specs ───────────────────────────────────────────────
+// ── The specs beside the modules ─────────────────────────────────────────────
 //
-// The substrates answer questions about CODE, not about a tree, so their proofs
-// are unit specs rather than fixtures — and they ship beside the modules for the
+// The four files at this tier's root answer questions about CODE rather than
+// about a tree, so their proofs are unit specs rather than fixtures — and they ship beside the modules for the
 // same reason `policy/import-policy.test.ts` does: a project copies the module
 // and has to get the proof with it. Running them from here rather than from
 // `check:rules` keeps a tier's proofs in the tier's own command.
 //
 // The refusal below is the load-bearing half. There is no per-module
-// requirement — one entry point can prove several — but a substrate directory
-// with no specs at all is a hole with nothing to name it.
+// requirement — one entry point can prove several — but the tier's root holding
+// no specs at all is a hole with nothing to name it.
 {
   const specs = globSync("*.test.ts", { cwd: STRUCTURAL_ROOT })
     .map((found) => join(STRUCTURAL_ROOT, found))
     .sort();
 
   if (specs.length === 0) {
-    fail("<substrate-specs>", `no *.test.ts under ${relative(REPO_ROOT, STRUCTURAL_ROOT)}`);
+    fail("<root-specs>", `no *.test.ts under ${relative(REPO_ROOT, STRUCTURAL_ROOT)}`);
   } else {
     const run = spawnSync(process.execPath, ["--test", "--test-reporter=tap", ...specs], {
       cwd: REPO_ROOT,
@@ -483,7 +483,7 @@ assertEveryCheckRanOnEveryTree("misread", PDF_TREE_MISREAD);
       maxBuffer: 64 * 1024 * 1024,
     });
     if (run.status !== 0) {
-      fail("<substrate-specs>", `${run.stdout ?? ""}${run.stderr ?? ""}`.trimEnd());
+      fail("<root-specs>", `${run.stdout ?? ""}${run.stderr ?? ""}`.trimEnd());
     }
   }
 }

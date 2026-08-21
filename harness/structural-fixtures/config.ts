@@ -83,7 +83,7 @@ export const PDF_TREE_MISREAD: ValidatedTrees = declareTrees([
  * The POSITIVE CONTROL for `assertTreeIsTypeChecked`: the app tree declared
  * against a tsconfig that compiles a different package.
  *
- * The same argument as `PDF_TREE_MISREAD`, one substrate over. Every `types/`
+ * The same argument as `PDF_TREE_MISREAD`, one module over. Every `types/`
  * expectation already goes red when the program is empty — but it goes red
  * because this tree HAS fixtures, and an adopting project in the same state has
  * none, so it gets zero findings and a green run. This list is what makes the

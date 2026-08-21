@@ -58,7 +58,7 @@ adapter on each side. The tag says what a rule is *about*; the tier says what it
 `placement/` and `boundary/` are the pair most often confused. `placement/` is where code may live.
 `boundary/` is what code may import.
 
-The files at the root of `structural/` are **not** rules and none is registered. `module-scanning.ts`
+The files at the root of `structural/` are **not** rules and none is registered. `import-scanning.ts`
 finds the quoted paths in a file and the names it re-exports; `module-resolution.ts` turns one quoted
 path into the file it means; `import-graph.ts` does that across a tree and keeps the pairs;
 `type-checker.ts` asks TypeScript what a declaration's type is. Beside them sit `config.ts`,

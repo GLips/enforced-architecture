@@ -4,9 +4,9 @@
 // Every check that asks a question about a TYPE rather than about a path or a
 // specifier reads its answers through here.
 //
-// This is one of the tier's substrates — `module-scanning.ts`,
-// `module-resolution.ts`, `import-graph.ts` and this file, each answering one
-// question about code and none of them a check. The split between them is the
+// Four files in this tier answer a question about code and none of them is a
+// check — `import-scanning.ts`, `module-resolution.ts`, `import-graph.ts` and
+// this one. The split between them is the
 // same one that puts a rule in a tier at all: the graph answers where a
 // specifier LANDS, and this answers what a declaration MEANS.
 // Neither can answer the other's question, and a check reaching for the wrong

@@ -25,7 +25,7 @@
 // say about it. The symbol is nameless at the boundary all the same, and no
 // check in the catalog reports that.
 //
-// What a barrel says is read from `module-scanning.ts`'s export record — the
+// What a barrel says is read from `import-scanning.ts`'s export record — the
 // tier's one reader of an export clause — and that decides this check's blind
 // spots as much as the globs do. A surface spelled `module.exports = …` has no
 // export record, so it is not read here and no rule in the catalog asks whether
@@ -53,7 +53,7 @@ import {
   type Finding,
   type StructuralCheck,
 } from "../check-context.ts";
-import { scanDeclaredExports } from "../module-scanning.ts";
+import { scanDeclaredExports } from "../import-scanning.ts";
 
 export const barrelDiscoverabilityCheck: StructuralCheck = {
   id: "naming/barrel-discoverability",

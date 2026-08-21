@@ -188,7 +188,7 @@ on what counts as an import, and neither copy reports that it has.
   about that tree. A `ProjectContext` is the config and nothing about any tree. `StructuralCheck` is
   a union over the two, so a check cannot receive a context its scope never produces. File collection
   is a free function taking a context, not a member of one.
-- **`module-scanning.ts`** — over `oxc-parser`, two readings of one file's import and export
+- **`import-scanning.ts`** — over `oxc-parser`, two readings of one file's import and export
   statements: which quoted paths it names, one entry per occurrence with the line and whether that
   occurrence is erased; and which names it re-exports and under what name, one entry each. A
   transpiler's import scan answers a different question — what the emitted module needs — and its

@@ -5,21 +5,21 @@
 // "@/features/beta" give the same answer. A person cannot get past a boundary
 // rule when they write a crossing as a relative path.
 //
-// Not a rule. This is the substrate every graph-reading check consumes, and no
-// check reads imports itself. Whether an import leaves its boundary depends on
+// Not a rule. Every graph-reading check consumes this and no check reads
+// imports itself. Whether an import leaves its boundary depends on
 // the depth of the file that holds it, never on the shape of the specifier, so
 // each edge is resolved and compared as a path. Do not match a pattern against
 // a specifier.
 //
-// This file holds POLICY and no substrate. Finding the specifiers belongs to
-// `module-scanning.ts` and following them to `module-resolution.ts`; what is
+// This file holds POLICY and extracts nothing. Finding the quoted paths belongs
+// to `import-scanning.ts` and following them to `module-resolution.ts`; what is
 // here is the composition — classify both ends, keep the edge, place it on a
 // line.
 //
 // api/barrel-purity is the one rule that reads imports and does not take the
 // graph. Resolution discards bare package names, and those names are that
-// rule's subject. It takes the same two substrates one layer lower, scanning
-// for itself and resolving for itself, rather than a second answer to either.
+// rule's subject. It reads the same two modules one layer lower, scanning for
+// itself and resolving for itself, rather than a second answer to either.
 //
 // ──────────────────────────────────────────────────────────────────────
 
@@ -33,7 +33,7 @@ import {
   toProjectPath,
   type TreeContext,
 } from "./check-context.ts";
-import { scanDeclaredImports } from "./module-scanning.ts";
+import { scanDeclaredImports } from "./import-scanning.ts";
 
 /**
  * Where one end of an edge sits, as far as any rule here asks.

@@ -3,7 +3,7 @@
 //
 // This is the one fixture that holds the graph's `resolved: false` arm down.
 // Every other edge in this tree resolves, so a resolver wired to DROP what it
-// cannot follow passes the whole suite: the substrate would answer "not a
+// cannot follow passes the whole suite: resolution would answer "not a
 // boundary question" for an import that plainly crosses one, and every boundary
 // rule would report clean over code nobody checked. Resolution sharpens an
 // edge; it never deletes one.

@@ -1,10 +1,9 @@
 // ─── What a structural check is handed, and how it collects files ─────
 //
-// Not a substrate. That word is reserved for the four modules answering one
-// question each about code — `module-scanning.ts`, `module-resolution.ts`,
-// `import-graph.ts`, `type-checker.ts`. This is the shape a check RECEIVES and
-// the collectors it walks a tree with, which is plumbing under every one of
-// them.
+// Answers nothing about code — `import-scanning.ts`, `module-resolution.ts`,
+// `import-graph.ts` and `type-checker.ts` do that. This is the shape a check
+// RECEIVES and the file collectors it walks a tree with, and every check in the
+// tier takes both from here.
 //
 // Five things put a check in this tier rather than in `oxlint/<tag>/*.ts` as an
 // oxlint rule:

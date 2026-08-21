@@ -442,7 +442,7 @@ export function scanDeclaredExports(options: { path: string; source: string }): 
       // Three arms, and they exhaust the record: every entry either forwards a
       // set of names (`All` is `export * as ns from`, `AllButDefault` the bare
       // `export *`), or is the default export, or carries both a local and an
-      // exported name. `module-scanning.test.ts` counts a source holding all of
+      // exported name. `import-scanning.test.ts` counts a source holding all of
       // them, because an arm that stopped matching would drop its form in
       // silence.
       //
