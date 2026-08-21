@@ -345,6 +345,32 @@ describeRule("boundary/ambient-globals", ambientGlobalsRule, {
       filename: SERVICE,
       code: `import type { env } from "node:process";\nexport type Env = typeof env;`,
     },
+    // The four spellings below are one invariant — a type-only specifier reads nothing — in the
+    // four node shapes that can carry it. Each pins a separate guard; with any one of them missing
+    // its guard could be deleted with the suite green, which is how three of the four got here.
+    // The value specifier alongside `type env` is load-bearing in the two inline cases: with
+    // `type env` alone they are indistinguishable from the declaration-level case above, because
+    // the whole declaration would then be type-only and the outer guard would answer first.
+    {
+      name: "an inline type specifier is erased, and the declaration-level guard does not cover it",
+      filename: SERVICE,
+      code: `import { type env, cwd } from "node:process";\nexport const here = cwd();\nexport type Env = typeof env;`,
+    },
+    {
+      name: "an inline type specifier in a re-export hands on no runtime capability",
+      filename: SERVICE,
+      code: `export { type env, cwd } from "node:process";`,
+    },
+    {
+      name: "a declaration-level type re-export hands on no runtime capability",
+      filename: SERVICE,
+      code: `export type { env } from "node:process";`,
+    },
+    {
+      name: "a type-only star re-export republishes no runtime capability",
+      filename: SERVICE,
+      code: `export type * from "node:process";`,
+    },
     {
       name: "a global nobody listed is a global this rule takes no stance on",
       filename: SERVICE,
