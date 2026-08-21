@@ -21,9 +21,15 @@
 // it, and calls that name. Not by the word appearing in the file, and not by the
 // module and the word appearing independently.
 //
-// A boundary reached through a local re-export is not recognised, so the trace
-// continues past it and can report a chain the framework would have cut. That is
-// a false blocking error, and it is the one place this check OVER-reports.
+// This check OVER-reports in exactly two ways, both of them false blocking
+// errors. A boundary reached through a local re-export is not recognised, so the
+// trace continues past it and can report a chain the framework would have cut.
+// And the shadow test that decides whether the imported binding is the one CALLED
+// is textual and one-sided: a file that imports the boundary for real and also
+// mentions the same name in a binding-shaped position — `{ createServerFn }` in
+// an object literal, or the name passed as an argument — reads as having rebound
+// it, and comes out of the boundary. `rebindsName` is where that trade is made
+// and argued.
 //
 // ──────────────────────────────────────────────────────────────────────
 
@@ -222,8 +228,12 @@ const BINDING_FORMS: ((name: string) => string)[] = [
   (name) => String.raw`[(,]\s*${name}\s*[:,)=]`,
   // f => … — the arrow parameter with no parentheses at all
   (name) => String.raw`\b${name}\s*=>`,
-  // { f }, { f: g }, [ f ] — a destructured binding position
-  (name) => String.raw`[{[]\s*${name}\s*[},:\]]`,
+  // { f }, [ f ] — a destructured binding position, SHORTHAND only. A `:` after
+  // the name is deliberately not accepted: in a pattern, `{ f: g }` binds `g` and
+  // not `f`, and in an object literal `{ f: "x" }` binds nothing at all. Accepting
+  // it made an ordinary literal mentioning the name take a real boundary file out
+  // of the boundary — a review reported a legal fixture that way.
+  (name) => String.raw`[{[]\s*${name}\s*[},\]]`,
 ];
 
 /**
@@ -262,14 +272,31 @@ function boundaryBindingsIn(
     if (match[2] !== boundary.module) continue;
 
     const namespace = /\*\s+as\s+([A-Za-z_$][\w$]*)/.exec(clause);
-    for (const call of boundary.calls) {
-      if (namespace !== null) locals.push(`${namespace[1]}\\.${call}`);
-      const named = new RegExp(String.raw`\b${call}\b(?:\s+as\s+([A-Za-z_$][\w$]*))?`).exec(clause);
-      if (named !== null) locals.push(named[1] ?? call);
+    if (namespace !== null) {
+      for (const call of boundary.calls) locals.push(`${namespace[1]}\\.${call}`);
+    }
+
+    // Split the braces into entries and read each as `imported as local`, rather
+    // than searching the whole clause for the call's name. Searching found the
+    // name on EITHER side of an `as`, so `import { unrelatedExport as
+    // createServerFn }` read as importing the boundary: a review used exactly
+    // that to stop the trace at a boundary the file never crossed, with all 16
+    // structural checks green. Which side the name sits on is the whole question.
+    for (const entry of (NAMED_IMPORT_LIST.exec(clause)?.[1] ?? "").split(",")) {
+      const named = NAMED_IMPORT_ENTRY.exec(entry.trim());
+      if (named === null) continue;
+      const [, imported = "", local] = named;
+      if (boundary.calls.includes(imported)) locals.push(local ?? imported);
     }
   }
   return locals;
 }
+
+/** The braces of an import clause: group 1 is the comma-separated entry list. */
+const NAMED_IMPORT_LIST = /\{([^}]*)\}/;
+
+/** One entry of that list: group 1 is the EXPORTED name, group 2 the local alias. */
+const NAMED_IMPORT_ENTRY = /^([A-Za-z_$][\w$]*)(?:\s+as\s+([A-Za-z_$][\w$]*))?$/;
 
 /**
  * One import declaration: group 1 is the clause, group 2 is the specifier.

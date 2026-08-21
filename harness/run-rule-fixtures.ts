@@ -52,6 +52,7 @@ const POLICY_ROOT = join(REPO_ROOT, "skills/enforced-architecture/references/lin
  * not the other is a tree that reads as governed and is not.
  */
 const OXLINTRC_PATH = join(REPO_ROOT, "skills/enforced-architecture/references/setup/oxlintrc.json");
+const LEFTHOOK_PATH = join(REPO_ROOT, "skills/enforced-architecture/references/setup/lefthook.yml");
 
 type RuleFailure = { rule: string; detail: string };
 
@@ -158,7 +159,7 @@ async function checkRule(rulePath: string): Promise<RuleFailure[]> {
 }
 
 const structural = await Promise.all(rulePaths.map(checkRule));
-const configFailures = await checkTreeScoping();
+const configFailures = [...(await checkTreeScoping()), ...(await checkCommitGateExtensions())];
 
 // Run every spec in one Node process — `node --test` gives each file its own subprocess.
 const specList = [
@@ -471,4 +472,46 @@ async function checkTreeScoping(): Promise<string[]> {
   }
 
   return failures;
+}
+
+/**
+ * The commit gate's lint glob names the same eight extensions the tier walks.
+ *
+ * The shipped `lefthook.yml` decides which STAGED files oxlint ever sees, and it
+ * is the one place that decision is spelled outside `SOURCE_EXTENSIONS`. A review
+ * measured the drift: the glob listed four of the eight, so a staged `.mts`,
+ * `.cts`, `.mjs` or `.cjs` file produced `lint (skip) no files for inspection`
+ * and reached no architecture rule at all — every rule silent on a whole class of
+ * file, at the exact moment the rules are supposed to block.
+ *
+ * NEGATIVE SPACE: the `format` job's glob is deliberately NOT pinned. It is a
+ * formatter's subject, not this tier's, and it carries `json` and `css` that no
+ * source-extension list has an opinion about — pinning it would make this guard
+ * the second owner of a question `SOURCE_EXTENSIONS` does not answer.
+ */
+async function checkCommitGateExtensions(): Promise<string[]> {
+  const { SOURCE_EXTENSION_GLOB } = (await import(join(POLICY_ROOT, "layout.ts"))) as {
+    SOURCE_EXTENSION_GLOB: string;
+  };
+  const lefthook = await readFile(LEFTHOOK_PATH, "utf8");
+
+  // The `lint` job's own glob line, not any other job's: `name: lint` then the
+  // next `glob:` above its `run:`.
+  const lintJob = /- name: lint\b[\s\S]*?\n\s+run:/.exec(lefthook)?.[0] ?? "";
+  const glob = /glob:\s*"([^"]+)"/.exec(lintJob)?.[1];
+
+  if (glob === undefined) {
+    return [
+      `setup/lefthook.yml's \`lint\` job has no \`glob:\`, so the guard that pins it to ` +
+        `SOURCE_EXTENSIONS has nothing to read — restore the glob or delete this check`,
+    ];
+  }
+  if (glob !== SOURCE_EXTENSION_GLOB) {
+    return [
+      `setup/lefthook.yml lints staged ${glob} while policy/layout.ts walks ` +
+        `${SOURCE_EXTENSION_GLOB}. Files matching the second and not the first are staged, ` +
+        `committed, and seen by no oxlint architecture rule`,
+    ];
+  }
+  return [];
 }

@@ -48,13 +48,25 @@ export const barrelPurityFixtures: CheckFixtures = {
     // before the name is `{`. One spelling per feature so that deleting one
     // binding form turns exactly one of these red.
     "FAIL src/features/drape/index.ts",
+    // The same shadow DECLARED rather than parameterised — a nested `const` of
+    // the imported name. This form was deletable-green until this fixture:
+    // nothing else in the tree reached it.
+    "FAIL src/features/pelmet/index.ts",
+    // The boundary's name imported FROM the boundary module and bound to
+    // something else: `import { unrelatedExport as createServerFn }`. Searching
+    // the clause for the call's name finds it on the local side of the `as`, so
+    // the trace stopped at a boundary this file never crossed — a review left
+    // all 16 checks green that way.
+    "FAIL src/features/sconce/index.ts",
   ],
 
   legal: [
     // The server-only leaf sits below a REAL server-function boundary, so the
     // framework strips it from the client bundle and the trace must stop. This
     // is the ordinary way a feature exposes a mutation: a check that fires here
-    // gets switched off rather than fixed.
+    // gets switched off rather than fixed. Its controller also holds an object
+    // literal spelling `{ createServerFn: … }`, which is not a binding — a
+    // shadow test that read a `:` as one reported this barrel.
     "src/features/orders/index.ts",
     // The traced module's only `stripe` reference is `import type`. Erased at
     // compile time, so it cannot break a client bundle — and a check reaching

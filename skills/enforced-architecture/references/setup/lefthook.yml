@@ -41,8 +41,14 @@ pre-commit:
           # Lint and structure are separate jobs even though `check:arch` runs
           # both: at pre-commit they scope differently — lint to staged files,
           # structural checks repo-wide.
+          # All EIGHT extensions, matching `SOURCE_EXTENSIONS` in
+          # `lint/policy/layout.ts` — the rule harness fails the build when this
+          # glob and that list disagree. While this listed four of them, a staged
+          # `.mts` produced `lint (skip) no files for inspection` and reached no
+          # architecture rule: every rule silent on a whole class of file, at the
+          # moment they are meant to block.
           - name: lint
-            glob: "*.{ts,tsx,js,jsx}"
+            glob: "*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}"
             run: bunx oxlint --no-error-on-unmatched-pattern {staged_files}
 
           # STAGED_FILES is what lets the orchestrator scope its advisory warnings
