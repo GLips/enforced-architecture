@@ -41,9 +41,10 @@ import { scanDeclaredImports } from "./module-scanning.ts";
  * A union rather than a record of optional fields, because the mutual exclusions
  * are facts about the tree and belong in the type. A path is in a feature or in
  * a domain and never both; a layer is a position INSIDE a feature, so a domain
- * end and an `infrastructure` end have no layer to read. As a product type every
- * one of those combinations typechecked, and the consumers carried runtime
- * guards recovering the shape the type declined to state.
+ * end and an `infrastructure` end have no layer to read. The union makes those
+ * combinations unspellable — a domain end carrying a layer, a feature end with no
+ * feature name — so a consumer reads `kind` and has the rest, with no runtime
+ * guard recovering a shape the type could have stated.
  *
  * The boundary STRING is deliberately not here. For a feature or a domain it is
  * `<dirName>/<name>` and the consumer that wants it already holds both halves;

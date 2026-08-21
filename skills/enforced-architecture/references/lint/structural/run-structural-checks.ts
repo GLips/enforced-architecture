@@ -37,7 +37,7 @@
 //   import { architectureConfig } from "./arch.config.ts";
 //   import { reportStructuralChecks } from "./run-structural-checks.ts";
 //   import { structuralChecks } from "./registry.ts";
-//   process.exitCode = await reportStructuralChecks(structuralChecks, architectureConfig);
+//   process.exitCode = reportStructuralChecks(structuralChecks, architectureConfig);
 //
 // `registry.ts` is copied whole and stays that way — see its header. What a
 // tree-scoped check covers comes from `policy/declared-trees.ts`, so a tree left
@@ -84,11 +84,11 @@ export type CheckRun = {
  * config cannot name a tree, which is what stops the two tiers from disagreeing
  * about which trees exist.
  */
-export async function runStructuralChecks(
+export function runStructuralChecks(
   checks: StructuralCheck[],
   config: ArchitectureConfig,
   trees: ValidatedTrees = DECLARED_TREES,
-): Promise<CheckRun[]> {
+): CheckRun[] {
   // Before anything runs, and it throws rather than reporting: a config that
   // switches a check off is not a finding about the codebase, and a finding is
   // something a run can end up with none of.
@@ -96,36 +96,24 @@ export async function runStructuralChecks(
   const treeContexts = createTreeContexts(config, trees);
   const runs: CheckRun[] = [];
 
-  // Sequential, not `Promise.all`. Every check that awaits at all awaits the
-  // SAME TypeScript server, so running them concurrently buys no parallelism and
-  // costs the property this loop exists for: `runs` is in registration order, and
-  // a caller comparing "which runs happened" against the registry reads position,
-  // not just presence.
+  // `runs` comes out in registration order, and a caller comparing "which runs
+  // happened" against the registry reads position and not just presence.
   for (const check of checks) {
     if (check.scope === "project") {
-      runs.push(await attempt(check.id, undefined, () => check.run({ config })));
+      runs.push(attempt(check.id, undefined, () => check.run({ config })));
       continue;
     }
     for (const context of treeContexts) {
-      runs.push(await attempt(check.id, context.tree.root, () => check.run(context)));
+      runs.push(attempt(check.id, context.tree.root, () => check.run(context)));
     }
   }
 
   return runs;
 }
 
-async function attempt(
-  id: string,
-  tree: string | undefined,
-  run: () => Promise<Finding[]>,
-): Promise<CheckRun> {
+function attempt(id: string, tree: string | undefined, run: () => Finding[]): CheckRun {
   try {
-    // Awaited INSIDE the try. A returned-but-unawaited promise leaves the catch
-    // covering only the synchronous prologue of the check, so anything that
-    // throws after the first `await` — every type-checker failure, by
-    // construction — escapes as an unhandled rejection and takes the whole run
-    // with it instead of arriving as one loud crashed check.
-    return { id, tree, findings: await run(), crashed: undefined };
+    return { id, tree, findings: run(), crashed: undefined };
   } catch (error) {
     return { id, tree, findings: [], crashed: error as Error };
   }
@@ -157,20 +145,25 @@ function formatFinding(id: string, finding: Finding): string {
 }
 
 /** Prints every finding and returns the process exit code: 1 if anything blocked. */
-export async function reportStructuralChecks(
+export function reportStructuralChecks(
   checks: StructuralCheck[],
   config: ArchitectureConfig,
-): Promise<number> {
+): number {
   const keep = stagedWarningFilter();
   let errors = 0;
   let warnings = 0;
 
-  // The TypeScript server is a child process this run owns, and a live child
-  // holds the process open. Disposed in a `finally` rather than after the loop
-  // because a throw from `runStructuralChecks` — a config that switches a check
-  // off, which is deliberately not a finding — would otherwise leave the compiler
-  // running and the command hung instead of failed.
-  const runs = await runStructuralChecks(checks, config).finally(disposeTypeCheckerHost);
+  // The TypeScript server is a child process this run owns, and nothing else
+  // ends it before the whole process does. Disposed in a `finally` rather than
+  // after the call because a throw from `runStructuralChecks` — a config that
+  // switches a check off, which is deliberately not a finding — would otherwise
+  // hand a live compiler to whatever hosts this, one per attempt.
+  let runs: CheckRun[];
+  try {
+    runs = runStructuralChecks(checks, config);
+  } finally {
+    disposeTypeCheckerHost();
+  }
 
   for (const { id, tree, findings, crashed } of runs) {
     if (crashed !== undefined) {

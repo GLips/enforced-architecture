@@ -21,6 +21,19 @@
   // reach for that only to scope a plugin to a subtree.
   "jsPlugins": ["./lint/oxlint/plugin.ts", "eslint-plugin-sonarjs"],
 
+  // The BUILT-IN plugin set, and writing it at all is the hazard. oxlint's
+  // implicit default is exactly `["unicorn", "typescript", "oxc"]`; an explicit
+  // array REPLACES that default rather than adding to it, so `["react"]` alone
+  // silently unloads three plugins this config already leans on and the rules
+  // named below stop being enforced with no error — `--print-config` reports 88
+  // rules instead of 111. Everything relied on is therefore listed here, and the
+  // way to check a change is to count: `npx oxlint --print-config` before and
+  // after. `react` is the addition; the other three are the default restated.
+  //
+  // `jsPlugins` entries do NOT belong in this array — `arch` and `sonarjs` are
+  // registered by the array above and are unaffected by what this one says.
+  "plugins": ["react", "unicorn", "typescript", "oxc"],
+
   // One `<root>/<dir>/**` entry per declared tree, naming its `generatedDir`, and
   // `harness/run-rule-fixtures.ts` fails the build when this list is not exactly
   // that. The names live in each tree's vocabulary; this file spells the globs
@@ -125,15 +138,6 @@
   // becomes a dozen globs an adopter widens, instead of one vocabulary table.
   //
   // ── health, naming, testing ──
-  // `no-nested-ternary` (core) and `unicorn/no-nested-ternary`: the core rule bans
-  //   depth 2, which `arch/no-nested-ternary`'s header names as the budget on
-  //   purpose; the unicorn one bans depth 2 spelled WITHOUT parentheses and is
-  //   silent on `p ? 1 : (q ? 2 : 3)`, so it is the looser of the two and misses
-  //   cases the core rule catches. NEITHER takes an option to raise the depth —
-  //   `{max}`, `{depth}` and a bare number are all rejected as invalid
-  //   configuration. Both also report the chain extracted to its own binding, which
-  //   is the refactor our message asks for. Run as a pair, seven of our nine legal
-  //   fixtures draw a diagnostic from them.
   // `id-denylist`, `id-match`, `id-length`: `id-denylist` compares the WHOLE
   //   identifier, so it bans `data` and allows `InvoiceData` — it reports none of
   //   `arch/no-vacant-symbol-names`' eleven violations. `id-match` cannot express the
@@ -159,10 +163,12 @@
   //   ours prescribes — a compound component namespaced with `Object.assign`. Its one
   //   option, `ignoreStateless`, silences every function component, violations included.
   // `react/only-export-components`: a fast-refresh question, not a findability one.
-  // `react/react-compiler`: its `EffectDerivationsOfState` IS `arch/derived-state`'s
-  //   claim, but the rule is indivisible — taking it also takes `Purity`, which
-  //   reports a `setInterval` effect that derives nothing. It is also blind to a
-  //   setter called through a helper declared inside the effect callback.
+  // The other twenty rules oxlint 1.79 split `react/react-compiler` into. That
+  //   nursery rule no longer exists as a config key — it was indivisible, and taking
+  //   its `EffectDerivationsOfState` claim once meant also taking `Purity`, which
+  //   reports a `setInterval` effect that derives nothing. The split is what made
+  //   the two enabled below reachable on their own; the remaining twenty are
+  //   compiler-bailout diagnostics, not architecture, and stay off.
   // `react-hooks/exhaustive-deps` and `rules-of-hooks`: enable them as React
   //   correctness rules if you want them; they replace nothing here. `exhaustive-deps`
   //   sees exactly one async spelling, `useEffect(async () => …)`, and `rules-of-hooks`
@@ -403,7 +409,40 @@
     "sonarjs/no-duplicated-branches": "error",
     "sonarjs/no-identical-conditions": "error",
     "sonarjs/no-identical-expressions": "error",
-    "sonarjs/no-identical-functions": "error"
+    "sonarjs/no-identical-functions": "error",
+
+    // ── health: a decision is readable ──
+    //
+    // BOTH, and the pair is load-bearing rather than belt-and-braces. The core rule
+    // reads a nested conditional wherever it sits; the unicorn one is silent on
+    // `p ? 1 : (q ? 2 : 3)`, the parenthesised spelling, so it misses cases the core
+    // rule catches — and it catches the un-parenthesised chain the core rule's own
+    // fixtures leave to it. Dropping either loses adversarial cases the catalog had.
+    //
+    // DEPTH 2 IS THE LIMIT NOW, down from the budget of 3 the deleted
+    // `arch/no-nested-ternary` documented, and it is not tunable: `{ "max": 2 }`,
+    // a bare `2` and `{ "depth": 3 }` are each rejected as invalid configuration by
+    // both rules. A project wanting three levels has to say so in review, not here.
+    //
+    // Both also report the chain extracted to its own binding, which is the refactor
+    // the message asks for — so the fix is to name the branches, not to move them.
+    "no-nested-ternary": "error",
+    "unicorn/no-nested-ternary": "error",
+
+    // ── react: state is derived, not synchronised in an effect ──
+    //
+    // BOTH again, and this pair is the less obvious one. `no-deriving-state-in-effects`
+    // sounds like the whole claim and is not: run alone it misses the headline shape,
+    // a `useEffect` that calls a `useState` setter from a prop. `set-state-in-effect`
+    // is the rule that does that work. Together they are what oxlint 1.79 exposed when
+    // it split `react/react-compiler`; before the split neither was reachable without
+    // the compiler's purity diagnostics.
+    //
+    // NEGATIVE SPACE: a setter called through a helper DECLARED INSIDE the effect
+    // callback draws nothing from either. The deleted `arch/derived-state` read that
+    // shape; nothing here does now, and no run says so.
+    "react/set-state-in-effect": "error",
+    "react/no-deriving-state-in-effects": "error"
   },
 
   // ── the declared trees ──────────────────────────────────────────────────
@@ -474,8 +513,8 @@
       // whose header carries neither label, and stops there — nothing reads the
       // severity column, so a header relabelled from `Shows:` to `Makes sure:`
       // leaves the value here stale and `npm run check` green. Re-derive the column
-      // by hand when a label moves, until ea-49 makes the harness read it. The
-      // guard that DOES read this file reads only the `files` globs above.
+      // by hand whenever a label moves. The guard that DOES read this file reads
+      // only the `files` globs above.
       //
       // A project that wants a warning to block edits the severity here and leaves
       // the header alone: the label says what the rule BUYS, not what this project
@@ -513,9 +552,6 @@
       // it is the only rule that holds the `sql` name, so off here is off everywhere.
       "arch/no-sql-type-parameter": "error",
 
-      // ── health: a decision is readable ──
-      "arch/no-nested-ternary": "error",
-
       // ── naming: an exported name is an address you can search for ──
       "arch/no-vacant-symbol-names": "error",
 
@@ -528,8 +564,9 @@
       "arch/server-fn-placement": "error",
       "arch/server-fn-validation": "error",
 
-      // ── react: state is derived, effects clean up, data comes through the cache ──
-      "arch/derived-state": "error",
+      // ── react: effects clean up, and a component's size is a number ──
+      // State derivation is NOT here any more: `react/set-state-in-effect` and
+      // `react/no-deriving-state-in-effects` own it, in the global block above.
       "arch/no-async-effect": "error",
       // Counts, not properties. Each reports a number a reader uses to decide what
       // to split next, and a component that collects many hooks or many props by
@@ -562,6 +599,51 @@
       // A report on a spread that could have been written plainly, not a property
       // anything depends on.
       "arch/no-conditional-empty-object-spread": "warn"
+      }
+    },
+
+    // ── the architecture exemption, restated for four built-ins ─────────────
+    //
+    // ONE entry carrying four rule keys, not four entries. The four rules below
+    // replaced two `arch/` rules, and an `arch/` rule asks
+    // `isArchitectureExemptSourcePath` before it matches anything. A built-in
+    // cannot: it has never heard of the predicate, so a test file that was silent
+    // yesterday reports today unless this block says otherwise.
+    //
+    // These globs are a TRANSCRIPTION of that predicate, not a policy of their own,
+    // and the transcription is what makes them legal here rather than the off-switch
+    // the block above refuses. Each line names a structural fact the predicate reads:
+    // a `.test` suffix under any source extension (the extension list is stripped
+    // before the suffix is matched, so `.test.mts` counts and a regex spelling
+    // `[tj]sx?` would miss it), a `__tests__` directory anywhere, the cross-cutting
+    // `test/` directory at the root of the frame, a `.d` or `.gen` name, and any
+    // segment named `scripts`. The three brace lists are `SOURCE_EXTENSIONS` from
+    // `lint/policy/layout.ts` written out, and they move when it does.
+    // Growing this list past what the predicate computes is
+    // the menu, and shrinking it re-reports code the catalog exempts everywhere else.
+    //
+    // `generatedDir` is deliberately ABSENT even though the predicate reads it:
+    // `ignorePatterns` at the top of this file already spells it for the built-ins,
+    // and it is guarded against the tree list. A second copy here is the one policy
+    // in two places this catalog most reliably drifts.
+    //
+    // ONE ENTRY, because `overrides` REPLACES a matching entry rather than layering
+    // — the same mechanic the `max-lines` note above turns down. Four entries would
+    // be four glob lists to keep equal to each other and to the predicate.
+    {
+      "files": [
+        "**/*.test.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+        "**/__tests__/**",
+        "test/**",
+        "**/*.d.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+        "**/*.gen.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+        "**/scripts/**"
+      ],
+      "rules": {
+        "no-nested-ternary": "off",
+        "unicorn/no-nested-ternary": "off",
+        "react/set-state-in-effect": "off",
+        "react/no-deriving-state-in-effects": "off"
       }
     }
   ]

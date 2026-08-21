@@ -132,30 +132,27 @@ const TRANSPARENT_CONTAINER_NAMES = new Set([
  * without this line every unresolved import turns into a finding blaming the
  * author for a broad annotation they did not write.
  */
-export async function typeResolvesToFlags(
+export function typeResolvesToFlags(
   treeChecker: TreeTypeChecker,
   type: Type,
   flags: number,
   seen: Set<number> = new Set(),
-): Promise<boolean> {
+): boolean {
   if (type.isErrorType()) return false;
   if ((type.flags & flags) !== 0) return true;
   if (seen.has(type.id)) return false;
   seen.add(type.id);
 
   if (type.isUnionType()) {
-    for (const member of await type.getTypes()) {
-      if (await typeResolvesToFlags(treeChecker, member, flags, seen)) return true;
-    }
-    return false;
+    return type.getTypes().some((member) => typeResolvesToFlags(treeChecker, member, flags, seen));
   }
 
   if (type.isTypeReference()) {
-    const name = (await type.getSymbol())?.name;
+    const name = type.getSymbol()?.name;
     if (name !== undefined && TRANSPARENT_CONTAINER_NAMES.has(name)) {
-      for (const argument of await treeChecker.checker.getTypeArguments(type)) {
-        if (await typeResolvesToFlags(treeChecker, argument, flags, seen)) return true;
-      }
+      return treeChecker.checker
+        .getTypeArguments(type)
+        .some((argument) => typeResolvesToFlags(treeChecker, argument, flags, seen));
     }
   }
 
@@ -183,19 +180,19 @@ export async function typeResolvesToFlags(
  * `typeResolvesToFlags` unwraps `Array` for exactly that — and the two answers
  * must not both arrive at one annotation.
  */
-export async function openKeyDomainValueTypes(
+export function openKeyDomainValueTypes(
   treeChecker: TreeTypeChecker,
   type: Type,
-): Promise<readonly Type[] | undefined> {
+): readonly Type[] | undefined {
   // The error type is caught by the Object gate below, not by a line of its own:
   // an unresolved name carries `Any`, never `Object`.
   if ((type.flags & TypeFlags.Object) === 0) return undefined;
-  const infos = await treeChecker.indexSignatures(type);
+  const infos = treeChecker.indexSignatures(type);
   if (infos.length === 0) return undefined;
   // Asked LAST, and only of a type that already carries an index signature. It is
   // a round trip, and the population that reaches it is the bags plus the arrays
   // rather than every type in the tree.
-  if (await treeChecker.checker.isArrayLikeType(type)) return undefined;
+  if (treeChecker.checker.isArrayLikeType(type)) return undefined;
   return infos.map((info) => info.valueType);
 }
 
@@ -208,17 +205,11 @@ export async function openKeyDomainValueTypes(
  * `Record<string, Handler>` reports there and is silent here: a dictionary with
  * a precise value type is evidence of a known type, not an untyped bag.
  */
-export async function isOpaqueDictionary(
-  treeChecker: TreeTypeChecker,
-  type: Type,
-): Promise<boolean> {
-  const values = await openKeyDomainValueTypes(treeChecker, type);
+export function isOpaqueDictionary(treeChecker: TreeTypeChecker, type: Type): boolean {
+  const values = openKeyDomainValueTypes(treeChecker, type);
   if (values === undefined) return false;
   const opaque = UNTYPED_TYPE_FLAGS | NON_PRIMITIVE_TYPE_FLAGS;
-  for (const value of values) {
-    if (await typeResolvesToFlags(treeChecker, value, opaque)) return true;
-  }
-  return false;
+  return values.some((value) => typeResolvesToFlags(treeChecker, value, opaque));
 }
 
 /**
@@ -284,13 +275,13 @@ export function isTypeRequestUnsafe(node: Node): boolean {
  * neighbouring package's files under this tree's name. `assertTreeIsTypeChecked`
  * has already established that the other direction is empty.
  */
-export async function treeSourceFiles(
+export function treeSourceFiles(
   context: TreeContext,
   treeChecker: TreeTypeChecker,
-): Promise<SourceFile[]> {
+): SourceFile[] {
   const found: SourceFile[] = [];
   for (const absolute of collectTreeFiles(context, TYPESCRIPT_FILE_GLOB)) {
-    const file = await treeChecker.program.getSourceFile(absolute);
+    const file = treeChecker.program.getSourceFile(absolute);
     if (file !== undefined) found.push(file);
   }
   return found;
@@ -375,11 +366,11 @@ export function enclosingFunctionLike(node: Node): Node | undefined {
  * `types/no-broad-parameters` drops the receiver before it looks. Filtering here
  * instead was a line no fixture could reach.
  */
-export async function typePredicateSubjects(
+export function typePredicateSubjects(
   treeChecker: TreeTypeChecker,
   fn: Node,
-): Promise<ReadonlySet<string>> {
-  return new Set(await predicateSubjectNames(treeChecker, fn));
+): ReadonlySet<string> {
+  return new Set(predicateSubjectNames(treeChecker, fn));
 }
 
 /**
@@ -396,11 +387,8 @@ export async function typePredicateSubjects(
  * is over `this` reports the `typeof` that IS its parse step, with no signature
  * the author can write to satisfy both checks.
  */
-export async function declaresTypePredicate(
-  treeChecker: TreeTypeChecker,
-  fn: Node,
-): Promise<boolean> {
-  return (await predicateSubjectNames(treeChecker, fn)).length > 0;
+export function declaresTypePredicate(treeChecker: TreeTypeChecker, fn: Node): boolean {
+  return predicateSubjectNames(treeChecker, fn).length > 0;
 }
 
 /**
@@ -412,15 +400,15 @@ export async function declaresTypePredicate(
  * implementation's return to `boolean`, so a reader of one node sees no
  * predicate on the declaration that has the body.
  */
-async function predicateSubjectNames(treeChecker: TreeTypeChecker, fn: Node): Promise<string[]> {
+function predicateSubjectNames(treeChecker: TreeTypeChecker, fn: Node): string[] {
   const names: string[] = [];
   const named = fn as Node & { name?: Node };
 
   const declarations: Node[] = [fn];
   if (named.name !== undefined) {
-    const symbol = await treeChecker.checker.getSymbolAtLocation(named.name);
+    const symbol = treeChecker.checker.getSymbolAtLocation(named.name);
     for (const handle of symbol?.declarations ?? []) {
-      const other = await handle.resolve();
+      const other = handle.resolve();
       if (other !== undefined) declarations.push(other);
     }
   }

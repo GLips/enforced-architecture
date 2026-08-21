@@ -1,7 +1,7 @@
 # boundary — Layer direction and import restrictions
 
-The per-file half: each rule reads one file's specifiers. The whole-tree half — which resolves
-where a specifier actually lands — is in
+The per-file half: each rule reads one file's specifiers, the text in its import quotes. The
+whole-tree half — which resolves where a specifier actually lands — is in
 [../../structural/boundary/overview.md](../../structural/boundary/overview.md), and you need it:
 every rule here but one matches an import path, so a relative import reaching the same module by a
 different spelling bypasses all of them at once. Adopt `boundary/import-policy` alongside the

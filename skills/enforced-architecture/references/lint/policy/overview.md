@@ -12,11 +12,11 @@ string and return a verdict.
 ## Why the constraint is worth the directory
 
 Some architectural questions are asked from both tiers, and each tier sees a different half of the
-evidence. Whether an import is legal is the standing example: the oxlint tier sees aliased
-specifiers and bare package names in one file's source text, and the structural tier sees resolved
-relative edges across the whole graph. If each tier carries its own copy of the answer, one edge
-reaches two verdicts depending on how it happened to be spelled — and the disagreement is invisible,
-because neither tier can see the other's table.
+evidence. Whether an import is legal is the standing example: the oxlint tier sees what one file
+writes in its import quotes, aliased paths and bare package names, and the structural tier sees
+resolved relative edges across the whole graph. If each tier carries its own copy of the answer, one
+edge reaches two verdicts depending on how it happened to be spelled — and the disagreement is
+invisible, because neither tier can see the other's table.
 
 A rule whose question needs both tiers therefore has its *policy* here and an *adapter* on each
 side. Both adapters hand the same evaluator the same source-root-relative string, so there is one

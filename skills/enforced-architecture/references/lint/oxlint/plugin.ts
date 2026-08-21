@@ -5,7 +5,6 @@ import { clientServerInfraRule } from "./boundary/client-server-infra.ts";
 import { dbIsolationRule } from "./boundary/db-isolation.ts";
 import { importPolicyRule } from "./boundary/import-policy.ts";
 import { deprecatedPathsRule } from "./placement/deprecated-paths.ts";
-import { derivedStateRule } from "./react/derived-state.ts";
 import { hookCountRule } from "./react/hook-count.ts";
 import { noArbitraryClassValuesRule } from "./style/no-arbitrary-class-values.ts";
 import { noAsyncEffectRule } from "./react/no-async-effect.ts";
@@ -21,7 +20,6 @@ import { noSqlTypeParameterRule } from "./effect/no-sql-type-parameter.ts";
 import { noInlineColorRule } from "./style/no-inline-color.ts";
 import { noInlineFontSizeRule } from "./style/no-inline-font-size.ts";
 import { noInlineStylePropRule } from "./style/no-inline-style-prop.ts";
-import { noNestedTernaryRule } from "./health/no-nested-ternary.ts";
 import { noPlainExportInServerFnModuleRule } from "./placement/no-plain-export-in-server-fn-module.ts";
 import { noRawPrimitivesRule } from "./style/no-raw-primitives.ts";
 import { noRawResultRule } from "./placement/no-raw-result.ts";
@@ -75,7 +73,6 @@ export default definePlugin({
     "route-thinness": routeThinnessRule,
     "sdk-containment": sdkContainmentRule,
     "server-no-upward": serverNoUpwardRule,
-    "no-nested-ternary": noNestedTernaryRule,
     "no-chained-type-assertions": noChainedTypeAssertionsRule,
     "no-conditional-empty-object-spread": noConditionalEmptyObjectSpreadRule,
     "no-module-mocking": noModuleMockingRule,
@@ -83,7 +80,6 @@ export default definePlugin({
     "no-reflect-access": noReflectAccessRule,
     "no-type-argument-assertion": noTypeArgumentAssertionRule,
     "require-safety-comment": requireSafetyCommentRule,
-    "derived-state": derivedStateRule,
     "hook-count": hookCountRule,
     "no-async-effect": noAsyncEffectRule,
     "prop-count": propCountRule,

@@ -1,6 +1,6 @@
 // ADVERSARIAL for `types/no-unknown-type-aliases`: the chain, the weaker
-// keyword, the container, and the alias the syntactic predecessor could not see
-// because it only read top-level declarations.
+// keyword, the container, and the alias a walk of top-level declarations never
+// reaches.
 
 // A CHAIN reports at every link. Each name is its own broken promise, and one
 // edit to the first clears both.

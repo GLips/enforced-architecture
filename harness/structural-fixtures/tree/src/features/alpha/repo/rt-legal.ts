@@ -1,6 +1,7 @@
 // LEGAL neighbours for `types/no-runtime-typeof`, and the first two are the
-// behaviour change this check's header calls a redesign. Its syntactic
-// predecessor reported both and said so in its own header.
+// behaviour change this check's header calls a redesign: a check that reads the
+// `typeof` and not the operand's type reports both of them, and staying silent
+// here is what the type-aware reading buys.
 
 // The SSR guard. `window` is `Window & typeof globalThis` — a type — and the
 // test is about existence, not shape.

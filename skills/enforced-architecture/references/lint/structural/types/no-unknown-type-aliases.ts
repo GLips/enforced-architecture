@@ -53,19 +53,19 @@ export const noUnknownTypeAliasesCheck: StructuralCheck = {
   id: "types/no-unknown-type-aliases",
   scope: "tree",
 
-  async run(context: TreeContext): Promise<Finding[]> {
-    const treeChecker = await context.typeChecker();
+  run(context: TreeContext): Finding[] {
+    const treeChecker = context.typeChecker();
     const findings: Finding[] = [];
 
-    for (const file of await treeSourceFiles(context, treeChecker)) {
+    for (const file of treeSourceFiles(context, treeChecker)) {
       for (const node of typeCheckableNodesOfKind(file, ALIAS_KINDS)) {
         const alias = node as Node & { name?: Node & { text?: string } };
         if (alias.name === undefined) continue;
 
-        const symbol = await treeChecker.checker.getSymbolAtLocation(alias.name);
+        const symbol = treeChecker.checker.getSymbolAtLocation(alias.name);
         if (symbol === undefined) continue;
-        const declared = await treeChecker.checker.getDeclaredTypeOfSymbol(symbol);
-        if (!(await typeResolvesToFlags(treeChecker, declared, UNTYPED_TYPE_FLAGS))) continue;
+        const declared = treeChecker.checker.getDeclaredTypeOfSymbol(symbol);
+        if (!typeResolvesToFlags(treeChecker, declared, UNTYPED_TYPE_FLAGS)) continue;
 
         findings.push(
           findingAtNode(

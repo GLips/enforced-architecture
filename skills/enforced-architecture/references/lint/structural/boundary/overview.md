@@ -1,8 +1,8 @@
 # boundary — Layer direction and import restrictions
 
-The whole-tree half. Both checks consume the resolved import graph rather than matching specifier
-text, which is what lets them see an edge no spelling can hide. The per-file rules are in
-[../../oxlint/boundary/overview.md](../../oxlint/boundary/overview.md).
+The whole-tree half. Both checks consume the resolved import graph rather than matching the text in
+an import's quotes, which is what lets them see an edge no spelling can hide. The per-file rules are
+in [../../oxlint/boundary/overview.md](../../oxlint/boundary/overview.md).
 
 `import-policy` is the one to take first, and it is half of a rule rather than a whole one: the
 oxlint adapter judges aliased specifiers and bare packages, this one judges resolved relative edges,

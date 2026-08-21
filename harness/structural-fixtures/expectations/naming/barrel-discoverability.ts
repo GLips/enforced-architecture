@@ -31,9 +31,10 @@ export const barrelDiscoverabilityFixtures: CheckFixtures = {
     // statement shape from the wildcards, so it needs its own branch — and the
     // branch has to compare the two names rather than match on `as`.
     "FAIL src/features/surface/index.ts",
-    // `export type { RegistryEntry as SurfaceRegistryEntry } from "…"`, under
-    // the default `flagTypeAliases: true`. The only fixture in the tree that
-    // reaches the type branch at all.
+    // `export type { RegistryEntry as SurfaceRegistryEntry } from "…"`. A
+    // type-only rename splits the same search a value rename does, so it
+    // reports on the same terms — and this is the only fixture in the tree that
+    // reaches the `typeOnly` branch of the message.
     "FAIL src/features/surface/index.ts",
     // `export * from "./service/kiosk-registry.ts"`. The specifier's bytes
     // and the module it names are different strings, so the finding can only
@@ -63,9 +64,9 @@ export const barrelDiscoverabilityFixtures: CheckFixtures = {
 
   // The verdict cannot separate a specifier read from the parser from one
   // scraped out of the quotes: the same line reports either way. Only the
-  // wording says which reading produced it. Same for the type-only note, which
-  // is a whole branch that changes no verdict — deleting it left every count in
-  // this file right.
+  // wording says which reading produced it. Same for the type-only note: it is a
+  // whole branch that changes no verdict, so deleting it changes no count in
+  // this file and only the assertions below report it.
   messages: [
     {
       // Which wildcard. The namespace clause is quoted back, because "a

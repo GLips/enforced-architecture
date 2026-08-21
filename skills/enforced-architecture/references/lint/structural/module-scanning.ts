@@ -1,12 +1,13 @@
 // ─── What a file imports, and what it offers ──────────────────────────
 //
-// Makes sure of nothing on its own. Two questions about a module's clauses, one
-// parser, and this is the tier's ONE answer to each:
+// Makes sure of nothing on its own. Two questions about one file's import and
+// export statements, one parser, and this is the tier's ONE answer to each:
 //
-//   `scanDeclaredImports` — which specifiers does this file NAME. Consumed by
-//   `import-graph` (which resolves each one and compares the two ends as paths)
-//   and by `api/barrel-purity` (which asks which packages a barrel can reach at
-//   runtime).
+//   `scanDeclaredImports` — which quoted paths does this file NAME. The text
+//   inside the quotes is the specifier: `"./rows.ts"`, `"@/features/orders"`,
+//   `"stripe"`. Consumed by `import-graph` (which resolves each one and compares
+//   the two ends as paths) and by `api/barrel-purity` (which asks which packages
+//   a barrel can reach at runtime).
 //
 //   `scanDeclaredExports` — which names does this file OFFER, and where each one
 //   comes from. Consumed by `naming/barrel-discoverability`, whose subject is
@@ -19,15 +20,17 @@
 //
 // The two questions overlap on the STATEMENT and not on the subject: `export { a
 // } from "./x"` is an occurrence of `./x` to the first and an offer of `a` to the
-// second. Both readings come off one export record here, so no consumer can hold
-// a third idea of what that line says.
+// second. Both readings come off one parsed export statement here, so no consumer
+// can hold a third idea of what that line says.
 //
-// This is the third substrate in the tier, beside `module-resolution.ts` (where
-// a specifier LANDS) and `type-checker.ts` (what a declaration MEANS). This one
+// `module-resolution.ts` turns one of those quoted paths into the file it means,
+// and `type-checker.ts` asks TypeScript what a declaration's type is. This file
 // is upstream of both: nothing can be resolved before it is found.
 //
 // The parse is `oxc-parser`'s — the parser under the oxlint this catalog already
-// ships, and the same project as the `oxc-resolver` beside it. What it buys over
+// ships, and the same project as the `oxc-resolver` beside it. It hands back a
+// module record: the file's import and export statements, listed, each with its
+// quoted path already unescaped. Everything below reads that. What it buys over
 // a transpiler's import scan is that it does not ERASE and does not INJECT: a
 // transpiler is asked what the emitted module needs, and the answer is missing
 // every type-only import and carrying JSX-runtime imports the file never wrote.
@@ -39,8 +42,8 @@
 //
 // One entry per OCCURRENCE, not per specifier: a file importing `./a` twice gets
 // two entries, because `boundary/import-policy` reports each crossing where it
-// is written. `offset` is the span of the module-request literal, which the
-// parser knows exactly. Nothing here searches the text for a quoted specifier —
+// is written. `offset` is the span of the quoted path itself, which the
+// parser knows exactly. Nothing here searches the text for a quoted path —
 // a specifier written with a unicode escape has a cooked value matching no
 // literal in the source, and prose quoting the same path can sit above the real
 // import and claim its line.
@@ -59,7 +62,7 @@
 //
 //   import /* why */ type { A } from "./a";   // a comment between the keywords
 //   export type /* why */ { B } from "./b";
-//   import { type A /* } */ } from "./a";     // a brace in a comment ends the clause
+//   import { type A /* } */ } from "./a";     // a brace in a comment ends the braces
 //   type C = import("./c").C;                 // an import in a type position
 //   type D = typeof import("./d");
 //
@@ -84,11 +87,11 @@
 // WHAT A WILDCARD OFFERS IS NOT HERE. `export * from "./x"` is reported as a
 // wildcard and never expanded: the names it forwards are declared in another
 // file, and enumerating them means resolving the specifier and reading what is
-// there — the next substrate's question, and then a whole chain of them. A
+// there — `module-resolution.ts`'s question, and then a whole chain of them. A
 // consumer that needs the expanded surface walks the graph itself. Nothing here
 // can tell you whether a wildcard offers one name or four hundred.
 //
-// CommonJS has no export record and none is reconstructed. `module.exports = …`
+// CommonJS has no export statement and none is reconstructed. `module.exports = …`
 // and `exports.a = …` put names on a surface, and neither is read: the import
 // side reads `require` because a boundary crossing is its subject, and no check
 // in the tier asks what a CommonJS module offers. A project whose public surface

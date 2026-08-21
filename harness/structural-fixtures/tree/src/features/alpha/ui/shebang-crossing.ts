@@ -2,8 +2,8 @@
 // FIRES import-policy, and the shebang is the point.
 //
 // A shebang is valid at the top of an executable source file, and a reader that
-// does not expect one rejects it — taking every edge in this file, and under a
-// substrate that read imports with one shared transpiler instance, the entire
+// does not expect one rejects it — taking every edge in this file with it, and
+// wherever imports are read through one shared transpiler instance, the entire
 // graph. Every graph-reading check then reports nothing at all and the run is
 // green.
 //

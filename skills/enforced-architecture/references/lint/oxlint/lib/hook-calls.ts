@@ -1,10 +1,9 @@
-// The one answer to "which React hook does this call name", for the four sites in `react/` that
-// ask it: `hook-count` counts every hook call, `no-async-effect` watches `useEffect` and
-// `useCallback`, and `derived-state` watches `useEffect` and `useState`.
+// The one answer to "which React hook does this call name", for the sites in `react/` that ask it:
+// `hook-count` counts every hook call and `no-async-effect` watches `useEffect` and `useCallback`.
 //
-// Four copies of the question is four answers to it, and the disagreement is not exotic — it is
-// `React.useEffect`. A `hook-count` that counts the namespaced spelling, beside two
-// `error`-severity rules reading `Identifier` only and silent on it, leaves a file with `React.`
+// A copy of the question per caller is an answer per caller, and the disagreement is not exotic —
+// it is `React.useEffect`. A `hook-count` that counts the namespaced spelling, beside an
+// `error`-severity rule reading `Identifier` only and silent on it, leaves a file with `React.`
 // on every hook drawing a warning about hook volume and nothing about the async effect inside it.
 // A rule that reports the whole file except the one line that matters is worse than one that
 // reports nothing, because the clean half certifies the missing half.

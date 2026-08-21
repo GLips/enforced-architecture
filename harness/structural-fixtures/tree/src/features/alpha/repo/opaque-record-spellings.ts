@@ -2,9 +2,9 @@
 // ways TypeScript lets you write one, plus the alias chain that must report at
 // the DECLARATION and nowhere else.
 //
-// `SettlementPartial` is the case the syntactic predecessor documented as
-// covered by nothing: the bag is one wrapper deep, so a walk that matches the
-// literal name `Record` at the outermost position never sees it.
+// `SettlementPartial` is the case a syntactic reading covers with nothing: the
+// bag is one wrapper deep, so a walk that matches the literal name `Record` at
+// the outermost position never sees it.
 
 // An inline index signature.
 export type SettlementIndex = { [key: string]: unknown };

@@ -121,8 +121,9 @@ returning a visitor, so the exposure is churn in a young API, not a design bet.
 Most rules in the catalog are import rules. Two modules own that job, and a hand-rolled visitor is
 the mistake both exist to prevent.
 
-- [lib/module-source-visitor.ts](lint/oxlint/lib/module-source-visitor.ts) — every place a module
-  specifier can appear. A hand-written `ImportDeclaration` visitor covers one form of several.
+- [lib/module-source-visitor.ts](lint/oxlint/lib/module-source-visitor.ts) — every place a specifier,
+  the text in an import's quotes, can appear. A hand-written `ImportDeclaration` visitor covers one
+  form of several.
 - [lib/imported-names.ts](lint/oxlint/lib/imported-names.ts) — every name a file takes from a **set**
   of modules, under the exporting module's spelling. It takes a list of modules, not one, and calling
   it twice is the failure it is shaped to prevent.
@@ -172,12 +173,11 @@ structural finding, and `typecheck` as one `&&` chain of `tsc` runs lets an app 
 error in the check scripts. Run each independently and aggregate. Reserve `&&` for a step that
 genuinely cannot run after the one before it failed.
 
-### The tier's non-check files
+### What sits at the root of `lint/structural/`
 
-Structural checks ship with the modules they share. Duplicated across scripts, those modules drift
-apart on exclusions and on what counts as an import, and neither copy reports that it has. Four of
-these are the tier's **substrates** — `module-scanning.ts`, `module-resolution.ts`, `import-graph.ts`
-and `type-checker.ts`, each answering one question about code. The rest is plumbing.
+Copy the directory whole. The checks live under `<tag>/`, and every one of them reads several of the
+files below. Written a second time inside a script instead, those files drift apart on exclusions and
+on what counts as an import, and neither copy reports that it has.
 
 - **`config.ts`** — every per-repo value for every check, in one object: the project root, and
   per-check thresholds, manifests, trace limits and package lists. The shape of the tree
@@ -188,10 +188,11 @@ and `type-checker.ts`, each answering one question about code. The rest is plumb
   about that tree. A `ProjectContext` is the config and nothing about any tree. `StructuralCheck` is
   a union over the two, so a check cannot receive a context its scope never produces. File collection
   is a free function taking a context, not a member of one.
-- **`module-scanning.ts`** — which specifiers a file names, over `oxc-parser`. One entry per
-  occurrence, with the line and whether that occurrence is erased. A transpiler's import scan answers
-  a different question — what the emitted module needs — and its answer is missing every type-only
-  import and carrying JSX-runtime imports the file never wrote.
+- **`module-scanning.ts`** — over `oxc-parser`, two readings of one file's import and export
+  statements: which quoted paths it names, one entry per occurrence with the line and whether that
+  occurrence is erased; and which names it re-exports and under what name, one entry each. A
+  transpiler's import scan answers a different question — what the emitted module needs — and its
+  answer is missing every type-only import and carrying JSX-runtime imports the file never wrote.
 - **`module-resolution.ts`** — where one specifier lands, over `oxc-resolver`. It sees what path
   arithmetic cannot: `./rows.js` naming `rows.ts`, a directory naming its barrel. No knob — it reads
   the tree's vocabulary.
@@ -199,7 +200,7 @@ and `type-checker.ts`, each answering one question about code. The rest is plumb
   check asking where an import *lands* consumes the graph, never the specifier's spelling.
 - **`type-checker.ts`** — one TypeScript process per run, one program per declared tree, built
   lazily so a project running no `types/` check never spawns it. The tier's dev dependencies are
-  `oxc-parser`, `oxc-resolver` and `typescript` 7, whose `unstable/async` API this is the one file to
+  `oxc-parser`, `oxc-resolver` and `typescript` 7, whose `unstable/sync` API this is the one file to
   import.
 - **`registry.ts`** — the check list, copied whole. **`run-structural-checks.ts`** — the orchestrator.
 
@@ -278,10 +279,8 @@ Not "implementing" one. The catalog's checks are runnable modules, proved agains
 repo's CI. Reimplementing one from its doc is how a check ends up silently matching less than the doc
 promises.
 
-1. Copy `lint/policy/` first if it is not there, then
-   `lint/structural/{config,check-context,module-scanning,module-resolution,import-graph,type-checker,registry,run-structural-checks}.ts`
-   and every `lint/structural/<tag>/<name>.ts`. All eight non-check files, or the tier does not
-   import-resolve.
+1. Copy `lint/policy/` first if it is not there, then `lint/structural/` whole — everything at its
+   root and every `lint/structural/<tag>/<name>.ts`. A partial copy does not import-resolve.
 2. Register the checks in `lint/structural/registry.ts`. An unregistered check is a file that ships
    and never runs.
 3. Declare the project's trees, then write `arch.config.ts`: spread `defaultCheckConfigs` and
@@ -398,7 +397,7 @@ Write the case even when you are confident.
 
 | Axis | The shape that gets past |
 |---|---|
-| Import clause arity | `import { a, b } from "m"` where the rule tested only the first specifier |
+| More than one name in the braces | `import { a, b } from "m"` where the rule tested only the first |
 | Declaration form | `export default function`, an arrow assigned to a `const`, a declaration exported on a later line |
 | Re-export | `export { x } from "pkg"` and `export * from "pkg"`, which carry a runtime dependency exactly like an import |
 | Type-only spelling | `import { type X }` for a rule that only checks `importKind` on the declaration |

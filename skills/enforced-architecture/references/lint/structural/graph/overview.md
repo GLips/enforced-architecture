@@ -1,8 +1,8 @@
 # graph — Cross-file dependency analysis
 
 Structural-only: every question here is about edges between files, so there is nothing a per-file
-rule could answer. `import-graph` is not a rule — it is the substrate the others read, and the
-first thing to stand up.
+rule could answer. `import-graph` is not a rule — it builds the resolved edge set the others read,
+and it is the first thing to stand up.
 
 | Rule | Blocking | What it buys |
 |---|---|---|

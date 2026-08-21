@@ -68,7 +68,7 @@ export const trampolinesCheck: StructuralCheck = {
   id: "health/trampolines",
   scope: "tree",
 
-  async run(context) {
+  run(context) {
     const { config, vocabulary } = context;
     const { targetLayerRoles } = config.checks["health/trampolines"];
     const findings: Finding[] = [];

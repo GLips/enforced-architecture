@@ -2,7 +2,7 @@
 
 The whole-tree half. Both checks below answer a question about a barrel that no single file
 contains: what the barrel transitively pulls in, and whether the importee agreed to the edge. The
-per-file rules that match a specifier's depth are in
+per-file rules that match how deep an import's quoted path reaches are in
 [../../oxlint/api/overview.md](../../oxlint/api/overview.md).
 
 | Rule | Blocking | What it buys |

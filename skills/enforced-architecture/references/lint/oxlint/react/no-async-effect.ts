@@ -21,11 +21,11 @@
 //
 // The rule reads the extensions that can hold JSX and no others. Move a hook
 // into a sibling use*.ts file, a refactor this catalog asks for elsewhere, and
-// this rule no longer reads its effects. react/derived-state reads every source
-// extension; this one does not.
+// this rule no longer reads its effects. NEGATIVE SPACE, and nothing else in the
+// catalog closes it: an async effect in a hook module draws no report at all.
 //
 // Which calls are `useEffect` and `useCallback` is `lib/hook-calls.ts`'s answer,
-// shared with react/hook-count and react/derived-state — `React.useEffect(…)`
+// shared with react/hook-count — `React.useEffect(…)`
 // counts, and an import counts under the name the EXPORTING module gave it, so
 // `useEffect as useE` is a hook and `createStore as useStore` is not. That file
 // states the rest of what does not count.

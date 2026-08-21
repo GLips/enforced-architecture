@@ -9,9 +9,9 @@
  *
  * NEGATIVE SPACE: the specifier is matched as TEXT, so a folded path
  * (`../billing/../audit/index.server`) reaches this unfolded and the last segment decides. Folding
- * is `policy/layout.ts`'s `classifySpecifier`, and moving these two rules onto it is ea-58's
- * subject across all seven raw matchers — this module is the one place that change now lands for
- * `api/`, rather than two.
+ * is `policy/layout.ts`'s `classifySpecifier`, and every raw text matcher in the catalog is a
+ * candidate to move onto it — for `api/`, that move lands in this module alone rather than in two
+ * rules that have to agree afterwards.
  */
 import { withoutSourceExtension } from "../../policy/layout.ts";
 

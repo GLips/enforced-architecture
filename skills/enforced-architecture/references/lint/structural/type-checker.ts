@@ -12,18 +12,23 @@
 // Neither can answer the other's question, and a check reaching for the wrong
 // one gets a confident wrong answer rather than an error.
 //
-// ── Why the async API ─────────────────────────────────────────────────
+// ── Why the sync client ───────────────────────────────────────────────
 //
-// TypeScript 7 ships two clients for the same server, and this takes the async
-// one by choice: the tier runs under Node, where `typescript/unstable/sync`
-// works too — it reads `child.stdout._handle.fd` in the `API` constructor, so
-// it needs a runtime that exposes that Node internal.
+// TypeScript 7 ships two clients for the same server, and this takes the
+// SYNCHRONOUS one. Both spawn the same child process and answer the same
+// questions; what differs is the cost of asking, and asking is what this file
+// does thousands of times. Over the same ~1,025 requests the async client spends
+// ~145ms getting them across the pipe and the sync one ~70ms. Boot is a wash:
+// the snapshot is ~50ms either way.
 //
-// It is async because `StructuralCheck.run` returns a promise for every
-// check, including the ones that never await anything. One shape for every check is worth more than sixteen
-// signatures that each say whether their body happens to need a round trip: a
-// union return type is one forgotten `await` away from a check whose findings
-// arrive as a pending promise and count as none.
+// The sync client reads `child.stdout._handle.fd` in its channel constructor, so
+// it needs a runtime that exposes that Node internal, and it throws by name when
+// it cannot get one. `lint/with-real-node.sh` is what guarantees such a runtime,
+// and it is not optional for this tier for other reasons too — see its header.
+//
+// Nothing in this tier awaits anything as a result: a `StructuralCheck` returns
+// its findings rather than a promise for them, and `check-context.ts` says what
+// the compiler holds for it once that is true.
 //
 // ── Why `unstable` in the import path is an accepted cost ─────────────
 //
@@ -39,12 +44,14 @@
 //
 // ── Cost, measured rather than assumed ────────────────────────────────
 //
-// Round trips dominate, not type checking. On a synthetic 2,000-file tree the
-// snapshot costs ~80ms and the scan ~490ms across ~8,100 requests; `tsc --noEmit`
-// over the same tree is ~180ms. So the two things worth doing are asking in
-// BATCHES (`getTypeAtLocation` takes an array) and asking once per distinct TYPE
-// rather than once per node — `typeFacts` below is that cache, and it halves the
-// request count on the same tree.
+// Requests dominate, not type checking. Over this repo's fixture tree — 380
+// files in the program — the seven `types/` checks issue ~1,025 requests for
+// ~80ms of server-side work, behind a ~50ms snapshot. So the two things worth
+// doing are asking in BATCHES (`getTypeAtLocation` takes an array) and asking
+// once per distinct TYPE rather than once per node. `typeFacts` below is the
+// second: it turns ~1,130 requests into ~1,025 here, and saves more the larger
+// the tree, because the memo is on the TYPE and one bag shape written in a
+// thousand files is one type id.
 //
 // ── Negative space ────────────────────────────────────────────────────
 //
@@ -63,7 +70,7 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { resolve } from "node:path";
-import { API, TypeFlags } from "typescript/unstable/async";
+import { API, TypeFlags } from "typescript/unstable/sync";
 import type {
   Checker,
   IndexInfo,
@@ -71,7 +78,7 @@ import type {
   Snapshot,
   Symbol as TypeCheckerSymbol,
   Type,
-} from "typescript/unstable/async";
+} from "typescript/unstable/sync";
 import { NodeFlags, SyntaxKind } from "typescript/unstable/ast";
 import type { Node, SourceFile } from "typescript/unstable/ast";
 import type { DeclaredTree } from "../policy/declared-trees.ts";
@@ -119,22 +126,19 @@ export function programPathKeys(fileNames: Iterable<string>): ReadonlySet<string
 export type TreeTypeChecker = {
   program: Program;
   checker: Checker;
-  /** Absolute paths of every file in this tree's program, `node_modules` included. */
-  sourceFileNames(): Promise<readonly string[]>;
   /**
    * `checker.getIndexInfosOfType`, memoised by type ID for the life of the run.
    *
    * The memo is on the TYPE and not on the node, which is where the saving is:
    * `Record<string, () => void>` written in a thousand files is ONE type with one
-   * id, and the id is already on the object the previous request returned. On a
-   * 2,000-file tree this halves the round trips, from ~16,100 to ~8,100, and
-   * round trips are what the scan costs.
+   * id, and the id is already on the object the previous request returned. See
+   * the cost note above for what it is worth.
    *
    * Sound to cache because a `Program` is immutable and a host lives for one
    * run. Nothing here reacts to a file changing on disk mid-run; see the
    * negative space above.
    */
-  indexSignatures(type: Type): Promise<readonly IndexInfo[]>;
+  indexSignatures(type: Type): readonly IndexInfo[];
   /**
    * Whether the name at `node` resolves to a declaration in one of `fileKeys`,
    * which is `programPathKeys` over the caller's walked file names.
@@ -151,7 +155,7 @@ export type TreeTypeChecker = {
    * `declare type Bag = Record<string, unknown>` in an ambient file a
    * catalog-wide off-switch.
    */
-  declaredIn(node: Node, fileKeys: ReadonlySet<string>): Promise<boolean>;
+  declaredIn(node: Node, fileKeys: ReadonlySet<string>): boolean;
 };
 
 /**
@@ -164,7 +168,7 @@ export type TreeTypeChecker = {
  * iteration.
  */
 export type TypeCheckerHost = {
-  forTree(projectRoot: string, tree: DeclaredTree): Promise<TreeTypeChecker>;
+  forTree(projectRoot: string, tree: DeclaredTree): TreeTypeChecker;
   dispose(): void;
 };
 
@@ -192,9 +196,9 @@ export function sharedTypeCheckerHost(): TypeCheckerHost {
 /**
  * Ends the run's TypeScript process, if there is one.
  *
- * Not optional cleanup. The API spawns a child, and a live child holds the
- * process open — a harness that forgets this hangs after its last assertion
- * rather than failing, which reads as a slow suite rather than a leak.
+ * Not optional cleanup. The API spawns a child, and an undisposed one stays alive
+ * until the whole process ends — so in a watch loop, or in a harness that makes
+ * several runs, it is one orphaned compiler per run and nothing reports it.
  */
 export function disposeTypeCheckerHost(): void {
   shared?.dispose();
@@ -211,20 +215,19 @@ export function createTypeCheckerHost(): TypeCheckerHost {
   // other's answer.
   const typeFacts = new Map<string, readonly IndexInfo[]>();
 
-  async function ensureSnapshot(tsconfig: string): Promise<Snapshot> {
+  function ensureSnapshot(tsconfig: string): Snapshot {
     if (!openProjects.includes(tsconfig)) {
       openProjects.push(tsconfig);
-      snapshot = await api.updateSnapshot({ openProjects });
+      snapshot = api.updateSnapshot({ openProjects });
     }
-    snapshot ??= await api.updateSnapshot({ openProjects });
+    snapshot ??= api.updateSnapshot({ openProjects });
     return snapshot;
   }
 
   return {
-    async forTree(projectRoot, tree) {
+    forTree(projectRoot, tree) {
       const tsconfig = resolve(projectRoot, tree.tsconfig);
-      const snap = await ensureSnapshot(tsconfig);
-      const project = snap.getProject(tsconfig);
+      const project = ensureSnapshot(tsconfig).getProject(tsconfig);
       if (!project) {
         throw new Error(
           `The tree at '${tree.root}' declares tsconfig '${tree.tsconfig}', and TypeScript loaded no ` +
@@ -238,20 +241,16 @@ export function createTypeCheckerHost(): TypeCheckerHost {
         program,
         checker,
 
-        async sourceFileNames() {
-          return program.getSourceFileNames();
-        },
-
-        async indexSignatures(type) {
+        indexSignatures(type) {
           const key = `${project.id}#${type.id}`;
           const memo = typeFacts.get(key);
           if (memo !== undefined) return memo;
-          const infos = await checker.getIndexInfosOfType(type);
+          const infos = checker.getIndexInfosOfType(type);
           typeFacts.set(key, infos);
           return infos;
         },
 
-        async declaredIn(node, fileKeys) {
+        declaredIn(node, fileKeys) {
           // The three spellings of "the name in this node": a type reference
           // (`Bag`), a `typeof` query (`typeof KEYS`), and a declaration's own
           // name. Asked here rather than in each check because getting it wrong
@@ -263,8 +262,7 @@ export function createTypeCheckerHost(): TypeCheckerHost {
           const named = node as { typeName?: Node; exprName?: Node; name?: Node };
           const name = named.typeName ?? named.exprName ?? named.name;
           if (!name) return false;
-          const symbol = await checker.getSymbolAtLocation(name);
-          const declarations = symbol?.declarations ?? [];
+          const declarations = checker.getSymbolAtLocation(name)?.declarations ?? [];
           if (declarations.length === 0) return false;
           // EVERY declaration, not any: a name that merges a walked declaration
           // with an ambient one is reachable through the ambient half, and

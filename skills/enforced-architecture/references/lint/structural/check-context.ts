@@ -105,10 +105,10 @@ export type TreeContext = {
    * `types/` check reads its answers through here and nothing else does.
    *
    * Booted on FIRST CALL, so a project whose only enabled checks are structural
-   * never spawns a compiler. The promise is memoised rather than the value,
-   * which also memoises a rejection: a tree whose tsconfig is missing or whose
-   * program does not contain it fails identically for every types check that
-   * asks, instead of paying seven boots to produce seven copies of one error.
+   * never spawns a compiler. The OUTCOME is memoised, failure included: a tree
+   * whose tsconfig is missing or whose program does not contain it throws the
+   * same error for every types check that asks, instead of re-walking the tree
+   * seven times to produce seven copies of one error.
    *
    * The agreement between the tsconfig and the tree is checked HERE, once, on
    * that first call — see `assertTreeIsTypeChecked`. Doing it at declaration
@@ -116,7 +116,7 @@ export type TreeContext = {
    * and boot a compiler at module load, including in the oxlint tier, which has
    * no use for either.
    */
-  typeChecker(): Promise<TreeTypeChecker>;
+  typeChecker(): TreeTypeChecker;
   /**
    * Names of the immediate subdirectories of a source-root-relative directory,
    * whether or not they hold source this tier walks.
@@ -179,16 +179,16 @@ export type ProjectContext = {
  * what the runner hands the check, and a check that could receive either would
  * have to guard at runtime for a combination the registry can never produce.
  *
- * `run` is async for EVERY check, including the twelve that never await
- * anything. The type checker's client is asynchronous — `type-checker.ts` says
- * why that is not a preference — and one uniform signature is worth more than a
- * union of sync and async: `Finding[] | Promise<Finding[]>` is one forgotten
- * `await` away from a check whose findings arrive as a pending promise, which
- * the runner would record as a run that found nothing.
+ * `run` RETURNS findings, and the signature is load bearing. Nothing in this
+ * tier is asynchronous — the type checker's client included, and
+ * `type-checker.ts` says why — so a check whose findings arrived as a pending
+ * promise would be recorded as a run that found nothing, which is the quiet zero
+ * this catalog exists to prevent. Spelled this way the compiler refuses that
+ * check, instead of a reviewer having to notice a missing `await`.
  */
 export type StructuralCheck =
-  | { id: string; scope: "tree"; run(context: TreeContext): Promise<Finding[]> }
-  | { id: string; scope: "project"; run(context: ProjectContext): Promise<Finding[]> };
+  | { id: string; scope: "tree"; run(context: TreeContext): Finding[] }
+  | { id: string; scope: "project"; run(context: ProjectContext): Finding[] };
 
 /** One context per declared tree, in declaration order. */
 export function createTreeContexts(
@@ -201,7 +201,10 @@ export function createTreeContexts(
 export function createTreeContext(config: ArchitectureConfig, tree: DeclaredTree): TreeContext {
   let graph: ImportEdge[] | undefined;
   let resolver: TreeModuleResolver | undefined;
-  let typed: Promise<TreeTypeChecker> | undefined;
+  // The OUTCOME of the first boot, success or failure, so the failing case is
+  // re-thrown rather than re-attempted. A bare `TreeTypeChecker | undefined`
+  // memo cannot tell "not asked yet" from "asked and threw".
+  let typed: { checker: TreeTypeChecker } | { failure: Error } | undefined;
   const subdirectories = new Map<string, string[]>();
   const occupied = new Map<string, string[]>();
 
@@ -227,12 +230,9 @@ export function createTreeContext(config: ArchitectureConfig, tree: DeclaredTree
     },
 
     typeChecker() {
-      typed ??= (async () => {
-        const checker = await sharedTypeCheckerHost().forTree(config.projectRoot, tree);
-        await assertTreeIsTypeChecked(context, checker);
-        return checker;
-      })();
-      return typed;
+      typed ??= bootTypeChecker(context);
+      if ("failure" in typed) throw typed.failure;
+      return typed.checker;
     },
 
     subdirs(sourceRelativeDir) {
@@ -272,6 +272,24 @@ export function createTreeContext(config: ArchitectureConfig, tree: DeclaredTree
 }
 
 /**
+ * This tree's checker, or the error that stopped it being built — the value
+ * `TreeContext.typeChecker` memoises.
+ *
+ * The catch is the memo and not a recovery: it is what makes the failure land on
+ * every types check identically instead of each one re-walking the tree to
+ * rediscover it, and `typeChecker` re-throws what is caught here.
+ */
+function bootTypeChecker(context: TreeContext): { checker: TreeTypeChecker } | { failure: Error } {
+  try {
+    const checker = sharedTypeCheckerHost().forTree(context.config.projectRoot, context.tree);
+    assertTreeIsTypeChecked(context, checker);
+    return { checker };
+  } catch (error) {
+    return { failure: error as Error };
+  }
+}
+
+/**
  * Fails when a tree's declared tsconfig builds a program that does not contain
  * the tree.
  *
@@ -295,11 +313,8 @@ export function createTreeContext(config: ArchitectureConfig, tree: DeclaredTree
  * fine — a tsconfig at the repo root legitimately compiles four packages — and
  * failing on it would make the correct monorepo config unusable.
  */
-export async function assertTreeIsTypeChecked(
-  context: TreeContext,
-  checker: TreeTypeChecker,
-): Promise<void> {
-  const inProgram = new Set(await checker.sourceFileNames());
+export function assertTreeIsTypeChecked(context: TreeContext, checker: TreeTypeChecker): void {
+  const inProgram = new Set(checker.program.getSourceFileNames());
   const absent = collectTreeFiles(context, TYPESCRIPT_FILE_GLOB).filter(
     (absolute) => !inProgram.has(absolute),
   );

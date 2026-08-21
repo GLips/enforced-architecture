@@ -87,13 +87,13 @@ export type BarrelPurityConfig = {
    * the calls it exports. The framework replaces those bodies with RPC stubs, so
    * the trace stops at a module that crosses it.
    *
-   * Both halves are required, and that is the point. The marker was once a bare
-   * list of words tested with `raw.includes`, and a review defeated it with the
-   * word `"the"`: a valid identifier, present in a comment in three unrelated
-   * modules, which stopped every trace and took barrel-purity from four findings
-   * to one with the check still registered. A word only counts here when the file
-   * imports it from the declared module and CALLS it, so an entry that names
-   * nothing the framework exports stops nothing.
+   * Both halves are required, and that is the point. A bare list of words tested
+   * with `raw.includes` is defeated by the word `"the"`: a valid identifier that
+   * occurs in prose in most modules, so declaring it stops every trace at once
+   * and takes barrel-purity to near zero findings with the check still
+   * registered and the run green. A word only counts here when the file imports
+   * it from the declared module and CALLS it, so an entry that names nothing the
+   * framework exports stops nothing.
    */
   serverFnBoundary: { module: string; calls: string[] };
 };
@@ -263,11 +263,11 @@ export function assertGoverningConfig(config: ArchitectureConfig): void {
     radiusKeys,
   })) {
     // These four lists are `join("|")`-ed into a matcher, so an entry is regex
-    // SOURCE unless something says otherwise. A review set all four to `["(?!)"]`
-    // — a valid-looking prop list, an always-failing lookahead — and took the
-    // check from four findings to zero with nothing in the config reading as off.
-    // An identifier cannot carry regex syntax, which is why this is an allowlist
-    // and not an escape.
+    // SOURCE unless something says otherwise. All four set to `["(?!)"]` reads as
+    // a plausible prop list and is an always-failing lookahead: the check walks
+    // every surface and reports nothing, with nothing in the config reading as
+    // off. An identifier cannot carry regex syntax, which is why this is an
+    // allowlist and not an escape.
     if (names.length === 0) {
       throw new Error(
         `style/token-equality has an empty ${field}, so that surface is walked for nothing. Each ` +

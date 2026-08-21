@@ -57,7 +57,7 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import type { Finding, StructuralCheck, TreeContext } from "../check-context.ts";
-import { SyntaxKind, type Node, type Type } from "../type-checker.ts";
+import { SyntaxKind, type Node, type TreeTypeChecker, type Type } from "../type-checker.ts";
 import {
   declaresTypePredicate,
   enclosingFunctionLike,
@@ -80,21 +80,21 @@ export const noRuntimeTypeofCheck: StructuralCheck = {
   id: "types/no-runtime-typeof",
   scope: "tree",
 
-  async run(context: TreeContext): Promise<Finding[]> {
-    const treeChecker = await context.typeChecker();
+  run(context: TreeContext): Finding[] {
+    const treeChecker = context.typeChecker();
     const findings: Finding[] = [];
 
-    for (const file of await treeSourceFiles(context, treeChecker)) {
+    for (const file of treeSourceFiles(context, treeChecker)) {
       const tests: { node: Node; operand: Node }[] = [];
       for (const node of typeCheckableNodesOfKind(file, TYPEOF_KINDS)) {
         const operand = (node as Node & { expression?: Node }).expression;
         if (operand === undefined || isTypeRequestUnsafe(operand)) continue;
-        if (await isInsideTypeGuard(treeChecker, node)) continue;
+        if (isInsideTypeGuard(treeChecker, node)) continue;
         tests.push({ node, operand });
       }
       if (tests.length === 0) continue;
 
-      const types = await treeChecker.checker.getTypeAtLocation(tests.map((test) => test.operand));
+      const types = treeChecker.checker.getTypeAtLocation(tests.map((test) => test.operand));
       for (const [index, type] of types.entries()) {
         const test = tests[index];
         if (test === undefined || type === undefined) continue;
@@ -134,10 +134,7 @@ function isUntypedOperand(type: Type): boolean {
  * signature and its own (absent) predicate, so a `typeof` there is not covered
  * by the outer guard's contract and still reports.
  */
-async function isInsideTypeGuard(
-  treeChecker: Awaited<ReturnType<TreeContext["typeChecker"]>>,
-  node: Node,
-): Promise<boolean> {
+function isInsideTypeGuard(treeChecker: TreeTypeChecker, node: Node): boolean {
   const fn = enclosingFunctionLike(node);
   if (fn === undefined) return false;
   return declaresTypePredicate(treeChecker, fn);

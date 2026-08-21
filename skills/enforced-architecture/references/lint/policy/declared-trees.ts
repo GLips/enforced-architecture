@@ -201,10 +201,10 @@ export function declareTrees(trees: readonly DeclaredTree[]): ValidatedTrees {
   assertDistinctDeclaredRoots(trees);
   // Frozen IN PLACE rather than copied, so the caller's own reference is frozen
   // too. Validating and handing back a live array leaves the checked state
-  // aliased: a review kept its literal, called this, and then reassigned
-  // `trees[0].root` to a path outside the project — validated once, governing
-  // somewhere else. Copying would not have closed that, because the original is
-  // what the adopter's module still holds.
+  // aliased: an adopter that holds its own literal can call this and then
+  // reassign `trees[0].root` to a path outside the project — validated once,
+  // governing somewhere else. Copying does not close that, because the original
+  // is what the adopter's module still holds.
   return deepFreeze(trees) as ValidatedTrees;
 }
 
@@ -230,14 +230,13 @@ function deepFreeze<T>(value: T): T {
 /**
  * Rejects a vocabulary whose own names make a governed position architecture-exempt.
  *
- * `assertGoverningVocabulary` checks SYNTAX — one segment, no glob, no extension —
- * and a review walked straight past it with names that are syntactically perfect
- * and semantically fatal: `featuresDir: "scripts"`, `featuresDir: "test"`, a
- * service layer called `scripts`, `serverModuleSuffix: ".test"` / `".gen"` /
- * `".d"`. Every one passed validation, and every representative file then came
- * back `undefined` from `classifyFileRole` — the position spelled in the
- * vocabulary as governed, exempt from every rule in the catalog, with nothing
- * saying so.
+ * `assertGoverningVocabulary` checks SYNTAX — one segment, no glob, no extension
+ * — and a name can be syntactically perfect and semantically fatal:
+ * `featuresDir: "scripts"`, `featuresDir: "test"`, a service layer called
+ * `scripts`, `serverModuleSuffix: ".test"` / `".gen"` / `".d"`. Each of those
+ * passes the syntax check, and the file it implies then comes back `undefined`
+ * from `classifyFileRole` — the position spelled in the vocabulary as governed,
+ * exempt from every rule in the catalog, with nothing saying so.
  *
  * The test is a REPRESENTATIVE PATH through the real predicate rather than a list
  * of reserved words. A reserved-word list is a second copy of the exemption
@@ -255,11 +254,11 @@ function deepFreeze<T>(value: T): T {
  * non-exempt spelling there would reject the correct declaration. Every other
  * authored position in both records is checked like any other. "They PERMIT a
  * file rather than govern one" was the reason the whole pair was skipped, and it
- * does not survive contact: a review spelled `featureRootPositions.errors` as
- * `errors.test` and `sourceRootPositions.clientEntry` as `client.test`, and both
- * files — hand-written, sitting in a declared tree, named in the vocabulary —
- * came back `undefined` from `classifyFileRole`, which returns early in the
- * oxlint tier and drops them from the structural walk. Permitted and policed are
+ * does not survive contact: `featureRootPositions.errors` spelled `errors.test`,
+ * or `sourceRootPositions.clientEntry` spelled `client.test`, names a file that
+ * is hand-written, sits in a declared tree, is named in the vocabulary, and
+ * comes back `undefined` from `classifyFileRole` — which returns early in the
+ * oxlint tier and drops it from the structural walk. Permitted and policed are
  * the same position; only generated output is neither.
  */
 function assertGovernedPositionsAreNotExempt(vocabulary: TreeVocabulary, treeRoot: string): void {
@@ -620,13 +619,13 @@ export type FileRole = {
  * A declared root is project-relative, so this needs the PROJECT ROOT to read
  * one: `projectRoot` is `context.cwd` in the oxlint tier and `config.projectRoot`
  * in the structural one, and the file is made project-relative before any root is
- * compared. There is no version of this that works without it — a review searched
- * the absolute path for `/${root}/` instead, and every choice about which
- * occurrence to take is wrong for some real tree. Taking the FIRST breaks a
- * checkout under a directory called `src` (`/home/me/src/repo/src/...`). Taking
- * the LAST breaks a legitimately nested one: with `src` declared,
- * `/repo/src/features/billing/service/src/helper.ts` resolved to the source-root
- * module `helper.ts`, so the two tiers gave the same file different positions and
+ * compared. There is no version of this that works without it: searching the
+ * absolute path for `/${root}/` leaves a choice of which occurrence to take, and
+ * every choice is wrong for some real tree. Taking the FIRST breaks a checkout
+ * under a directory called `src` (`/home/me/src/repo/src/...`). Taking the LAST
+ * breaks a legitimately nested one: with `src` declared,
+ * `/repo/src/features/billing/service/src/helper.ts` resolves to the source-root
+ * module `helper.ts`, so the two tiers give the same file different positions and
  * different policies.
  *
  * The most specific root wins: with `src` and `apps/web/src` both declared, a

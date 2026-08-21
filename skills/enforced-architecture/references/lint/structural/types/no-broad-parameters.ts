@@ -87,11 +87,11 @@ export const noBroadParametersCheck: StructuralCheck = {
   id: "types/no-broad-parameters",
   scope: "tree",
 
-  async run(context: TreeContext): Promise<Finding[]> {
-    const treeChecker = await context.typeChecker();
+  run(context: TreeContext): Finding[] {
+    const treeChecker = context.typeChecker();
     const findings: Finding[] = [];
 
-    for (const file of await treeSourceFiles(context, treeChecker)) {
+    for (const file of treeSourceFiles(context, treeChecker)) {
       for (const fn of typeCheckableNodesOfKind(file, FUNCTION_LIKE_KINDS)) {
         const parameters = (fn as Node & { parameters?: readonly Node[] }).parameters ?? [];
         const annotated = parameters.filter(
@@ -103,10 +103,10 @@ export const noBroadParametersCheck: StructuralCheck = {
         // Asked once per function rather than once per parameter, and only for a
         // function that HAS a broad parameter to exempt — resolving a symbol's
         // declarations is a round trip, and most functions have neither.
-        const vouchedFor = await typePredicateSubjects(treeChecker, fn);
+        const vouchedFor = typePredicateSubjects(treeChecker, fn);
 
         const annotations = annotated.map((parameter) => (parameter as Node & { type: Node }).type);
-        const types = await treeChecker.checker.getTypeAtLocation(annotations);
+        const types = treeChecker.checker.getTypeAtLocation(annotations);
 
         for (const [index, type] of types.entries()) {
           const parameter = annotated[index];
@@ -116,7 +116,7 @@ export const noBroadParametersCheck: StructuralCheck = {
           const name = parameterName(file, parameter);
           if (vouchedFor.has(name)) continue;
 
-          if (await typeResolvesToFlags(treeChecker, type, UNTYPED_TYPE_FLAGS)) {
+          if (typeResolvesToFlags(treeChecker, type, UNTYPED_TYPE_FLAGS)) {
             if (ALLOWED_UNKNOWN_PARAMETER_NAMES.has(name)) continue;
             findings.push(
               findingAtNode(
@@ -132,7 +132,7 @@ export const noBroadParametersCheck: StructuralCheck = {
             continue;
           }
 
-          if (await typeResolvesToFlags(treeChecker, type, NON_PRIMITIVE_TYPE_FLAGS)) {
+          if (typeResolvesToFlags(treeChecker, type, NON_PRIMITIVE_TYPE_FLAGS)) {
             findings.push(
               findingAtNode(
                 context,

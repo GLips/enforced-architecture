@@ -21,9 +21,9 @@ function loadSettlementUser(): SettlementUser {
   return { id: "u-1", name: "ada" };
 }
 
-// A CALL is evidence now. The predecessor treated every call as a boundary and
-// said so in its header; the checker reads the return type and sees that this
-// one was known before it was thrown away.
+// A CALL is evidence. Without types every call is a boundary and this round trip
+// is legal; the checker reads the return type and sees that the shape was known
+// before it was thrown away.
 export function callWidening(): SettlementUser {
   const widened: unknown = loadSettlementUser();
   return widened as SettlementUser;

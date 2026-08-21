@@ -222,14 +222,14 @@ let runs: CheckRun[];
 let bothTrees: CheckRun[];
 let misread: CheckRun[];
 try {
-  runs = await runStructuralChecks(spiedChecks("declared"), fixtureConfig, DECLARED_FIXTURE_TREES);
+  runs = runStructuralChecks(spiedChecks("declared"), fixtureConfig, DECLARED_FIXTURE_TREES);
   // The probe reuses the same registry and config and varies ONLY the tree list,
   // because that is the claim: declaring a tree is the whole of what turns the
   // catalog on over it.
-  bothTrees = await runStructuralChecks(spiedChecks("both"), fixtureConfig, BOTH_FIXTURE_TREES);
+  bothTrees = runStructuralChecks(spiedChecks("both"), fixtureConfig, BOTH_FIXTURE_TREES);
   // The positive control for the vocabulary assertion below. Same root, wrong
   // vocabulary — see PDF_TREE_MISREAD for why the negative alone is not enough.
-  misread = await runStructuralChecks(spiedChecks("misread"), fixtureConfig, PDF_TREE_MISREAD);
+  misread = runStructuralChecks(spiedChecks("misread"), fixtureConfig, PDF_TREE_MISREAD);
 } finally {
   // Removed whether the run passed, failed, or threw, so by the first assertion
   // below the tree is back to its committed fixtures and nothing surprising is
@@ -536,7 +536,7 @@ assertEveryCheckRanOnEveryTree("misread", PDF_TREE_MISREAD);
   const singleModuleSchema = declareTrees([
     { ...APP_TREE, vocabulary: { ...APP_TREE.vocabulary, dbSchemaSubdir: "tables" } },
   ]);
-  const reported = (await runStructuralChecks(structuralChecks, fixtureConfig, singleModuleSchema))
+  const reported = runStructuralChecks(structuralChecks, fixtureConfig, singleModuleSchema)
     .filter((run) => run.id === "boundary/layer-occupancy")
     .flatMap((run) => run.findings)
     .map((finding) => finding.file);
@@ -635,12 +635,7 @@ const refusedConfigs: { detail: string; config: ArchitectureConfig }[] = [
 for (const { detail, config } of refusedConfigs) {
   let threw = false;
   try {
-    // AWAITED, and the await is the assertion. `runStructuralChecks` is async,
-    // so an unawaited call rejects rather than throws: this `catch` sees nothing,
-    // `threw` stays false, and every one of these refusal cases fails — which is
-    // the good outcome. The bad one is the same mistake in a check body, where
-    // an unawaited call quietly returns a promise and the run counts no findings.
-    await runStructuralChecks(structuralChecks, config, DECLARED_FIXTURE_TREES);
+    runStructuralChecks(structuralChecks, config, DECLARED_FIXTURE_TREES);
   } catch {
     threw = true;
   }
@@ -665,7 +660,7 @@ for (const { detail, config } of refusedConfigs) {
   });
   const baseline = findingsOf(runs, "api/barrel-purity");
   const withDecoy = findingsOf(
-    await runStructuralChecks(structuralChecks, decoy, DECLARED_FIXTURE_TREES),
+    runStructuralChecks(structuralChecks, decoy, DECLARED_FIXTURE_TREES),
     "api/barrel-purity",
   );
   if (baseline !== withDecoy) {
@@ -692,11 +687,7 @@ for (const { detail, config } of refusedConfigs) {
     fail("<type-checker>", "no types/ check is registered, so nothing exercises the type checker");
   }
 
-  const unchecked = await runStructuralChecks(
-    structuralChecks,
-    fixtureConfig,
-    APP_TREE_TYPE_UNCHECKED,
-  );
+  const unchecked = runStructuralChecks(structuralChecks, fixtureConfig, APP_TREE_TYPE_UNCHECKED);
   for (const id of typeCheckedIds) {
     const run = unchecked.find((candidate) => candidate.id === id);
     const crashed = run?.crashed;

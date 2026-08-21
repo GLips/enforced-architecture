@@ -49,7 +49,13 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import type { Finding, StructuralCheck, TreeContext } from "../check-context.ts";
-import { NodeFlags, SyntaxKind, type Node, type Type } from "../type-checker.ts";
+import {
+  NodeFlags,
+  SyntaxKind,
+  type Node,
+  type TreeTypeChecker,
+  type Type,
+} from "../type-checker.ts";
 import {
   enclosingFunctionLike,
   findingAtNode,
@@ -71,11 +77,11 @@ export const noWidenThenAssertCheck: StructuralCheck = {
   id: "types/no-widen-then-assert",
   scope: "tree",
 
-  async run(context: TreeContext): Promise<Finding[]> {
-    const treeChecker = await context.typeChecker();
+  run(context: TreeContext): Finding[] {
+    const treeChecker = context.typeChecker();
     const findings: Finding[] = [];
 
-    for (const file of await treeSourceFiles(context, treeChecker)) {
+    for (const file of treeSourceFiles(context, treeChecker)) {
       for (const assertion of typeCheckableNodesOfKind(file, ASSERTION_KINDS)) {
         const parts = assertion as Node & { expression?: Node; type?: Node };
         const subject = parts.expression;
@@ -84,11 +90,11 @@ export const noWidenThenAssertCheck: StructuralCheck = {
 
         // A recovery, or another widening? Asked first because it is the cheapest
         // way to drop the majority of assertions in any real file.
-        const assertedType = await treeChecker.checker.getTypeAtLocation(asserted);
+        const assertedType = treeChecker.checker.getTypeAtLocation(asserted);
         if (assertedType === undefined) continue;
-        if (await isBroadType(treeChecker, assertedType)) continue;
+        if (isBroadType(treeChecker, assertedType)) continue;
 
-        const declaration = await widenedConstDeclaration(treeChecker, subject);
+        const declaration = widenedConstDeclaration(treeChecker, subject);
         if (declaration === undefined) continue;
         if (!sameFunction(declaration, assertion)) continue;
 
@@ -96,7 +102,7 @@ export const noWidenThenAssertCheck: StructuralCheck = {
         const initializer = (declaration as Node & { initializer?: Node }).initializer;
         if (initializer === undefined) continue;
 
-        const widening = await wideningTypeOf(treeChecker, declaredType, initializer);
+        const widening = wideningTypeOf(treeChecker, declaredType, initializer);
         if (widening === undefined) continue;
 
         // The value that was widened. When the widening is spelled `const x = v
@@ -107,12 +113,12 @@ export const noWidenThenAssertCheck: StructuralCheck = {
           : initializer;
         if (isTypeRequestUnsafe(original)) continue;
 
-        const originalType = await treeChecker.checker.getTypeAtLocation(original);
+        const originalType = treeChecker.checker.getTypeAtLocation(original);
         if (originalType === undefined) continue;
         // No evidence: the value was never known, so widening it discarded
         // nothing. This is what keeps `const raw: unknown = JSON.parse(s)` silent
         // — `JSON.parse` returns `any`, so there was nothing to preserve.
-        if (await isBroadType(treeChecker, originalType)) continue;
+        if (isBroadType(treeChecker, originalType)) continue;
 
         const name = (subject as Node & { text?: string }).text ?? "this value";
         findings.push(
@@ -134,12 +140,9 @@ export const noWidenThenAssertCheck: StructuralCheck = {
 };
 
 /** `unknown`, `any`, `object`, or an open dictionary with an opaque value. */
-async function isBroadType(
-  treeChecker: Awaited<ReturnType<TreeContext["typeChecker"]>>,
-  type: Type,
-): Promise<boolean> {
+function isBroadType(treeChecker: TreeTypeChecker, type: Type): boolean {
   const flags = UNTYPED_TYPE_FLAGS | NON_PRIMITIVE_TYPE_FLAGS;
-  if (await typeResolvesToFlags(treeChecker, type, flags)) return true;
+  if (typeResolvesToFlags(treeChecker, type, flags)) return true;
   return isOpaqueDictionary(treeChecker, type);
 }
 
@@ -150,22 +153,22 @@ async function isBroadType(
  * `const x: unknown = v` and `const x = v as unknown` are the same step, and a
  * check that read only the annotation would miss half of them.
  */
-async function wideningTypeOf(
-  treeChecker: Awaited<ReturnType<TreeContext["typeChecker"]>>,
+function wideningTypeOf(
+  treeChecker: TreeTypeChecker,
   declaredType: Node | undefined,
   initializer: Node,
-): Promise<{ throughAssertion: boolean } | undefined> {
+): { throughAssertion: boolean } | undefined {
   if (declaredType !== undefined) {
-    const type = await treeChecker.checker.getTypeAtLocation(declaredType);
-    if (type !== undefined && (await isBroadType(treeChecker, type))) {
+    const type = treeChecker.checker.getTypeAtLocation(declaredType);
+    if (type !== undefined && isBroadType(treeChecker, type)) {
       return { throughAssertion: false };
     }
   }
   if (!ASSERTION_KINDS.has(initializer.kind) || isTypeRequestUnsafe(initializer)) return undefined;
   const assertedNode = (initializer as Node & { type?: Node }).type;
   if (assertedNode === undefined) return undefined;
-  const type = await treeChecker.checker.getTypeAtLocation(assertedNode);
-  if (type === undefined || !(await isBroadType(treeChecker, type))) return undefined;
+  const type = treeChecker.checker.getTypeAtLocation(assertedNode);
+  if (type === undefined || !isBroadType(treeChecker, type)) return undefined;
   return { throughAssertion: true };
 }
 
@@ -178,12 +181,9 @@ async function wideningTypeOf(
  * before its declaration in code that compiles, so there is no separate position
  * comparison here and no arity check: a `const` has exactly one declaration.
  */
-async function widenedConstDeclaration(
-  treeChecker: Awaited<ReturnType<TreeContext["typeChecker"]>>,
-  identifier: Node,
-): Promise<Node | undefined> {
-  const symbol = await treeChecker.checker.getSymbolAtLocation(identifier);
-  const declaration = await symbol?.declarations?.[0]?.resolve();
+function widenedConstDeclaration(treeChecker: TreeTypeChecker, identifier: Node): Node | undefined {
+  const symbol = treeChecker.checker.getSymbolAtLocation(identifier);
+  const declaration = symbol?.declarations?.[0]?.resolve();
   if (declaration?.kind !== SyntaxKind.VariableDeclaration) return undefined;
   if ((declaration.parent.flags & NodeFlags.Const) === 0) return undefined;
   return declaration;

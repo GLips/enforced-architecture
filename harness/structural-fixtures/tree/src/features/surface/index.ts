@@ -13,9 +13,9 @@
 //   - a renamed re-export is a `{ … }` list — a different statement shape
 //     entirely. Miss it and every aliased public name in the repo goes
 //     unreported while the barrel still looks audited.
-//   - `export type { X as Y }` is the same list behind a `type` modifier, and
-//     the branch that decides whether it counts is a config knob. Nothing else
-//     in the tree exercises `flagTypeAliases`.
+//   - `export type { X as Y }` is the same list behind a `type` modifier. It
+//     reports like any other rename, and the `typeOnly` branch adds a paragraph
+//     to the message that no other fixture in the tree reaches.
 export * from "./service/surface-registry.ts";
 export * as surfaceClient from "./service/surface-client.ts";
 export { createClient as createSurfaceClient } from "./service/surface-client.ts";

@@ -5,7 +5,8 @@
 // `types/no-widen-then-assert` reads these as its third broad target: an open
 // dictionary with an opaque value is a widening like `unknown` and `object` are,
 // and `Partial<...>` keeps the index signature so the wrapped spelling is one
-// too — a spelling the syntactic predecessor recorded as covered by nothing.
+// too — the wrapper is what hides that spelling from any check reading the
+// outermost name rather than the type.
 //
 // `types/no-opaque-record` reads the same two annotations as bags, which they
 // are. The two messages are jointly actionable and that is why both are allowed

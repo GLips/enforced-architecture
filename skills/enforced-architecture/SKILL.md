@@ -201,9 +201,8 @@ lint/
   policy/       declared-trees.ts layout.ts import-policy.ts package-owners.ts — the tree list and
                 the tables both tiers read
   oxlint/       plugin.ts, lib/, <tag>/ — rules and their specs
-  structural/   config.ts check-context.ts registry.ts run-structural-checks.ts — plumbing;
-                module-scanning.ts module-resolution.ts import-graph.ts type-checker.ts
-                — the substrates; arch.config.ts, <tag>/ — checks
+  structural/   whole-tree checks under <tag>/ — copy the directory whole; arch.config.ts is
+                the one file you write
   with-real-node.sh  — both tiers run through it
 ```
 
@@ -229,12 +228,11 @@ own vocabulary. A single-package repo is the same shape with one entry.
    to a tree switches it off for every test outside one. The dev dependencies are
    unversioned, so the project gets current releases:
    `npm i -D oxlint oxlint-tsgolint @oxlint/plugins eslint-plugin-sonarjs jscpd`
-3. **`lint/structural/`** — the tier's eight non-check files (`config.ts`, `check-context.ts`,
-   `module-scanning.ts`, `module-resolution.ts`, `import-graph.ts`, `type-checker.ts`,
-   `registry.ts`, `run-structural-checks.ts`) and every check, all taken unmodified, plus
-   `npm i -D oxc-parser oxc-resolver typescript`. **All eight or none** — scanning, resolution and
-   the graph over both are one chain. The `types/` checks need TypeScript 7: they read the program
-   each tree's `tsconfig` builds. Write `arch.config.ts` on `defaultCheckConfigs`.
+3. **`lint/structural/`** — copied whole and unmodified, plus
+   `npm i -D oxc-parser oxc-resolver typescript`. **Whole or not at all** — finding a file's quoted
+   paths, turning one into the file it means, and the graph over both are one chain. The `types/`
+   checks need TypeScript 7: they read the program each tree's `tsconfig` builds. Then write
+   `arch.config.ts` on `defaultCheckConfigs`.
 4. **`lint/with-real-node.sh`**, `chmod +x`, from
    [references/setup/with-real-node.sh](references/setup/with-real-node.sh). Both tiers run through
    it and neither is optional: `RuleTester` cannot run under Bun at all, and the structural tier runs
@@ -320,7 +318,7 @@ for rule implementation:
 > `lint/oxlint/plugin.ts`, switch it on in `.oxlintrc.json`. Never repoint one at a path: tree
 > scoping comes from `declared-trees.ts` through the `.oxlintrc.json` overrides.
 >
-> **Structural checks:** copy the module and the `lint/structural/` non-check files unmodified, register it
+> **Structural checks:** copy `lint/structural/` whole and unmodified, register each check
 > in `lint/structural/registry.ts`, and put every project-specific value in
 > `lint/structural/arch.config.ts`. The keys and defaults are in `lint/structural/config.ts`, typed
 > per check; most checks have none. Do not reimplement a check from its doc.

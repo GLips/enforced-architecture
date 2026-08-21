@@ -61,7 +61,13 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import type { Finding, StructuralCheck, TreeContext } from "../check-context.ts";
-import { programPathKeys, SyntaxKind, type Node, type Type } from "../type-checker.ts";
+import {
+  programPathKeys,
+  SyntaxKind,
+  type Node,
+  type TreeTypeChecker,
+  type Type,
+} from "../type-checker.ts";
 import { findingAtNode, isOpaqueDictionary, typeCheckableNodesOfKind, treeSourceFiles } from "./type-shapes.ts";
 
 const OPAQUE_RECORD_MESSAGE =
@@ -98,11 +104,11 @@ export const noOpaqueRecordCheck: StructuralCheck = {
   id: "types/no-opaque-record",
   scope: "tree",
 
-  async run(context: TreeContext): Promise<Finding[]> {
-    const treeChecker = await context.typeChecker();
+  run(context: TreeContext): Finding[] {
+    const treeChecker = context.typeChecker();
     const findings: Finding[] = [];
 
-    const walked = await treeSourceFiles(context, treeChecker);
+    const walked = treeSourceFiles(context, treeChecker);
     const walkedKeys = programPathKeys(walked.map((file) => file.fileName));
 
     for (const file of walked) {
@@ -114,13 +120,13 @@ export const noOpaqueRecordCheck: StructuralCheck = {
       // answers about the statement, not the shape it declares. Asking through
       // the symbol is the only reading that works, and it is one request per
       // interface rather than one for the batch.
-      const types = await typesOfSites(treeChecker, sites);
+      const types = typesOfSites(treeChecker, sites);
 
       const reported: { pos: number; end: number }[] = [];
       for (const [index, type] of types.entries()) {
         const node = sites[index];
         if (node === undefined || type === undefined) continue;
-        if (!(await isOpaqueDictionary(treeChecker, type))) continue;
+        if (!isOpaqueDictionary(treeChecker, type)) continue;
 
         // OUTERMOST WINS. `Partial<Record<string, unknown>>` is two nested type
         // references and one bag, written once. Document order puts the
@@ -132,10 +138,7 @@ export const noOpaqueRecordCheck: StructuralCheck = {
         // is, and that declaration reports on its own. Resolving the name is what
         // draws the line: matching the identifier `Record` instead reports every
         // direct use and no alias chain at all.
-        if (
-          node.kind === SyntaxKind.TypeReference &&
-          (await treeChecker.declaredIn(node, walkedKeys))
-        ) {
+        if (node.kind === SyntaxKind.TypeReference && treeChecker.declaredIn(node, walkedKeys)) {
           continue;
         }
 
@@ -159,13 +162,12 @@ export const noOpaqueRecordCheck: StructuralCheck = {
 };
 
 /** The type each site denotes, in the order the sites were found. */
-async function typesOfSites(
-  treeChecker: Awaited<ReturnType<TreeContext["typeChecker"]>>,
+function typesOfSites(
+  treeChecker: TreeTypeChecker,
   sites: readonly Node[],
-): Promise<(Type | undefined)[]> {
+): (Type | undefined)[] {
   const inline = sites.filter((node) => node.kind !== SyntaxKind.InterfaceDeclaration);
-  const inlineTypes =
-    inline.length > 0 ? await treeChecker.checker.getTypeAtLocation(inline) : [];
+  const inlineTypes = inline.length > 0 ? treeChecker.checker.getTypeAtLocation(inline) : [];
 
   const types: (Type | undefined)[] = [];
   let next = 0;
@@ -175,8 +177,8 @@ async function typesOfSites(
       continue;
     }
     const named = node as Node & { name?: Node };
-    const symbol = named.name ? await treeChecker.checker.getSymbolAtLocation(named.name) : undefined;
-    types.push(symbol ? await treeChecker.checker.getDeclaredTypeOfSymbol(symbol) : undefined);
+    const symbol = named.name ? treeChecker.checker.getSymbolAtLocation(named.name) : undefined;
+    types.push(symbol ? treeChecker.checker.getDeclaredTypeOfSymbol(symbol) : undefined);
   }
   return types;
 }

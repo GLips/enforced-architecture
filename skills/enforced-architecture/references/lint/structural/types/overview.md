@@ -57,17 +57,16 @@ not a list — it is what TypeScript's own model means by an open domain. `Recor
 `{ [K in keyof Config]: T }`, an enum key and `(typeof KEYS)[number]` produce properties instead.
 Nothing here enumerates spellings, so there is no spelling to have missed.
 
-**What the checker changed, stated as a diff.** These were documented holes in the oxlint tier and
-they are closed:
+**Three answers a syntactic walk cannot give, and these seven do.** Each is the checker earning the
+tier line:
 
-- A key domain the syntactic walk could not resolve reported even when it was finite in fact — an
-  imported alias, an imported enum, a conditional type, `Row['id']`, a `const` declared inside a
-  function. Those false positives are gone.
+- A key domain named rather than spelled out — an imported alias, an imported enum, a conditional
+  type, `Row['id']`, a `const` declared inside a function — resolves to what it actually is, so a
+  domain that is finite in fact stays silent.
 - `Partial<Record<string, unknown>>`, `Readonly<Record<…>>` and an interface carrying an index
-  signature were silent as widening targets in two of the three. They report now. The old note that
-  `no-opaque-record` was a "backstop" making that silence safe is retired with them.
+  signature are open dictionaries whatever wraps them, and all three report as widening targets.
 - An alias chain, an alias declared inside a function or a namespace, and an alias to a name from a
-  dependency all resolve. `no-unknown-type-aliases` read only top-level aliases in the file it was
+  dependency all resolve, so `no-unknown-type-aliases` sees past the top level of the file it is
   handed.
 
 **Negative space.** What is still uncovered, and deliberately:
@@ -89,9 +88,9 @@ they are closed:
 
 This tier has no `eslint-disable`, and none is planned. Every finding in every walked file is
 reported, so the recoveries these checks name in their messages — parse at the boundary, name the
-type, write the guard — are the only ones there are. Four of these seven could be silenced a line at
-a time in the oxlint tier. The move took that away, and adopters who had the old rules should expect
-that as the visible change.
+type, write the guard — are the only ones there are. A disable comment quiets an oxlint rule and does
+nothing to a check in this tier, so a project that expects to silence a type complaint one line at a
+time gets no such line here.
 
 The one thing an adopter genuinely edits here is `TRANSPARENT_CONTAINER_NAMES` in
 [type-shapes.ts](type-shapes.ts), which is what a signature is read THROUGH: `Promise<unknown>`

@@ -26,7 +26,7 @@ spelled. It holds the layout vocabulary, the source × target import table, and 
 rows, each read by an adapter on each side. See [policy/overview.md](policy/overview.md).
 
 **`oxlint/`** is handed one file at a time and sees its syntax. It catches what is visible in a single
-source text: a specifier, a JSX prop, a hook call.
+source text: the text in an import's quotes, a JSX prop, a hook call.
 
 **`structural/`** is handed the resolved import graph, the filesystem, and a TypeScript program. It
 catches what no single file can show: where a relative specifier lands, whether a feature cycles,
@@ -48,9 +48,9 @@ adapter on each side. The tag says what a rule is *about*; the tier says what it
 | **placement** | [7](oxlint/placement/overview.md) | [2](structural/placement/overview.md) | Where code may *live*, so the paths other rules match are the paths code is in |
 | **style** | [6](oxlint/style/overview.md) | [3](structural/style/overview.md) | Design-system adherence: tokens, primitives, no raw values |
 | **effect** | [6](oxlint/effect/overview.md) | — | Effect-TS policy bans — the syntactic residue after @effect/language-service, which owns everything type-aware |
-| **react** | [5](oxlint/react/overview.md) | — | Component-level smells that survive review because each one looks reasonable |
+| **react** | [4](oxlint/react/overview.md) | — | Component-level smells that survive review because each one looks reasonable |
 | **api** | [2](oxlint/api/overview.md) | [2](structural/api/overview.md) | How deep a permitted import may reach. Barrels and public surface |
-| **health** | [1](oxlint/health/overview.md) | [3](structural/health/overview.md) | Size and shape signals. Nothing here is a correctness defect |
+| **health** | — | [3](structural/health/overview.md) | Size and shape signals. Nothing here is a correctness defect |
 | **naming** | [1](oxlint/naming/overview.md) | [2](structural/naming/overview.md) | Keeping the public surface findable by plain text search |
 | **graph** | — | [2](structural/graph/overview.md) | Questions no single file can answer: cycles, coupling |
 | **testing** | [1](oxlint/testing/overview.md) | — | Tests that pass while the thing they cover is broken |
@@ -58,12 +58,11 @@ adapter on each side. The tag says what a rule is *about*; the tier says what it
 `placement/` and `boundary/` are the pair most often confused. `placement/` is where code may live.
 `boundary/` is what code may import.
 
-`structural/module-scanning.ts`, `module-resolution.ts`, `import-graph.ts` and `type-checker.ts` are
-**not** rules and are in no tag. They are the tier's **substrates** — the word means these four and
-nothing else — and each answers one question about code: which specifiers a file names, where each
-one lands, the graph over both, and what a declaration means. Every check consumes them; none of
-them is registered. The tier's other non-check files (config, context types, the registry, the
-orchestrator) are plumbing.
+The files at the root of `structural/` are **not** rules and none is registered. `module-scanning.ts`
+finds the quoted paths in a file and the names it re-exports; `module-resolution.ts` turns one quoted
+path into the file it means; `import-graph.ts` does that across a tree and keeps the pairs;
+`type-checker.ts` asks TypeScript what a declaration's type is. Beside them sit `config.ts`,
+`check-context.ts`, `registry.ts` and `run-structural-checks.ts`. Copy the directory whole.
 
 ## What each rule's subject is
 
@@ -99,7 +98,7 @@ decide which rules ship.
 | Effect | Every `effect/` rule. Adopt `@effect/language-service` first; the `effect/` overview explains why that is step zero and these are only what it leaves on the table |
 | A boundary where external data enters (API, queue, file) | `types/no-broad-parameters`, `types/no-unknown-returns`, `types/no-unknown-type-aliases`. These push `unknown` back to the parse site instead of letting it spread inward |
 | TypeScript 4.9+ | `types/no-known-value-widening`. The fix it names, `satisfies`, does not exist before that |
-| Any TypeScript project | `boundary/import-policy` in both tiers — two halves of one rule — plus `boundary/ambient-globals`, `boundary/no-test-imports`, `placement/topology`, `naming/no-vacant-symbol-names`, `health/file-size`, `health/no-nested-ternary`, `types/no-opaque-record`, `types/no-reflect-access` |
+| Any TypeScript project | `boundary/import-policy` in both tiers — two halves of one rule — plus `boundary/ambient-globals`, `boundary/no-test-imports`, `placement/topology`, `naming/no-vacant-symbol-names`, `health/file-size`, `types/no-opaque-record`, `types/no-reflect-access` |
 
 Two rules appear in no row, because their subject is any TypeScript file rather than a structure a
 project either has or lacks: `types/no-runtime-typeof` and `types/no-conditional-empty-object-spread`.

@@ -67,7 +67,7 @@ export const shadowSourceCheck: StructuralCheck = {
   id: "style/shadow-source",
   scope: "tree",
 
-  async run(context) {
+  run(context) {
     const { config, vocabulary } = context;
     const { allowedFile } = config.checks["style/shadow-source"];
     const findings: Finding[] = [];

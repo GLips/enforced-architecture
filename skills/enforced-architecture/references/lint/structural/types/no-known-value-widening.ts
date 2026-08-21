@@ -50,7 +50,7 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import type { Finding, StructuralCheck, TreeContext } from "../check-context.ts";
-import { SyntaxKind, type Node } from "../type-checker.ts";
+import { SyntaxKind, type Node, type TreeTypeChecker, type Type } from "../type-checker.ts";
 import {
   enclosingFunctionLike,
   findingAtNode,
@@ -99,11 +99,11 @@ export const noKnownValueWideningCheck: StructuralCheck = {
   id: "types/no-known-value-widening",
   scope: "tree",
 
-  async run(context: TreeContext): Promise<Finding[]> {
-    const treeChecker = await context.typeChecker();
+  run(context: TreeContext): Finding[] {
+    const treeChecker = context.typeChecker();
     const findings: Finding[] = [];
 
-    for (const file of await treeSourceFiles(context, treeChecker)) {
+    for (const file of treeSourceFiles(context, treeChecker)) {
       const pairs: { value: Node; annotation: Node }[] = [];
       for (const site of typeCheckableNodesOfKind(file, WIDENING_SITE_KINDS)) {
         const pair = annotatedValueAt(site);
@@ -114,9 +114,7 @@ export const noKnownValueWideningCheck: StructuralCheck = {
       // Batched on the ANNOTATIONS, never on the values. The value is judged
       // syntactically — that is what "written here" means — and asking about an
       // expression is also where the 7.0.2 empty-tuple panic lives.
-      const types = await treeChecker.checker.getTypeAtLocation(
-        pairs.map((pair) => pair.annotation),
-      );
+      const types = treeChecker.checker.getTypeAtLocation(pairs.map((pair) => pair.annotation));
 
       for (const [index, type] of types.entries()) {
         const pair = pairs[index];
@@ -127,8 +125,8 @@ export const noKnownValueWideningCheck: StructuralCheck = {
         // prescribing them hands the reader an edit that keeps the loss and adds
         // a keyword, and it is the tag's own position that neither states a
         // contract.
-        const dictionary = (await openKeyDomainValueTypes(treeChecker, type)) !== undefined;
-        if (!dictionary && !(await isBroadKeyword(treeChecker, type))) continue;
+        const dictionary = openKeyDomainValueTypes(treeChecker, type) !== undefined;
+        if (!dictionary && !isBroadKeyword(treeChecker, type)) continue;
 
         findings.push(
           findingAtNode(
@@ -154,10 +152,7 @@ export const noKnownValueWideningCheck: StructuralCheck = {
 };
 
 /** `unknown`, `any` or `object`, through a union or a transparent container. */
-async function isBroadKeyword(
-  treeChecker: Awaited<ReturnType<TreeContext["typeChecker"]>>,
-  type: Parameters<typeof typeResolvesToFlags>[1],
-): Promise<boolean> {
+function isBroadKeyword(treeChecker: TreeTypeChecker, type: Type): boolean {
   return typeResolvesToFlags(treeChecker, type, UNTYPED_TYPE_FLAGS | NON_PRIMITIVE_TYPE_FLAGS);
 }
 

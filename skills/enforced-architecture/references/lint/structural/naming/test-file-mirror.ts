@@ -58,7 +58,7 @@ export const testFileMirrorCheck: StructuralCheck = {
   id: "naming/test-file-mirror",
   scope: "tree",
 
-  async run(context) {
+  run(context) {
     const { config } = context;
     const findings: Finding[] = [];
 

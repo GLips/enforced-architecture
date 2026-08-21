@@ -58,11 +58,11 @@ export const noUnknownReturnsCheck: StructuralCheck = {
   id: "types/no-unknown-returns",
   scope: "tree",
 
-  async run(context: TreeContext): Promise<Finding[]> {
-    const treeChecker = await context.typeChecker();
+  run(context: TreeContext): Finding[] {
+    const treeChecker = context.typeChecker();
     const findings: Finding[] = [];
 
-    for (const file of await treeSourceFiles(context, treeChecker)) {
+    for (const file of treeSourceFiles(context, treeChecker)) {
       const annotations: Node[] = [];
       for (const fn of typeCheckableNodesOfKind(file, FUNCTION_LIKE_KINDS)) {
         const returnType = (fn as Node & { type?: Node }).type;
@@ -70,11 +70,11 @@ export const noUnknownReturnsCheck: StructuralCheck = {
       }
       if (annotations.length === 0) continue;
 
-      const types = await treeChecker.checker.getTypeAtLocation(annotations);
+      const types = treeChecker.checker.getTypeAtLocation(annotations);
       for (const [index, type] of types.entries()) {
         const node = annotations[index];
         if (node === undefined || type === undefined) continue;
-        if (!(await typeResolvesToFlags(treeChecker, type, UNTYPED_TYPE_FLAGS))) continue;
+        if (!typeResolvesToFlags(treeChecker, type, UNTYPED_TYPE_FLAGS)) continue;
         findings.push(findingAtNode(context, file, node, "error", UNKNOWN_RETURN_MESSAGE));
       }
     }

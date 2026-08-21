@@ -1,7 +1,7 @@
 // ADVERSARIAL for `types/no-known-value-widening`: the same loss at every site
 // an annotation can sit above a written value, plus the two broad keywords and
-// the WRAPPED dictionary the syntactic predecessor recorded as covered by
-// nothing.
+// the WRAPPED dictionary a check reading the outermost name covers with nothing,
+// because the name it reads is `Partial`.
 import type { SettlementHandler } from "./kvw-widened.ts";
 
 const oneSettlementHandler: SettlementHandler = () => {};

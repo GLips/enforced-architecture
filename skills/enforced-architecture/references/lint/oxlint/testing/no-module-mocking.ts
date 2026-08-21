@@ -32,11 +32,11 @@
 // a namespace import (`import * as vitest from "vitest"; vitest.mock(…)`), a
 // renamed binding (`import { vi as v } from "vitest"; v.mock(…)`), and bun:test's
 // `import { mock } from "bun:test"; mock.module(…)`, which is not a member call on
-// a framework object at all. ea-72 tracks closing them.
+// a framework object at all.
 //
-// The first two are covered by `jest/no-restricted-jest-methods`, which was run
-// head-to-head against this rule's own fixtures under ea-88 and matched all 17
-// with this message text verbatim. It is not enabled, and the reason is worth
+// The first two are covered by `jest/no-restricted-jest-methods`, which reports
+// every fixture this rule reports, with this message text verbatim — the two are
+// interchangeable on the cases here. It is not enabled, and the reason is worth
 // keeping here rather than only in the config: taking it moves `MOCK_METHODS` out
 // of this file and into `.oxlintrc.json`. The spec beside this rule travels into
 // the adopting repo, so today an adopter who drops `unstable_mockModule` breaks a

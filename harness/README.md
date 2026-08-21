@@ -27,7 +27,7 @@ A rule's failure mode is silent by construction. When a rule stops matching it d
 
 Consuming projects can already test their rules, because they instantiate them. The skill could not, because it ships templates. Every defect it ships is multiplied by the number of projects that adopt it.
 
-Moving from GritQL to oxlint changed which silences are possible but not that they exist. GritQL's was a snippet with no slot for a node real code carried, which compiled clean and matched nothing. A visitor's is a typo'd visitor key: it never fires, and nothing complains.
+A matcher can compile clean and match nothing, whatever it is written in. Here that takes the shape of a typo'd visitor key: it never fires, the rule approves every file, and nothing complains.
 
 ## The shape, and why this one
 
@@ -64,7 +64,7 @@ describeRule("boundary/db-isolation", dbIsolationRule, {
 ```
 
 1. **obvious** — the violation the rule's own header names.
-2. **adversarial** — the same violation written the way the rule's natural pattern misses. This is the case that decides whether the rule works, and the one an author writing their own spec will not think of. For an import fence: a dynamic `import()`, a re-export, a star re-export, a type-only import, and a path that merely *looks* exempt (`legacy-repo/` is not `repo/`). Segment-boundary over-matching was the single most common defect in the GritQL catalog — five rules had it.
+2. **adversarial** — the same violation written the way the rule's natural pattern misses. This is the case that decides whether the rule works, and the one an author writing their own spec will not think of. For an import fence: a dynamic `import()`, a re-export, a star re-export, a type-only import, and a path that merely *looks* exempt (`legacy-repo/` is not `repo/`). Segment-boundary over-matching is the defect this kind exists to catch: a path test that ignores where a segment starts and ends fences the wrong set of files while passing every positive case written for it.
 3. **legal** — code that looks like the violation and is allowed. Over-matching is invisible to positive cases, and it is the defect that trains people to ignore the rule.
 
 The structural side carries a fourth field, optional and unlike the other three: **`messages`**, a list of `{ path, contains }` and `{ path, absent }` entries asserting what a finding SAYS. The three kinds above compare paths and severities, which catches a matcher that stopped matching; nothing there can catch a message that stopped saying something — and a message is what a blocking check delivers. Where a branch exists only to change the wording, the path comparison is identical with the branch working and with it deleted, so the guard is green because no fixture asked. `absent` is the half that is easy to skip and does the real work: it is the only way to state that a branch is NARROW, since a paragraph written for one reader and delivered to every reader passes every positive assertion there is. `boundary/layer-occupancy` is the worked example — it argues the type-import case only to the reader who wrote one.

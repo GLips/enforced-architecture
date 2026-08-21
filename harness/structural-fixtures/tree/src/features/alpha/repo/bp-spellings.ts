@@ -75,8 +75,9 @@ export function acceptsThenableSettlement(pending: PromiseLike<unknown>): Promis
   return pending.then(String);
 }
 
-// FIVE containers deep. The unwrap used to stop at four and answer "not broad"
-// here, which is a hole with a number on it rather than a stated one.
+// FIVE containers deep. An unwrap that stops at a fixed depth answers "not
+// broad" at the first parameter past it, which is a hole with a number on it
+// rather than a stated one.
 export function acceptsDeeplyPendingSettlement(
   pending: Promise<Promise<Promise<Promise<Promise<unknown>>>>>,
 ): void {

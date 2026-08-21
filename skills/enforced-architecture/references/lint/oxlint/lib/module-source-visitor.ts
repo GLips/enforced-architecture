@@ -88,20 +88,20 @@ function onStaticSpecifier(
  * Both forms are answered here rather than by each caller, because the caller that answered for
  * itself is the one that carried the literal and forgot the template.
  *
- * THE ONE OWNER of "is this specifier statically known, and what is it". This was two private
- * copies, one here and one in `lib/imported-names.ts`, and they agreed on every input — which is
- * the reason to merge them rather than a reason not to. Their COVERAGE diverged: ea-41 fixed the
- * same backtick bypass in each, one round apart, and only one of the two grew a fixture. So
- * ``import(`@/infrastructure/db/${name}`)`` — the negative space this module's header names — was
- * asserted against one copy and against nothing on the other, and nothing would have reported the
- * next patch landing on one side only.
+ * THE ONE OWNER of "is this specifier statically known, and what is it". A second private copy —
+ * `lib/imported-names.ts` is where one would go — agreeing on every input today is the reason to
+ * merge it here rather than a reason to keep it. Two copies diverge in COVERAGE before they diverge
+ * in behaviour: the same backtick bypass has to be closed in each, and the fixture written for one
+ * asserts nothing about the other. So ``import(`@/infrastructure/db/${name}`)`` — the negative
+ * space this module's header names — is pinnable on one side and unpinned on the other, with
+ * nothing reporting the next patch that lands on one side only.
  *
  * The return is an object because the two callers want different halves: `visitModuleSources` blames
  * a node and `runtimeImportSpecifier` returns a bare string. A superset of both is one function; a
- * string return would put the blame node back in the caller, which is where the second copy started.
+ * string return would put the blame node back in the caller, which is how a second copy starts.
  *
  * Takes `undefined` so the missing-argument case — `require()` — is answered here rather than at
- * each call site. That guard was written in both copies too, in different places.
+ * each call site, where two callers would each place the guard somewhere different.
  *
  * NEGATIVE SPACE: a template WITH a substitution names a family of modules and gets `undefined`
  * rather than its literal prefix. A non-string literal — `require(0)` — names no module. A quasi

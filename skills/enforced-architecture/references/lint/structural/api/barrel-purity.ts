@@ -165,8 +165,9 @@ function isServerOnlySpecifier(specifier: string, serverOnlyPackages: string[]):
  *
  * One question about one binding, not two questions about a file. Two separate
  * questions — "is the module imported anywhere" and "does the call name appear"
- * — is a word test with an extra step, and a review proved it: two bare words
- * defeated it in turn. See `boundaryBindingsIn`.
+ * — is a word test with an extra step: each word can be satisfied without the
+ * binding the other names, and either one alone is enough to fabricate a
+ * boundary the file never crossed. See `boundaryBindingsIn`.
  *
  * `source` is comment-blanked, so neither half can be satisfied by prose.
  */
@@ -177,13 +178,13 @@ function crossesServerFnBoundary(
 ): boolean {
   // THE GATE, and the reason the NEVER clause is a claim rather than a hope.
   // `runtimeImports` comes from `scanDeclaredImports` — a real parser — so a module this file does not actually import cannot be fabricated
-  // by text that merely looks like an import. Two reviews fabricated one from
-  // text the hand reader could not tell from code: first a quoted import in a
-  // string, then the same statement spelled as JSX TEXT inside a `<span>`, where
-  // masking string literals does nothing because the fabrication is not in a
-  // string. Masking the next container after that is the loop this gate ends:
-  // the parser already knows which specifiers are real, and no spelling of an
-  // import gets into its answer without being one.
+  // by text that merely looks like an import. An import statement can be spelled
+  // in text a hand reader cannot tell from code — quoted inside a string, or as
+  // JSX TEXT inside a `<span>`, where masking string literals does nothing
+  // because the fabrication is not in a string at all. Masking each container as
+  // it turns up is the loop this gate ends: the parser already knows which
+  // specifiers are real, and no spelling of an import gets into its answer
+  // without being one.
   //
   // What the text reading below still owns is the NAME — which local the clause
   // bound, and whether the call reaches it — because the scan returns specifiers
@@ -199,8 +200,8 @@ function crossesServerFnBoundary(
   // The two halves read DIFFERENT texts, and the asymmetry is the contract's
   // NEVER clause in code. Both halves that could ACCEPT a boundary — the import
   // and the call — read literal-masked text, because a quoted string is not code:
-  // a review put `'import { createServerFn } from "@tanstack/react-start"'` in a
-  // string beside a local function aliased to that name and fabricated a boundary
+  // an `'import { createServerFn } from "@tanstack/react-start"'` sitting in a
+  // string, beside a local function aliased to that name, fabricates a boundary
   // the file never crossed, which is a false negative and the one direction this
   // check may not have. `rebindsName` reads the RAW body instead, because there a
   // false match REFUSES a boundary — a string that merely looks like a
@@ -264,11 +265,13 @@ function maskLiteralContents(source: string): string {
  * Scope is approximated here, and not because it has to be: the tier parses
  * (`module-scanning.ts`), so `rebindsName` COULD be a scope walk and is not
  * one. While it is not, the approximation is deliberately one-sided: ANY local declaration or parameter of the name makes
- * the file not-a-boundary, which keeps the trace going. Two reviews shadowed the
- * imported name and beat the version of the day: first a parenthesized parameter
- * (`function settleWith(createServerFn: …)`), then the same shadow spelled with
- * no parenthesis at all (`createServerFn => …`). Each accepted the shadowed call
- * as a boundary and suppressed a reachable `postgres` finding.
+ * the file not-a-boundary, which keeps the trace going. A shadow this does not
+ * see is the expensive direction: the shadowed call reads as the imported one,
+ * the file counts as a boundary, and a reachable `postgres` finding is
+ * suppressed. That is why every spelling that binds a name is in
+ * `BINDING_FORMS`, down to a shadow written as a bare parameter
+ * (`function settleWith(createServerFn: …)`) or as an unparenthesized arrow
+ * parameter (`createServerFn => …`).
  *
  * Being one-sided is what makes it sound without a parser: the cost of a false
  * positive here is a chain that gets traced and possibly reported, which is the
@@ -318,15 +321,15 @@ const BINDING_FORMS: ((name: string) => string)[] = [
   // { f }, [ f ] — a destructured binding position, SHORTHAND only. A `:` AFTER
   // the name is deliberately not accepted: in a pattern, `{ f: g }` binds `g` and
   // not `f`, and in an object literal `{ f: "x" }` binds nothing at all. Accepting
-  // it made an ordinary literal mentioning the name take a real boundary file out
-  // of the boundary — a review reported a legal fixture that way.
+  // it would let an ordinary object literal that merely mentions the name take a
+  // real boundary file out of the boundary, and report a legal one.
   (name) => String.raw`[{[]\s*${name}\s*[},\]]`,
   // { k: f } — the RENAMED destructuring, where the name sits AFTER the colon and
   // is the one thing bound. The entry above reads the key position and this one
   // reads the value position, which is why both exist and why neither is the
   // other's superset: `{ createServerFn: "x" }` binds nothing and must not match,
-  // `{ bridge: createServerFn }` binds the shadow and must. A review shadowed the
-  // import with exactly this and was accepted as a boundary.
+  // `{ bridge: createServerFn }` binds the shadow and must — without this entry
+  // that shadowed call reads as the boundary's own.
   (name) => String.raw`:\s*${name}\s*[},\]=]`,
 ];
 
@@ -335,11 +338,11 @@ const BINDING_FORMS: ((name: string) => string)[] = [
  * import FROM the boundary module — under the name the file gave it.
  *
  * The import and the call have to be the same binding, and asking the two
- * questions separately is not the same claim. A review proved that: it replaced
- * the named import with a bare `import "@tanstack/react-start"` and defined an
- * unrelated local `createServerFn`, and the old two-question version accepted it
- * and suppressed a reachable `postgres` finding. A side-effect import binds
- * nothing, so it contributes no name here.
+ * questions separately is not the same claim: a bare
+ * `import "@tanstack/react-start"` beside an unrelated local `createServerFn`
+ * answers both of them yes while binding nothing of the boundary's, and a check
+ * that accepts that pair suppresses a reachable `postgres` finding. A
+ * side-effect import binds nothing, so it contributes no name here.
  *
  * A namespace import is read too — `import * as RS` makes the boundary
  * `RS.createServerFn` — because a file that imports the module that way and calls
@@ -376,11 +379,11 @@ function boundaryBindingsIn(
     }
 
     // Split the braces into entries and read each as `imported as local`, rather
-    // than searching the whole clause for the call's name. Searching found the
+    // than searching the whole clause for the call's name. Searching finds the
     // name on EITHER side of an `as`, so `import { unrelatedExport as
-    // createServerFn }` read as importing the boundary: a review used exactly
-    // that to stop the trace at a boundary the file never crossed, with all 16
-    // structural checks green. Which side the name sits on is the whole question.
+    // createServerFn }` reads as importing the boundary and stops the trace at a
+    // boundary the file never crossed — an alias of that shape is the cheapest
+    // way to buy silence. Which side the name sits on is the whole question.
     for (const entry of (NAMED_IMPORT_LIST.exec(clause)?.[1] ?? "").split(",")) {
       const named = NAMED_IMPORT_ENTRY.exec(entry.trim());
       if (named === null) continue;
@@ -412,7 +415,7 @@ export const barrelPurityCheck: StructuralCheck = {
   id: "api/barrel-purity",
   scope: "tree",
 
-  async run(context) {
+  run(context) {
     const { config, vocabulary } = context;
     const { serverOnlyPackages, maxTraceDepth, serverFnBoundary } =
       config.checks["api/barrel-purity"];

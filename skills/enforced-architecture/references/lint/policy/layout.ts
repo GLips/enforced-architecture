@@ -70,11 +70,11 @@ export type FeatureLayerRole = (typeof FEATURE_LAYER_ROLES)[number];
  * a source ROOT may hold — closed, exactly like `FEATURE_LAYER_ROLES` and for
  * the harder reason.
  *
- * These were two `string[]` fields an adopter appended to. That is an off-switch
- * in a name's costume, and a review proved it rather than argued it: adding one
- * entry, `"helpers"`, erased both real `placement/topology` findings —
+ * As two `string[]` fields an adopter could append to, these would be an
+ * off-switch in a name's costume: one added entry, `"helpers"`, erases both real
+ * `placement/topology` findings —
  * `["src/features/scanner/helpers.mts", "src/features/scanner/helpers.ts"]`
- * became `[]` — with no rule edited and the run green. A misplaced file is
+ * becomes `[]` — with no rule edited and the run green. A misplaced file is
  * legalised by naming it.
  *
  * Keyed by role, the same knob does the thing it was always meant to do and
@@ -803,11 +803,11 @@ function assertDistinctNames(
 /**
  * True when `extension` is a bare file extension: letters and digits, nothing else.
  *
- * An ALLOWLIST, not a list of banned characters. A review defeated the banned-character
- * version by writing `{ts,tsx}`: brace expansion, character classes and negation are all
- * glob syntax the ban list did not name, and each one turns the walk this composes into
- * a pattern the vocabulary never declared. Enumerating what a name may contain cannot be
- * defeated by a syntax nobody thought of.
+ * An ALLOWLIST, not a list of banned characters. A ban list is defeated by `{ts,tsx}`:
+ * brace expansion, character classes and negation are all glob syntax such a list has to
+ * name one at a time, and each one turns the walk this composes into a pattern the
+ * vocabulary never declared. Enumerating what a name may contain cannot be defeated by a
+ * syntax nobody thought of.
  *
  * The empty string is the case worth naming — as an extension it is the suffix
  * of every filename, so one empty entry turns a suffix test into a tautology.
@@ -819,10 +819,10 @@ function isSafeExtension(extension: string): boolean {
 /**
  * True when `segment` names ONE directory or module and nothing else.
  *
- * An ALLOWLIST of the characters a name may contain, deliberately, because the
- * banned-character version of this was defeated: it refused `*` and `?` and
- * accepted `{features,gen}`, which the harness composed straight into
- * `src/{features,gen}/**` and thereby exempted a governed position. Brace
+ * An ALLOWLIST of the characters a name may contain, deliberately, because a
+ * banned-character version is defeated by what it did not think to ban: refusing
+ * `*` and `?` still accepts `{features,gen}`, which the harness composes straight
+ * into `src/{features,gen}/**` and thereby exempts a governed position. Brace
  * expansion, `[a-z]` classes, `!` negation and `()` groups are all glob syntax a
  * ban list has to have thought of; an allowlist does not.
  *
