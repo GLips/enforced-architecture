@@ -1,23 +1,26 @@
-// ─── What a file imports ──────────────────────────────────────────────
+// ─── What a file imports, and what it offers ──────────────────────────
 //
-// Makes sure of nothing on its own. This is the tier's ONE answer to "which
-// specifiers does this file name", consumed by `import-graph` (which resolves
-// each one and compares the two ends as paths) and by `api/barrel-purity` (which
-// asks which packages a barrel can reach at runtime). Do not let either of them
-// read imports for itself: two answers to this question disagree about which
-// spellings count, and the disagreement is invisible, because the reader that
-// misses a form reports nothing rather than failing.
+// Makes sure of nothing on its own. Two questions about a module's clauses, one
+// parser, and this is the tier's ONE answer to each:
 //
-// ONE reader in the tier is outside that claim, and it is stated here rather
-// than left to be discovered: `naming/barrel-discoverability` matches
-// `export * from` and `export { … } from` with its own regexes and quotes the
-// captured specifier back in its message. Its SUBJECT is the exported NAMES —
-// which symbols a barrel puts on its public surface, and whether each is
-// greppable — so it never resolves the specifier, never asks where it lands, and
-// makes no claim about which spellings of an import exist. It reads a statement
-// this module also reads, for a different question. A reader that wanted the set
-// of modules a file names, or where any of them lands, would be a second answer
-// to THIS question and belongs here.
+//   `scanDeclaredImports` — which specifiers does this file NAME. Consumed by
+//   `import-graph` (which resolves each one and compares the two ends as paths)
+//   and by `api/barrel-purity` (which asks which packages a barrel can reach at
+//   runtime).
+//
+//   `scanDeclaredExports` — which names does this file OFFER, and where each one
+//   comes from. Consumed by `naming/barrel-discoverability`, whose subject is
+//   whether a public name is greppable; it never resolves a specifier and asks
+//   nothing about where one lands.
+//
+// Do not let a consumer read either question for itself. Two answers to one of
+// them disagree about which spellings count, and the disagreement is invisible,
+// because the reader that misses a form reports nothing rather than failing.
+//
+// The two questions overlap on the STATEMENT and not on the subject: `export { a
+// } from "./x"` is an occurrence of `./x` to the first and an offer of `a` to the
+// second. Both readings come off one export record here, so no consumer can hold
+// a third idea of what that line says.
 //
 // This is the third substrate in the tier, beside `module-resolution.ts` (where
 // a specifier LANDS) and `type-checker.ts` (what a declaration MEANS). This one
@@ -32,7 +35,7 @@
 // counting `require(` literals is what this module replaced, and both were
 // approximations that lost real forms — see TYPE-ONLY IMPORTS below.
 //
-// ── Every occurrence, in source order, with a real span ───────────────
+// ── Every occurrence, in source order, with a real span (imports) ─────
 //
 // One entry per OCCURRENCE, not per specifier: a file importing `./a` twice gets
 // two entries, because `boundary/import-policy` reports each crossing where it
@@ -63,7 +66,33 @@
 // The last two are not a rewriting problem at all — no spelling of `import type`
 // appears in them — and no text pass was ever going to reach them.
 //
+// ── One entry per NAME (exports) ──────────────────────────────────────
+//
+// Where the two questions part. An import occurrence is one written specifier,
+// so `export { a, b } from "./x"` is ONE of those — two edges on one line would
+// make every rule reading the graph report that line twice. It is TWO offers,
+// because `a` and `b` are two symbols a reader greps for separately, and the
+// offer carries the span of its own member so a list running down a screen
+// reports each name where it is written.
+//
+// `typeOnly` is per name for the same reason, and it is not the import side's
+// all-or-nothing mark: in `export { type A, b } from "./x"`, `A` is erased and
+// `b` is not, and a consumer asking about `A` is asking about `A`.
+//
 // ── NEGATIVE SPACE ────────────────────────────────────────────────────
+//
+// WHAT A WILDCARD OFFERS IS NOT HERE. `export * from "./x"` is reported as a
+// wildcard and never expanded: the names it forwards are declared in another
+// file, and enumerating them means resolving the specifier and reading what is
+// there — the next substrate's question, and then a whole chain of them. A
+// consumer that needs the expanded surface walks the graph itself. Nothing here
+// can tell you whether a wildcard offers one name or four hundred.
+//
+// CommonJS has no export record and none is reconstructed. `module.exports = …`
+// and `exports.a = …` put names on a surface, and neither is read: the import
+// side reads `require` because a boundary crossing is its subject, and no check
+// in the tier asks what a CommonJS module offers. A project whose public surface
+// is spelled that way has no check reading it.
 //
 // A specifier that is not a static string is not reported and cannot be:
 // `import(`./${name}`)` names a module only at runtime. This is the one import
@@ -84,11 +113,12 @@
 // and an unreported crossing is a rule that silently does not apply to those
 // files. `import.meta` is not an import and is not reported.
 //
-// PARSE ERRORS THROW. A file whose imports cannot be read is a file no boundary
-// rule governs, and the tier has one job that outranks completing the run.
+// PARSE ERRORS THROW, on both questions. A file whose clauses cannot be read is
+// a file no boundary rule and no naming rule governs, and the tier has one job
+// that outranks completing the run.
 // ──────────────────────────────────────────────────────────────────────
 
-import { parseSync } from "oxc-parser";
+import { parseSync, type ParseResult } from "oxc-parser";
 import { JSX_SOURCE_EXTENSIONS, TYPESCRIPT_SOURCE_EXTENSIONS } from "../policy/layout.ts";
 
 /** One occurrence of one specifier in one file. */
@@ -108,6 +138,71 @@ export type ScannedImport = {
    */
   typeOnly: boolean;
 };
+
+/**
+ * One name a file offers, or one wildcard it forwards.
+ *
+ * A union rather than one record of nullable names, because a consumer that has
+ * to rebuild "is this a wildcard" out of which fields came back null is a second
+ * reading of the export record. `export * from "./x"` offers no name of its own
+ * and `export default expr` offers one that HAS no name, and a shape where both
+ * are a null cannot tell a reader which it is holding.
+ */
+export type ScannedExport = {
+  /**
+   * Byte offset of the ENTRY: the member inside the clause for a named export,
+   * the statement for a wildcard. A list running down a screen reports each name
+   * where it is written, not where the statement opened.
+   */
+  offset: number;
+  /**
+   * True when this name emits no runtime code — `export type { A }` and
+   * `export { type A }` alike. Per NAME, so one clause can carry both.
+   */
+  typeOnly: boolean;
+} & (
+  | {
+      kind: "wildcard";
+      /** `ns` in `export * as ns from "./x"`; undefined for the bare `export *`. */
+      namespace: string | undefined;
+      /**
+       * Never undefined: `export *` does not parse without a `from`, so a
+       * wildcard always has somewhere to point. Read as the language reads it —
+       * a unicode escape arrives decoded, exactly as on the import side.
+       */
+      specifier: string;
+    }
+  | {
+      kind: "named";
+      /** The name the module offers it under — `b` in `export { a as b }`. */
+      exportedName: string;
+      /**
+       * The name it has where it is defined — `a` in `export { a as b }`, and
+       * `default` in `export { default as b } from "./x"`.
+       */
+      localName: string;
+      /**
+       * Where the name comes from, decoded as above. Undefined when this file
+       * declares it: every `export const`, and the second half of an
+       * import-then-re-export pair.
+       */
+      specifier: string | undefined;
+    }
+  | {
+      kind: "default";
+      /**
+       * The declaration's own name, when it has one: `fn` in
+       * `export default function fn() {}`, undefined when it is anonymous.
+       *
+       * NOTHING READS THIS TODAY. It is here because a default export is a name
+       * on the surface, and dropping the form would make this module's
+       * one-answer claim false the first time a check wants it. There is no
+       * specifier: `export { default as b } from "./x"` is a `named` entry, and
+       * `export default` never carries a `from`.
+       */
+      localName: string | undefined;
+    }
+);
 
 /**
  * Which grammar the parser reads this file with.
@@ -244,18 +339,27 @@ function isRequireCallee(callee: unknown): boolean {
 }
 
 /**
- * Every specifier the file names, in source order. The tier's one extraction,
- * and the only supported way to read a file's imports.
+ * The parse both questions read, or the error that says which file refused.
  *
  * `path` decides the grammar by its extension and names the file if the parse
  * fails — a diagnostic against `input.tsx` names a file nobody has.
  */
-export function scanDeclaredImports(options: { path: string; source: string }): ScannedImport[] {
+function parseModule(options: { path: string; source: string }): ParseResult {
   const { path, source } = options;
   const parsed = parseSync(path, source, { lang: grammarFor(path) });
 
   const fatal = parsed.errors.filter((error) => error.severity === "Error");
   if (fatal[0] !== undefined) throw new Error(`could not read ${path}: ${fatal[0].message}`);
+
+  return parsed;
+}
+
+/**
+ * Every specifier the file names, in source order. The tier's one extraction,
+ * and the only supported way to read a file's imports.
+ */
+export function scanDeclaredImports(options: { path: string; source: string }): ScannedImport[] {
+  const parsed = parseModule(options);
 
   const found: ScannedImport[] = [];
 
@@ -304,4 +408,62 @@ export function scanDeclaredImports(options: { path: string; source: string }): 
   walkForUnrecordedImports(parsed.program, found);
 
   return found.sort((left, right) => left.offset - right.offset);
+}
+
+/**
+ * Every name the file offers, in source order. The tier's one reading of a
+ * module's public surface, and the only supported way to ask what a barrel says.
+ *
+ * The record already carries every field a text pass reconstructs, and carries
+ * them for the forms a text pass cannot see: a name written as a string literal
+ * (`export { a as "some name" }`), a brace inside one, a specifier spelled with
+ * a unicode escape. Anything reading the export clause out of the source text is
+ * a second answer to this question, and it is the narrower one.
+ */
+export function scanDeclaredExports(options: { path: string; source: string }): ScannedExport[] {
+  const parsed = parseModule(options);
+
+  const found: ScannedExport[] = [];
+
+  for (const statement of parsed.module.staticExports) {
+    for (const entry of statement.entries) {
+      const shared = { offset: entry.start, typeOnly: entry.isType };
+      const specifier = entry.moduleRequest?.value;
+      const exportedName = entry.exportName.name;
+      // A re-export's local side is the name in the OTHER module, which the
+      // record calls the import name; a name this file declares has no import
+      // name and its local side is the local one. Exactly one of the two is set
+      // on any entry that has a local side at all.
+      const localName = entry.importName.name ?? entry.localName.name;
+
+      // Three arms, and they exhaust the record: every entry either forwards a
+      // set of names (`All` is `export * as ns from`, `AllButDefault` the bare
+      // `export *`), or is the default export, or carries both a local and an
+      // exported name. `module-scanning.test.ts` counts a source holding all of
+      // them, because an arm that stopped matching would drop its form in
+      // silence.
+      //
+      // The module request is part of the wildcard test because the grammar
+      // makes it part of the form — `export *` does not parse without a `from`,
+      // so a wildcard always has somewhere to point.
+      const forwardsEverything =
+        entry.importName.kind === "All" || entry.importName.kind === "AllButDefault";
+
+      if (forwardsEverything && specifier !== undefined) {
+        const namespace = exportedName ?? undefined;
+        found.push({ ...shared, kind: "wildcard", namespace, specifier });
+      } else if (entry.exportName.kind === "Default") {
+        found.push({ ...shared, kind: "default", localName: localName ?? undefined });
+      } else if (exportedName !== null && localName !== null) {
+        found.push({ ...shared, kind: "named", exportedName, localName, specifier });
+      }
+    }
+  }
+
+  // Not sorted. The record is walked in source order already — statements as
+  // they are written, entries within a statement likewise — and the import scan
+  // sorts because it MERGES three structures, which this does not. A sort here
+  // would be a guard no case can fail, which is the thing this catalog reports
+  // people for.
+  return found;
 }

@@ -15,3 +15,8 @@
 export { labelFor, slugFor } from "./service/surface-labels.ts";
 export { sameName as sameName } from "./service/surface-labels.ts";
 export type { SurfaceLabel } from "./service/surface-labels.ts";
+
+// The third guard: a rename written inside a STRING, which a comment-blanking
+// pass leaves standing and any matcher over the raw text then reports. Nothing
+// is exported here but `RENAME_EXAMPLE`, whose two names are the same one.
+export const RENAME_EXAMPLE = 'export { labelFor as surfaceLabelFor } from "./service/surface-labels.ts"';

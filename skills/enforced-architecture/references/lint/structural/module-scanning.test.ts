@@ -26,7 +26,12 @@
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { scanDeclaredImports, type ScannedImport } from "./module-scanning.ts";
+import {
+  scanDeclaredExports,
+  scanDeclaredImports,
+  type ScannedExport,
+  type ScannedImport,
+} from "./module-scanning.ts";
 
 // node:test's `describe` and `it` hand back the suite's promise, and the runner
 // owns and awaits the suite it created. Discarding the handle is correct rather
@@ -44,11 +49,33 @@ function scan(source: string, path = "probe.ts"): ScannedImport[] {
   return scanDeclaredImports({ path, source });
 }
 
+/** The offers of one source, named the way a real file would be. */
+function scanExports(source: string, path = "probe.ts"): ScannedExport[] {
+  return scanDeclaredExports({ path, source });
+}
+
 const specifiersOf = (scanned: ScannedImport[]): string[] =>
   scanned.map((entry) => entry.specifier);
 
-/** Which line each occurrence's offset lands on — the inverse of the lookup. */
-const linesOf = (source: string, scanned: ScannedImport[]): number[] =>
+/**
+ * Each offer written back as the statement that produced it, so one assertion
+ * reads every field of the entry. A tuple of field names would let a form land
+ * in the wrong arm of the union and still compare equal.
+ */
+const offersOf = (scanned: ScannedExport[]): string[] =>
+  scanned.map((entry) => {
+    const mark = entry.typeOnly ? "type " : "";
+    if (entry.kind === "wildcard") {
+      const namespace = entry.namespace === undefined ? "" : ` as ${entry.namespace}`;
+      return `${mark}*${namespace} from ${entry.specifier}`;
+    }
+    if (entry.kind === "default") return `${mark}default ${entry.localName ?? "<anonymous>"}`;
+    const origin = entry.specifier === undefined ? "" : ` from ${entry.specifier}`;
+    return `${mark}${entry.localName} as ${entry.exportedName}${origin}`;
+  });
+
+/** Which line each entry's offset lands on — the inverse of the lookup. */
+const linesOf = (source: string, scanned: readonly { offset: number }[]): number[] =>
   scanned.map((entry) => source.slice(0, entry.offset).split("\n").length);
 
 const marksOf = (scanned: ScannedImport[]): boolean[] =>
@@ -209,5 +236,112 @@ describeSuite("the negative space, as a case rather than a paragraph", () => {
     // readily as a person does, and every bundler treats it as naming one
     // module — reading only `Literal` drops a real edge with no error.
     assert.deepEqual(specifiersOf(scan("export const load = () => import(`./a.ts`);")), ["./a.ts"]);
+  });
+});
+
+describeSuite("every name a file offers, and no form dropped on the way", () => {
+  testCase("the three arms cover the whole record", () => {
+    // The exhaustiveness claim `scanDeclaredExports` makes, as a case. An entry
+    // matching no arm is discarded, and a check reading the result then reports
+    // a barrel it never fully read — which is the failure this module exists to
+    // stop, so the whole list is compared rather than a count.
+    const source = [
+      `export * from "./a.ts";`,
+      `export * as ns from "./b.ts";`,
+      `export { c, d as renamed } from "./c.ts";`,
+      `export type { E as Renamed } from "./e.ts";`,
+      `export { default as F } from "./f.ts";`,
+      `const g = 1;`,
+      `export { g as offered };`,
+      `export const h = 2;`,
+      `export default function i() {}`,
+    ].join("\n");
+
+    assert.deepEqual(offersOf(scanExports(source)), [
+      "* from ./a.ts",
+      "* as ns from ./b.ts",
+      "c as c from ./c.ts",
+      "d as renamed from ./c.ts",
+      "type E as Renamed from ./e.ts",
+      "default as F from ./f.ts",
+      "g as offered",
+      "h as h",
+      "default i",
+    ]);
+  });
+
+  testCase("an anonymous default is an offer with no name at all", () => {
+    // Nothing reads this today. It is asserted because the arm is otherwise
+    // reachable only from a form nobody wrote a case for, and an unread arm
+    // that quietly stops matching is indistinguishable from one that was right.
+    assert.deepEqual(offersOf(scanExports(`export default function () {};`)), [
+      "default <anonymous>",
+    ]);
+  });
+
+  testCase("one clause is one entry per name, each on the line it is written on", () => {
+    // Where this parts from the import side, which reports one entry per
+    // STATEMENT. A barrel's list routinely runs down a screen, and a consumer
+    // handed the statement's offset points every name at the first line.
+    const source = [`export {`, `  a,`, `  b as c,`, `} from "./x.ts";`].join("\n");
+    assert.deepEqual(offersOf(scanExports(source)), ["a as a from ./x.ts", "b as c from ./x.ts"]);
+    assert.deepEqual(linesOf(source, scanExports(source)), [2, 3]);
+  });
+
+  testCase("a name is the NAME, not the spelling", () => {
+    // Both halves of it. A name may be a string rather than an identifier, and
+    // a specifier may be escaped — so an identifier pattern drops the offer
+    // entirely, and a text capture quotes back a module nobody has.
+    assert.deepEqual(offersOf(scanExports(`export { a as "some name" } from "./x.ts";`)), [
+      `a as some name from ./x.ts`,
+    ]);
+    assert.deepEqual(offersOf(scanExports(`export * from "./bet\\u0061.ts";`)), [
+      "* from ./beta.ts",
+    ]);
+  });
+
+  testCase("a clause with no names offers nothing, and is still an import", () => {
+    // `export {} from "./x"` puts no name on the surface, so there is nothing
+    // to offer — while the module is fetched and evaluated, which is why the
+    // import side reports it.
+    assert.deepEqual(scanExports(`export {} from "./x.ts";`), []);
+    assert.deepEqual(specifiersOf(scan(`export {} from "./x.ts";`)), ["./x.ts"]);
+  });
+});
+
+describeSuite("typeOnly is a fact about one name", () => {
+  testCase("one clause, two names, two answers", () => {
+    // The opposite rule to the import side, and deliberately: an occurrence
+    // there is one written specifier, so the mark has to describe the whole
+    // statement. An offer is one name, and `A` being erased says nothing about
+    // `b` — a consumer asking about `A` is asking about `A`.
+    const source = `export { type A, b } from "./x.ts";`;
+    assert.deepEqual(offersOf(scanExports(source)), [
+      "type A as A from ./x.ts",
+      "b as b from ./x.ts",
+    ]);
+    assert.deepEqual(marksOf(scan(source)), [false]);
+  });
+
+  testCase("the clause-level modifier marks every name under it", () => {
+    assert.deepEqual(offersOf(scanExports(`export type { A, B } from "./x.ts";`)), [
+      "type A as A from ./x.ts",
+      "type B as B from ./x.ts",
+    ]);
+    assert.deepEqual(offersOf(scanExports(`export type * as ns from "./x.ts";`)), [
+      "type * as ns from ./x.ts",
+    ]);
+  });
+});
+
+describeSuite("a file whose exports cannot be read is not a barrel that reports clean", () => {
+  testCase("a parse error throws here too, and names the same file", () => {
+    // Both questions read one parse, so both refuse the same file. A barrel
+    // that swallowed the error would report no names and read exactly like a
+    // barrel with nothing wrong with it.
+    assert.throws(
+      () => scanExports(`export { a from "./unclosed.ts";`, "broken.ts"),
+      /could not read broken\.ts/,
+    );
   });
 });

@@ -20,6 +20,19 @@
 // `default`. A default export has no name to search for, so the barrel holds
 // the only name of that symbol. Give the definition the name.
 //
+// A bare `export default` is the other half of that and is NOT reported: there
+// is no second name to compare it against, so the rename branch has nothing to
+// say about it. The symbol is nameless at the boundary all the same, and no
+// check in the catalog reports that.
+//
+// What a barrel says is read from `module-scanning.ts`'s export record — the
+// tier's one reader of an export clause — and that decides this check's blind
+// spots as much as the globs do. A surface spelled `module.exports = …` has no
+// export record, so it is not read here and no rule in the catalog asks whether
+// it is greppable. Nothing is matched against the source text: an `export *`
+// written in a comment or inside a string is not an export, and the grammar
+// settles that rather than a scrubbing pass.
+//
 // What a barrel reaches through its re-exports is api/barrel-purity's finding,
 // not this one's.
 // ──────────────────────────────────────────────────────────────────────
@@ -31,7 +44,6 @@ import {
   withoutSourceExtension,
 } from "../../policy/layout.ts";
 import {
-  blankComments,
   collectTreeFiles,
   lineNumberAt,
   lineStartOffsets,
@@ -41,28 +53,7 @@ import {
   type Finding,
   type StructuralCheck,
 } from "../check-context.ts";
-
-/**
- * `export * from "…"` and `export * as ns from "…"`, plus the type-only
- * spellings of both.
- *
- * The namespace clause is optional rather than a second pattern, because the
- * two hide exactly the same thing: a matcher anchored on `* from` walks past
- * `export * as ns from` while reporting the barrel next to it, which reads as a
- * clean file rather than a blind spot.
- */
-const WILDCARD_REEXPORT =
-  /\bexport\s+(?:type\s+)?\*(\s+as\s+[A-Za-z_$][\w$]*)?\s+from\s*["']([^"']+)["']/g;
-
-/**
- * An export list, with or without a `from` clause. Both are in scope: a barrel
- * that imports a name and re-exports it aliased in a second statement splits a
- * reverse lookup exactly as much as the one-line form.
- */
-const EXPORT_LIST = /\bexport\s+(type\s+)?\{([^}]*)\}(?:\s*from\s*["']([^"']+)["'])?/g;
-
-/** One member of an export list, carrying its own optional `type` modifier. */
-const LIST_MEMBER = /^(type\s+)?([A-Za-z_$][\w$]*)(?:\s+as\s+([A-Za-z_$][\w$]*))?$/;
+import { scanDeclaredExports } from "../module-scanning.ts";
 
 export const barrelDiscoverabilityCheck: StructuralCheck = {
   id: "naming/barrel-discoverability",
@@ -91,70 +82,61 @@ export const barrelDiscoverabilityCheck: StructuralCheck = {
         if (!barrels.includes(bare.slice(bare.lastIndexOf("/") + 1))) continue;
 
         const file = toProjectPath(config, absolute);
-        // Blanked, never stripped: the reported line is the only thing that
-        // sends a reader to the statement, and a commented-out `export *` in a
-        // barrel's own header is the likeliest false positive this check has.
-        const source = blankComments(readFile(absolute));
+        const source = readFile(absolute);
         const lineStarts = lineStartOffsets(source);
 
-        for (const match of source.matchAll(WILDCARD_REEXPORT)) {
-          const namespace = match[1]?.trim() ?? "";
-          findings.push({
-            severity: "error",
-            file,
-            line: lineNumberAt(lineStarts, match.index),
-            message:
-              `\`export *${namespace ? ` ${namespace}` : ""} from "${match[2]}"\` hides the names this module exposes.\n` +
-              `List each public symbol explicitly instead. The barrel is the map an agent\n` +
-              `greps to learn what this module offers, and a wildcard leaves it blank — it\n` +
-              `also lets every future export of "${match[2]}" join the public API with no\n` +
-              `review at the boundary.`,
-          });
-        }
+        // Every offer the file makes, off the parser's export record. The
+        // likeliest false positive this check has is a commented-out wildcard in
+        // a barrel's own header, and the grammar settles that rather than a
+        // scrubbing pass. Each entry carries its own member's offset, so a list
+        // running down a screen reports each name on the line it is written on.
+        for (const entry of scanDeclaredExports({ path: absolute, source })) {
+          const line = lineNumberAt(lineStarts, entry.offset);
 
-        for (const match of source.matchAll(EXPORT_LIST)) {
-          const typeOnlyList = match[1] !== undefined;
-          const list = match[2] ?? "";
-          const module = match[3];
-          // Offsets are tracked through the split so each member is reported on
-          // its OWN line: a barrel's export list routinely spans a screen, and
-          // the statement's first line is not where the alias is.
-          let cursor = match.index + match[0].indexOf("{") + 1;
-
-          for (const raw of list.split(",")) {
-            const memberStart = cursor + (raw.length - raw.trimStart().length);
-            cursor += raw.length + 1;
-
-            const member = LIST_MEMBER.exec(raw.trim());
-            if (member === null) continue;
-
-            const [, typeOnlyMember, local, exported] = member;
-            if (exported === undefined || local === exported) continue;
-
-            const origin = module === undefined ? "" : ` from "${module}"`;
-            // A type-only export is renamed at the barrel more often than a value
-            // one, and the search it splits is the same search — so it reports,
-            // and the note says which case this is rather than offering a way out
-            // of it.
-            const typeNote =
-              typeOnlyList || typeOnlyMember !== undefined
-                ? `\nThis one is type-only. A type is reverse-looked-up less often than a value,\n` +
-                  `which is an argument for renaming the definition rather than for keeping two\n` +
-                  `names nobody greps together.`
-                : "";
-
+          if (entry.kind === "wildcard") {
+            const namespace = entry.namespace === undefined ? "" : ` as ${entry.namespace}`;
             findings.push({
               severity: "error",
               file,
-              line: lineNumberAt(lineStarts, memberStart),
+              line,
               message:
-                `\`export { ${local} as ${exported} }${origin}\` renames on the way out.\n` +
-                `The public name and the definition \`${local}\` now share no text, so a reverse\n` +
-                `lookup on either misses the other: grep ${exported} and the definition is\n` +
-                `invisible, grep ${local} and the callers are. Rename the definition to\n` +
-                `${exported} and re-export it unaliased.${typeNote}`,
+                `\`export *${namespace} from "${entry.specifier}"\` hides the names this module exposes.\n` +
+                `List each public symbol explicitly instead. The barrel is the map an agent\n` +
+                `greps to learn what this module offers, and a wildcard leaves it blank — it\n` +
+                `also lets every future export of "${entry.specifier}" join the public API with no\n` +
+                `review at the boundary.`,
             });
+            continue;
           }
+
+          // A name a file both declares and offers under the same name is the
+          // whole point of a barrel, so only the rename reports. `export { a as
+          // a }` compares equal here and stays silent.
+          if (entry.kind !== "named" || entry.localName === entry.exportedName) continue;
+
+          const { localName, exportedName } = entry;
+          const origin = entry.specifier === undefined ? "" : ` from "${entry.specifier}"`;
+          // A type-only export is renamed at the barrel more often than a value
+          // one, and the search it splits is the same search — so it reports,
+          // and the note says which case this is rather than offering a way out
+          // of it.
+          const typeNote = entry.typeOnly
+            ? `\nThis one is type-only. A type is reverse-looked-up less often than a value,\n` +
+              `which is an argument for renaming the definition rather than for keeping two\n` +
+              `names nobody greps together.`
+            : "";
+
+          findings.push({
+            severity: "error",
+            file,
+            line,
+            message:
+              `\`export { ${localName} as ${exportedName} }${origin}\` renames on the way out.\n` +
+              `The public name and the definition \`${localName}\` now share no text, so a reverse\n` +
+              `lookup on either misses the other: grep ${exportedName} and the definition is\n` +
+              `invisible, grep ${localName} and the callers are. Rename the definition to\n` +
+              `${exportedName} and re-export it unaliased.${typeNote}`,
+          });
         }
       }
     }
