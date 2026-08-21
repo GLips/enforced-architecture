@@ -137,9 +137,10 @@ type AmbientGlobalPolicyBase = {
  * The module object stands in for the segments above the capability — `require("node:process")` is
  * `process`, so `.env` off it is `process.env`. A bare path has no segment above it, so there is
  * nothing for the module to be, and `capabilityExport` below would be the whole path: every read
- * of a name equal to the global would report, from any listed module. Five arms once carried a
- * `segments.length >= 2` cut for that case which no fixture could reach, and they did not all
- * agree. Making the pairing unwritable deletes the cut instead of repeating it.
+ * of a name equal to the global would report, from any listed module. Guarding that at the read
+ * instead takes a `segments.length >= 2` cut in each of five arms — a cut no fixture can reach,
+ * spelled five times and easy to spell differently. Making the pairing unwritable deletes the cut
+ * rather than repeating it.
  */
 type AmbientGlobalPolicy = AmbientGlobalPolicyBase &
   (

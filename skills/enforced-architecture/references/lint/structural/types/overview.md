@@ -6,10 +6,9 @@ check here calls the TypeScript compiler through [../type-checker.ts](../type-ch
 same answer as the shape written out. The per-file half — the assertions, which are syntax and need
 no checker — is in [../../oxlint/types/overview.md](../../oxlint/types/overview.md).
 
-These seven ran in the oxlint tier first. What that cost is on the record: the shared syntactic
-reading they leaned on was 736 lines, ~340 of them enumerating the spellings of "open key domain"
-and "resolves to something broad", and both questions are now one call each in
-[type-shapes.ts](type-shapes.ts).
+What the checker buys these seven is on the record: answering "open key domain" and "resolves to
+something broad" from syntax alone takes hundreds of lines enumerating spellings, and misses the
+ones nobody thought of. Each is one call in [type-shapes.ts](type-shapes.ts).
 
 | Rule | Blocking | What it buys |
 |---|---|---|
@@ -101,18 +100,17 @@ adaptation it exists for. Removing one of the four shipped names is not — it m
 `ReadonlyArray<unknown>` a contract again, which is an off-switch wearing a list. `bp-spellings.ts`
 pins all four, so the deletion fails the suite instead of going quiet.
 
-## `no-runtime-typeof` is a redesign, not a port
+## `no-runtime-typeof` asks about the operand, not about `typeof`
 
-Its oxlint-tier predecessor banned every runtime `typeof` outside a type guard and said so in its
-own header: the ban was a tooling limit, not a position. It listed the correct code it reported
-anyway — the SSR guard, and the discrimination of a union the compiler had already narrowed — and
-told adopters to expect per-line disables.
+Without a checker the only statable rule is a ban on every runtime `typeof` outside a type guard —
+a tooling limit, not a position. Such a ban reports correct code: the SSR guard, and the
+discrimination of a union the compiler has already narrowed.
 
-The limit is gone, so the ban is. A `typeof` reports when the operand is `unknown`, `any` or
-`object`; over a type, it is ordinary control flow and is silent. Two behaviour changes follow, both
-intended: `typeof window === "undefined"` no longer reports, and neither does
-`typeof value === "string"` over `string | number`. A project that wants the old total ban does not
-get it back by configuring this check. It gets it by not writing `typeof`.
+Here a `typeof` reports when the operand is `unknown`, `any` or `object`; over a type, it is
+ordinary control flow and is silent. Two silences follow, both deliberate:
+`typeof window === "undefined"` does not report, and neither does `typeof value === "string"` over
+`string | number`. A project that wants the total ban does not get it by configuring this check. It
+gets it by not writing `typeof`.
 
 The type-guard exemption stays, because it is what makes the check actionable: the fix for a
 reported `typeof` is to move it into a function returning `value is T`.

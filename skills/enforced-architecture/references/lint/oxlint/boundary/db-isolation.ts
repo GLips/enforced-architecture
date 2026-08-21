@@ -57,10 +57,9 @@ export const dbIsolationRule = defineTreeRule({
     },
   },
   create(context, role) {
-    // The ORM config file needs no exemption of its own any more: it sits at the
-    // project root, outside every declared tree, so this rule is already silent
-    // there. That is the same reason `vite.config.ts` and `tailwind.config.ts`
-    // need none.
+    // The ORM config file needs no exemption of its own: it sits at the project
+    // root, outside every declared tree, so this rule is already silent there.
+    // That is the same reason `vite.config.ts` and `tailwind.config.ts` need none.
     if (isAtProfile(role, ...DATA_ACCESS_PROFILES)) return {};
 
     const { vocabulary } = role.tree;

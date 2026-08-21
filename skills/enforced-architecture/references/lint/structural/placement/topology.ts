@@ -56,12 +56,11 @@ import {
  * `directory-model.md` recommends — internal modules at the domain root — which
  * is this rule's own named failure mode.
  *
- * DERIVED from the tree's vocabulary rather than configured. It used to be a map
- * an adopting project filled in, which meant a subdivided directory could be
- * missing an entry and this check would pass everything under it — a hole that
- * needed its own finding to report. There is no hole to report now: the two
- * subdivided directories are the two the vocabulary names, and each has exactly
- * one grammar.
+ * DERIVED from the tree's vocabulary rather than configured. A map an adopting
+ * project fills in can be missing an entry, and this check would then pass
+ * everything under that directory — a hole needing its own finding to report.
+ * Deriving leaves no hole to report: the two subdivided directories are the two
+ * the vocabulary names, and each has exactly one grammar.
  */
 type BoundaryGrammar =
   | { kind: "layered"; rootFiles: string[]; layers: string[] }

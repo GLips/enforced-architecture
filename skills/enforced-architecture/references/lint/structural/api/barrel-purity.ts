@@ -73,8 +73,8 @@
 // split between the two halves is what makes them different kinds of finding:
 // the module half is a parse and admits no spelling, the name half is text and
 // admits many. A bypass of the name half moves the file OUT — an over-report. A
-// bypass of the module half would be a false negative, and there is no longer a
-// hand-written reader there to bypass.
+// bypass of the module half would be a false negative, and the module half has no
+// hand-written reader to bypass.
 //
 // Folding the name half into the parse is the obvious next move and is not taken
 // here: `entries[].localName` gives the binding exactly, and what stands in the
@@ -229,8 +229,8 @@ function crossesServerFnBoundary(
  * stop it. What stops it is the scan gate in `crossesServerFnBoundary`, which is
  * upstream of every container question: text in a regex is not in
  * `scanDeclaredImports`'s answer, so there is no module for the clause to be read
- * against. That is why this function no longer has to enumerate containers, and
- * why the next one found is not a new hole.
+ * against. That is why this function does not have to enumerate containers, and
+ * why the next container someone finds is not a new hole.
  */
 function maskLiteralContents(source: string): string {
   const out = source.split("");
@@ -293,9 +293,9 @@ function rebindsName(body: string, local: string): boolean {
  *
  * A list rather than one alternation because each entry earns its place
  * separately: every entry here has a fixture that goes red when only that entry
- * is deleted. Two were added after a review beat the previous version — an
- * unparenthesized arrow parameter (`createServerFn => …`) matches no paren and
- * no comma, and a destructured parameter matches neither.
+ * is deleted. Two are the ones a shorter list misses — an unparenthesized arrow
+ * parameter (`createServerFn => …`) matches no paren and no comma, and a
+ * destructured parameter matches neither.
  *
  * NEGATIVE SPACE: a rest binding (`...createServerFn`) is deliberately absent. A
  * rest element is always an array or an object, so the shadow it creates can

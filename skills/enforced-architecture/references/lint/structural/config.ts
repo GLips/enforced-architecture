@@ -139,11 +139,11 @@ export type FileSizeConfig = {
    * govern architecturally — so this check is project-scoped and says so.
    *
    * Each entry is a canonical path of plain segments, checked at startup, because
-   * every one is interpolated straight into a glob. A review replaced the
-   * `src` entry with a glob reaching only the service layer of each feature, and
-   * kept 16/16 green with most of the tree no longer size-checked: a glob here is
-   * the exclusion list this check's own header says it does not have, spelled
-   * from the other side.
+   * every one is interpolated straight into a glob. Do not spell an entry as a
+   * glob: an entry reaching only the service layer of each feature, in place of
+   * `src`, takes most of the tree out of size checking with the whole suite still
+   * green — the exclusion list this check's own header says it does not have,
+   * spelled from the other side.
    */
   roots: string[];
   warnThreshold: number;
@@ -164,11 +164,11 @@ export type TrampolinesConfig = {
    * vocabulary spells each role, so a project renaming `service/` renames it
    * once and this follows.
    *
-   * Checked at startup for two things prose used to ask for: at least one role,
-   * because an empty list is the check walking nothing, and never the repo role,
-   * because thin DB wrappers are its job and a check that reports them reports
-   * the layer working. A prohibition nothing enforces is the shape this catalog
-   * exists to distrust.
+   * Checked at startup rather than asked for in prose, for two things: at least
+   * one role, because an empty list is the check walking nothing, and never the
+   * repo role, because thin DB wrappers are its job and a check that reports them
+   * reports the layer working. A prohibition nothing enforces is the shape this
+   * catalog exists to distrust.
    */
   targetLayerRoles: FeatureLayerRole[];
 };

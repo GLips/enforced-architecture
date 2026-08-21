@@ -6,30 +6,30 @@
 // one file and every other reader of the same payload keeps its old assumption.
 // Put the test in a named guard or a schema, and every caller narrows through it.
 //
-// ── This is a REDESIGN, not a port ────────────────────────────────────
+// ── Scoped to the UNTYPED operand ────────────────────────────────────
 //
-// The oxlint-tier predecessor banned EVERY runtime `typeof` outside a type
-// guard, and said so in its own header: *"This tier has no type information, so
-// the rule cannot ask whether the operand is `unknown` or `string | number`. The
-// ban is a tooling limit, not a position."* It then listed the correct code it
-// reported anyway — the SSR guard, and the discrimination of a union the
-// compiler has already narrowed — and told adopters to expect per-line disables.
+// A tier with no type information cannot ask whether the operand is `unknown` or
+// `string | number`, so the only rule it can state is a ban on EVERY runtime
+// `typeof` outside a type guard — a tooling limit rather than a position, and one
+// that reports correct code: the SSR guard, and the discrimination of a union the
+// compiler has already narrowed. A check written that way owes its adopters a
+// warning to expect per-line disables.
 //
-// The tooling limit is gone, so the ban goes with it. What remains is the
-// position the predecessor was reaching for: a `typeof` is a violation when the
-// operand HAS no type, and ordinary control flow when it has one.
+// This check has a checker, so it states the position instead: a `typeof` is a
+// violation when the operand HAS no type, and ordinary control flow when it has
+// one.
 //
-// Two consequences, both intended and both a change in behaviour:
-//   - `typeof window === "undefined"` is now SILENT. `window` is
+// Two silences follow, and both are deliberate:
+//   - `typeof window === "undefined"` does not report. `window` is
 //     `Window & typeof globalThis`, which is a type; the guard is asking about
 //     existence, not shape.
-//   - `typeof value === "string"` over `string | number` is now SILENT. That is
-//     the compiler's own narrowing mechanism, and the predecessor named it as
-//     code it wrongly reported.
+//   - `typeof value === "string"` over `string | number` does not report. That is
+//     the compiler's own narrowing mechanism, and a check that reports it is
+//     reporting correct code.
 //
-// A project that wants the old total ban does not get it back by configuring
-// this check — there is no knob and there was never going to be one. It gets it
-// by not writing `typeof`.
+// A project that wants the total ban does not get it by configuring this check —
+// there is no knob and there was never going to be one. It gets it by not
+// writing `typeof`.
 //
 // The type-guard exemption stays, and it is what makes the check actionable: the
 // fix for a reported `typeof` is to move it into a function that returns

@@ -2,20 +2,20 @@
 // ask it: `hook-count` counts every hook call, `no-async-effect` watches `useEffect` and
 // `useCallback`, and `derived-state` watches `useEffect` and `useState`.
 //
-// Four copies of the question was four answers to it, and the disagreement was not exotic — it was
-// `React.useEffect`. `hook-count` counted the namespaced spelling, the two `error`-severity rules
-// read `Identifier` only and went silent on it, so one file with `React.` on every hook drew a
-// warning about hook volume and nothing about the async effect leaking inside it. A rule that
-// reports the whole file except the one line that matters is worse than one that reports nothing,
-// because the clean half certifies the missing half.
+// Four copies of the question is four answers to it, and the disagreement is not exotic — it is
+// `React.useEffect`. A `hook-count` that counts the namespaced spelling, beside two
+// `error`-severity rules reading `Identifier` only and silent on it, leaves a file with `React.`
+// on every hook drawing a warning about hook volume and nothing about the async effect inside it.
+// A rule that reports the whole file except the one line that matters is worse than one that
+// reports nothing, because the clean half certifies the missing half.
 //
 // THE HOOK'S NAME IS THE EXPORTING MODULE'S, not the local one. `import { useEffect as useE }`
 // calls `useEffect`, and `import { createStore as useStore }` does not call a hook however the
 // local spelling reads. That is `lib/imported-names.ts`'s rule — "the fence is on what the module
 // hands over, not on what this file decided to call it" — held here so the react tier and the name
-// fences answer the aliasing question the same way. Before this, `hook-count`'s `/^use[A-Z]/`
-// matched `useE` by accident of the letter after `use`, while the other three matched it not at
-// all: three behaviours for one question, none of them decided.
+// fences answer the aliasing question the same way. A private `/^use[A-Z]/` in `hook-count` matches
+// `useE` by accident of the letter after `use` while the other three match it not at all: three
+// behaviours for one question, none of them decided.
 //
 // NEGATIVE SPACE, each a spelling that calls a hook and is reported by nobody:
 //   - A member read whose key is not statically known: `React[hookName]()`. `staticKeyName` owns

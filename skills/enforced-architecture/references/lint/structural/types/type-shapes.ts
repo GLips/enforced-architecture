@@ -4,7 +4,7 @@
 // Two questions carry the file — "is this key domain open" and "does this
 // resolve to something broad" — and each is one call to the checker, which is
 // the whole reason these checks live in this tier. `structural/types/overview.md`
-// has the comparison against the syntactic tier that used to answer them.
+// has the comparison against answering them from syntax alone.
 //
 // ── The one finding this file is built on ─────────────────────────────
 //

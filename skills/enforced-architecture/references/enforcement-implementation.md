@@ -276,7 +276,7 @@ surface repo-wide. Two design constraints make that possible, and both bind any 
 
 Not "implementing" one. The catalog's checks are runnable modules, proved against fixtures in this
 repo's CI. Reimplementing one from its doc is how a check ends up silently matching less than the doc
-promises, which is what happened at three separate deployments before this tier shipped as code.
+promises.
 
 1. Copy `lint/policy/` first if it is not there, then
    `lint/structural/{config,check-context,module-scanning,module-resolution,import-graph,type-checker,registry,run-structural-checks}.ts`

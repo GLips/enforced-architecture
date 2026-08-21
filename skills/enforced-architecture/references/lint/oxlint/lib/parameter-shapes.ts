@@ -1,15 +1,14 @@
 // What a parameter BINDS and what it is annotated with, seen through the wrappers that carry
 // either one. `react/prop-count` is the only reader.
 //
-// This file used to answer three questions for the whole `types` tag — does an annotation resolve
-// to a broad type, is a signature a type guard, is a type an open dictionary — and it was 736
-// lines of syntax doing it. Those three questions moved to `structural/types/type-shapes.ts`,
-// where a real checker answers them, and what is left here is the one question that is genuinely
-// syntactic: which node holds the annotation.
+// The one question here is the one that is genuinely syntactic: which node holds the annotation.
+// What an annotation MEANS — does it resolve to a broad type, is a signature a type guard, is a
+// type an open dictionary — belongs to `structural/types/type-shapes.ts`, where a checker answers
+// each in one call instead of hundreds of lines of syntax enumerating spellings.
 //
-// There is no `unknown`/`any` reading here any more, and none should come back. A rule in this
-// tier that needs to know what a type MEANS belongs in the structural tier; one that adds a
-// second syntactic approximation here is the near-copy this catalog keeps producing.
+// So nothing here reads `unknown`/`any`, and nothing should start. A rule in this tier that needs
+// to know what a type MEANS belongs in the structural tier; one that adds a second syntactic
+// approximation here is the near-copy this catalog keeps producing.
 
 import type { ESTree } from "@oxlint/plugins";
 

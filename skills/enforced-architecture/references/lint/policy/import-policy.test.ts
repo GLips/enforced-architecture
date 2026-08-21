@@ -755,8 +755,8 @@ describeSuite("a vocabulary cannot declare its own tree out of existence", () =>
   // Each of these is a distinct glob SYNTAX, and that is the point: the
   // banned-character version of the check refused `*` and `?` and accepted brace
   // expansion, character classes and negation, each of which composes into an
-  // ignore pattern the vocabulary never declared. `{features,gen}` is the one a
-  // review actually used to exempt `src/features/**` with a green run.
+  // ignore pattern the vocabulary never declared. `{features,gen}` is the one
+  // that exempts `src/features/**` and still runs green.
   for (const dir of ["**", "gen*", "gen?", "{features,gen}", "[a-z]en", "!gen", "@(gen)", "gen/client"]) {
     testCase(`a generatedDir spelled "${dir}" is refused — the pattern would be the adopter's`, () => {
       const silenced: TreeVocabulary = { ...RECOMMENDED_VOCABULARY, generatedDir: dir };
@@ -819,16 +819,16 @@ describeSuite("a vocabulary cannot declare its own tree out of existence", () =>
     ["a server suffix of .gen", { ...RECOMMENDED_VOCABULARY, serverModuleSuffix: ".gen" }],
     ["a server suffix of .d", { ...RECOMMENDED_VOCABULARY, serverModuleSuffix: ".d" }],
     ["a client barrel called index.d", { ...RECOMMENDED_VOCABULARY, clientBarrelModule: "index.d" }],
-    // The composites and the env modules — the fields the first version of this
-    // walk did not reach. Same failure, one level of joining away.
+    // The composites and the env modules — the fields a walk over the top-level
+    // names does not reach. Same failure, one level of joining away.
     ["a db directory called scripts", { ...RECOMMENDED_VOCABULARY, dbSubdir: "scripts" }],
     ["a schema directory called scripts", { ...RECOMMENDED_VOCABULARY, dbSchemaSubdir: "scripts" }],
     ["an api client called api.test", { ...RECOMMENDED_VOCABULARY, apiClientName: "api.test" }],
     ["browser storage called storage.gen", { ...RECOMMENDED_VOCABULARY, browserStorageName: "storage.gen" }],
     ["an env module called env.test", { ...RECOMMENDED_VOCABULARY, envModules: { "env.test": "env-server" } }],
-    // The two ROOT-POSITION records. These were skipped on the theory that a
-    // position which permits a file does not govern one — but the file is
-    // hand-written, sits in a declared tree, and is named in the vocabulary, and
+    // The two ROOT-POSITION records. A record that merely PERMITS a file reads as
+    // one that does not govern it, and that reading is what leaves these out: the
+    // file is hand-written, sits in a declared tree, is named in the vocabulary, and
     // an exempt spelling drops it out of `classifyFileRole` exactly like any
     // other position. `sourceRootPositions.routeTree` is the only role still
     // excluded, and the legal case below is what says so.
@@ -1086,11 +1086,11 @@ describeSuite("a vocabulary cannot declare its own tree out of existence", () =>
 });
 
 describeSuite("a renamed parent directory moves every path derived from it", () => {
-  // The pairs Codex found: each composite used to be a STORED field beside its
-  // own parent, so renaming the parent left the composite pointing at a
-  // directory that no longer existed — and both rules still matched something,
-  // so nothing went red. These assert the derivation, which is the only thing
-  // that makes CLAUDE.md's "one place to change it" true of these names.
+  // Each composite is DERIVED from its own parent rather than STORED beside it.
+  // Stored, a rename would leave the composite pointing at a directory the tree
+  // does not have — and both rules would still match something, so nothing would
+  // go red. These assert the derivation, which is the only thing that makes
+  // CLAUDE.md's "one place to change it" true of these names.
   const RENAMED: TreeVocabulary = {
     ...RECOMMENDED_VOCABULARY,
     infrastructureDir: "adapters",
@@ -1121,9 +1121,9 @@ describeSuite("a renamed parent directory moves every path derived from it", () 
     const renamedBarrel: TreeVocabulary = { ...RECOMMENDED_VOCABULARY, clientBarrelModule: "api" };
     const permitted = featureRootModules(renamedBarrel);
     assert.ok(permitted.includes("api"));
-    // The load-bearing half. While this list stored "index.ts" literally,
-    // topology kept permitting the old name after every other rule had followed
-    // the rename — a barrel the tree no longer has, allowed at every root.
+    // The load-bearing half. With "index" stored in this list literally, topology
+    // would keep permitting that name after every other rule followed the rename
+    // — a barrel the tree does not have, allowed at every root.
     assert.ok(!permitted.includes("index"));
   });
 

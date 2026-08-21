@@ -150,19 +150,19 @@ declare const VALIDATED_DECLARATION: unique symbol;
  * A tree list that has been through `declareTrees`, and the type every consumer
  * of the shipped list takes.
  *
- * The brand exists because the validation was DELETABLE-GREEN. The checks used to
- * be two loose statements below the list, and a review deleted them and ran the
- * whole suite: 50/50 oxlint specs and 16/16 structural checks, exit 0 — because
- * every malformed-vocabulary case calls `assertGoverningVocabulary` directly and
- * none of them proves that the declaration itself is held to it. There is no
+ * The brand exists because validating this by ASSERTION is DELETABLE-GREEN.
+ * Loose statements below the list can be deleted and the whole suite still exits
+ * 0 — every malformed-vocabulary case calls `assertGoverningVocabulary` directly,
+ * and none of them proves that the declaration itself is held to it. There is no
  * assertion that fixes that, only a shape: an unvalidated array literal is not
  * assignable here, so removing the factory call is a compile error rather than a
  * green run.
  *
- * The brand is on the ARRAY, not on its elements, and a review is why: with it on
- * the elements, `export const DECLARED_TREES: ValidatedTrees = []` satisfied the
- * type vacuously — an empty list has no element to fail — and typechecked clean
- * in both configurations, which is the whole catalog silent on every tree.
+ * The brand is on the ARRAY, not on its elements, and the difference is
+ * load-bearing: on the elements, `export const DECLARED_TREES: ValidatedTrees = []`
+ * satisfies the type vacuously — an empty list has no element to fail — and
+ * typechecks clean in both configurations, which is the whole catalog silent on
+ * every tree.
  */
 export type ValidatedTrees = readonly DeclaredTree[] & {
   readonly [VALIDATED_DECLARATION]: true;
@@ -283,9 +283,8 @@ function assertGovernedPositionsAreNotExempt(vocabulary: TreeVocabulary, treeRoo
     ["themeModuleName", `${themeModule(vocabulary)}.ts`],
     ["rootRouteName", `${rootRouteModule(vocabulary)}.tsx`],
     // The composites. Each is a position two rules key on, and each is spelled
-    // from a field that the top-level loop above never reaches on its own — a
-    // review found all four plus the env modules by walking exactly the fields
-    // the first version of this list did not.
+    // from a field the top-level loop above never reaches on its own — so these
+    // four and the env modules below have to be listed here by hand.
     ["dbSubdir", `${dbDir(vocabulary)}/client.ts`],
     ["dbSchemaSubdir", `${dbSchemaPath(vocabulary)}/invoices.ts`],
     ["apiClientName", `${apiClientModule(vocabulary)}.ts`],

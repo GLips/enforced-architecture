@@ -276,12 +276,12 @@
   //   the one rule here reachable in config but absent from `oxlint --print-config
   //   -D all`. It asks whether a condition is statically DECIDED — always true,
   //   always false — where ours asks whether the operand has a type at all. On
-  //   `typeof input === "string"` over `string | number` both are now silent, and
-  //   that agreement is the redesign: when `types/no-runtime-typeof` moved to a
-  //   checker it stopped reporting the narrowing of a union, which its oxlint-tier
-  //   predecessor named in its own header as code it wrongly reported. What neither
-  //   catches is the typo — `typeof v === "sting"` is a comparison that is merely
-  //   always false, not statically decided. Control-verified loaded.
+  //   `typeof input === "string"` over `string | number` both are silent, and that
+  //   agreement is the design: `types/no-runtime-typeof` reads the operand through
+  //   a checker, so the narrowing of a union draws nothing — it is the correct code
+  //   a syntax-only reading of the same rule reports. What neither catches is the
+  //   typo — `typeof v === "sting"` is a comparison that is merely always false,
+  //   not statically decided. Control-verified loaded.
   // NO CANDIDATE, and this is the load-bearing negative result: on a file holding the
   //   canonical violations of `types/no-runtime-typeof`, all 109 `typescript/` rules
   //   together report NOTHING. `types/no-opaque-record`'s headline

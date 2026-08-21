@@ -126,9 +126,9 @@ export type TreeVocabulary = {
   /**
    * How this tree spells each `FEATURE_ROOT_ROLES` position, without extensions.
    * `featureRootModules()` adds the two barrels, which are already named by
-   * `clientBarrelModule`/`serverBarrelModule` — spelling them here too meant a
-   * renamed barrel was still permitted under its old name by topology while
-   * every other rule had followed the rename.
+   * `clientBarrelModule`/`serverBarrelModule` — spelling them here too would leave
+   * a renamed barrel still permitted under its previous name by topology while
+   * every other rule followed the rename.
    *
    * `placement/topology` reads it; `classifySourcePath` deliberately does not —
    * see its `feature-root` arm for why a root file this record rejects still
@@ -152,10 +152,9 @@ export type TreeVocabulary = {
    * `.server`, so `charge.server.ts` is one and `charge.ts` is not.
    *
    * A name rather than a regex, and read by every rule that asks "does this file
-   * run on the server" — three of them once spelled `/\.server\.[tj]sx?$/`
-   * privately, which both forked the answer and hardcoded four extensions while
-   * the walkers had eight. A tree that marks server modules `.node` sets this and
-   * all three follow.
+   * run on the server". A private `/\.server\.[tj]sx?$/` in each of those rules
+   * both forks the answer and hardcodes four extensions while the walkers have
+   * eight. A tree that marks server modules `.node` sets this and all three follow.
    */
   serverModuleSuffix: string;
 
@@ -201,8 +200,9 @@ export type TreeVocabulary = {
    *
    * Two checks read it — `style/css-tokens` walks these files, `style/shadow-source`
    * decides which of two property spellings to look for by whether a file is one
-   * — and each used to carry its own list, so a project adopting `.scss` could
-   * have its stylesheets scanned for shadows and not for raw colours.
+   * — and one list rather than two is what keeps them agreeing: a private list in
+   * each lets a project adopting `.scss` have its stylesheets scanned for shadows
+   * and not for raw colours.
    *
    * Every entry must also be an `assetExtensions` entry: a stylesheet is an
    * asset from the IMPORT side, and a tree that scans `.scss` files while the
@@ -388,12 +388,12 @@ export const RECOMMENDED_VOCABULARY: TreeVocabulary = {
 /**
  * Extensions that make a file SOURCE, for every walker in either tier.
  *
- * One list, because six structural checks used to spell their own and three
- * disagreed: `placement/topology`, whose entire claim is that nothing escapes
- * it, did not walk `.mts`, and `graph/feature-deps` and `graph/domain-cycles`
- * did not count an `.mts`-only feature as a node — so a cycle through one was
- * not a cycle. A per-check glob is a per-check scope, and the mismatch is
- * invisible because every copy still runs green.
+ * One list, because a per-check glob is a per-check scope and the mismatch is
+ * invisible — every copy still runs green. Six structural checks walk source, and
+ * the ones a private list quietly narrows are the ones whose claims are widest:
+ * `placement/topology`, whose entire claim is that nothing escapes it, skipping
+ * `.mts`, or `graph/feature-deps` and `graph/domain-cycles` not counting an
+ * `.mts`-only feature as a node — so a cycle through one is not a cycle.
  */
 export const SOURCE_EXTENSIONS = ["ts", "tsx", "mts", "cts", "js", "jsx", "mjs", "cjs"];
 
@@ -500,11 +500,11 @@ export type SourceProfile =
  * True when a position may carry presentation, so the style tier has a subject
  * there.
  *
- * ONE owner for a question three style rules used to answer separately and
- * inconsistently: `style/no-inline-color` and `style/no-inline-font-size` each
- * carried a private `/\/src\/domains\//` exemption while
- * `style/no-arbitrary-class-values` had none, and nothing recorded whether the
- * asymmetry was a decision or an omission. It was an omission.
+ * ONE owner for a question three style rules ask. Answered privately, it is
+ * answered inconsistently and nothing says so: a `/\/src\/domains\//` exemption
+ * inside `style/no-inline-color` and `style/no-inline-font-size` but not inside
+ * `style/no-arbitrary-class-values` is an asymmetry no reader can tell from a
+ * decision.
  *
  * The domain layer is the one position the layout defines as carrying no
  * presentation at all — `import-policy.ts`'s `domain` row denies `shared-ui`
@@ -690,11 +690,10 @@ export function topLevelDirsByField(vocabulary: TreeVocabulary): Record<string, 
  *                   suffix, an extension list, a filename with an extension
  *
  * Typed as `Record<keyof TreeVocabulary, …>`, and that is the whole point of it
- * existing. The two builders below used to repeat this classification by hand,
- * and their own comment admitted the consequence: a module field added to the
- * vocabulary and forgotten here was a name NEITHER loop checked, with nothing to
- * say so. Now adding a field to `TreeVocabulary` is a compile error until it is
- * classified, and the classification is read rather than restated.
+ * existing: adding a field to `TreeVocabulary` is a compile error until it is
+ * classified. The two builders below read this classification rather than
+ * repeating it by hand, because a classification each of them spells for itself
+ * can be forgotten in both — and a name NEITHER loop checks has nothing to say so.
  */
 const VOCABULARY_FIELD_KINDS: Record<
   keyof TreeVocabulary,
@@ -844,7 +843,7 @@ export function isSafeDirectorySegment(segment: string): boolean {
  * told to name instead.
  *
  * Both halves live here because both are one question asked by four rules, and
- * each half had drifted while it was spelled privately. Taking a PATH rather
+ * each half drifts as soon as it is spelled privately. Taking a PATH rather
  * than a role is what keeps the structural check on this owner too — it has no
  * role to hand in.
  *
@@ -860,8 +859,8 @@ export function isStyleSubject(vocabulary: TreeVocabulary, pathFromSourceRoot: s
 }
 
 /**
- * The positions that run on the SERVER, as the one answer three rules used to
- * hold a copy of each.
+ * The positions that run on the SERVER, as the one answer for the three rules
+ * that ask, rather than a copy inside each.
  *
  * `features/billing/legacy-service/` is still a client context — a directory that
  * merely ends in a server layer's name is not that layer — and a tree that
@@ -946,9 +945,9 @@ export const SOURCE_ROOT_UNIT = ".";
  * Functions rather than stored fields, and that is the whole point: a stored
  * `dbDir: "infrastructure/db"` beside an `infrastructureDir: "infrastructure"`
  * is one fact written twice, and renaming the parent leaves the composite
- * pointing at a directory that no longer exists — silently, because the rule
+ * pointing at a directory that does not exist — silently, because the rule
  * reading the composite and the rule reading the parent both still match
- * something. Every one of these was a stored field, and each pair could drift.
+ * something.
  */
 export function sharedUiDir(vocabulary: TreeVocabulary): string {
   return `${vocabulary.sharedDir}/${vocabulary.sharedUiSubdir}`;
@@ -986,7 +985,8 @@ export function featureRootModules(vocabulary: TreeVocabulary): string[] {
   // Read through the ROLE set, not `Object.values`. The record's type refuses an
   // extra key in a literal, but a value that arrived as a `Record<string, string>`
   // carries whatever it carries — and `Object.values` would permit those names at
-  // every feature root, which is exactly the appendable list this replaced.
+  // every feature root, which is an appendable list of what a feature root may
+  // hold, reached by adding a key.
   return [
     ...barrelModules(vocabulary),
     ...FEATURE_ROOT_ROLES.map((role) => vocabulary.featureRootPositions[role]),
@@ -1039,10 +1039,10 @@ export function featureLayerRole(
  * The top-level directories whose CHILDREN are the boundary rather than
  * themselves — `features/billing` is a boundary, `features` is not.
  *
- * Derived rather than declared. It used to be its own config list, which meant a
- * project could subdivide a directory the classifiers knew nothing about: the
- * structural graph would rank and grant inside it while every oxlint rule read
- * it as one undivided position.
+ * Derived rather than declared. A config list of its own would let a project
+ * subdivide a directory the classifiers know nothing about: the structural graph
+ * would rank and grant inside it while every oxlint rule read it as one
+ * undivided position.
  */
 export function subdividedDirs(vocabulary: TreeVocabulary): string[] {
   return [vocabulary.featuresDir, vocabulary.domainsDir];

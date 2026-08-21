@@ -102,11 +102,11 @@ const BANNED_REFLECT_METHODS = new Map<string, "reflectGet" | "reflectApply">([
 // definitions, which says the same thing. `lib/imported-names.ts` reaches for the resolver over a
 // name lookup for the same reason, spelled `require`.
 //
-// The walk to `upper` is not the old name walk coming back. A reference is recorded on the scope
-// that CONTAINS it, which for a `switch` discriminant is the scope above the one `getScope`
-// returns — so a lookup in one scope misses it, `resolved` comes back undefined, and the rule
-// reports on a local binding it should have left alone. That was a live false positive on
-// `switch (Reflect.get(…))` with a `const Reflect` in the file.
+// The walk to `upper` is not a name walk in disguise. A reference is recorded on the scope that
+// CONTAINS it, which for a `switch` discriminant is the scope above the one `getScope` returns —
+// so a lookup in a single scope misses it, `resolved` comes back undefined, and the rule reports
+// on a local binding it should have left alone. `switch (Reflect.get(…))` with a `const Reflect`
+// in the file is that false positive.
 // Takes the identifier as a plain `Node`, because it arrives through
 // `withoutTransparentWrappers` — which answers "what is this value" and cannot know that this
 // caller narrowed it to an identifier. The two fields read here are on every identifier node.

@@ -313,8 +313,8 @@ unit, relative imports are correct: they cross nothing.
 
 **A unit is finer than a top-level directory.** `shared/ui/` and the rest of `shared/` are one
 boundary and two units, so a primitive reaching `../lib/tokens` is a crossing even though both ends
-sit under `shared/`. Reading the first path segment as the boundary is exactly what let that edge go
-ungoverned in the rules this replaced.
+sit under `shared/`. Reading the first path segment as the boundary is exactly what leaves that edge
+ungoverned.
 
 Sequence this one first in a migration. Both halves are one rule:
 [the structural half](lint/structural/boundary/import-policy.ts) resolves relative edges,

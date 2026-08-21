@@ -77,8 +77,8 @@ template-literal key. Closing that family takes type information, and this tier 
 TypeScript file rather than a structure a project either has or lacks. It targets an idiom that is
 deliberate under `exactOptionalPropertyTypes`: a signal about density, not a defect.
 
-[../lib/parameter-shapes.ts](../lib/parameter-shapes.ts) used to be this tag's shared reading and is
-not any more — it is 54 lines answering which node holds a parameter's annotation, and
+[../lib/parameter-shapes.ts](../lib/parameter-shapes.ts) is not this tag's shared reading — it is 54
+lines answering which node holds a parameter's annotation, and
 [react/prop-count](../react/prop-count.ts) is its only reader. Nothing in this tag needs it. A rule
 added here that wants to know what a type MEANS belongs in the structural tier; one that grows a
 second syntactic approximation in `lib/` is the near-copy this catalog keeps producing.

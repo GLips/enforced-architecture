@@ -115,8 +115,8 @@ export const PanelRow = ({ label }: { label: string }) => <li>{label}</li>;`,
       name: "a genuine compound component namespaced with Object.assign",
       filename: UI,
       // BOTH halves are exported, so this file has two components and the only thing keeping the
-      // rule quiet is the exemption. An earlier version of this fixture exported neither half, so
-      // it scored zero and passed whether the exemption existed or not.
+      // rule quiet is the exemption. Keep both exports: a version of this fixture that exported
+      // neither half would score zero and pass whether the exemption existed or not.
       code: `export function CardRoot({ children }: { children: React.ReactNode }) {
   return <div>{children}</div>;
 }
