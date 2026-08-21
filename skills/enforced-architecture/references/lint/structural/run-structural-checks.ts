@@ -20,10 +20,16 @@
 // up: oxlint failing means the structural tier never runs, and a tier that never
 // ran is indistinguishable from a clean one in the output.
 //
+// Go through `lint/with-real-node.sh` rather than a bare `node`. A bare `node`
+// is whatever the spawning shell put on PATH, and under Bun that is Bun wearing
+// node's name — which walks a different set of files than CI does. The launcher
+// explains itself; the point here is that the recipe is where the mistake gets
+// copied from.
+//
 //   // package.json
 //   {
 //     "scripts": {
-//       "check:arch": "sh -c 'oxlint; a=$?; node lint/structural/check-structure.ts; b=$?; exit $((a > b ? a : b))'"
+//       "check:arch": "sh -c 'oxlint; a=$?; lint/with-real-node.sh lint/structural/check-structure.ts; b=$?; exit $((a > b ? a : b))'"
 //     }
 //   }
 //

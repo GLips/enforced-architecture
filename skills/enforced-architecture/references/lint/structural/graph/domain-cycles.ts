@@ -29,7 +29,7 @@
 // checks two different sets of imports under one stated scope.
 // ──────────────────────────────────────────────────────────────────────
 
-import { describeEdgeLine, type ImportEdge } from "../import-graph.ts";
+import type { ImportEdge } from "../import-graph.ts";
 import type { Finding, StructuralCheck } from "../check-substrate.ts";
 
 /** One domain→domain dependency, and the earliest import that establishes it. */
@@ -86,7 +86,7 @@ export const domainCyclesCheck: StructuralCheck = {
         .filter(({ from, to }) => members.has(from) && members.has(to))
         .map(
           ({ from, to, witness }) =>
-            `  ${from} -> ${to}: ${witness.file}${describeEdgeLine(witness)} ` +
+            `  ${from} -> ${to}: ${witness.file} (line ${witness.line}) ` +
             `imports "${witness.specifier}"`,
         )
         .sort();

@@ -376,15 +376,22 @@ export function toSourcePath(context: TreeContext, absolute: string): string {
  * templates into projects that pick their own runtime, so the tier states the
  * property rather than inheriting whichever answer the host gives.
  *
- * `root` is realpath'd first so a PROJECT checked out under a symlinked path is
- * not a project where every file is reached through a link and nothing is
- * collected at all.
+ * The realpath of `root` decides WHERE TO WALK and never what to call a file.
+ * A project checked out under a symlinked path is not a project where every
+ * file is reached through a link, so the walk starts from the resolved root —
+ * but each hit is handed back under the root the CALLER named. Both are load
+ * bearing, and the second one silently: every consumer takes `relative()`
+ * against `context.sourceRoot` or `config.projectRoot`, and a collector
+ * answering in the resolved frame while those hold the declared spelling makes
+ * every path leave the tree as `../../..`, classify as `neither`, and take
+ * every boundary rule quiet with a clean run.
  */
 function globWithoutSymlinks(pattern: string, root: string): string[] {
-  const realRoot = realpathOrSelf(resolve(root));
+  const declaredRoot = resolve(root);
+  const realRoot = realpathOrSelf(declaredRoot);
   return globSync(pattern, { cwd: realRoot }).flatMap((found) => {
-    const absolute = resolve(realRoot, found);
-    return realpathOrSelf(absolute) === absolute ? [absolute] : [];
+    const walked = resolve(realRoot, found);
+    return realpathOrSelf(walked) === walked ? [resolve(declaredRoot, found)] : [];
   });
 }
 

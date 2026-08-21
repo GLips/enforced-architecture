@@ -126,11 +126,6 @@ export type ImportEdge = {
   to: Classification;
 };
 
-/** `(line N)`, for a message that names an edge inside a longer sentence. */
-export function describeEdgeLine(edge: { line: number }): string {
-  return ` (line ${edge.line})`;
-}
-
 export function classify(
   vocabulary: TreeVocabulary,
   pathFromSourceRoot: string,

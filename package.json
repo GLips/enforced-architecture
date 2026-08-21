@@ -1,6 +1,9 @@
 {
   "name": "enforced-architecture",
   "private": true,
+  "engines": {
+    "node": ">=24.2"
+  },
   "type": "module",
   "scripts": {
     "check": "sh -c 'w=0; for s in typecheck check:rules check:no-reflect-access-live check:structural check:doc-budgets; do npm run --silent $s; c=$?; [ $c -gt $w ] && w=$c; done; exit $w'",

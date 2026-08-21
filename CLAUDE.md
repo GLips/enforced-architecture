@@ -94,6 +94,16 @@ malformed-input message — assert the message, not just the path and severity. 
 half of a message assertion is the load-bearing one: it is the only way to state that a
 branch is narrow.
 
+## A comment in `references/` is a comment in someone else's repo
+
+Everything under `skills/enforced-architecture/references/` is copied verbatim into projects
+that have none of this repo's history. So a comment there saying what a file *used to* do
+describes a past the reader never had, and they cannot check it. Write the standing fact.
+
+`harness/` is the exception, and only because the history is the argument: an assertion kept
+because the suite stayed green through a swap has to say which swap, or the next reader
+deletes it as redundant.
+
 ## Reviewing
 
 Non-trivial work gets a fresh-context review before it closes. On this catalog that has

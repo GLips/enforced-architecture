@@ -32,12 +32,15 @@ import {
   existsSync,
   globSync,
   mkdirSync,
+  mkdtempSync,
   readFileSync,
   realpathSync,
   rmSync,
   statSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -64,6 +67,8 @@ import {
   createTreeContexts,
   type Finding,
   type StructuralCheck,
+  toSourcePath,
+  type TreeContext,
 } from "../skills/enforced-architecture/references/lint/structural/check-substrate.ts";
 import {
   runStructuralChecks,
@@ -391,12 +396,20 @@ assertEveryCheckRanOnEveryTree("misread", PDF_TREE_MISREAD);
 //
 // SAY WHAT THIS DOES NOT PIN. Under a glob that already declines to traverse,
 // the filter in `collectTreeFiles` has no input and is deletable with every
-// check here green — this assertion included. It is kept as validation on a
-// third-party behaviour that demonstrably differs by runtime, in the same
-// disposition as the resolved-escape guard in `module-resolution.ts`. What this
-// block does hold is the direction: if some future walk starts yielding a second
-// name for a file behind a link, it says so here rather than in a boundary rule
+// check here green — this first assertion included. It is kept as validation on
+// a third-party behaviour that demonstrably differs by runtime, in the same
+// disposition as the resolved-escape guard in `module-resolution.ts`. What it
+// does hold is the direction: if some future walk starts yielding a second name
+// for a file behind a link, it says so here rather than in a boundary rule
 // reporting on a feature nobody has.
+//
+// The SECOND assertion is pinned, and it is the one that bites. The walk starts
+// from the resolved root so a project checked out under a link is not a project
+// where every file is behind one — and every consumer of a collected path takes
+// `relative()` against the root the CONFIG named. Answer in the resolved frame
+// and each path leaves the tree as `../../..`, classifies as `neither`, and
+// takes every boundary rule quiet on a green run. That is the catalog's own
+// failure mode, so it is probed against a root that really is a link.
 {
   const throughLinks: string[] = [];
   for (const context of createTreeContexts(fixtureConfig, DECLARED_FIXTURE_TREES)) {
@@ -411,6 +424,37 @@ assertEveryCheckRanOnEveryTree("misread", PDF_TREE_MISREAD);
         `them has a second name and a boundary that does not exist:\n  ` +
         `${throughLinks.sort().join("\n  ")}`,
     );
+  }
+
+  const linkedRoot = join(mkdtempSync(join(tmpdir(), "ea-linked-root-")), "project");
+  symlinkSync(FIXTURE_TREE, linkedRoot, "dir");
+  try {
+    const [direct] = createTreeContexts(fixtureConfig, DECLARED_FIXTURE_TREES);
+    const [linked] = createTreeContexts(
+      { ...fixtureConfig, projectRoot: linkedRoot },
+      DECLARED_FIXTURE_TREES,
+    );
+    if (direct === undefined || linked === undefined) throw new Error("no fixture tree context");
+
+    const from = (context: TreeContext) =>
+      collectTreeFiles(context, SOURCE_FILE_GLOB, { includeTests: true })
+        .map((absolute) => toSourcePath(context, absolute))
+        .sort();
+    const wanted = from(direct);
+    const got = from(linked);
+
+    if (got.join("\n") !== wanted.join("\n")) {
+      const escaped = got.filter((path) => path.startsWith(".."));
+      fail(
+        "<tree-walking>",
+        `a project root that is a symlink collected ${got.length} file(s) against ` +
+          `${wanted.length} through the real path, ${escaped.length} of them outside the tree ` +
+          `entirely — collection is answering in the resolved frame while every consumer ` +
+          `measures from the declared one`,
+      );
+    }
+  } finally {
+    rmSync(dirname(linkedRoot), { recursive: true, force: true });
   }
 }
 

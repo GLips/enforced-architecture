@@ -201,9 +201,9 @@ lint/
   policy/       declared-trees.ts layout.ts import-policy.ts package-owners.ts — the tree list and
                 the tables both tiers read
   oxlint/       plugin.ts, lib/, <tag>/ — rules and their specs
-  structural/   config.ts check-substrate.ts registry.ts run-structural-checks.ts,
+  structural/   config.ts check-substrate.ts registry.ts run-structural-checks.ts — plumbing;
                 module-scanning.ts module-resolution.ts import-graph.ts type-checker.ts
-                — the substrate; arch.config.ts, <tag>/ — checks
+                — the substrates; arch.config.ts, <tag>/ — checks
   with-real-node.sh  — both tiers run through it
 ```
 
@@ -229,30 +229,37 @@ own vocabulary. A single-package repo is the same shape with one entry.
    to a tree switches it off for every test outside one. The dev dependencies are
    unversioned, so the project gets current releases:
    `npm i -D oxlint oxlint-tsgolint @oxlint/plugins eslint-plugin-sonarjs jscpd`
-3. **`lint/structural/`** — the substrate (`config.ts`, `check-substrate.ts`, `module-scanning.ts`,
-   `module-resolution.ts`, `import-graph.ts`, `type-checker.ts`, `registry.ts`,
-   `run-structural-checks.ts`) and every check, all taken unmodified, plus
-   `npm i -D oxc-parser oxc-resolver typescript`. Every substrate file or none of them — scanning,
-   resolution and the graph over both are one chain. The `types/` checks need TypeScript 7: they read
-   the program each tree's `tsconfig` builds. Write `arch.config.ts` on `defaultCheckConfigs`.
-4. **One tsconfig per tier** — [references/setup/oxlint.tsconfig.json](references/setup/oxlint.tsconfig.json)
+3. **`lint/structural/`** — the tier's eight non-check files (`config.ts`, `check-substrate.ts`,
+   `module-scanning.ts`, `module-resolution.ts`, `import-graph.ts`, `type-checker.ts`,
+   `registry.ts`, `run-structural-checks.ts`) and every check, all taken unmodified, plus
+   `npm i -D oxc-parser oxc-resolver typescript`. **All eight or none** — scanning, resolution and
+   the graph over both are one chain. The `types/` checks need TypeScript 7: they read the program
+   each tree's `tsconfig` builds. Write `arch.config.ts` on `defaultCheckConfigs`.
+4. **`lint/with-real-node.sh`**, `chmod +x`, from
+   [references/setup/with-real-node.sh](references/setup/with-real-node.sh). Both tiers run through
+   it and neither is optional: `RuleTester` cannot run under Bun at all, and the structural tier runs
+   there happily while walking a different set of files. It sits above both tier directories because
+   one workaround should not have two copies.
+5. **One tsconfig per tier** — [references/setup/oxlint.tsconfig.json](references/setup/oxlint.tsconfig.json)
    and [references/setup/structural.tsconfig.json](references/setup/structural.tsconfig.json) — added
    to the typecheck script by path. Separate programs, because each tier is copied as a directory
    that has to typecheck on its own.
-5. **Package.json scripts** — `check:arch`, plus `duplication` and `.jscpd.json` from
-   [references/setup/jscpd.json](references/setup/jscpd.json) for the CI-only jscpd pass.
-6. **`lefthook.yml`** from [references/setup/lefthook.yml](references/setup/lefthook.yml).
-7. **Framework import protection** in `vite.config.ts`.
-8. **The directory tree**, with empty barrels.
-9. **Documentation** per [documentation-model.md](references/documentation-model.md): the CLAUDE.md
+6. **Package.json scripts** — `check:arch` and the two the shipped hook calls by name,
+   `check:structural` and `typecheck`, each routed through `lint/with-real-node.sh` rather than a
+   bare `node`. Plus `duplication` and `.jscpd.json` from
+   [references/setup/jscpd.json](references/setup/jscpd.json) for the CI-only jscpd pass. The hook
+   also calls `test`, which is the project's own.
+7. **`lefthook.yml`** from [references/setup/lefthook.yml](references/setup/lefthook.yml).
+8. **Framework import protection** in `vite.config.ts`.
+9. **The directory tree**, with empty barrels.
+10. **Documentation** per [documentation-model.md](references/documentation-model.md): the CLAUDE.md
    rules section, and the `docs/architecture/` files if that choice was made. Then
    `docs/doc-budgets.manifest.json` from
    [references/setup/doc-budgets.manifest.json](references/setup/doc-budgets.manifest.json).
    Ceilings come from what the generated docs weigh, so this step follows them.
-10. **Verify.** Run `npm run check:arch`, and read every finding before you run `npm run dev`. Write
+11. **Verify.** Run `npm run check:arch`, and read every finding before you run `npm run dev`. Write
     the script so each check runs even when an earlier one fails: an `&&` chain stops at the first
     failure, and the checks it skipped report clean by never running.
-
 **Migration.** Decompose it per [migration-patterns.md](references/migration-patterns.md). A
 migration sequences which violations you clear, not which rules run, and the gate is wired last.
 
@@ -313,7 +320,7 @@ for rule implementation:
 > `lint/oxlint/plugin.ts`, switch it on in `.oxlintrc.json`. Never repoint one at a path: tree
 > scoping comes from `declared-trees.ts` through the `.oxlintrc.json` overrides.
 >
-> **Structural checks:** copy the module and the `lint/structural/` substrate unmodified, register it
+> **Structural checks:** copy the module and the `lint/structural/` non-check files unmodified, register it
 > in `lint/structural/registry.ts`, and put every project-specific value in
 > `lint/structural/arch.config.ts`. The keys and defaults are in `lint/structural/config.ts`, typed
 > per check; most checks have none. Do not reimplement a check from its doc.
