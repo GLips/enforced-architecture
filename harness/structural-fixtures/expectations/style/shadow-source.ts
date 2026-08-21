@@ -14,9 +14,9 @@ export const shadowSourceFixtures: CheckFixtures = {
   // obvious case — the whole reason this tier needs an adversarial kind.
   adversarial: [
     "FAIL src/features/alpha/ui/inline-shadow.tsx",
-    // The same JS key in an extension a configured scan list did not name. What
-    // is READ was a knob until now, and a knob that can be emptied is the check
-    // switched off with the config still listing it.
+    // The same JS key in an extension a configured scan list does not name. What
+    // is READ is not a knob: a list that can be emptied is the check switched
+    // off with the config still listing it.
     "FAIL src/features/alpha/ui/modern-shadow.mts",
   ],
 

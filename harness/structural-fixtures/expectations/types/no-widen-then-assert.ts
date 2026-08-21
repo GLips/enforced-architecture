@@ -5,10 +5,10 @@ export const noWidenThenAssertFixtures: CheckFixtures = {
 
   obvious: ["FAIL src/features/alpha/repo/wta-roundtrip.ts"],
 
-  // Five findings over two paths, and two of them are coverage the syntactic
-  // predecessor did not have: the WRAPPED dictionary, and the widening whose
-  // evidence is a CALL's return type. A port that kept the old reading reports
-  // three here and passes a comparison of bare paths.
+  // Five findings over two paths, and two of them are coverage no syntactic
+  // matcher can have: the WRAPPED dictionary, and the widening whose evidence is
+  // a CALL's return type. A check reading the syntax rather than the type
+  // reports three here and passes a comparison of bare paths.
   //
   // `bag-widening.ts` is the pair `types/no-opaque-record` also reports on. It
   // is a separate file for exactly that reason — the tree's rule is that a

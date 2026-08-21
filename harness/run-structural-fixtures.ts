@@ -9,10 +9,10 @@
  * that produced the gap reads straight past it.
  *
  * `style/css-tokens` is the worked example. Its unit of matching is the CSS
- * declaration, and it once matched a LINE — so a value wrapped onto the line
- * after its property was invisible, read as a property with no unit followed by
- * a unit with no property. Every hand-formatted stylesheet went unchecked, and
- * the run was green the entire time.
+ * declaration; match a LINE instead and a value wrapped onto the line after its
+ * property is invisible — read as a property with no unit followed by a unit
+ * with no property. Every hand-formatted stylesheet in the repo goes unchecked,
+ * with the run green throughout.
  *
  * Unlike the oxlint tier, these checks scan declared roots rather than being
  * handed a file, and several scan more than one. So the cases are real files in
@@ -192,8 +192,8 @@ function removeGeneratedFixtures(): void {
  * the evidence is produced here rather than by the code under test. That
  * distinction is the whole point: `CheckRun[]` is the runner's own report of
  * what it did, and a runner that skips a check while still emitting a record
- * with the right id and tree satisfies any assertion made from it. A review did
- * exactly that and the suite reported 16/16.
+ * with the right id and tree satisfies any assertion made from it — a full green
+ * count included.
  */
 const invocations: string[] = [];
 
@@ -283,10 +283,10 @@ assertEveryCheckRanOnEveryTree("misread", PDF_TREE_MISREAD);
 //
 // Every check in this tier reads `edge.target`, and every one of them compares
 // it with the extension stripped or on a prefix of its segments — so the whole
-// suite stays green when the graph stops resolving and goes back to arithmetic
-// on the specifier text. It was green through exactly that swap. No fixture can
-// catch it, because no fixture's VERDICT changes: what changes is whether the
-// answer names a module or a guess.
+// suite stays green when the graph stops resolving and answers with arithmetic
+// on the specifier text instead. No fixture can catch that swap, because no
+// fixture's VERDICT changes: what changes is whether the answer names a module
+// or a guess.
 //
 // So the assertion is about the substrate rather than about a finding. A target
 // either names a file that is there, or names a position nothing on disk backs —
@@ -296,9 +296,9 @@ assertEveryCheckRanOnEveryTree("misread", PDF_TREE_MISREAD);
 // nobody checked.
 //
 // What a target may NOT be is a directory THAT HOLDS A CLIENT BARREL. That is
-// the signature of the substrate this replaced: `@/features/leaf` came back as
-// `features/leaf`, where the barrel's directory is and not where any code is.
-// Reverting `import-graph` to path arithmetic puts five of those back here.
+// the signature of path arithmetic: `@/features/leaf` answers `features/leaf`,
+// where the barrel's directory is and not where any code is. Reverting
+// `import-graph` to path arithmetic puts five of those here.
 //
 // The barrel qualifier is not decoration. A directory with no client barrel
 // genuinely resolves to nothing — `mainFiles` is the CLIENT barrel alone, so a
@@ -387,8 +387,8 @@ assertEveryCheckRanOnEveryTree("misread", PDF_TREE_MISREAD);
 // name for every file behind it, and each of those names is a feature that does
 // not exist.
 //
-// That property used to be the glob library's and is now the tier's, because
-// the library does not have it reliably. ONE call — `globSync` from `node:fs`,
+// That property is the tier's rather than the glob library's, because the
+// library does not have it reliably. ONE call — `globSync` from `node:fs`,
 // same pattern, same tree — returns 282 files under Bun and 275 under Node, and
 // the seven are exactly this tree's five symlinks. A tier that ships as
 // templates into projects it does not choose the runtime for cannot inherit
@@ -553,10 +553,11 @@ assertEveryCheckRanOnEveryTree("misread", PDF_TREE_MISREAD);
 
 // ── The config cannot switch a check off ─────────────────────────────────────
 //
-// Three values in the structural config were predicates in a name's costume:
-// each one had a setting that left the check registered, running, and reporting
-// nothing. They are refused at startup now, and refused is a claim that has to
-// be tested — a validator nobody calls reads exactly like one that passes.
+// Three values in the structural config are predicates in a name's costume:
+// each one has a setting that leaves the check registered, running, and
+// reporting nothing. They are refused at startup, and refused is a claim that
+// has to be tested — a validator nobody calls reads exactly like one that
+// passes.
 //
 // The assertions run against the FIXTURE config, which is the one an adopting
 // project's `arch.config.ts` is shaped like, and they call the runner rather
@@ -582,7 +583,7 @@ const refusedConfigs: { detail: string; config: ArchitectureConfig }[] = [
   },
   // The four token-equality lists are joined into a matcher, so an entry is
   // regex source. `(?!)` is a valid-looking prop list and an always-failing
-  // lookahead: it took the check from four findings to zero.
+  // lookahead: it takes the check from four findings to zero.
   ...(["spacingProps", "radiusProps", "spacingKeys", "radiusKeys"] as const).flatMap((field) => [
     {
       detail: `an always-failing lookahead in ${field} matches nothing and reads as a prop nobody ships`,
@@ -594,8 +595,9 @@ const refusedConfigs: { detail: string; config: ArchitectureConfig }[] = [
     },
   ]),
   // A glob in a ROOT is the exclusion list file-size says it does not have,
-  // spelled from the other side: this exact pair kept 16/16 green with most of
-  // the tree no longer size-checked.
+  // spelled from the other side: roots narrowed to the directories the oversized
+  // fixtures already sit in match every expectation while most of the tree goes
+  // unwalked, so nothing but this refusal reports the difference.
   {
     detail: "a glob in health/file-size roots narrows the walk to whatever it matches",
     config: withCheckConfig(fixtureConfig, "health/file-size", {
@@ -646,10 +648,10 @@ for (const { detail, config } of refusedConfigs) {
 }
 
 // Refusing the malformed values is only half of it. `serverFnBoundary` also has
-// to be UNSATISFIABLE by a word that merely appears in a file: the predecessor
-// tested `raw.includes(marker)`, and a review passed the identifier "the" — which
-// no validator can reject — and cut this check from four findings to one because
-// three unrelated modules had it in a comment. So the assertion is behavioural:
+// to be UNSATISFIABLE by a word that merely appears in a file: a boundary tested
+// as `raw.includes(marker)` accepts the identifier "the" — which no validator can
+// reject — and cuts this check from four findings to one, because three unrelated
+// modules carry that word in a comment. So the assertion is behavioural:
 // a valid-looking boundary that names nothing the framework exports must change
 // no finding at all. It is ADDED to the real calls rather than replacing them,
 // so the comparison isolates the decoy: dropping the real boundary changes the
@@ -774,8 +776,8 @@ function byCheckId(source: CheckRun[]): Map<string, { findings: Finding[]; crash
 
 // ── The two-tree probe ───────────────────────────────────────────────────────
 //
-// NOT a copy of run-rule-fixtures.ts's `checkTreeScoping`, which landed in the
-// same change and is the same size. That one parses the shipped
+// NOT a copy of run-rule-fixtures.ts's `checkTreeScoping`, which is the same
+// size and reads like one. That one parses the shipped
 // `setup/oxlintrc.json` and asserts its override globs name the declared roots;
 // it runs no check. This one runs the whole structural tier twice over one
 // fixture tree and asserts what changes when a root is declared. The shared
@@ -819,8 +821,8 @@ if (!firesOnceDeclared.includes(expectedProbeFinding)) {
 //
 // BOTH directions, and the positive one is the load-bearing half. The negative
 // alone — "nothing reported under capabilities/" — passes unchanged if the
-// fixture under it is renamed or deleted, which is how this guard was
-// deletable-green: a silent stop-matching reports nothing and reads as a pass.
+// fixture under it is renamed or deleted, so the positive half is the only thing
+// standing between a fixture that has gone and a green run.
 const CAPABILITIES_PREFIX = `${PDF_TREE.root}/capabilities/`;
 
 const wrongVocabulary = firesOnceDeclared.filter((entry) => entry.includes(CAPABILITIES_PREFIX));

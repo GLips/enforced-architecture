@@ -21,10 +21,9 @@ export const noRuntimeTypeofFixtures: CheckFixtures = {
   ],
 
   // This entry is the REDESIGN, not decoration. Two of the cases in this file —
-  // the SSR guard and the discrimination of `string | number` — are code the
-  // oxlint-tier predecessor reported and named in its own header as code it
-  // wrongly reported. A port that kept the syntactic ban passes every positive
-  // assertion above and fails only here.
+  // the SSR guard and the discrimination of `string | number` — are code a
+  // SYNTACTIC ban on `typeof` reports and this type-aware check must not. A port
+  // carrying that ban passes every positive assertion above and fails only here.
   //
   // Three more cases in it are this check's own line: an operand that is a
   // CONTAINER of nothing or a UNION with a broad member is not an untyped

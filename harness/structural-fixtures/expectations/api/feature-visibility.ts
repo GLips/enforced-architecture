@@ -31,12 +31,11 @@ export const featureVisibilityFixtures: CheckFixtures = {
     // the occupancy walker, which globs `**/*.{ts,tsx}`, and visible to the
     // enumeration, which lists directories.
     //
-    // Written as the case that separated "deny an importee nobody enumerated"
-    // from "skip it", back when the enumeration was that same `.ts` glob. It no
-    // longer is: `subdirs` lists any directory, and the deny arm reads a grant
-    // file for any importee the map lacks, so this denial now survives either
-    // walker. `escaping-link` below is where that separation lives. What is left
-    // here is end-to-end cover for a feature shape the walkers disagree about,
+    // The denial does not rest on that disagreement: `subdirs` lists any
+    // directory, and the deny arm reads a grant file for any importee the map
+    // lacks, so it survives either walker. Separating "deny an importee nobody
+    // enumerated" from "skip it" is `escaping-link`'s job below. What this line
+    // buys is end-to-end cover for a feature shape the walkers disagree about,
     // and it is cheap; `remote` is its cleared twin.
     "FAIL src/features/hidden/visibility.json",
     // stalepath imports a module of `mislaid` that NO FILE ON DISK BACKS — the
@@ -161,11 +160,10 @@ export const featureVisibilityFixtures: CheckFixtures = {
     "src/features/dispatch/visibility.json",
     // `hidden`'s twin: the same `.mts`-only shape, but it grants its importer.
     // The pair says a feature the occupancy walker cannot see is denied and
-    // clearable, end to end. The narrower claim it was written for — that a
-    // deny for an importee outside the enumeration can be cleared at all — moved
-    // to `granted-escaping-link` below when the enumeration stopped being a
-    // `.ts` glob. Three importees are outside it now, all of them links, and
-    // that one is the only one that proves the CLEARING.
+    // clearable, end to end. The narrower claim — that a deny for an importee
+    // outside the enumeration can be cleared at all — belongs to
+    // `granted-escaping-link` below: three importees sit outside the
+    // enumeration, all of them links, and that one alone proves the CLEARING.
     "src/features/remote/visibility.json",
     // The cleared half of the symlink pair, and the step `aliased-target` above
     // stops short of. renderer imports `granted-target` through `granted-link`
@@ -212,10 +210,9 @@ export const featureVisibilityFixtures: CheckFixtures = {
     // a visibility finding is always an importEE's grant file. It is listed for
     // the OTHER half of the legal contract — the runner asserts each path exists,
     // and leaf-two/visibility.json exists for reasons of its own. Without this
-    // line, deleting the route file leaves the suite green and puts the guard
-    // straight back to being deletable, which is the state this pair of entries
-    // was written to end. leaf-two/visibility.json cannot carry that weight on
-    // its own: it exists because leaf-two grants hub, and hub's import is
+    // line, deleting the route file leaves the suite green and the guard on the
+    // importing end deletable with it. leaf-two/visibility.json cannot carry
+    // that weight on its own: it exists because leaf-two grants hub, and hub's import is
     // untouched by this fixture, so its presence says nothing about whether the
     // route file is still there.
     "src/routes/feature-barrel-neighbour.ts",

@@ -11,13 +11,13 @@ export const importPolicyFixtures: CheckFixtures = {
     // not merely the spelling.
     "FAIL src/features/alpha/ui/sibling-crossing.ts",
     // The long climb out to another top-level boundary, which a spelling matcher
-    // DOES catch. Here as the regression guard: resolving properly had to keep
-    // what a pattern already got right. The edge is PERMITTED — a feature may
+    // DOES catch. Here as the regression guard: resolving properly has to keep
+    // what a pattern already gets right. The edge is PERMITTED — a feature may
     // use a shared helper — so this is the alias-spelling half of the check.
     "FAIL src/features/alpha/ui/long-climb-crossing.ts",
     // A direction denial reached through a relative specifier. src/shared may
-    // import nothing back, and the check this replaces could only ever say "you
-    // spelled it relatively" — which invited the fix of writing the alias, the
+    // import nothing back, and a check reading the spelling can only say "you
+    // spelled it relatively" — which invites the fix of writing the alias, the
     // same violation with a longer name.
     "FAIL src/shared/lib/adapter-crossing.ts",
   ],
@@ -57,13 +57,13 @@ export const importPolicyFixtures: CheckFixtures = {
     "FAIL src/features/alpha/ui/escaped-specifier-crossing.ts",
     // A shebang, which is valid at the top of an executable source file and
     // which a reader that does not expect one rejects outright — taking every
-    // edge in the file, and under the previous substrate the whole graph, with
-    // it.
+    // edge in the file with it, and, where that rejection is a throw, the whole
+    // graph.
     "FAIL src/features/alpha/ui/shebang-crossing.ts",
-    // The five type-only forms, each one a valid import that reached NO check
-    // while type edges were recovered by rewriting the source text. The first
+    // The five type-only forms, each one a valid import that reaches NO check
+    // in a graph recovering type edges by rewriting the source text. The first
     // three defeat the rewrite; the last two contain no spelling of
-    // `import type` for a rewrite to find, and were never reachable that way.
+    // `import type` for a rewrite to find at all.
     // A type-only crossing is denied on DIRECTION here, so these are ordinary
     // findings rather than a separate kind.
     "FAIL src/features/alpha/ui/type-comment-crossing.ts",
@@ -79,10 +79,11 @@ export const importPolicyFixtures: CheckFixtures = {
     // A dynamic import whose specifier is a template with nothing interpolated
     // into it — a static specifier in a spelling that is not a string literal.
     "FAIL src/features/alpha/ui/template-specifier-crossing.ts",
-    // THE hole this check was rebuilt around. `shared/ui/**` and `shared/**` are
-    // one boundary, so the boundary comparison this replaces stayed quiet, and
-    // the aliased shared-ui rule matched no relative specifier — the edge was
-    // governed by nothing, in the layout the catalog itself recommends.
+    // THE hole this check exists to close. `shared/ui/**` and `shared/**` are
+    // one boundary, so a check comparing boundaries stays quiet here, and an
+    // aliased shared-ui rule matches no relative specifier — without this
+    // check the edge is governed by nothing, in the layout the catalog itself
+    // recommends.
     "FAIL src/shared/ui/shared-crossing.ts",
     // Listed ONCE against a file with TWO relative imports. Being in no area is
     // a fact about the file, not about each of its imports, so the count is the

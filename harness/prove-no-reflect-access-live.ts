@@ -3,16 +3,16 @@
  * Proves `types/no-reflect-access` reports under the REAL oxlint CLI.
  *
  * One rule, deliberately. This is not a second rule harness — it exists because
- * `run-rule-fixtures.ts` cannot see the defect this rule shipped with, and no
- * amount of extra spec cases would have.
+ * `run-rule-fixtures.ts` cannot see the defect below, and no amount of extra
+ * spec cases can.
  *
- * The defect: the rule asked "does any enclosing scope bind `Reflect`?" and
- * treated a hit as a local shadow. Under the CLI the global scope declares
- * `Reflect`, so every use answered yes and the rule returned early on all of
- * them — inert, exit 0, nothing printed. Its whole spec stayed green, because
- * `RuleTester` populates no global scope and the walk is right in that host. A
- * rule is only as proved as its host is real, and RuleTester's host is not the
- * one an adopting project runs.
+ * The defect: ask "does any enclosing scope bind `Reflect`?" and treat a hit as
+ * a local shadow, and under the CLI — where the global scope declares `Reflect`
+ * — every use answers yes and the rule returns early on all of them. Inert,
+ * exit 0, nothing printed, and the whole spec green, because `RuleTester`
+ * populates no global scope and that walk is right in that host. A rule is only
+ * as proved as its host is real, and RuleTester's host is not the one an
+ * adopting project runs.
  *
  *     npm run check:no-reflect-access-live
  *
@@ -24,15 +24,15 @@
  * or one that reads the variable rather than each of its definitions does, and an
  * adopter switches the rule off in one line either way.
  *
- * REVERT-PROBE after any change here, every case. Put back the old scope walk (`if
- * (scope.set.has(name)) return true`) and the reporting cases must fail; read the
- * resolved VARIABLE rather than each of its definitions and the merged case must
- * fail; stop walking to `upper` for the reference and the switch case must fail;
- * delete the `resolvesToLocalBinding` call from the rule and the silent cases must
- * fail; move the visitor back from `MemberExpression` to `CallExpression` and the
- * `call`-forwarded case must fail; set the shipped config's key to `"off"` and the
- * enablement check must fail. A run that stays green through any of them is testing
- * nothing.
+ * REVERT-PROBE after any change here, every case. Answer the shadow question with
+ * a scope-chain walk (`if (scope.set.has(name)) return true`) and the reporting
+ * cases must fail; read the resolved VARIABLE rather than each of its definitions
+ * and the merged case must fail; stop walking to `upper` for the reference and the
+ * switch case must fail; delete the `resolvesToLocalBinding` call from the rule and
+ * the silent cases must fail; narrow the visitor from `MemberExpression` to
+ * `CallExpression` and the `call`-forwarded case must fail; set the shipped config's
+ * key to `"off"` and the enablement check must fail. A run that stays green through
+ * any of them is testing nothing.
  *
  * What is NOT probed from here, deliberately: reference resolution versus a
  * scope-chain NAME lookup. Both hosts agree once each definition is asked, so the
@@ -112,9 +112,9 @@ type LiveCase = {
 
 const CASES: LiveCase[] = [
   {
-    // The case the whole ticket is about: nothing in the file declares `Reflect`,
-    // so under the CLI it resolves to the global scope's builtin — which is what
-    // the old walk read as a shadow.
+    // The case this file is built around: nothing in the file declares `Reflect`,
+    // so under the CLI it resolves to the global scope's builtin — which a
+    // scope-chain walk reads as a shadow.
     name: "an unshadowed Reflect.get reports",
     file: "invoices.ts",
     code: `export const value = Reflect.get(invoice, key);\n`,
@@ -152,12 +152,12 @@ const CASES: LiveCase[] = [
     reports: "`Reflect.get` returns `any` whatever the receiver was",
   },
   {
-    // The second silence this rule shipped with, and it needs the real CLI for the
-    // same reason the first one did — under RuleTester the rule was equally silent
-    // here and its spec had no case that noticed. `Reflect.get` sits in the callee's
-    // OBJECT position, so the `CallExpression` visitor this rule started with saw a
-    // member expression whose object was another member expression and returned. One
-    // token from the banned form, emitting verbatim, reporting nothing.
+    // A second silence, and it needs the real CLI for the same reason the first
+    // one does — RuleTester is equally silent here and no spec case notices.
+    // `Reflect.get` sits in the callee's OBJECT position, so a `CallExpression`
+    // visitor sees a member expression whose object is another member expression
+    // and returns. One token from the banned form, emitting verbatim, reporting
+    // nothing.
     name: "the method invoked through `call` reports",
     file: "call-forwarded.ts",
     code: `export const value = Reflect.get.call(null, invoice, key);\n`,
@@ -173,10 +173,10 @@ const CASES: LiveCase[] = [
     reports: null,
   },
   {
-    // The false positive this rule shipped for one commit: a reference is recorded
-    // on the scope that CONTAINS it, and a `switch` discriminant's is the scope
-    // above the one `getScope` returns. Silence here is the rule leaving a real
-    // local binding alone.
+    // The false-positive arm: a reference is recorded on the scope that CONTAINS
+    // it, and a `switch` discriminant's is the scope above the one `getScope`
+    // returns — so a rule that does not walk to `upper` reports here. Silence is
+    // the rule leaving a real local binding alone.
     name: "a shadow read as a switch discriminant stays silent",
     file: "switch-reflect.ts",
     code: `const Reflect = { get: (o: Record<string, unknown>, k: string) => String(o[k]) };\nexport function classify(key: string) {\n  switch (Reflect.get(invoice, key)) {\n    case "paid":\n      return 1;\n    default:\n      return 0;\n  }\n}\n`,
@@ -216,8 +216,8 @@ try {
  * would prove a rule that works and say nothing about whether an adopting
  * project ever runs it. `run-rule-fixtures.ts` does not close that: its
  * tree-scoping guard asks which BLOCK an enabled rule sits in and deliberately
- * declines to ask whether a rule is enabled at all. So the key going missing
- * again — the exact state ea-48 fixed — would leave both files green.
+ * declines to ask whether a rule is enabled at all. So a rule the plugin loads
+ * and the manifest enables nowhere leaves both files green.
  *
  * The string match below is the ONLY thing that asks the enablement question, so
  * it stays. A harness pass that ran the shipped config over every rule's fixtures
@@ -226,10 +226,9 @@ try {
  */
 async function assertShippedConfigEnablesTheRule(): Promise<void> {
   const shipped = await readFile(OXLINTRC_PATH, "utf8");
-  // The SEVERITY, not just the key. `"off"` is the shape the held-back state
-  // would come back as if anyone reached for a softer version of it, and a key set
-  // to `"off"` is the worse half of what the hold was: it reads as coverage from
-  // every angle except a run.
+  // The SEVERITY, not just the key. A key present and set to `"off"` is the
+  // worse half of a key that is missing: it reads as coverage from every angle
+  // except a run, and it is the shape a softer version of this rule arrives in.
   //
   // A substring rather than a parse: the shipped file is JSONC and the only
   // stripper for it lives in the other runner, where it is one guard's private

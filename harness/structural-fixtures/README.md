@@ -4,11 +4,11 @@ One synthetic repo, under `tree/`, that every structural check runs over
 at once. `npm run check:structural` points the checks at it through `config.ts` and
 compares what they report against the expectations in `expectations/`.
 
-## Why a tree at all, when the rule tier gave its up
+## Why a tree at all, when the rule tier has none
 
-The per-file rule tier has no fixture tree any more: `RuleTester` takes each
-case's path as a `filename` field, so `harness/fixtures/<tag>/<rule>/<kind>/`
-became one line in a spec and the directory went.
+The per-file rule tier needs no fixture tree: `RuleTester` takes each case's path
+as a `filename` field, so the path a rule reads is one line in a spec rather than
+a directory on disk.
 
 That option is not open here. These checks **scan declared roots** rather than
 being handed a file, several of them scan *more than one* root, and two of them
@@ -18,10 +18,10 @@ and one shared tree is the only shape that does not mean a tree per root per
 check.
 
 The tree is a synthetic repo. It carries `tree/src` **and**
-`tree/packages/core/src`, because `health/file-size` scans both and the second
-root went unexercised for months while looking fine — a check pointed at a path
-that does not exist returns cleanly by design, so an unexercised root is
-indistinguishable from a working one.
+`tree/packages/core/src`, because `health/file-size` scans both and one oversized
+fixture under the second root is the only thing exercising it — a check pointed
+at a path that does not exist returns cleanly by design, so an unexercised root
+is indistinguishable from a working one.
 
 ## Why the fixtures exist
 
@@ -31,10 +31,10 @@ Reading the check does not catch it either: the reader shares the author's blind
 spot.
 
 `style/css-tokens` is the worked example. Its unit of matching is the CSS
-declaration, and it once matched a line — so a value wrapped onto the line after
-its property was invisible, read as a property with no unit followed by a unit
-with no property. Every hand-formatted stylesheet in the repo went unchecked, and
-the run was green the entire time.
+declaration; match a line instead and a value wrapped onto the line after its
+property is invisible — read as a property with no unit followed by a unit with
+no property. Every hand-formatted stylesheet in the repo goes unchecked, with the
+run green throughout.
 
 ## The three kinds
 
@@ -51,10 +51,10 @@ list fails the run:
    comparison means a *deleted* legal neighbour fails loudly instead of quietly
    reducing coverage.
 
-Findings are compared as a **multiset, with severity**. Both halves had to be:
-comparing bare paths as a set silently accepted three separate regressions — a
-four-matcher check passing with three matchers deleted, a hard error demoted to a
-warning, and five findings where one was expected. Line numbers are deliberately
+Findings are compared as a **multiset, with severity**. Both halves are
+load-bearing: comparing bare paths as a set silently accepts a four-matcher check
+passing with three matchers deleted, a hard error demoted to a warning, and five
+findings where one is expected. Line numbers are deliberately
 *not* compared, because pinning them means editing a fixture's comment header
 breaks an unrelated expectation, which teaches people to re-baseline without
 reading why it moved.

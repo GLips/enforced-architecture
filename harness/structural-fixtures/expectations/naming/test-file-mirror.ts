@@ -12,10 +12,10 @@ export const testFileMirrorFixtures: CheckFixtures = {
     // conventions at once looks clean.
     "WARN src/features/mirror/service/pricing.spec.ts",
     "WARN src/features/mirror/service/test_totals.ts",
-    // An orphan test written as an ES module. The suffix list once spelled the
-    // extension into every entry while the walker accepted eight, so this file
-    // was not recognised as a test at all — and the exemption predicate did not
-    // recognise it either, so it drew every OTHER rule instead.
+    // An orphan test written as an ES module. A suffix list that spells the
+    // extension into every entry while the walker accepts eight does not
+    // recognise this file as a test at all — and the exemption predicate does
+    // not either, so it draws every OTHER rule instead.
     "WARN src/features/mirror/service/orphan-modern.test.mts",
     // The same off-convention `.spec` name as `pricing.spec.ts`, in an extension
     // an extension-listing pattern does not name.

@@ -20,11 +20,10 @@ export const topologyFixtures: CheckFixtures = {
     // the wrong thing or — if it requires a layer to exist before it looks —
     // nothing. Position 3 of the grammar, and the easiest one to leave out.
     "FAIL src/features/orphan-module.ts",
-    // The same ungoverned position, in `.mts`. Four walkers in this tier each
-    // spelled their own source glob and stopped at `.ts`/`.tsx`, so this file
-    // was outside the path grammar while the import graph routed edges through
-    // it. One shared `SOURCE_FILE_GLOB` closes that, and this entry is what
-    // keeps it closed.
+    // The same ungoverned position, in `.mts`. A walker spelling its own source
+    // glob and stopping at `.ts`/`.tsx` leaves this file outside the path
+    // grammar while the import graph routes edges through it. One shared
+    // `SOURCE_FILE_GLOB` is what closes that, and this entry keeps it closed.
     "FAIL src/features/scanner/helpers.mts",
   ],
 
@@ -39,9 +38,9 @@ export const topologyFixtures: CheckFixtures = {
     "src/generated-manifest.gen.mts",
     // A whole generated DIRECTORY, which is the case the `.gen` convention does
     // not cover: the generator stamps nothing on the files it writes. `gen` is
-    // this tree's vocabulary, and both tiers read it — while only the oxlint
-    // ignore pattern did, this exact file was a blocking structural finding and
-    // an ignored file to the linter.
+    // this tree's vocabulary, and both tiers read it — a `gen` known to the
+    // oxlint ignore pattern alone makes this exact file a blocking structural
+    // finding and an ignored file to the linter at once.
     "src/gen/graphql-client.ts",
     // A source-root file. Not a layer, has no layer to move to, and rejected by
     // a whitelist of directory names alone.

@@ -4,7 +4,7 @@ export const fileSizeFixtures: CheckFixtures = {
   check: "health/file-size",
 
   // Two thresholds, and both severities are the point: comparing paths alone
-  // accepted the hard limit being demoted to a warning without a word.
+  // accepts the hard limit demoted to a warning without a word.
   obvious: ["FAIL src/features/alpha/service/oversized.ts"],
 
   adversarial: [
@@ -12,13 +12,13 @@ export const fileSizeFixtures: CheckFixtures = {
     // single fixture past both leaves the warn branch unproven.
     "WARN src/features/alpha/service/large-neighbour.ts",
     // The SECOND declared root. Every other fixture in this tree lives under
-    // `src`, so `packages/core/src` was declared and never exercised — and a
-    // check pointed at a path that does not exist returns cleanly by design, so
-    // an unexercised root is indistinguishable from a working one.
+    // `src`, so this line is the only thing exercising `packages/core/src` — and
+    // a check pointed at a path that does not exist returns cleanly by design,
+    // so an unexercised root is indistinguishable from a working one.
     "FAIL packages/core/src/oversized-core.ts",
-    // The same overrun in `.mts`. This check spelled its own `**/*.{ts,tsx}`
-    // glob, so an ES-module-only file could grow without limit and the run
-    // stayed green.
+    // The same overrun in `.mts`. A check spelling its own `**/*.{ts,tsx}` glob
+    // instead of walking `SOURCE_FILE_GLOB` lets an ES-module-only file grow
+    // without limit, and nothing but this line reports it.
     "FAIL src/features/alpha/service/oversized-modern.mts",
   ],
 

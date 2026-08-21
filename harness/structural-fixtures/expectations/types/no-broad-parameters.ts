@@ -15,7 +15,7 @@ export const noBroadParametersFixtures: CheckFixtures = {
   // `TRANSPARENT_CONTAINER_NAMES`, which nothing else reaches: that set is a
   // COVERAGE list, so an adopter shortening it is turning a check off, and this
   // count is the only place that shows. And one nests five containers deep, which
-  // the walk's old depth bound answered "not broad" for, silently.
+  // a walk that stops unwrapping any shallower answers "not broad" for, silently.
   adversarial: [
     "FAIL src/features/alpha/repo/bp-spellings.ts",
     "FAIL src/features/alpha/repo/bp-spellings.ts",

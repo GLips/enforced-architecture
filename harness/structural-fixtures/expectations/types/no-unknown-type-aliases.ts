@@ -10,8 +10,8 @@ export const noUnknownTypeAliasesFixtures: CheckFixtures = {
   // body reports the first and not the second. One alias is declared INSIDE a
   // function, which a walk over top-level statements never reaches. And one is
   // GENERIC while ignoring its parameter, which the obvious `typeParameters`
-  // early-out silences; that early-out was written, found to change no other
-  // verdict in this tree, and deleted.
+  // early-out silences — and this row is the only verdict in the tree that
+  // early-out changes.
   adversarial: [
     "FAIL src/features/alpha/repo/uta-spellings.ts",
     "FAIL src/features/alpha/repo/uta-spellings.ts",

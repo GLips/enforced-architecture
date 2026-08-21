@@ -2,8 +2,8 @@ import type { CheckFixtures } from "../../expectations.ts";
 
 // Four findings, ONE file. `on-scale-spacing.tsx` carries all four surfaces
 // because they are four independent matchers, and the count is the whole
-// assertion: comparing paths as a set collapsed them to a single entry, under
-// which three of the four could be deleted and the run stayed green.
+// assertion: comparing paths as a set collapses them to a single entry, under
+// which three of the four matchers can be deleted with the run green.
 //
 // Which entry stands for which matcher — the paths cannot say it themselves:
 //

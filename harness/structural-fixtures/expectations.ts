@@ -27,10 +27,10 @@ export type CheckFixtures = {
    * The violation the check's own header names. Each entry is `FAIL <path>` or
    * `WARN <path>`, tree-relative, listed ONCE PER OCCURRENCE.
    *
-   * Compared as a multiset WITH severity, and both halves had to be. Comparing
-   * bare paths as a set silently accepted three distinct regressions: a check
-   * with four independent matchers passing with three of them deleted, a hard
-   * error demoted to a warning, and five findings where one was expected.
+   * Compared as a multiset WITH severity, and both halves are load-bearing.
+   * Comparing bare paths as a set silently accepts a check with four independent
+   * matchers passing with three of them deleted, a hard error demoted to a
+   * warning, and five findings where one is expected.
    *
    * The line number is deliberately not part of it. Pinning lines means editing
    * a fixture's comment header breaks an unrelated expectation, which teaches

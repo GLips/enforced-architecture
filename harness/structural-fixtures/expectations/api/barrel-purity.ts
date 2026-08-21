@@ -24,20 +24,19 @@ export const barrelPurityFixtures: CheckFixtures = {
     // Domains are traced without the short-circuit, so a check that applies it
     // everywhere goes silent here while every feature fixture stays green.
     "FAIL src/domains/encryption/index.ts",
-    // The chain's middle hop is an `.mts` file. This check spelled its own
-    // two-extension resolution list while every walker had eight, so the trace
-    // stopped at the hop and the barrel read clean — a hole its own header
-    // named and did not close.
+    // The chain's middle hop is an `.mts` file. A check spelling its own
+    // two-extension resolution list while every walker has eight stops the trace
+    // at that hop and reads the barrel clean.
     "FAIL src/features/ledger/index.ts",
     // The same hop spelled with the extension TypeScript EMITS — `.js` naming a
     // `.ts` file, which `moduleResolution: "nodenext"` requires rather than
-    // permits. The predecessor resolved by appending suffixes to the specifier,
-    // and no suffix turns `.js` into `.ts`: the trace ended there, the barrel
-    // read clean, and every message this check emitted carried a paragraph
-    // saying so. `ledger` above is the extensionless twin and passed throughout.
+    // permits. A resolver that appends suffixes to the specifier cannot reach it
+    // — no suffix turns `.js` into `.ts` — so the trace ends there and the
+    // barrel reads clean. `ledger` above is the extensionless twin and passes
+    // either way, which is why this hop is its own entry.
     "FAIL src/features/nodenext/index.ts",
     // The SECOND `.js` hop of that barrel, and it is a second entry rather than
-    // a second fixture because it was a second hole. `Chart.tsx` emits `.js`
+    // a second fixture because it is a second hole. `Chart.tsx` emits `.js`
     // under the default `jsx` setting, not `.jsx`, so a table giving `.js` only
     // `.ts` follows the hop above and loses this one — one finding, the
     // component chain silent, and every other case here green. The count is the
@@ -70,8 +69,8 @@ export const barrelPurityFixtures: CheckFixtures = {
     "FAIL src/features/masque/index.ts",
     // The boundary FAKED: a side-effect import of the framework module plus a
     // local function called `createServerFn`. Both halves of a two-question
-    // boundary test are satisfied and no boundary is crossed — a review used
-    // exactly this to suppress the reachable `postgres` finding with a green run.
+    // boundary test are satisfied and no boundary is crossed — which is how this
+    // shape suppresses the reachable `postgres` finding with the run green.
     "FAIL src/features/impostor/index.ts",
     // The boundary SHADOWED: the framework import is real and unused, and the
     // call that runs is a parameter of the same name. Reading the import clause
@@ -88,14 +87,14 @@ export const barrelPurityFixtures: CheckFixtures = {
     // binding form turns exactly one of these red.
     "FAIL src/features/drape/index.ts",
     // The same shadow DECLARED rather than parameterised — a nested `const` of
-    // the imported name. This form was deletable-green until this fixture:
-    // nothing else in the tree reached it.
+    // the imported name. Nothing else in the tree reaches that arm, so this
+    // entry is the only thing that reports when it goes.
     "FAIL src/features/pelmet/index.ts",
     // The boundary's name imported FROM the boundary module and bound to
     // something else: `import { unrelatedExport as createServerFn }`. Searching
     // the clause for the call's name finds it on the local side of the `as`, so
-    // the trace stopped at a boundary this file never crossed — a review left
-    // all 16 checks green that way.
+    // the trace stops at a boundary this file never crosses and every other
+    // check in the tier stays green.
     "FAIL src/features/sconce/index.ts",
     // The same shadow with the destructuring RENAMED, so the name sits after the
     // colon: `{ bridge: createServerFn }`. A reader that takes only the shorthand
@@ -127,7 +126,7 @@ export const barrelPurityFixtures: CheckFixtures = {
     // is the ordinary way a feature exposes a mutation: a check that fires here
     // gets switched off rather than fixed. Its controller also holds an object
     // literal spelling `{ createServerFn: … }`, which is not a binding — a
-    // shadow test that read a `:` as one reported this barrel.
+    // shadow test that reads a `:` as one reports this barrel.
     "src/features/orders/index.ts",
     // The traced module's only `stripe` reference is `import type`. Erased at
     // compile time, so it cannot break a client bundle — and a check reading the

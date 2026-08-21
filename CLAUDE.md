@@ -47,9 +47,9 @@ package reads as a clean one.
 
 Each architectural invariant is enforced in exactly **one** place. Two rules holding
 overlapping copies of one policy is the defect this catalog most reliably produces, and
-the copies always drift: five import rules once disagreed about whether `shared/ui` could
-reach `shared/theme`, because to one of them the file *was* shared and to another the
-target was not a feature. Nobody owned the edge.
+the copies drift: give five import rules a say over whether `shared/ui` may reach
+`shared/theme` and they answer differently, because to one the file *is* shared and to
+another the target is not a feature. Nobody owns the edge.
 
 When two rules can both speak to an edge, that is fine only if they say **different**
 things and are **jointly actionable** — following one's advice must not violate the other.
@@ -85,24 +85,23 @@ keeps committing.
 
 **Every guard is revert-probed.** Delete the guard, confirm the matching fixture actually
 fails. A fixture that passes both before and after a change pins nothing. This is not
-optional diligence — across four tickets, five separate guards were found that could be
-deleted with `npm run check` fully green. Every one was caught by a fresh reader; none by
-the suite.
+optional diligence: an unprobed guard is deletable with `npm run check` fully green, the
+suite cannot tell you which ones are, and a fresh reader is the only thing that catches
+it.
 
 Where a rule's *wording* carries meaning the verdict does not — a type-aware variant, a
 malformed-input message — assert the message, not just the path and severity. The `absent`
 half of a message assertion is the load-bearing one: it is the only way to state that a
 branch is narrow.
 
-## A comment in `references/` is a comment in someone else's repo
+## No archaeology, anywhere
 
-Everything under `skills/enforced-architecture/references/` is copied verbatim into projects
-that have none of this repo's history. So a comment there saying what a file *used to* do
-describes a past the reader never had, and they cannot check it. Write the standing fact.
+A comment saying what a file *used to* do describes a past the reader cannot check, and
+every reader after the next commit is a stranger to it. Write the standing fact.
 
-`harness/` is the exception, and only because the history is the argument: an assertion kept
-because the suite stayed green through a swap has to say which swap, or the next reader
-deletes it as redundant.
+A guard that exists because deleting it once went unnoticed states the risk in the present
+tense — "nothing else reports X, so this is the only thing between a broken X and a green
+run" — never the incident.
 
 ## Reviewing
 

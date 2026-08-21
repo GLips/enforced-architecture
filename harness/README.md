@@ -42,11 +42,11 @@ The spec imports the shipped rule directly, so there is no second copy of any ru
 
 **What this shape does not test:** whether a template survives adaptation. These specs are written against the recommended vocabulary, so a project that renames `domains/` to `core/` in its tree's vocabulary is on its own, and its own spec suite is what covers it — see *Rule Specs* in `references/enforcement-implementation.md`.
 
-### Why the fixture trees are gone
+### Why there is no fixture tree
 
-This harness used to materialize `harness/fixtures/<tag>/<rule>/<kind>/` as a real source tree and lint it, because the rules read the path and Biome could only be pointed at files on disk. `RuleTester` takes `filename` as a field on each test case, so the path a rule reads is now one line in the spec rather than a directory to build. A 130-file tree earning nothing over a field is a tree that costs maintenance for no coverage, so it went.
+The rules read the path, and `RuleTester` takes `filename` as a field on each test case — so the path a rule reads is one line in the spec rather than a directory to build. A 130-file source tree earning nothing over a field is maintenance for no coverage. A linter that can only be pointed at files on disk is what forces the tree; oxlint's tester is not one.
 
-The specs shipping *beside* the rules is the other half of the trade: a project stealing a rule from this catalog now steals its tests in the same copy.
+The specs shipping *beside* the rules is the other half of the trade: a project stealing a rule from this catalog steals its tests in the same copy.
 
 ## The three-kind contract
 
@@ -83,7 +83,7 @@ Every case carries its own `filename`, in the standard layout, because the rules
 - **A kind that ran zero cases.** `RuleTester.run` on an empty scenario emits the suite line and nothing under it, so announcing a kind is not running one. The runner counts each kind's leaf cases as well as reading its name.
 - **`describeRule` no longer refusing an empty kind.** That refusal is what makes a stubbed spec a load error, and every shipped spec is populated, so deleting it changes no output anywhere. The runner calls `describeRule` with one kind emptied and demands a refusal that names it.
 
-The last two are independent holds on one invariant: the probe fails when the refusal goes, the count fails when a case list is emptied after it. Removing both together is what a stub needed to pass, and it did — PASS for that rule, 49/49, exit 0.
+The last two are independent holds on one invariant: the probe fails when the refusal goes, the count fails when a case list is emptied after it. Removing both together is what a stubbed spec needs to pass — and with both gone it passes as PASS for that rule, 49/49, exit 0.
 
 Every one of these was revert-probed when it landed. Do it again after any change here: break a rule and expect its adversarial kind to fail; stub a case list and expect three kinds never run; delete the refusal and expect the probe to fail; do both and expect zero cases. A harness that stays green through any of those is not testing anything.
 
@@ -93,7 +93,7 @@ What it still does not check is whether **oxlint** accepts the plugin, as oppose
 
 `RuleTester` is not the linter. It parses the same source with the same rule, and it does not build the same environment: **no global scope is populated**. So a rule that reasons about globals gets a different answer in the two hosts, and the spec is written in the host where the answer happens to be the one the author expected.
 
-`types/no-reflect-access` is the measured case. It asked "does any enclosing scope bind `Reflect`?" and read a hit as a local shadow. Under the CLI the global scope binds `Reflect`, so every use answered yes and the rule reported nothing at all — shipped, registered, enabled nowhere, and green across all fifteen of its specs. Two spellings of the question were available and each is wrong in one host: `sourceCode.isGlobalReference` answers `true` under the CLI and `false` under RuleTester for the same identifier (oxlint 1.77.0, both measured). The fix reads the resolved binding's **definition site**, which agrees in both.
+`types/no-reflect-access` is the measured case. Ask "does any enclosing scope bind `Reflect`?" and read a hit as a local shadow, and under the CLI — where the global scope binds `Reflect` — every use answers yes and the rule reports nothing at all: registered, enabled, inert, and green across all fifteen of its specs. Two spellings of the question are wrong in one host each: `sourceCode.isGlobalReference` answers `true` under the CLI and `false` under RuleTester for the same identifier (oxlint 1.77.0, both measured). The rule reads the resolved binding's **definition site** instead, which agrees in both.
 
 `harness/prove-no-reflect-access-live.ts` is what proves it: files materialized on disk, linted by the real `oxlint` binary through the shipped `plugin.ts`, diagnostics read back. It covers one rule on purpose and says so in its header.
 
@@ -117,11 +117,11 @@ Verified on oxlint 1.77.0 / bun 1.3.13 / Node 24.17.0. Re-check whether JavaScri
 
 ## Scope
 
-Every rule in the catalog has cases: the oxlint rules through `check:rules`, the structural checks through `check:structural`. Nothing ships as an untested description any more.
+Every rule in the catalog has cases: the oxlint rules through `check:rules`, the structural checks through `check:structural`. Nothing ships as an untested description.
 
 Having cases is not the same as being proved to FIRE, and the section above is the difference. One oxlint rule — `types/no-reflect-access` — is additionally run through the real linter on every `npm run check`. The other 48 are proved on every run only in `RuleTester`'s environment, which is not the one an adopting project runs. Each of them was linted through the real CLI once, by hand, when the full manifest landed; nothing re-checks that.
 
-The structural tier used to be prose. Each consuming project hand-rolled an implementation from the algorithm in the `.md`, and three independent audits found the same result: the implementations drifted, and each one had silently stopped matching part of what its doc promised. One deployment's layer-occupancy check had three bypasses and hardcoded a path its own doc documented as configurable; another's barrel-purity discovered a third of the barrels it claimed to. Every one of those was green. That is the argument for shipping code and config rather than an algorithm — the adaptation step is where the silence was getting in, so the adaptation step is now writing config.
+The structural tier ships code and config rather than an algorithm in a `.md`, and the reason is measured. Where each consuming project hand-rolls an implementation from prose, the implementations drift: three independent audits found the same result, each implementation having silently stopped matching part of what its doc promised. One deployment's layer-occupancy check had three bypasses and hardcoded a path its own doc documented as configurable; another's barrel-purity discovered a third of the barrels it claimed to. Every one of those was green. The adaptation step is where the silence gets in, so the adaptation step is writing config.
 
 What is still not covered, for either tier: whether a rule survives **adaptation**. Renaming a directory, moving a source root, or moving a threshold is unverified work in the consuming project — the catalog's specs are written against the recommended vocabulary, not that project's — so the project writes its own specs in the same change. Repointing a rule at a different path is not on that list, because it is not on offer: no rule takes a pattern as configuration. See *Rule Specs* in `references/enforcement-implementation.md`.
 

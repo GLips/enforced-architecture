@@ -301,8 +301,9 @@ process.exit(
  *
  * Independent of the case counting above, and deliberately not folded into it. This fails when the
  * refusal is deleted while every spec is still populated; that fails when a case list is emptied
- * while the refusal is gone. Either alone leaves half of the contract resting on nothing — the two
- * together were what a stubbed `adversarial` list needed to defeat, and it defeated one.
+ * while the refusal is gone. Either alone leaves half of the contract resting on nothing — a
+ * stubbed `adversarial` list has to defeat both, so each is the only thing reporting once the
+ * other is gone.
  *
  * NEGATIVE SPACE: nothing here asserts that a POPULATED spec is accepted. Reaching that path builds
  * a `RuleTester` and registers three suites, and this process is not a test runner — the 49 rule
@@ -410,8 +411,8 @@ function stripLineComments(source: string): string {
  * The tree-scoping guard: the shipped config's `arch/` scope equals the declared
  * tree list, one `<root>/**` glob per root.
  *
- * NOT a copy of run-structural-fixtures.ts's two-tree probe, which landed in the
- * same change and is the same size. That one runs the checks twice and asserts
+ * NOT a copy of run-structural-fixtures.ts's two-tree probe, which is the same
+ * size and reads like one. That one runs the checks twice and asserts
  * what DECLARING a tree does to the findings; this one never runs a rule, and
  * asserts that the shipped config's globs name the same roots the policy module
  * declares. Different tier, different artifact, no overlapping line — and no
@@ -444,9 +445,9 @@ function stripLineComments(source: string): string {
  * checks above. The shipped config currently names every rule, so the hole is
  * invisible: it opens the next time one is added to `plugin.ts` alone. The one
  * exception is `arch/no-reflect-access`, whose enablement
- * `harness/prove-no-reflect-access-live.ts` pins, because that rule spent a
- * release held back and the note saying so was the only thing keeping the key
- * out of this file.
+ * `harness/prove-no-reflect-access-live.ts` pins — that file lints through the
+ * real CLI, so a key missing from the shipped config leaves it proving a rule no
+ * adopting project runs.
  */
 async function checkTreeScoping(): Promise<string[]> {
   const { DECLARED_TREES } = (await import(join(POLICY_ROOT, "declared-trees.ts"))) as {
@@ -464,8 +465,8 @@ async function checkTreeScoping(): Promise<string[]> {
   // `defineTreeRule`, which is the same act that gives it the gate — so this
   // cannot disagree with what the rule actually does.
   //
-  // Two things this deliberately does not do, each because a review defeated the
-  // version that did. It does not read the rule's SOURCE: a grep for
+  // Two things this deliberately does not do, each because the version that does
+  // them is defeatable in one line. It does not read the rule's SOURCE: a grep for
   // `classifyFileRole` proves an identifier is present, not that it controls
   // execution, and a rule whose gate is deleted with its import left behind
   // passes that grep with every spec green. And it does not ask whether the
@@ -545,8 +546,9 @@ async function checkTreeScoping(): Promise<string[]> {
   // Comparing the set of scoped rules against the set of scoped globs passes
   // whenever every rule appears somewhere and every glob appears somewhere — so
   // an override naming one rule for a second tree satisfies both unions while
-  // the other 48 rules never run there at all. A review declared a second tree,
-  // gave its override a single rule, and the harness stayed green.
+  // the other 48 rules never run there at all. Nothing else here reads the
+  // pairing, so that config is a declared tree with 48 rules silent in it and a
+  // green harness.
   //
   // Built from the rules this config ENABLES, not from every rule that exists:
   // whether a rule is enabled at all is the separate registration-versus-
@@ -602,11 +604,11 @@ async function checkTreeScoping(): Promise<string[]> {
  * The commit gate's lint glob names the same eight extensions the tier walks.
  *
  * The shipped `lefthook.yml` decides which STAGED files oxlint ever sees, and it
- * is the one place that decision is spelled outside `SOURCE_EXTENSIONS`. A review
- * measured the drift: the glob listed four of the eight, so a staged `.mts`,
- * `.cts`, `.mjs` or `.cjs` file produced `lint (skip) no files for inspection`
- * and reached no architecture rule at all — every rule silent on a whole class of
- * file, at the exact moment the rules are supposed to block.
+ * is the one place that decision is spelled outside `SOURCE_EXTENSIONS`. A glob
+ * naming four of the eight leaves a staged `.mts`, `.cts`, `.mjs` or `.cjs` file
+ * reporting `lint (skip) no files for inspection` and reaching no architecture
+ * rule at all — every rule silent on a whole class of file, at the exact moment
+ * the rules are supposed to block, and nothing but this guard says so.
  *
  * NEGATIVE SPACE: the `format` job's glob is deliberately NOT pinned. It is a
  * formatter's subject, not this tier's, and it carries `json` and `css` that no
@@ -620,10 +622,9 @@ async function checkCommitGateExtensions(): Promise<string[]> {
   const lefthook = await readFile(LEFTHOOK_PATH, "utf8");
 
   // The `lint` job's own block, and EXACTLY one of them. `- name: lint` with a
-  // word boundary also matched `- name: lint-compat`: a review added that job
-  // carrying the correct glob, left the real `lint` job on four extensions, and
-  // this guard stayed green while the thing it guards was broken. The scalar has
-  // to end at the line.
+  // word boundary also matches `- name: lint-compat`, so a second job carrying
+  // the correct glob satisfies this guard while the real `lint` job gates
+  // commits on four extensions. The scalar has to end at the line.
   const lintJobs = [...lefthook.matchAll(/^\s*- name: lint$[\s\S]*?\n\s+run:/gm)];
   if (lintJobs.length !== 1) {
     return [
