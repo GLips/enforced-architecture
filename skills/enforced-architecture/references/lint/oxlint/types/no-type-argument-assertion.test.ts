@@ -16,9 +16,9 @@ describeRule("types/no-type-argument-assertion", noTypeArgumentAssertionRule, {
       errors: [{ messageId: "typeArgumentAssertion" }],
     },
     {
-      name: "the tagged-template query this rule generalises",
+      name: "the tagged-template form, where the type argument sits off the call",
       filename: SERVICE,
-      code: `export const listInvoices = () => sql<InvoiceRow>\`select * from invoices\`;`,
+      code: `export const invoiceQuery = () => gql<InvoiceData>\`query { invoices { id } }\`;`,
       errors: [{ messageId: "typeArgumentAssertion" }],
     },
   ],
@@ -66,7 +66,7 @@ describeRule("types/no-type-argument-assertion", noTypeArgumentAssertionRule, {
     {
       name: "a non-null assertion on a template tag",
       filename: SERVICE,
-      code: `export const listInvoices = () => sql!<InvoiceRow>\`select * from invoices\`;`,
+      code: `export const invoiceQuery = () => gql!<InvoiceData>\`query { invoices { id } }\`;`,
       errors: [{ messageId: "typeArgumentAssertion" }],
     },
     {
@@ -114,7 +114,7 @@ export const invoice = (url: string) => loadInvoice(url);`,
     {
       name: "a tagged template whose tag is a member expression",
       filename: SERVICE,
-      code: `export const listInvoices = (db: Db) => db.sql<InvoiceRow>\`select * from invoices\`;`,
+      code: `export const invoiceQuery = (client: ApiClient) => client.gql<InvoiceData>\`query { invoices { id } }\`;`,
       errors: [{ messageId: "typeArgumentAssertion" }],
     },
     {
@@ -194,7 +194,16 @@ export const saveInvoice = (url: string, body: Invoice) => api.post<InvoiceAck>(
     {
       name: "an untagged query template asserts nothing",
       filename: SERVICE,
-      code: `export const listInvoices = () => sql\`select * from invoices\`;`,
+      code: `export const invoiceQuery = () => gql\`query { invoices { id } }\`;`,
+    },
+    {
+      // The revert probe for the `sql` removal, and the reason it is a fixture rather than a line
+      // in the header: `effect/no-sql-type-parameter` owns the typed query outright, and putting
+      // `"sql"` back into the name set turns one template into two findings prescribing two
+      // different fixes. This case goes red the moment the name comes back.
+      name: "a typed sql template belongs to effect/no-sql-type-parameter, not to this rule",
+      filename: SERVICE,
+      code: `export const listInvoices = () => sql<InvoiceRow>\`select * from invoices\`;`,
     },
     {
       name: "a test file may stub a client response however it likes",
@@ -204,7 +213,7 @@ export const saveInvoice = (url: string, body: Invoice) => api.post<InvoiceAck>(
     {
       name: "a one-off script is not shipped module graph",
       filename: "/repo/scripts/backfill-invoices.ts",
-      code: `const rows = await sql<InvoiceRow>\`select * from invoices\`;`,
+      code: `const invoices = await api.get<InvoiceRow>(url);`,
     },
   ],
 });

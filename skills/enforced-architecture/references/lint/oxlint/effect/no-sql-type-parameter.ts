@@ -1,6 +1,6 @@
 // ─── effect/no-sql-type-parameter ─────────────────────────────────────
 //
-// Makes sure: No `sql` template states a row shape that nothing checks —
+// Makes sure: No `sql` tag states a row shape that nothing checks —
 // `sql<Row>`, `db.sql<Row>`, and `sql.unsafe<Row>` all report. A typed row
 // comes from a `SqlSchema` decode, so a renamed column fails at the query
 // and the message names the column. You stop the search for an `undefined`
@@ -14,10 +14,19 @@
 // must narrow, which is honest — the defect this rule names is the claim,
 // not the query.
 //
-// `types/no-type-argument-assertion` holds `sql` in its call-name set, so
-// both rules together report every typed query twice. Take both and remove
-// `"sql"` from that rule's `ASSERTING_DATA_CALL_NAMES`. Each line then
-// carries the message that names the fix its own tag asks for.
+// This rule is the sole owner of the typed `sql` name. `sql` is deliberately
+// absent from `types/no-type-argument-assertion`'s call-name set, which means a
+// spelling missed here is missed everywhere rather than picked up by that rule.
+// The deferred form `const typedSql = sql<Row>` is covered for that reason: it
+// is the shape that appears once the template form starts being refused, and
+// the template it later tags carries no type argument to report.
+//
+// NEGATIVE SPACE: a `sql` CALL is not the subject, so `sql<Row>(query)` and
+// `sql.unsafe<Row>(query)` get no finding from either rule. This is a judgement
+// and not an oversight — on a call the type argument is genuinely ambiguous.
+// `sql.begin<T>(cb)` and `sql.reserve<T>()` take one as a real annotation of
+// what the callback returns, and reporting those buys a rule people switch off.
+// A template and a bare instantiation have no such second reading.
 //
 // SCOPE, and it is the same for every TREE-SCOPED rule in this catalog — which
 // is every rule but `testing/no-module-mocking`, whose subject is a test file and
@@ -30,6 +39,7 @@
 
 import { defineTreeRule } from "../lib/define-tree-rule.ts";
 import { staticKeyName } from "../lib/static-key-name.ts";
+import { withoutTransparentWrappers } from "../lib/transparent-wrappers.ts";
 import { type ESTree } from "@oxlint/plugins";
 
 const SQL_TAG_NAMES = new Set(["sql"]);
@@ -39,13 +49,20 @@ const SQL_TAG_NAMES = new Set(["sql"]);
  * last, and `sql.unsafe` puts it first. A rule reading one end misses whichever spelling the
  * project settled on — and `sql.unsafe<Row>` is the one that most wants catching, since it has
  * neither validation nor escaping.
+ *
+ * The wrappers come off at BOTH ends, because a tag is a value and either end of it can be
+ * wrapped: `sql!<Row>` wedges a node at the top, `(sql as Client).unsafe<Row>` wedges one under
+ * the member the recursion has to walk through. TypeScript syntax hands both bypasses over for
+ * free while the source still reads `sql`. This rule is the only owner of the name, so a wrapper
+ * it does not step through is a hole nothing else covers.
  */
-function isSqlTag(tag: ESTree.Expression): boolean {
-  if (tag.type === "Identifier") return SQL_TAG_NAMES.has(tag.name);
-  if (tag.type !== "MemberExpression") return false;
-  const member = staticKeyName(tag.property, tag.computed);
+function isSqlTag(tag: ESTree.Node): boolean {
+  const bare = withoutTransparentWrappers(tag);
+  if (bare.type === "Identifier") return SQL_TAG_NAMES.has(bare.name);
+  if (bare.type !== "MemberExpression") return false;
+  const member = staticKeyName(bare.property, bare.computed);
   if (member !== undefined && SQL_TAG_NAMES.has(member)) return true;
-  return isSqlTag(tag.object);
+  return isSqlTag(bare.object);
 }
 
 export const noSqlTypeParameterRule = defineTreeRule({
@@ -53,17 +70,32 @@ export const noSqlTypeParameterRule = defineTreeRule({
     type: "problem",
     messages: {
       sqlTypeParameter:
-        "A type parameter on a sql template is an assertion: it declares the row shape and nothing checks it, so a renamed column stays a compile-time success and fails downstream. Run the query through SqlSchema.findOne / findAll / single / void with a Schema, and let the decode fail at the query.",
+        "A type parameter on a sql tag is an assertion: it declares the row shape and nothing checks it, so a renamed column stays a compile-time success and fails downstream. Run the query through SqlSchema.findOne / findAll / single / void with a Schema, and let the decode fail at the query.",
     },
   },
   create(context) {
 
+    function reportTypedSqlTag(
+      node: ESTree.Node,
+      tag: ESTree.Node,
+      typeArguments: ESTree.TSTypeParameterInstantiation | null | undefined,
+    ): void {
+      if (typeArguments === null || typeArguments === undefined) return;
+      if (!isSqlTag(tag)) return;
+      context.report({ node, messageId: "sqlTypeParameter" });
+    }
+
     return {
       TaggedTemplateExpression(node) {
-        if (node.typeArguments === null || node.typeArguments === undefined) return;
-        if (isSqlTag(node.tag)) {
-          context.report({ node, messageId: "sqlTypeParameter" });
-        }
+        reportTypedSqlTag(node, node.tag, node.typeArguments);
+      },
+
+      // `const typedSql = sql<Row>` moves the type argument off the template and keeps the claim
+      // whole: the tagged template written later carries no type argument, so a rule visiting only
+      // TaggedTemplateExpression sees an honest untyped query and the assertion travels on the
+      // binding. It is a separate node type, which is exactly why it survives.
+      TSInstantiationExpression(node) {
+        reportTypedSqlTag(node, node.expression, node.typeArguments);
       },
     };
   },

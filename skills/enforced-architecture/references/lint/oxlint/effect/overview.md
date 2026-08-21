@@ -66,7 +66,7 @@ The last column is the tag each rule would sit in if it were not Effect-specific
 Two of them are one catalog idea in Effect clothing:
 
 - **`no-disable-validation` is the opt-out half of a mandate.** Any rule requiring validation is satisfied by a validator call that validates nothing, so the mandate and the ban on its no-op form have to ship together — `placement/server-fn-validation` is the mandate half at a different boundary.
-- **`no-sql-type-parameter` overlaps `types/no-type-argument-assertion`**, which lists `sql` among its asserting calls. Adopting both double-reports every typed query. Take both and drop `"sql"` from that rule's name set, so each line raises the message naming the fix its own tag would ask for.
+- **`no-sql-type-parameter` is the sole owner of the typed `sql` tag.** `types/no-type-argument-assertion` covers the same claim in every other spelling — `response.json<User>()`, `gql<Data>` — and deliberately leaves `sql` out of its name set, because holding it in both places would report one query twice under two different fixes. So a `sql` spelling this rule misses is missed catalog-wide, which is why its adversarial cases run to the wrapped tag, the computed tag and the deferred `const q = sql<Row>`.
 
 ## What was deliberately not ported
 

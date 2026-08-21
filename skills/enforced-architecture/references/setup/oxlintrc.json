@@ -230,11 +230,8 @@
       "arch/no-nested-layer-provide": "error",
       "arch/no-service-option": "error",
       "arch/no-silent-error-swallow": "error",
-      // Double-reports with `arch/no-type-argument-assertion` until ea-51 lands:
-      // `sql` is in that rule's call-name set, so one `sql<Row>` template draws two
-      // errors prescribing two different fixes. Both stay on — each verdict is
-      // right, and neither rule is the one to drop — but the noise is real and the
-      // fix is a one-line deletion from the OTHER rule, not a severity here.
+      // Turning this one off does not fall back to `arch/no-type-argument-assertion`:
+      // it is the only rule that holds the `sql` name, so off here is off everywhere.
       "arch/no-sql-type-parameter": "error",
 
       // ── health: a decision is readable ──

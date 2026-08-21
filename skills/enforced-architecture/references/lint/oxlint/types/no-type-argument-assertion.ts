@@ -2,14 +2,14 @@
 //
 // Makes sure: A call that reads external data does not name the result type
 // itself. Not `response.json<User>()`, not `parse<Config>(text)`, not a
-// `sql<Row>` tagged template, and not the deferred form
+// `gql<Data>` tagged template, and not the deferred form
 // `const load = client.get<User>`. The type comes from a parser, so a response
 // that lost a field fails at the parse with a message, and not later at a read
 // of `undefined`.
 //
 // The list `ASSERTING_DATA_CALL_NAMES` IS the rule; the other code only finds
 // the name. It ships with the HTTP verbs, `json`, `parse`, the SQL driver
-// methods and the query tags. Add the project's own transport wrappers —
+// methods and the GraphQL tags. Add the project's own transport wrappers —
 // `fetchJson`, `$fetch`, `rpc`, `invoke` — because a wrapper is where this
 // spelling appears most.
 //
@@ -24,6 +24,16 @@
 // A callee behind a binding is not followed: `const runQuery = db.query;
 // runQuery<Row>(sql)` reports only if `runQuery` is in the list, by design.
 //
+// NEGATIVE SPACE: `sql` is deliberately not in the list, and adding it is the
+// one edit this rule's spec refuses. `effect/no-sql-type-parameter` owns the
+// typed query and says more about it — it names the `SqlSchema` decode as the
+// fix and reads both ends of the tag, so it takes `sql.unsafe<Row>`, which the
+// last-segment match here never would. Holding the name in both places would
+// report one query twice under two different fixes. That rule takes the tag and
+// the deferred `const q = sql<Row>` with it; what neither rule reports is a
+// `sql` CALL, because on a call the type argument has an honest second reading
+// — see the negative space there for why.
+//
 // SCOPE, and it is the same for every TREE-SCOPED rule in this catalog — which
 // is every rule but `testing/no-module-mocking`, whose subject is a test file and
 // which is therefore enabled globally. This rule is silent outside the declared
@@ -34,13 +44,15 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineTreeRule } from "../lib/define-tree-rule.ts";
+import { withoutTransparentWrappers } from "../lib/transparent-wrappers.ts";
 import { type ESTree } from "@oxlint/plugins";
 
 // Matched against the LAST segment of the callee, so the receiver never has to be enumerated. Every
 // name here reads external bytes: the HTTP verbs (axios, ky, ofetch and every wrapper of them),
-// `json` for a Response body, `parse` for text formats, the SQL driver methods, and the query tags.
-// `all` is absent on purpose despite `db.all<Row>()`: it would take `Promise.all<[A, B]>` with it,
-// and that type argument is a real annotation rather than a claim about data.
+// `json` for a Response body, `parse` for text formats, the SQL driver methods, and the GraphQL
+// tags. `all` is absent on purpose despite `db.all<Row>()`: it would take `Promise.all<[A, B]>`
+// with it, and that type argument is a real annotation rather than a claim about data. `sql` is
+// absent for a different reason — it has an owner, and the header says which.
 const ASSERTING_DATA_CALL_NAMES = new Set([
   "delete",
   "execute",
@@ -55,31 +67,19 @@ const ASSERTING_DATA_CALL_NAMES = new Set([
   "put",
   "query",
   "request",
-  "sql",
-]);
-
-// `api.get!<User>(url)` and `(api.get as Getter)<User>(url)` are the same call with a node wedged
-// between it and its callee, and either one beats a matcher that reads `callee` directly.
-// `lib/transparent-wrappers.ts` names the same nodes for the same reason, for the rules that step
-// through a wrapped VALUE rather than a wrapped callee. `ParenthesizedExpression` is listed here
-// and deliberately absent there — the spec below pins the parenthesized call as reporting either
-// way, so listing it costs nothing, whereas an unreachable member of a typed union does not.
-const TRANSPARENT_CALLEE_WRAPPERS = new Set([
-  "ChainExpression",
-  "ParenthesizedExpression",
-  "TSAsExpression",
-  "TSNonNullExpression",
-  "TSSatisfiesExpression",
-  "TSTypeAssertion",
 ]);
 
 // Both spellings of the member access, plus the bare call. `client["get"]<User>(url)` is the one a
 // rule reading only `property.name` misses, and it is a single keystroke from the plain form.
+//
+// A callee can be wrapped too: `api.get!<User>(url)` and `(api.get as Getter)<User>(url)` are the
+// same call with a node wedged between it and its callee, and either one beats a matcher reading
+// `callee` directly. `lib/transparent-wrappers.ts` owns which nodes those are — a wrapped callee
+// and a wrapped value are one question, and this rule holding its own list of the answer is how
+// the two drift. Its NEGATIVE SPACE note carries the `ParenthesizedExpression` reasoning; the
+// parenthesized call in the spec below reports through the plain path either way.
 function calledName(expression: ESTree.Expression): string | null {
-  let callee = expression;
-  while (TRANSPARENT_CALLEE_WRAPPERS.has(callee.type) && "expression" in callee) {
-    callee = callee.expression as ESTree.Expression;
-  }
+  const callee = withoutTransparentWrappers(expression);
   if (callee.type === "Identifier") return callee.name;
   if (callee.type !== "MemberExpression") return null;
   if (callee.computed) {
@@ -130,8 +130,9 @@ export const noTypeArgumentAssertionRule = defineTreeRule({
         checkTypeArguments(node.callee, node.typeArguments);
       },
 
-      // `sql<Row>`select …`` is the same assertion with the argument list moved off the call. A rule
-      // that visits only CallExpression is silent on every tagged-template query builder there is.
+      // `gql<Data>`query …`` is the same assertion with the argument list moved off the call. A
+      // rule that visits only CallExpression is silent on every tagged-template query builder
+      // there is.
       TaggedTemplateExpression(node) {
         checkTypeArguments(node.tag, node.typeArguments);
       },
