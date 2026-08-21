@@ -15,6 +15,9 @@
 // for. A guard the two read differently is an edit loop, where satisfying one rule's message
 // trips the other.
 //
+// And the third — "is this type an open dictionary?" — in the section at the foot of the file.
+// Three rules ask it and, before that section, three answered it differently.
+//
 // ── Adapt ──
 // `PROMISE_TYPE_NAMES` exists because `Promise<unknown>` is an unknown contract wearing a wrapper;
 // add project-specific containers (`Result`, `Option`) whose type argument is the real payload.
@@ -397,4 +400,155 @@ export function resolvesToBroadType(
   const alias = aliases.get(name);
   if (alias === undefined) return false;
   return resolvesToBroadType(alias, broadKeywords, aliases, shadowed, new Set([...visited, name]));
+}
+
+// ── The open-dictionary question ──
+//
+// "Is this type an open dictionary, and is its value opaque?" is the tag's third shared question,
+// and it was answered three ways before this section existed: `types/no-opaque-record` read the key
+// of a mapped type but not of a `Record`, `types/no-widen-then-assert` never handled a mapped type
+// at all, and `types/no-known-value-widening` called every `Record` open whatever its key domain.
+// The three disagreed on six spellings of the same type, which is how a widen-then-assert through
+// `{ [K in string]: unknown }` went unreported while the identical `Record<string, unknown>` did not.
+//
+// The KEY half is shared outright — it has one answer. The VALUE half is shared by the two rules
+// that ask it; `types/no-known-value-widening` deliberately does not, because what an annotation
+// takes from a literal is its keys, so `Record<string, Handler>` reports there and must stay silent
+// in the other two. That is the one real divergence and it is pinned by that fixture in all three
+// specs.
+
+const RECORD_TYPE_NAME = "Record";
+
+const OPEN_KEY_DOMAIN_KEYWORDS: ReadonlySet<string> = new Set([
+  "TSStringKeyword",
+  "TSNumberKeyword",
+  "TSSymbolKeyword",
+]);
+
+const OPEN_KEY_TYPE_NAMES: ReadonlySet<string> = new Set(["PropertyKey"]);
+
+/**
+ * A dictionary value that carries no information: `unknown`, `any`, or `object`.
+ *
+ * `object` sits with the top types because as a VALUE it is the same bag — it admits every
+ * non-primitive and supports no property read without a cast. That is a different judgement from
+ * `object` elsewhere, which is why this set is named for the position it governs.
+ */
+export const OPAQUE_DICTIONARY_VALUE_KEYWORDS: ReadonlySet<string> = new Set([
+  "TSUnknownKeyword",
+  "TSAnyKeyword",
+  "TSObjectKeyword",
+]);
+
+/**
+ * Whether a key domain admits keys nobody wrote down — `string`, `number`, `symbol`, `PropertyKey`,
+ * `keyof any`, or a union containing one of them, reached through local aliases.
+ *
+ * ASKED ONLY WHERE A CLOSED DOMAIN CAN BE SPELLED, which is `Record<K, V>` and a mapped type's
+ * constraint. An index signature is NOT gated on this: TypeScript rejects a literal key there
+ * (TS1336), so every index signature that compiles already has an open domain, and testing the key
+ * would only lose the template-literal spelling.
+ *
+ * NEGATIVE SPACE: `keyof T` for any T other than `any` is closed, and so is a union of string
+ * literals — that is the point, since `{ [K in keyof T]: unknown }` is a dirty-field tracker rather
+ * than a bag. A template-literal key domain is open in fact and reads as closed here; it is
+ * unreachable from the two callers, since neither a `Record` argument nor a mapped constraint is
+ * commonly spelled that way.
+ */
+export function isOpenKeyDomain(
+  type: ESTree.TSType,
+  aliases: ReadonlyMap<string, ESTree.TSType>,
+  shadowed: ReadonlySet<string>,
+  visited: ReadonlySet<string> = new Set(),
+): boolean {
+  if (OPEN_KEY_DOMAIN_KEYWORDS.has(type.type)) return true;
+  if (type.type === "TSUnionType") {
+    return type.types.some((member) => isOpenKeyDomain(member, aliases, shadowed, visited));
+  }
+  // `keyof any` is `PropertyKey` spelled the long way round. Every other `keyof` names a shape.
+  if (type.type === "TSTypeOperator" && type.operator === "keyof") {
+    return type.typeAnnotation.type === "TSAnyKeyword";
+  }
+  if (type.type !== "TSTypeReference" || type.typeName.type !== "Identifier") return false;
+
+  const name = type.typeName.name;
+  if (shadowed.has(name)) return false;
+  if (OPEN_KEY_TYPE_NAMES.has(name)) return true;
+  if ((type.typeArguments?.params.length ?? 0) > 0 || visited.has(name)) return false;
+  const alias = aliases.get(name);
+  if (alias === undefined) return false;
+  return isOpenKeyDomain(alias, aliases, shadowed, new Set([...visited, name]));
+}
+
+/**
+ * Whether a dictionary's value type is an opaque bag, through unions, wrappers and local aliases.
+ *
+ * `resolvesToBroadType` owns the walk, so `Record<string, Opaque | string>` over
+ * `type Opaque = unknown` is reported rather than being read as a two-member union — the union arm
+ * that tested members against literal keywords and did not recurse was a two-line bypass of the
+ * whole rule.
+ *
+ * `Record<string, object | string>` reports for the same reason. A union does not launder a broad
+ * member: it is the retreat an agent writes once `Record<string, object>` is refused, and neither
+ * branch supports a property read without narrowing first.
+ */
+export function isOpaqueDictionaryValue(
+  type: ESTree.TSType,
+  aliases: ReadonlyMap<string, ESTree.TSType>,
+  shadowed: ReadonlySet<string>,
+): boolean {
+  return resolvesToBroadType(type, OPAQUE_DICTIONARY_VALUE_KEYWORDS, aliases, shadowed);
+}
+
+/**
+ * The value type of an open dictionary — `Record<K, V>`, `{ [k: K]: V }`, `{ [K in K]: V }` — or
+ * `null` when `type` is not one.
+ *
+ * For the callers that read a whole annotation rather than visiting its parts. The value comes back
+ * instead of a boolean because the two rules that ask disagree on what to do with it: one asks
+ * whether it is opaque, the other does not ask at all.
+ *
+ * A type literal carrying other members ALONGSIDE an index signature is still an open dictionary —
+ * `{ id: string; [k: string]: unknown }` accepts every key a bag does, and `id` being typed does
+ * not close it. `types/no-opaque-record` has always read it that way through its interface arm;
+ * this is where the other two stopped disagreeing.
+ *
+ * NEGATIVE SPACE: only the FIRST index signature is returned, so a type literal declaring both a
+ * string and a number index is judged on whichever comes first.
+ */
+export function openDictionaryValueType(
+  type: ESTree.TSType,
+  aliases: ReadonlyMap<string, ESTree.TSType>,
+  shadowed: ReadonlySet<string>,
+  visited: ReadonlySet<string> = new Set(),
+): ESTree.TSType | null {
+  if (type.type === "TSMappedType") {
+    const value = type.typeAnnotation;
+    if (value === null || value === undefined) return null;
+    return isOpenKeyDomain(type.constraint, aliases, shadowed) ? value : null;
+  }
+  if (type.type === "TSTypeLiteral") {
+    for (const member of type.members) {
+      if (member.type !== "TSIndexSignature") continue;
+      return member.typeAnnotation.typeAnnotation;
+    }
+    return null;
+  }
+  if (type.type !== "TSTypeReference" || type.typeName.type !== "Identifier") return null;
+
+  const name = type.typeName.name;
+  if (shadowed.has(name)) return null;
+  const typeArguments = type.typeArguments?.params ?? [];
+  if (name === RECORD_TYPE_NAME) {
+    const [key, value] = typeArguments;
+    if (typeArguments.length !== 2 || key === undefined || value === undefined) return null;
+    return isOpenKeyDomain(key, aliases, shadowed) ? value : null;
+  }
+  // A local alias to the bag is the bag. A generic alias is not followed, for the same reason
+  // `resolvesToBroadType` does not follow one: its body is written in terms of parameters this tier
+  // cannot substitute.
+  if (typeArguments.length > 0 || visited.has(name)) return null;
+  const alias = aliases.get(name);
+  if (alias === undefined) return null;
+  return openDictionaryValueType(alias, aliases, shadowed, new Set([...visited, name]));
 }

@@ -12,6 +12,16 @@ Three rules interlock and should be taken together — alone, each has a hole th
 
 All three key on `as` and its angle-bracket twin, so all three are silent on the spelling that hides the same claim in a type argument — `response.json<User>()`, ``gql<Data>`…` ``. **[no-type-argument-assertion](no-type-argument-assertion.ts)** covers that one, and it is the spelling an agent reaches for after the other three have refused it, because it reads as ordinary typed API usage rather than as an override. The one name it deliberately leaves alone is `sql`: [effect/no-sql-type-parameter](../effect/no-sql-type-parameter.ts) owns the typed query and names the `SqlSchema` decode as the fix.
 
+## The open-dictionary trio
+
+Three rules key on the same type — `Record<string, unknown>` and its index-signature and mapped-type spellings — from three directions, and `lib/type-annotations.ts` owns the answer so they cannot drift apart. It once answered three ways: `no-widen-then-assert` was blind to two shapes `no-opaque-record` called a bag, and `no-opaque-record` read the key of a mapped type but not of a `Record`, which made `{ [K in number]: unknown }` silent while the identical `{ [k: number]: unknown }` reported.
+
+- **[no-opaque-record](no-opaque-record.ts)** bans the type at the declaration.
+- **[no-widen-then-assert](no-widen-then-assert.ts)** catches a known value being routed through one and asserted back.
+- **[no-known-value-widening](no-known-value-widening.ts)** catches an annotation deleting a literal's keys.
+
+The first two ask both halves of the question — is the key domain open, and is the value opaque. The third asks only the first half, which is why `Record<string, Handler>` reports there and is legal in the other two: what it watches is the keys, whatever the value type says. That row is a fixture in all three specs, and it is the only place the three are meant to disagree. A CLOSED key domain — `Record<keyof T, unknown>`, `{ [K in keyof T]: unknown }`, a union of string literals — is a named shape to all three, so none of them covers opaque values under one.
+
 `require-safety-comment` is the catalog's one *justify* rather than *ban* rule — some assertions are correct and no per-file rule can tell which, so it leaves the hatch open and makes using it leave a trace. `rg "SAFETY:"` is most of the value.
 
 ## Rules

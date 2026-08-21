@@ -61,6 +61,86 @@ describeRule("types/no-opaque-record", noOpaqueRecordRule, {
       errors: [{ messageId: "opaqueRecord" }],
     },
     {
+      // The rest of the open key domain, which the rule must keep reporting now that it reads the
+      // key at all. Narrowing the open set to `string` is how "read the key" becomes a bypass.
+      name: "a symbol key is the same bag",
+      filename: SERVICE,
+      code: `export type InvoicesBySymbol = Record<symbol, unknown>;`,
+      errors: [{ messageId: "opaqueRecord" }],
+    },
+    {
+      name: "PropertyKey is every open key at once",
+      filename: SERVICE,
+      code: `export type AnythingAtAll = Record<PropertyKey, unknown>;`,
+      errors: [{ messageId: "opaqueRecord" }],
+    },
+    {
+      name: "keyof any is PropertyKey spelled the long way round",
+      filename: SERVICE,
+      code: `export type AnythingAtAll = Record<keyof any, unknown>;`,
+      errors: [{ messageId: "opaqueRecord" }],
+    },
+    {
+      name: "a union of open key domains is open",
+      filename: SERVICE,
+      code: `export type InvoicePayload = { [K in string | number]: unknown };`,
+      errors: [{ messageId: "opaqueIndexSignature" }],
+    },
+    {
+      // The one-keystroke bypass the mapped-type arm existed to close and did not: this was silent
+      // while the identical `{ [k: number]: unknown }` reported, because the arm read the key
+      // against a set holding only `string`.
+      name: "a mapped type over the number key domain",
+      filename: SERVICE,
+      code: `export type InvoicePayload = { [K in number]: unknown };`,
+      errors: [{ messageId: "opaqueIndexSignature" }],
+    },
+    {
+      name: "a mapped type over the symbol key domain",
+      filename: SERVICE,
+      code: `export type InvoicePayload = { [K in symbol]: unknown };`,
+      errors: [{ messageId: "opaqueIndexSignature" }],
+    },
+    {
+      // An alias BURIED IN A UNION. The two spellings are covered separately by the header and
+      // were never covered together: the union arm tested members against literal keywords and did
+      // not recurse, so two tidy-looking lines bypassed the whole rule.
+      name: "a union member that is an alias to unknown",
+      filename: SERVICE,
+      code: `type Opaque = unknown;
+export type InvoicePayload = Record<string, Opaque | string>;`,
+      errors: [{ messageId: "opaqueRecord" }],
+    },
+    {
+      // The retreat once `Record<string, object>` is refused. A union does not launder a broad
+      // member — neither branch supports a property read without narrowing first.
+      name: "an object value hidden in a union",
+      filename: SERVICE,
+      code: `export type InvoicePayload = Record<string, object | string>;`,
+      errors: [{ messageId: "opaqueRecord" }],
+    },
+    {
+      // The key domain hidden behind an alias. Now that a closed domain buys silence, the alias is
+      // the cheapest way to spell an open one that does not look open.
+      name: "an open key domain spelled through a local alias",
+      filename: SERVICE,
+      code: `type AnyKey = string;
+export type InvoicePayload = { [K in AnyKey]: unknown };`,
+      errors: [{ messageId: "opaqueIndexSignature" }],
+    },
+    {
+      name: "a dictionary of unknown payloads wearing a Promise",
+      filename: SERVICE,
+      code: `export type PendingById = Record<string, Promise<unknown>>;`,
+      errors: [{ messageId: "opaqueRecord" }],
+    },
+    {
+      name: "a dictionary of unknown arrays",
+      filename: SERVICE,
+      code: `export type RowsById = Record<string, unknown[]>;`,
+      errors: [{ messageId: "opaqueRecord" }],
+    },
+    {
       name: "in a type assertion, where no declaration site is involved",
       filename: SERVICE,
       code: `export const asBag = (input: unknown) => input as Record<string, unknown>;`,
@@ -147,6 +227,10 @@ export type Meta = { [key: string]: any };`,
 
   legal: [
     {
+      // THE DIVERGENCE ROW. `types/no-known-value-widening` reports this exact type over a literal,
+      // because the loss it watches is in the keys. This rule and `types/no-widen-then-assert`
+      // share that key question and go on to ask whether the value is opaque, so both stay silent.
+      // If this ever reports, the three rules have collapsed into one.
       name: "a Record with a concrete value type is a keyed collection, not a bag",
       filename: SERVICE,
       code: `export type InvoicesById = Record<string, Invoice>;`,
@@ -178,6 +262,40 @@ export type Meta = { [key: string]: any };`,
       name: "a shape-preserving mapped type has a closed key domain",
       filename: SERVICE,
       code: `export type Touched<T> = { [K in keyof T]: unknown };`,
+    },
+    {
+      // The same dirty-field tracker in the OTHER spelling. It reported here while the mapped-type
+      // spelling above did not, which is the contradiction the shared key predicate resolves: the
+      // key is read in every arm now, so both are silent.
+      name: "the Record spelling of the same closed key domain",
+      filename: SERVICE,
+      code: `export type Touched<T> = Record<keyof T, unknown>;`,
+    },
+    {
+      // NEGATIVE SPACE, stated in the header: the keys are closed so a misspelling is already a
+      // compile error, but the reads still need casts and nothing in this catalog covers that.
+      // A fixture rather than a comment, so the silence is a decision and not an accident.
+      name: "a closed key domain with opaque values is out of scope, not covered",
+      filename: SERVICE,
+      code: `export type StatusPayloads = Record<"draft" | "paid", unknown>;`,
+    },
+    {
+      // The alias is shadowed by a type parameter of the same name, so `Opaque` here is generic and
+      // the annotation says nothing about `unknown`. Resolving through the module alias is a false
+      // positive that reads as the rule being broken.
+      name: "a type parameter that shadows a local alias is not resolved",
+      filename: SERVICE,
+      code: `type Opaque = unknown;
+export function box<Opaque>(bag: Record<string, Opaque>): Opaque | undefined { return undefined; }`,
+    },
+    {
+      // The same shadow in KEY position. `AnyKey` here is the mapped type's own binder-adjacent
+      // type parameter, not the module alias, so the domain is whatever the caller supplies — and
+      // resolving through the alias would report a generic utility as a bag.
+      name: "a type parameter that shadows a local alias in key position",
+      filename: SERVICE,
+      code: `type AnyKey = string;
+export type Bag<AnyKey> = { [K in AnyKey]: unknown };`,
     },
     {
       name: "a union with no unknown or any member is a real contract",

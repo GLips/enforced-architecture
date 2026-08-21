@@ -18,6 +18,13 @@
 // Both steps must sit in the same function. Across a closure the two lines have
 // different authors, and a per-file rule cannot call the flow pointless.
 //
+// What counts as an open `Record` is `lib/type-annotations.ts`'s answer, not this
+// rule's, so it cannot drift from `types/no-opaque-record`. The two agree on
+// every spelling and on `object` as a value. `types/no-known-value-widening`
+// reads only the KEY half of that answer, which is why `Record<string, Handler>`
+// reports there and is silent here: a dictionary with a precise value type is
+// evidence of a known type, not a widening.
+//
 // Do not add code to unwrap parentheses. oxlint 1.77.0 surfaces neither
 // ParenthesizedExpression nor TSParenthesizedType, so `(value) as (User)`
 // arrives as the bare nodes. The spec pins the parenthesized spelling, so the
@@ -34,6 +41,12 @@
 
 import { defineTreeRule } from "../lib/define-tree-rule.ts";
 import { type ESTree, type Scope, type SourceCode, type Variable } from "@oxlint/plugins";
+import {
+  collectLocalTypeAliases,
+  isOpaqueDictionaryValue,
+  lexicalTypeParameterNames,
+  openDictionaryValueType,
+} from "../lib/type-annotations.ts";
 
 type TypeAssertion = ESTree.TSAsExpression | ESTree.TSTypeAssertion;
 type BroadKind = "top" | "object" | "record";
@@ -70,40 +83,6 @@ function isTopType(type: ESTree.TSType): boolean {
   return type.type === "TSUnknownKeyword" || type.type === "TSAnyKeyword";
 }
 
-function isOpenKeyDomain(type: ESTree.TSType): boolean {
-  if (
-    type.type === "TSStringKeyword" ||
-    type.type === "TSNumberKeyword" ||
-    type.type === "TSSymbolKeyword"
-  ) {
-    return true;
-  }
-  return typeReferenceName(type) === "PropertyKey";
-}
-
-function isOpenDictionary(type: ESTree.TSType): boolean {
-  if (typeReferenceName(type) === "Record") {
-    const params = type.type === "TSTypeReference" ? (type.typeArguments?.params ?? []) : [];
-    const [key, value] = params;
-    return params.length === 2 && key !== undefined && value !== undefined && isOpenKeyDomain(key) && isTopType(value);
-  }
-  if (type.type !== "TSTypeLiteral" || type.members.length !== 1) return false;
-  const [member] = type.members;
-  if (member?.type !== "TSIndexSignature") return false;
-  const [parameter] = member.parameters;
-  return (
-    parameter !== undefined &&
-    isOpenKeyDomain(parameter.typeAnnotation.typeAnnotation) &&
-    isTopType(member.typeAnnotation.typeAnnotation)
-  );
-}
-
-function broadTypeKind(type: ESTree.TSType): BroadKind | null {
-  if (isTopType(type)) return "top";
-  if (type.type === "TSObjectKeyword") return "object";
-  return isOpenDictionary(type) ? "record" : null;
-}
-
 function isDefinitelyObjectType(type: ESTree.TSType): boolean {
   switch (type.type) {
     case "TSArrayType":
@@ -122,16 +101,6 @@ function isDefinitelyObjectType(type: ESTree.TSType): boolean {
     default:
       return false;
   }
-}
-
-function isDefinitelyNarrowerDictionary(type: ESTree.TSType): boolean {
-  if (type.type === "TSTypeLiteral") {
-    return type.members.some((member) => member.type !== "TSIndexSignature");
-  }
-  if (typeReferenceName(type) !== "Record") return false;
-  const params = type.type === "TSTypeReference" ? (type.typeArguments?.params ?? []) : [];
-  const value = params[1];
-  return params.length === 2 && value !== undefined && !isTopType(value);
 }
 
 function resolveVariable(sourceCode: SourceCode, identifier: ESTree.IdentifierReference): Variable | null {
@@ -188,6 +157,43 @@ export const noWidenThenAssertRule = defineTreeRule({
   create(context) {
 
     const sourceCode = context.sourceCode;
+    let aliases: ReadonlyMap<string, ESTree.TSType> = new Map();
+
+    const shadowedAt = (node: ESTree.Node) =>
+      lexicalTypeParameterNames(node, sourceCode.visitorKeys);
+
+    // `lib/type-annotations.ts` owns what an open dictionary is, so this rule and
+    // `types/no-opaque-record` cannot disagree about which spellings are bags. Both halves are
+    // shared: the key domain and the opaque value. `Record<string, object>` and
+    // `{ [K in string]: unknown }` were silent here while the sibling rule called both bags, so a
+    // round trip through either was unreported.
+    function isOpenOpaqueDictionary(type: ESTree.TSType): boolean {
+      const shadowed = shadowedAt(type);
+      const value = openDictionaryValueType(type, aliases, shadowed);
+      return value !== null && isOpaqueDictionaryValue(value, aliases, shadowed);
+    }
+
+    function broadTypeKind(type: ESTree.TSType): BroadKind | null {
+      if (isTopType(type)) return "top";
+      if (type.type === "TSObjectKeyword") return "object";
+      return isOpenOpaqueDictionary(type) ? "record" : null;
+    }
+
+    // Only reached once `broadTypeKind(type)` is null, so an open bag has already been ruled out
+    // and what is left to ask is whether the assertion target says more than the widening did.
+    function isDefinitelyNarrowerDictionary(type: ESTree.TSType): boolean {
+      if (type.type === "TSTypeLiteral") {
+        return type.members.some((member) => member.type !== "TSIndexSignature");
+      }
+      if (typeReferenceName(type) !== "Record") return false;
+      const params = type.type === "TSTypeReference" ? (type.typeArguments?.params ?? []) : [];
+      const value = params[1];
+      return (
+        params.length === 2 &&
+        value !== undefined &&
+        !isOpaqueDictionaryValue(value, aliases, shadowedAt(type))
+      );
+    }
 
     // Returns the type the value was known to be, or `{ type: null }` when it is self-evident but
     // unnamed (a literal, an object expression). `null` means no evidence — the value was never
@@ -302,6 +308,11 @@ export const noWidenThenAssertRule = defineTreeRule({
     };
 
     return {
+      // Collected up front: a type alias is routinely declared below the function that widens
+      // through it, and a widening spelled `const stored: Bag = user` reads nothing without it.
+      Program(node) {
+        aliases = collectLocalTypeAliases(node);
+      },
       TSAsExpression: checkAssertion,
       TSTypeAssertion: checkAssertion,
     };

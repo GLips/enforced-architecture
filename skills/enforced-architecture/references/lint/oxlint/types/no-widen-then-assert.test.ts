@@ -107,6 +107,87 @@ describeRule("types/no-widen-then-assert", noWidenThenAssertRule, {
       errors: [{ messageId: "widenThenAssert" }],
     },
     {
+      // `object` as a dictionary VALUE is the same bag, and bare `object` is already broad here —
+      // this spelling was the gap between the two. `types/no-opaque-record` called it a bag while
+      // this rule did not, so the round trip through it was unreported.
+      name: "widened to a dictionary of objects, which erases every value's shape",
+      filename: SERVICE,
+      code: `export function load(): Invoice {
+  const invoice: Invoice = buildInvoice();
+  const stored: Record<string, object> = invoice;
+  return stored as Invoice;
+}`,
+      errors: [{ messageId: "widenThenAssert" }],
+    },
+    {
+      // The mapped-type spelling of the same bag. This rule never handled `TSMappedType` at all, so
+      // one keystroke off `{ [k: string]: unknown }` bought silence.
+      name: "widened to the mapped-type spelling of an open dictionary",
+      filename: SERVICE,
+      code: `export function load(): Invoice {
+  const invoice: Invoice = buildInvoice();
+  const stored: { [K in string]: unknown } = invoice;
+  return stored as Invoice;
+}`,
+      errors: [{ messageId: "widenThenAssert" }],
+    },
+    {
+      name: "widened to a mapped type over the number key domain",
+      filename: SERVICE,
+      code: `export function load(): Invoice {
+  const invoice: Invoice = buildInvoice();
+  const stored: { [K in number]: unknown } = invoice;
+  return stored as Invoice;
+}`,
+      errors: [{ messageId: "widenThenAssert" }],
+    },
+    {
+      name: "widened to a mapped type over the symbol key domain",
+      filename: SERVICE,
+      code: `export function load(): Invoice {
+  const invoice: Invoice = buildInvoice();
+  const stored: { [K in symbol]: unknown } = invoice;
+  return stored as Invoice;
+}`,
+      errors: [{ messageId: "widenThenAssert" }],
+    },
+    {
+      name: "widened to a number-keyed index signature",
+      filename: SERVICE,
+      code: `export function load(): Invoice {
+  const invoice: Invoice = buildInvoice();
+  const stored: { [k: number]: unknown } = invoice;
+  return stored as Invoice;
+}`,
+      errors: [{ messageId: "widenThenAssert" }],
+    },
+    {
+      // One typed member beside the index signature does not close the key domain: the type still
+      // accepts every string key. Requiring the literal to hold exactly one member made this the
+      // cheapest way out of the rule.
+      name: "one named field beside the index signature does not make it a shape",
+      filename: SERVICE,
+      code: `export function load(): Invoice {
+  const invoice: Invoice = buildInvoice();
+  const stored: { id: string; [k: string]: unknown } = invoice;
+  return stored as Invoice;
+}`,
+      errors: [{ messageId: "widenThenAssert" }],
+    },
+    {
+      // The bag reached through a local alias. Type aliases are routinely declared below the
+      // function that widens through them, which is why they are collected from `Program` up front.
+      name: "widened through a local alias to the bag, declared below the use",
+      filename: SERVICE,
+      code: `export function load(): Invoice {
+  const invoice: Invoice = buildInvoice();
+  const stored: Bag = invoice;
+  return stored as Invoice;
+}
+type Bag = Record<string, unknown>;`,
+      errors: [{ messageId: "widenThenAssert" }],
+    },
+    {
       name: "asserted to something unrelated, which is still evidence invented from nothing",
       filename: SERVICE,
       code: `export function load(): AccountId {
@@ -214,6 +295,56 @@ export function second(): void {
   let stored: unknown = loaded;
   stored = fetchOther();
   return stored as User;
+}`,
+    },
+    {
+      // THE DIVERGENCE ROW. `types/no-known-value-widening` reports this exact annotation, because
+      // what it watches is a literal losing its keys. Here the value type is precise, so the
+      // dictionary is a real keyed collection and holding a `User` in one discards nothing.
+      // If this ever reports, the two rules have collapsed into one and the key/value split is gone.
+      name: "a dictionary with a precise value type is a collection, not a widening",
+      filename: SERVICE,
+      code: `export function load(): Invoice {
+  const invoice: Invoice = buildInvoice();
+  const stored: Record<string, Handler> = invoice;
+  return stored as Invoice;
+}`,
+    },
+    {
+      // A closed key domain is a named shape, not a bag — the same reading that keeps a dirty-field
+      // tracker legal in `types/no-opaque-record`.
+      name: "a closed key domain is a shape the value can honestly hold",
+      filename: SERVICE,
+      code: `export function load(): Invoice {
+  const invoice: Invoice = buildInvoice();
+  const stored: Record<"draft" | "paid", unknown> = invoice;
+  return stored as Invoice;
+}`,
+    },
+    {
+      // An assertion from one bag to another recovers nothing, so there is no invented type to
+      // report — and `types/no-opaque-record` reports the target anyway, which is what keeps the
+      // two messages jointly actionable instead of an edit loop. The recovery test asks the shared
+      // opaque-value question, so `object` under closed keys is still a bag here.
+      name: "asserting from one bag to another is not a recovery",
+      filename: SERVICE,
+      code: `export function load(): Record<"draft" | "paid", object> {
+  const invoice: Invoice = buildInvoice();
+  const stored: Record<string, unknown> = invoice;
+  return stored as Record<"draft" | "paid", object>;
+}`,
+    },
+    {
+      // `Bag` here is the function's own type parameter, so the annotation says nothing about
+      // `Record`. Now that aliases are resolved, a file that names a generic after one of them is
+      // exactly where this rule would invent a widening that was never written.
+      name: "a type parameter that shadows an alias to the bag is not a widening",
+      filename: SERVICE,
+      code: `type Bag = Record<string, unknown>;
+export function load<Bag>(seed: Bag): Invoice {
+  const invoice: Invoice = buildInvoice();
+  const stored: Bag = invoice;
+  return stored as Invoice;
 }`,
     },
     {

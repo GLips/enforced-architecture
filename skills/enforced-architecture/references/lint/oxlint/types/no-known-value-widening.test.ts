@@ -6,7 +6,11 @@ const SERVICE = "/repo/src/features/billing/service/invoices.ts";
 describeRule("types/no-known-value-widening", noKnownValueWideningRule, {
   obvious: [
     {
-      // The motivating case. The VALUE type is precise; what the annotation deletes is the KEYS.
+      // The motivating case, and THE DIVERGENCE ROW. The VALUE type is precise; what the annotation
+      // deletes is the KEYS. `types/no-opaque-record` and `types/no-widen-then-assert` share the
+      // key question with this rule and go on to ask whether the value is opaque, so both are
+      // silent on this exact type and each pins it as legal. This is the fixture that proves the
+      // three rules are not one rule — if it ever stops reporting here, the key/value split is gone.
       name: "a Record annotation over a literal with known keys",
       filename: SERVICE,
       code: `export const handlers: Record<string, Handler> = { start: startHandler, stop: stopHandler };`,
@@ -68,6 +72,40 @@ describeRule("types/no-known-value-widening", noKnownValueWideningRule, {
       errors: [{ messageId: "widening" }],
     },
     {
+      name: "a mapped type over the number key domain",
+      filename: SERVICE,
+      code: `export const flags: { [K in number]: boolean } = { 1: true };`,
+      errors: [{ messageId: "widening" }],
+    },
+    {
+      name: "a mapped type over the symbol key domain",
+      filename: SERVICE,
+      code: `export const flags: { [K in symbol]: boolean } = { [beta]: true };`,
+      errors: [{ messageId: "widening" }],
+    },
+    {
+      name: "a number-keyed index signature",
+      filename: SERVICE,
+      code: `export const rows: { [k: number]: Row } = { 1: firstRow };`,
+      errors: [{ messageId: "widening" }],
+    },
+    {
+      // The bag reached through a local alias, declared below the use. Without the up-front
+      // collection this is a one-line bypass that reads as tidy code rather than evasion.
+      name: "the open dictionary spelled through a local alias",
+      filename: SERVICE,
+      code: `export const handlers: HandlerMap = { start: startHandler };
+type HandlerMap = Record<string, Handler>;`,
+      errors: [{ messageId: "widening" }],
+    },
+    {
+      name: "a top type spelled through a local alias",
+      filename: SERVICE,
+      code: `type Opaque = unknown;
+export const config: Opaque = { retries: 3 };`,
+      errors: [{ messageId: "widening" }],
+    },
+    {
       name: "two widened declarations are two findings",
       filename: SERVICE,
       code: `export const a: unknown = { id: 1 };
@@ -106,6 +144,31 @@ export const b: Record<string, Handler> = { start: startHandler };`,
       name: "a value from a call was never precise to begin with",
       filename: SERVICE,
       code: `export const parsed: unknown = JSON.parse(text);`,
+    },
+    {
+      // A closed key domain names exactly the keys the literal has, so nothing is deleted. This
+      // reported until the key question got one owner — the same reading that keeps a dirty-field
+      // tracker legal in `types/no-opaque-record`.
+      name: "a Record over a closed key domain deletes no keys",
+      filename: SERVICE,
+      code: `export const handlers: Record<"start" | "stop", Handler> = { start: startHandler, stop: stopHandler };`,
+    },
+    {
+      // The annotation names the function's own type parameter, which happens to share a name with
+      // a module alias to the bag. Resolving through the alias reports a generic helper for a
+      // widening it never performs — the false positive that trains people to disable a rule.
+      name: "a type parameter that shadows an alias to the bag is not resolved",
+      filename: SERVICE,
+      code: `type Bag = Record<string, Handler>;
+export function build<Bag>(): Bag | undefined {
+  const held: Bag = { start: startHandler };
+  return undefined;
+}`,
+    },
+    {
+      name: "a shape-preserving mapped type deletes no keys either",
+      filename: SERVICE,
+      code: `export const handlers: { [K in keyof Config]: Handler } = { start: startHandler };`,
     },
     {
       name: "a precise annotation over a literal is a real check",

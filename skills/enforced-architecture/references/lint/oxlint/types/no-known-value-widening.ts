@@ -7,7 +7,18 @@
 // without that loss.
 //
 // `Record<string, Handler>` reports although its value type is precise. The
-// loss is in the keys. That surprises readers, and it is the point of the rule.
+// loss is in the keys. That surprises readers, and it is the point of the rule —
+// and it is the one line where this rule and its two siblings must disagree.
+// `lib/type-annotations.ts` answers "is this an open dictionary" for all three;
+// this rule reads only the KEY half of that answer, so `Record<string, Handler>`
+// reports here and is silent in `types/no-opaque-record` and
+// `types/no-widen-then-assert`, which both go on to ask whether the VALUE is
+// opaque. Every spec pins that row.
+//
+// A CLOSED key domain is not a widening. `Record<'start' | 'stop', Handler>` and
+// `{ [K in keyof Config]: Handler }` name exactly the keys the literal has, so
+// they delete nothing and are legal — the same reading that keeps a dirty-field
+// tracker legal in `types/no-opaque-record`.
 //
 // An empty object or array literal is legal. `const acc: Record<string,
 // Handler> = {}` is an accumulator that gets the type it grows into, which is
@@ -30,6 +41,12 @@
 
 import { defineTreeRule } from "../lib/define-tree-rule.ts";
 import { type ESTree } from "@oxlint/plugins";
+import {
+  collectLocalTypeAliases,
+  lexicalTypeParameterNames,
+  openDictionaryValueType,
+  resolvesToBroadType,
+} from "../lib/type-annotations.ts";
 
 const BROAD_KEYWORDS = new Set(["TSUnknownKeyword", "TSAnyKeyword", "TSObjectKeyword"]);
 
@@ -46,27 +63,6 @@ const SELF_EVIDENT = new Set([
   "ObjectExpression",
   "TemplateLiteral",
 ]);
-
-function isOpenDictionaryType(type: ESTree.TSType): boolean {
-  // Any `Record<…>`, whatever its value type: the key domain is what the literal knew and the
-  // annotation throws away. `Record<string, Handler>` is the motivating case, not an edge.
-  if (
-    type.type === "TSTypeReference" &&
-    type.typeName.type === "Identifier" &&
-    type.typeName.name === "Record"
-  ) {
-    return true;
-  }
-  if (type.type === "TSMappedType") return true;
-  return (
-    type.type === "TSTypeLiteral" &&
-    type.members.some((member) => member.type === "TSIndexSignature")
-  );
-}
-
-function isWideningTarget(type: ESTree.TSType): boolean {
-  return BROAD_KEYWORDS.has(type.type) || isOpenDictionaryType(type);
-}
 
 // An empty literal is an accumulator being given the type it will grow into — the one case where
 // the annotation is doing real work rather than deleting it.
@@ -101,6 +97,20 @@ export const noKnownValueWideningRule = defineTreeRule({
   },
   create(context) {
 
+    let aliases: ReadonlyMap<string, ESTree.TSType> = new Map();
+
+    // The KEY half of `lib/type-annotations.ts`'s open-dictionary answer, and only that half. What
+    // the annotation deletes is the literal's keys, so the value type is not consulted:
+    // `Record<string, Handler>` reports here and is silent in `types/no-opaque-record` and
+    // `types/no-widen-then-assert`, which is the one place the three rules are meant to diverge.
+    // A closed key domain deletes nothing — `Record<'start' | 'stop', Handler>` and
+    // `{ [K in keyof Config]: Handler }` name the same keys the literal has.
+    const isWideningTarget = (type: ESTree.TSType): boolean => {
+      const shadowed = lexicalTypeParameterNames(type, context.sourceCode.visitorKeys);
+      if (resolvesToBroadType(type, BROAD_KEYWORDS, aliases, shadowed)) return true;
+      return openDictionaryValueType(type, aliases, shadowed) !== null;
+    };
+
     const reportIfWidened = (
       value: ESTree.Expression | null | undefined,
       annotation: ESTree.TSTypeAnnotation | null | undefined,
@@ -118,6 +128,9 @@ export const noKnownValueWideningRule = defineTreeRule({
     };
 
     return {
+      Program(node) {
+        aliases = collectLocalTypeAliases(node);
+      },
       VariableDeclarator(node) {
         if (node.id.type !== "Identifier") return;
         reportIfWidened(node.init, node.id.typeAnnotation);
