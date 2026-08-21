@@ -120,10 +120,11 @@ export const topologyCheck: StructuralCheck = {
           `\`${root}\` sits directly in ${sourceRootName}/, which holds no layer.\n` +
             `The files that belong there are: ${allowedRootFiles.join(", ")}.\n` +
             `Move this under one of the layers — ${layers} — into whichever one's job it\n` +
-            `is doing. If it genuinely is an entrypoint or an env module, add its name to\n` +
-            `this tree's \`extraSourceRootModules\` where the tree is declared, in\n` +
-            `lint/policy/declared-trees.ts — which is what \`sourceRootModules()\` adds to\n` +
-            `the env modules, and what the import policy reads too.`,
+            `is doing. If it IS one of this tree's entrypoints or env modules under another\n` +
+            `spelling, correct that position's name in \`sourceRootPositions\` or\n` +
+            `\`envModules\` where the tree is declared, in lint/policy/declared-trees.ts.\n` +
+            `The set of positions is closed: a new KIND of root file is a new role in\n` +
+            `SOURCE_ROOT_ROLES in lint/policy/layout.ts, not a name added here.`,
         );
         continue;
       }
@@ -173,10 +174,11 @@ export const topologyCheck: StructuralCheck = {
           `A file at a ${root} root is outside every layer, so no layer rule governs it.\n` +
             `${root}/${name}/ holds ${grammar.rootFiles.join(", ")} and nothing else.\n` +
             `Move this into ${boundaryLayers} — whichever layer's job it is doing.\n` +
-            `If every ${root} boundary needs a file by this name, it goes in this tree's\n` +
-            `\`extraFeatureRootModules\` where the tree is declared, in\n` +
-            `lint/policy/declared-trees.ts, which is what \`featureRootModules()\` adds to\n` +
-            `the two barrels.`,
+            `If it IS this tree's declared root position under another spelling, correct\n` +
+            `that name in \`featureRootPositions\` where the tree is declared, in\n` +
+            `lint/policy/declared-trees.ts. The set of positions is closed: a new KIND of\n` +
+            `root file is a new role in FEATURE_ROOT_ROLES in lint/policy/layout.ts, not a\n` +
+            `name added here.`,
         );
         continue;
       }

@@ -926,12 +926,15 @@ describeSuite("a vocabulary cannot declare its own tree out of existence", () =>
     });
   }
 
-  testCase("an extra root module carrying an extension is caught by the same loop", () => {
+  testCase("a root position carrying an extension is caught by the same loop", () => {
     const extended: TreeVocabulary = {
       ...RECOMMENDED_VOCABULARY,
-      extraSourceRootModules: ["router", "client.tsx"],
+      sourceRootPositions: { ...RECOMMENDED_VOCABULARY.sourceRootPositions, clientEntry: "client.tsx" },
     };
-    assert.throws(() => assertGoverningVocabulary(extended, "src"), /extraSourceRootModules\[1\]/);
+    assert.throws(
+      () => assertGoverningVocabulary(extended, "src"),
+      /sourceRootPositions\.clientEntry/,
+    );
   });
 
   testCase("an env module spelled as a glob is a pattern in a name's costume", () => {
@@ -1032,6 +1035,22 @@ describeSuite("a renamed parent directory moves every path derived from it", () 
     // topology kept permitting the old name after every other rule had followed
     // the rename — a barrel the tree no longer has, allowed at every root.
     assert.ok(!permitted.includes("index"));
+  });
+
+  // The type refuses an extra key in a literal, which is the whole reason these
+  // are records. It cannot refuse one on a value that arrived already typed as a
+  // string record — so the readers go through the ROLE set instead, and a name
+  // that is not a role permits nothing however it got into the object.
+  testCase("a root position that is not a role permits nothing", () => {
+    const smuggled: TreeVocabulary = {
+      ...RECOMMENDED_VOCABULARY,
+      featureRootPositions: { ...RECOMMENDED_VOCABULARY.featureRootPositions, helpers: "helpers" },
+      sourceRootPositions: { ...RECOMMENDED_VOCABULARY.sourceRootPositions, lib: "lib" },
+    } as TreeVocabulary;
+    assert.ok(!featureRootModules(smuggled).includes("helpers"));
+    assert.ok(!sourceRootModules(smuggled).includes("lib"));
+    assert.ok(featureRootModules(smuggled).includes("errors"));
+    assert.ok(sourceRootModules(smuggled).includes("router"));
   });
 
   testCase("the source root permits exactly the env modules the tree declares", () => {

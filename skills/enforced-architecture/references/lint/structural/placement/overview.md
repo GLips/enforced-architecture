@@ -22,6 +22,11 @@ and this rule rejects, makes a person turn the whole check off on the first comm
 from the tree's vocabulary rather than listed beside this check, because the import policy reads the
 same names — two lists meant a file this check permitted and the policy called an unpoliced area.
 
+What you may change is the SPELLING of a position, in `sourceRootPositions` and
+`featureRootPositions`. You cannot add one: those records are keyed by `SOURCE_ROOT_ROLES` and
+`FEATURE_ROOT_ROLES`, closed sets in `policy/layout.ts`. Appending a name was how this check got
+switched off silently — one entry, `helpers`, and both of its real findings went away.
+
 `layer-direction` does not report a downward import that skips a layer. `boundary/layer-occupancy`
 asks that question, from the same layer order — which is the ORDER of the shared layer roles, so the
 two cannot disagree about which layer outranks which. `layer-direction` has no exclusion list,

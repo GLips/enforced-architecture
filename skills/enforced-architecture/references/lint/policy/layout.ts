@@ -68,6 +68,29 @@ export const FEATURE_LAYER_ROLES = ["ui", "controllers", "service", "repo"] as c
 export type FeatureLayerRole = (typeof FEATURE_LAYER_ROLES)[number];
 
 /**
+ * The non-barrel positions a feature ROOT may hold, and the entrypoint positions
+ * a source ROOT may hold — closed, exactly like `FEATURE_LAYER_ROLES` and for
+ * the harder reason.
+ *
+ * These were two `string[]` fields an adopter appended to. That is an off-switch
+ * in a name's costume, and a review proved it rather than argued it: adding one
+ * entry, `"helpers"`, erased both real `placement/topology` findings —
+ * `["src/features/scanner/helpers.mts", "src/features/scanner/helpers.ts"]`
+ * became `[]` — with no rule edited and the run green. A misplaced file is
+ * legalised by naming it.
+ *
+ * Keyed by role, the same knob does the thing it was always meant to do and
+ * nothing else: a tree calling its client entrypoint `main` moves one string,
+ * and a tree wanting a new KIND of root file has to add the role here, where
+ * every reader of it is a compile error until the position is understood.
+ */
+export const FEATURE_ROOT_ROLES = ["errors"] as const;
+export type FeatureRootRole = (typeof FEATURE_ROOT_ROLES)[number];
+
+export const SOURCE_ROOT_ROLES = ["router", "clientEntry", "serverEntry", "routeTree"] as const;
+export type SourceRootRole = (typeof SOURCE_ROOT_ROLES)[number];
+
+/**
  * How ONE declared tree spells the layout. Every field is a name, a filename, or
  * a list of them — never a pattern. A regex or a glob here would be an
  * off-switch in a costume: it can be narrowed until a rule matches nothing while
@@ -103,17 +126,17 @@ export type TreeVocabulary = {
   featureLayerDirs: Record<FeatureLayerRole, string>;
 
   /**
-   * Modules permitted at a feature's ROOT beyond its two barrels, without
-   * extensions. `featureRootModules()` adds the barrels, which are already named
-   * by `clientBarrelModule`/`serverBarrelModule` — spelling them here too meant a
+   * How this tree spells each `FEATURE_ROOT_ROLES` position, without extensions.
+   * `featureRootModules()` adds the two barrels, which are already named by
+   * `clientBarrelModule`/`serverBarrelModule` — spelling them here too meant a
    * renamed barrel was still permitted under its old name by topology while
    * every other rule had followed the rename.
    *
    * `placement/topology` reads it; `classifySourcePath` deliberately does not —
-   * see its `feature-root` arm for why a root file this list rejects still gets
-   * an import policy.
+   * see its `feature-root` arm for why a root file this record rejects still
+   * gets an import policy.
    */
-  extraFeatureRootModules: string[];
+  featureRootPositions: Record<FeatureRootRole, string>;
 
   /**
    * The two public barrels of a unit, without extensions. Two named fields
@@ -153,25 +176,26 @@ export type TreeVocabulary = {
   envModules: Record<string, "env-server" | "env-client">;
 
   /**
-   * Modules permitted directly in the source root beyond the env modules and the
-   * token stylesheet, without extensions. `sourceRootModules()` adds those,
-   * which are already named elsewhere in this vocabulary.
+   * How this tree spells each `SOURCE_ROOT_ROLES` position, without extensions.
+   * `sourceRootModules()` adds the env modules and the token stylesheet, which
+   * are already named elsewhere in this vocabulary.
    *
-   * A DECLARED list is what stops the last arm of `classifyTargetPath` from
+   * A DECLARED set is what stops the last arm of `classifyTargetPath` from
    * being "anything left over". One path segment is ambiguous by construction —
    * the classifier cannot tell the file `src/lib.ts` from the directory
    * `src/lib/` — so with nothing declared, `@/lib` reads as a source-root file
    * and reaches `source-root`'s permissive row while `@/lib/format-date`
-   * correctly reports `unclassifiedTarget`. Add `src/lib/index.ts` and every
-   * route can reach an unpoliced tree through the bare spelling.
+   * correctly reports `unclassifiedTarget`. Let a root file be legalised by
+   * spelling — `src/lib.ts` — and every route can reach an unpoliced tree
+   * through the bare `@/lib`.
    *
-   * `placement/topology` reads the same list as the files permitted at the root,
-   * so a project adding an entrypoint declares it once — and a project that
+   * `placement/topology` reads the same set as the files permitted at the root,
+   * so a project renaming an entrypoint renames it once — and a project that
    * adopted only the oxlint tier has no topology check at all, which is the
-   * other half of the argument for the list living here rather than in that
+   * other half of the argument for these names living here rather than in that
    * check's config.
    */
-  extraSourceRootModules: string[];
+  sourceRootPositions: Record<SourceRootRole, string>;
 
   /**
    * The extensions that make a file a STYLESHEET, without the dot.
@@ -312,7 +336,7 @@ export const RECOMMENDED_VOCABULARY: TreeVocabulary = {
     repo: "repo",
   },
 
-  extraFeatureRootModules: ["errors"],
+  featureRootPositions: { errors: "errors" },
 
   clientBarrelModule: "index",
   serverBarrelModule: "index.server",
@@ -326,7 +350,12 @@ export const RECOMMENDED_VOCABULARY: TreeVocabulary = {
 
   generatedDir: "gen",
 
-  extraSourceRootModules: ["router", "client", "server", "routeTree.gen"],
+  sourceRootPositions: {
+    router: "router",
+    clientEntry: "client",
+    serverEntry: "server",
+    routeTree: "routeTree.gen",
+  },
 
   stylesheetExtensions: ["css"],
   tokenStylesheetName: "styles.css",
@@ -597,7 +626,7 @@ export function topLevelDirsByField(vocabulary: TreeVocabulary): Record<string, 
  *   segment         one directory name
  *   segment-record  a record whose VALUES are directory names
  *   module          one module name, spelled the way an import spells it
- *   module-list     a list of module names
+ *   module-record   a record whose VALUES are module names, keyed by role
  *   module-keys     a record whose KEYS are module names
  *   own             validated by a rule of its own further up — a prefix, a
  *                   suffix, an extension list, a filename with an extension
@@ -611,7 +640,7 @@ export function topLevelDirsByField(vocabulary: TreeVocabulary): Record<string, 
  */
 const VOCABULARY_FIELD_KINDS: Record<
   keyof TreeVocabulary,
-  "segment" | "segment-record" | "module" | "module-list" | "module-keys" | "own"
+  "segment" | "segment-record" | "module" | "module-record" | "module-keys" | "own"
 > = {
   aliasPrefix: "own",
   serverModuleSuffix: "own",
@@ -639,8 +668,8 @@ const VOCABULARY_FIELD_KINDS: Record<
   browserStorageName: "module",
   themeModuleName: "module",
   rootRouteName: "module",
-  extraFeatureRootModules: "module-list",
-  extraSourceRootModules: "module-list",
+  featureRootPositions: "module-record",
+  sourceRootPositions: "module-record",
   envModules: "module-keys",
 };
 
@@ -656,8 +685,9 @@ function namedSegments(vocabulary: TreeVocabulary): Record<string, string> {
 }
 
 /**
- * Every field that names a MODULE, by the field that spells it — the list and
- * record fields flattened as `field[i]` so a bad entry's error says which one.
+ * Every field that names a MODULE, by the field that spells it — the record
+ * fields flattened as `field.role` (or `field[i]` where the KEYS are the names)
+ * so a bad entry's error says which one.
  *
  * Separate from the directory names because module names carry a second
  * obligation the directories do not: no source extension.
@@ -680,9 +710,12 @@ function vocabularyNames(
       for (const [key, name] of Object.entries(value as Record<string, string>)) {
         names[`${field}.${key}`] = name;
       }
-    } else if (subject === "module" && (kind === "module-list" || kind === "module-keys")) {
-      const listed = kind === "module-list" ? (value as string[]) : Object.keys(value as object);
-      listed.forEach((name, index) => {
+    } else if (subject === "module" && kind === "module-record") {
+      for (const [role, name] of Object.entries(value as Record<string, string>)) {
+        names[`${field}.${role}`] = name;
+      }
+    } else if (subject === "module" && kind === "module-keys") {
+      Object.keys(value as object).forEach((name, index) => {
         names[`${field}[${index}]`] = name;
       });
     }
@@ -889,20 +922,29 @@ export function rootRouteModule(vocabulary: TreeVocabulary): string {
 
 /**
  * Every module permitted at a feature's root, without extensions: its two
- * barrels plus whatever else the tree names.
+ * barrels plus this tree's spelling of each `FEATURE_ROOT_ROLES` position.
  */
 export function featureRootModules(vocabulary: TreeVocabulary): string[] {
-  return [...barrelModules(vocabulary), ...vocabulary.extraFeatureRootModules];
+  // Read through the ROLE set, not `Object.values`. The record's type refuses an
+  // extra key in a literal, but a value that arrived as a `Record<string, string>`
+  // carries whatever it carries — and `Object.values` would permit those names at
+  // every feature root, which is exactly the appendable list this replaced.
+  return [
+    ...barrelModules(vocabulary),
+    ...FEATURE_ROOT_ROLES.map((role) => vocabulary.featureRootPositions[role]),
+  ];
 }
 
 /**
  * Every module permitted directly in the source root, without extensions: the
- * env modules the tree declares plus whatever else it names.
+ * env modules and token stylesheet the tree declares, plus its spelling of each
+ * `SOURCE_ROOT_ROLES` position.
  */
 export function sourceRootModules(vocabulary: TreeVocabulary): string[] {
   return [
     ...Object.keys(vocabulary.envModules),
-    ...vocabulary.extraSourceRootModules,
+    // Through the role set for the same reason as `featureRootModules`.
+    ...SOURCE_ROOT_ROLES.map((role) => vocabulary.sourceRootPositions[role]),
     vocabulary.tokenStylesheetName,
   ];
 }

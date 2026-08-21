@@ -222,10 +222,11 @@ function deepFreeze<T>(value: T): T {
  * and that exemption is bounded by the collision check in
  * `assertGoverningVocabulary` instead.
  *
- * `extraSourceRootModules` and `extraFeatureRootModules` are absent for a
- * different reason: they PERMIT a file at a position rather than govern one, and
- * the recommended vocabulary lists `routeTree.gen` — a file whose own name makes
- * it exempt whether or not it is declared. Nothing is silenced by naming it.
+ * `sourceRootPositions` and `featureRootPositions` are absent for a different
+ * reason: they PERMIT a file at a position rather than govern one, and the
+ * recommended vocabulary spells `sourceRootPositions.routeTree` as
+ * `routeTree.gen` — a file whose own name makes it exempt whether or not it is
+ * declared. Nothing is silenced by naming it.
  */
 function assertGovernedPositionsAreNotExempt(vocabulary: TreeVocabulary, treeRoot: string): void {
   const unit = `${vocabulary.featuresDir}/alpha`;
