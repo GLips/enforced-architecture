@@ -15,6 +15,12 @@
  * a rule with no spec at all, and a spec that has been stubbed or aimed at the
  * wrong rule. Both leave a green run behind a rule nothing exercises.
  *
+ * "Stubbed" is held twice on purpose. `describeRule` refuses an empty case list
+ * at load time, and this runner both probes that refusal directly and counts the
+ * cases each kind actually ran — because each check is blind to the way the
+ * other fails. The refusal is invisible to a repository whose specs are all
+ * populated, and the count is what still fails once the refusal is deleted.
+ *
  * It also runs the specs beside `lint/policy/`. That directory holds no rules —
  * it holds the tables both tiers read — so its specs get no three-kind
  * attribution and no plugin registration check. They run here rather than under
@@ -22,11 +28,17 @@
  * table proved in one runtime and consumed in two is a table proved once.
  */
 
+import type { Rule } from "@oxlint/plugins";
 import { spawnSync } from "node:child_process";
 import { readFile, readdir } from "node:fs/promises";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isTreeScopedRule } from "../skills/enforced-architecture/references/lint/oxlint/lib/define-tree-rule.ts";
+import {
+  describeRule,
+  type Legal,
+  type Violation,
+} from "../skills/enforced-architecture/references/lint/oxlint/lib/rule-spec.ts";
 
 const HARNESS_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HARNESS_DIR, "..");
@@ -112,14 +124,19 @@ if (plugin instanceof Error) {
 }
 const registered: Record<string, unknown> = plugin.rules ?? {};
 
+/** The three kinds `describeRule` demands, in the order a spec lists them. */
+const KINDS = ["obvious", "adversarial", "legal"] as const;
+
 async function checkRule(rulePath: string): Promise<RuleFailure[]> {
   const ruleId = ruleIdOf(rulePath);
   const name = basename(rulePath, ".ts");
   const failures: RuleFailure[] = [];
   const fail = (detail: string) => failures.push({ rule: ruleId, detail });
 
-  // `describeRule` rejects an empty case list at load time, so the spec checks here are the two it
-  // cannot make about itself: that the spec exists, and that it is aimed at the rule beside it.
+  // The two checks a spec cannot make about itself: that it exists, and that it is aimed at the
+  // rule beside it. Whether its three case lists hold anything is asserted twice further down —
+  // `checkEmptyKindRejection` probes the refusal in lib/rule-spec.ts, and the TAP attribution
+  // counts the cases each kind ran.
   const specPath = rulePath.replace(/\.ts$/, ".test.ts");
   if (!specPaths.has(specPath)) {
     fail(`no spec at ${relative(REPO_ROOT, specPath)}, so nothing exercises this rule`);
@@ -160,6 +177,7 @@ async function checkRule(rulePath: string): Promise<RuleFailure[]> {
 
 const structural = await Promise.all(rulePaths.map(checkRule));
 const configFailures = [...(await checkTreeScoping()), ...(await checkCommitGateExtensions())];
+const contractFailures = checkEmptyKindRejection();
 
 // Run every spec in one Node process — `node --test` gives each file its own subprocess.
 const specList = [
@@ -177,14 +195,32 @@ const tap = `${run.stdout ?? ""}${run.stderr ?? ""}`;
  * Attribution reads the TAP result NAMES rather than the file results, because `describeRule` makes
  * every kind announce itself as `<rule id> (<kind>)`. That turns "did this kind run at all?" into a
  * question the output can answer — and a kind that never ran is the failure worth catching. A spec
- * that throws while loading reports no name, so its three kinds are simply absent, and a stubbed or
- * deleted check cannot leave its expectations passing on zero cases.
+ * that throws while loading reports no name, so its three kinds are simply absent.
+ *
+ * The CASE COUNT is read alongside the name, because announcing itself is not the same as asserting
+ * anything. `RuleTester.run` on an empty scenario emits the suite line and nothing under it, so a
+ * kind stubbed to `[]` reads as a plain `ok` with zero subtests — measured: with lib/rule-spec.ts's
+ * refusal removed and one kind emptied, this runner reported PASS, 50/50, exit 0.
+ *
+ * Node's TAP reporter tags every leaf case `type: 'test'` and every grouping suite `type: 'suite'`,
+ * so a kind's case count is the number of `type: 'test'` lines between its header and its result.
+ * A reporter that stopped emitting the tag would report every kind as zero, which is loud — the
+ * direction this failure has to break in, since it exists to catch a silent zero.
  */
-const KINDS = ["obvious", "adversarial", "legal"] as const;
-const outcomeByKind = new Map<string, "ok" | "not ok">();
+type KindRun = { outcome: "ok" | "not ok"; cases: number };
+const runByKind = new Map<string, KindRun>();
+let casesUnderHeader = 0;
 for (const line of tap.split("\n")) {
-  const result = /^\s*(not ok|ok) \d+ - (.+) \((obvious|adversarial|legal)\)$/.exec(line);
-  if (result !== null) outcomeByKind.set(`${result[2]}|${result[3]}`, result[1] as "ok" | "not ok");
+  // A kind suite is registered at its spec's top level, so its header and result lines are both
+  // unindented and everything between them is its own. Resetting on ANY unindented header keeps the
+  // policy specs — same process, no kind name — from being counted into the kind that follows them.
+  if (/^# Subtest: /.test(line)) casesUnderHeader = 0;
+  else if (/^\s+type: 'test'$/.test(line)) casesUnderHeader += 1;
+  const result = /^(not ok|ok) \d+ - (.+) \((obvious|adversarial|legal)\)$/.exec(line);
+  if (result !== null) {
+    const outcome = result[1] as "ok" | "not ok";
+    runByKind.set(`${result[2]}|${result[3]}`, { outcome, cases: casesUnderHeader });
+  }
 }
 
 let failedRules = 0;
@@ -192,11 +228,18 @@ rulePaths.forEach((rulePath, index) => {
   const ruleId = ruleIdOf(rulePath);
   const failures = [...(structural[index] ?? [])];
   for (const kind of KINDS) {
-    const outcome = outcomeByKind.get(`${ruleId}|${kind}`);
-    if (outcome === undefined) {
+    const kindRun = runByKind.get(`${ruleId}|${kind}`);
+    if (kindRun === undefined) {
       failures.push({ rule: ruleId, detail: `the ${kind} specs never ran — see the report below` });
-    } else if (outcome === "not ok") {
+    } else if (kindRun.outcome === "not ok") {
       failures.push({ rule: ruleId, detail: `the ${kind} specs failed — see the report below` });
+    } else if (kindRun.cases === 0) {
+      failures.push({
+        rule: ruleId,
+        detail:
+          `the ${kind} suite announced itself and ran zero cases, so it passed on nothing — ` +
+          `fill in the ${kind} list in its spec`,
+      });
     }
   }
 
@@ -220,6 +263,9 @@ for (const orphan of orphans) {
 for (const detail of configFailures) {
   console.log(`  FAIL  <config> ${detail}`);
 }
+for (const detail of contractFailures) {
+  console.log(`  FAIL  <contract> ${detail}`);
+}
 
 if (run.status !== 0) console.log(`\n${tap}`);
 
@@ -228,10 +274,69 @@ console.log(
     ` plus ${policySpecs.length} spec file(s) over the shared tables in lint/policy/.`,
 );
 process.exit(
-  failedRules === 0 && orphans.length === 0 && configFailures.length === 0 && run.status === 0
+  failedRules === 0 &&
+    orphans.length === 0 &&
+    configFailures.length === 0 &&
+    contractFailures.length === 0 &&
+    run.status === 0
     ? 0
     : 1,
 );
+
+/**
+ * The empty-kind refusal in lib/rule-spec.ts, probed rather than trusted.
+ *
+ * `describeRule` throwing on an empty case list is what turns a stubbed spec into a load error, and
+ * it is invisible to every run in this repository: each shipped spec passes three populated lists,
+ * so deleting the throw changes no output anywhere and nothing goes red. This calls `describeRule`
+ * with one kind emptied at a time and demands a refusal that names that kind.
+ *
+ * Independent of the case counting above, and deliberately not folded into it. This fails when the
+ * refusal is deleted while every spec is still populated; that fails when a case list is emptied
+ * while the refusal is gone. Either alone leaves half of the contract resting on nothing — the two
+ * together were what a stubbed `adversarial` list needed to defeat, and it defeated one.
+ *
+ * NEGATIVE SPACE: nothing here asserts that a POPULATED spec is accepted. Reaching that path builds
+ * a `RuleTester` and registers three suites, and this process is not a test runner — the 50 specs
+ * that do run are the standing proof of the accepting half.
+ */
+function checkEmptyKindRejection(): string[] {
+  // Never linted: `describeRule` refuses before it touches `RuleTester`, so the rule and the cases
+  // only have to typecheck. A probe that got past the refusal is itself the failure being reported.
+  const NEVER_LINTED: Rule = { create: () => ({}) };
+  const obvious: Violation[] = [{ code: "", errors: 1 }];
+  const adversarial: Violation[] = [{ code: "", errors: 1 }];
+  const legal: Legal[] = [{ code: "" }];
+
+  const failures: string[] = [];
+  for (const kind of KINDS) {
+    let refusal: Error | null = null;
+    try {
+      describeRule("<harness probe>", NEVER_LINTED, {
+        obvious: kind === "obvious" ? [] : obvious,
+        adversarial: kind === "adversarial" ? [] : adversarial,
+        legal: kind === "legal" ? [] : legal,
+      });
+    } catch (error) {
+      refusal = error as Error;
+    }
+
+    if (refusal === null) {
+      failures.push(
+        `oxlint/lib/rule-spec.ts accepted a spec whose ${kind} case list is empty. That refusal is ` +
+          `the only thing making a stubbed kind a load error rather than a suite that reports ok ` +
+          `on zero cases — restore it`,
+      );
+    } else if (!refusal.message.includes(kind)) {
+      failures.push(
+        `oxlint/lib/rule-spec.ts refused an empty ${kind} case list with "${refusal.message}", ` +
+          `which never names the kind — the author of a stubbed spec cannot tell which of the ` +
+          `three lists to fill in`,
+      );
+    }
+  }
+  return failures;
+}
 
 /**
  * Whether a rule's banner states what the rule buys, rather than what it matches. `Makes sure:`

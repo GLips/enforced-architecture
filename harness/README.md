@@ -73,17 +73,19 @@ Every case carries its own `filename`, in the standard layout, because the rules
 
 ## What the runner checks that a spec run does not
 
-`harness/run-rule-fixtures.ts` exists for the five things a spec cannot say about itself. Each one leaves a green run behind a rule nothing exercises:
+`harness/run-rule-fixtures.ts` exists for the six things a spec cannot say about itself. Each one leaves a green run behind a rule nothing exercises:
 
 - **`oxlint/plugin.ts` does not load.** The runner imports the manifest rather than grepping it, because a plugin that fails to load takes *every* rule silent with it — the largest version of the failure everything here guards against.
 - **A rule missing from `oxlint/plugin.ts`, or bound to the wrong export.** The plugin module is the manifest a consuming project copies; a rule absent from it ships as a file nobody loads. Tested, and never run. A text search would pass a commented-out registration; an import does not.
 - **A rule with no spec beside it.**
 - **A spec pointed at the wrong rule** — it must call `describeRule("<its own id>", …)` and import the rule file beside it.
-- **A kind that never ran.** The runner reads TAP result *names* rather than file results, because `describeRule` makes every kind announce itself as `<rule id> (<kind>)`. A spec that throws while loading reports no name at all, so its three kinds are simply absent — which is how a stubbed or deleted check gets caught instead of passing on zero cases.
+- **A kind that never ran.** The runner reads TAP result *names* rather than file results, because `describeRule` makes every kind announce itself as `<rule id> (<kind>)`. A spec that throws while loading reports no name at all, so its three kinds are simply absent.
+- **A kind that ran zero cases.** `RuleTester.run` on an empty scenario emits the suite line and nothing under it, so announcing a kind is not running one. The runner counts each kind's leaf cases as well as reading its name.
+- **`describeRule` no longer refusing an empty kind.** That refusal is what makes a stubbed spec a load error, and every shipped spec is populated, so deleting it changes no output anywhere. The runner calls `describeRule` with one kind emptied and demands a refusal that names it.
 
-`describeRule` itself rejects an empty kind at load time, which is the other half of that last one.
+The last two are independent holds on one invariant: the probe fails when the refusal goes, the count fails when a case list is emptied after it. Removing both together is what a stub needed to pass, and it did — PASS, 50/50, exit 0.
 
-Every one of these was revert-probed when the runner was built. Do it again after any change here: break a rule and expect its adversarial kind to fail, stub a spec and expect all three kinds to report as never run. A harness that stays green through both is not testing anything.
+Every one of these was revert-probed when it landed. Do it again after any change here: break a rule and expect its adversarial kind to fail; stub a case list and expect three kinds never run; delete the refusal and expect the probe to fail; do both and expect zero cases. A harness that stays green through any of those is not testing anything.
 
 What it still does not check is whether **oxlint** accepts the plugin, as opposed to Node loading it. That path is verified by hand, and was last redone when the full rule manifest landed: every rule enabled against a probe tree through the real CLI. Nothing re-runs it. JS plugins being alpha is the reason to redo it by hand after an oxlint upgrade rather than trusting a green `check:rules`.
 

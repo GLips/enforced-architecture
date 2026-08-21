@@ -29,6 +29,10 @@ export type Legal = RuleTester.ValidTestCase;
  * Passing the three as named arguments is what makes a missing kind impossible rather than merely
  * discouraged, and the empty check is what stops a stubbed-out spec from passing on zero cases —
  * the failure this catalog's previous harness was rebuilt to catch.
+ *
+ * The empty check is not the only hold on that, and deleting it is not a local decision: a
+ * populated repository never reaches the throw, so `harness/run-rule-fixtures.ts` probes the
+ * refusal directly AND counts the cases each kind ran. Take this away and the probe goes red.
  */
 export function describeRule(
   ruleId: string,
