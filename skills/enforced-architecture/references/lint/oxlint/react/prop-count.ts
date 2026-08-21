@@ -29,7 +29,7 @@
 // so. A rule that dropped it and kept the confident wording would be reporting a
 // number it had already decided was incomplete.
 //
-// The parameter is read through `lib/type-annotations.ts`, so a defaulted or
+// The parameter is read through `lib/parameter-shapes.ts`, so a defaulted or
 // rest-spelled parameter carries its annotation to this rule the same way it
 // does to the `types` tag. NEGATIVE SPACE: a rest parameter declares the shape of
 // an ARGUMENT LIST rather than a props type — `(...props: [P])` annotates a tuple
@@ -53,7 +53,7 @@ import { isComponentFile } from "../../policy/declared-trees.ts";
 import { exportedComponents, type ComponentFunction } from "../lib/component-declarations.ts";
 import { numericRuleOption } from "../lib/rule-options.ts";
 import { staticKeyName } from "../lib/static-key-name.ts";
-import { parameterAnnotation, parameterObjectPattern } from "../lib/type-annotations.ts";
+import { parameterAnnotation, parameterObjectPattern } from "../lib/parameter-shapes.ts";
 
 const DEFAULT_THRESHOLD = 8;
 

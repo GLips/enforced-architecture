@@ -2,16 +2,15 @@
 
 Every enforcement rule in one tree, split by **tier** first and **tag** second. Read this file for
 the tag map, then a tier's tag `overview.md` for what its rules hold, then the rule itself to adapt
-it. Adapting is the only decision on offer: the catalog is taken whole.
+it. Adapting is the only decision on offer: the catalog is taken whole. The per-tag counts below are
+derived from the tree; no total is stated in prose, because a total goes stale on the next add and
+nothing checks it.
 
-The per-tag counts below are derived from the tree. No total is stated in prose anywhere, because a
-total goes stale on the next add or delete and nothing checks it.
-
-Each rule carries its own documentation in the header of its own file, in both tiers. The header says
-what the rule buys, then guards the reader against a wrong edit, then states what it deliberately
-does not cover. It does not carry an adaptation section, because no rule is adapted in its own file:
-an oxlint rule reads its layout from [policy/declared-trees.ts](policy/declared-trees.ts), and the
-keys a structural check takes are in [structural/config.ts](structural/config.ts).
+Each rule documents itself in its own file's header, in both tiers: what it buys, what edit would
+break it, what it deliberately does not cover. No adaptation section, because no rule is adapted in
+its own file — an oxlint rule reads its layout from
+[policy/declared-trees.ts](policy/declared-trees.ts), and a structural check's keys are in
+[structural/config.ts](structural/config.ts).
 
 ```
 policy/       runtime-neutral tables both tiers read
@@ -30,9 +29,10 @@ rows, each read by an adapter on each side. See [policy/overview.md](policy/over
 source text: a specifier, a JSX prop, a hook call. Its specs run under real Node, because oxlint's
 `RuleTester` refuses Bun by name.
 
-**`structural/`** is handed the resolved import graph and the filesystem. It catches what no single
-file can show: where a relative specifier actually lands, whether a feature cycles, whether a barrel
-exports what it claims. It runs under Bun.
+**`structural/`** is handed the resolved import graph, the filesystem, and a TypeScript program. It
+catches what no single file can show: where a relative specifier lands, whether a feature cycles,
+whether a barrel exports what it claims, what an annotation actually resolves to. It runs under
+Bun.
 
 The split is a fact about what each tier can *see*. A rule belongs to whichever tier can answer its
 question, and a rule whose question needs both is a rule whose policy belongs in `policy/`, read by an
@@ -43,7 +43,7 @@ adapter on each side. The tag says what a rule is *about*; the tier says what it
 | Tag | oxlint | structural | Governs |
 |---|---|---|---|
 | **boundary** | [8](oxlint/boundary/overview.md) | [2](structural/boundary/overview.md) | What may import what. The only constraint that holds when nobody is reading |
-| **types** | [12](oxlint/types/overview.md) | — | Whether a type declaration says anything: untyped bags, `unknown` contracts, unjustified `as` |
+| **types** | [5](oxlint/types/overview.md) | [7](structural/types/overview.md) | Whether a type declaration says anything: untyped bags, `unknown` contracts, unjustified `as` |
 | **placement** | [7](oxlint/placement/overview.md) | [2](structural/placement/overview.md) | Where code may *live*, so the paths other rules match are the paths code is in |
 | **style** | [6](oxlint/style/overview.md) | [3](structural/style/overview.md) | Design-system adherence: tokens, primitives, no raw values |
 | **effect** | [6](oxlint/effect/overview.md) | — | Effect-TS policy bans — the syntactic residue after @effect/language-service, which owns everything type-aware |
@@ -57,19 +57,19 @@ adapter on each side. The tag says what a rule is *about*; the tier says what it
 `placement/` and `boundary/` are the pair most often confused. `placement/` is where code may live.
 `boundary/` is what code may import.
 
-`structural/import-graph.ts` is **not** a rule and is not in the `graph/` tag. It is the substrate
-every graph-reading check consumes, and it is not registered anywhere.
+`structural/import-graph.ts` and `structural/type-checker.ts` are **not** rules and are in no tag.
+They are the substrates the graph-reading and type-reading checks consume, and neither is
+registered.
 
 ## What each rule's subject is
 
-Every rule here is adopted. This table answers a different question: which part of the tree owns each
-rule's subject, so you know what a rule is pointed at and what it is waiting for. A row this project
-has nothing matching is a rule that stays silent until it does, and that silence is the rule doing
-its job. The day the tree grows a `domains/` directory or its first `createServerFn`, the fence is
-already standing.
+Every rule here is adopted. This table says which part of the tree owns each rule's subject, so you
+know what a rule is pointed at and what it is waiting for. A row this project has nothing matching is
+a rule staying silent until it does, and that silence is the rule doing its job: the day the tree
+grows a `domains/` directory, the fence is already standing.
 
-Audit findings tell you which rows are live today, and so which violations the rollout has to sweep.
-They do not decide which rules ship.
+Audit findings tell you which rows are live today, and so what the rollout has to sweep. They do not
+decide which rules ship.
 
 | If the project has... | ...these rules have a subject in it |
 |---|---|
@@ -91,7 +91,7 @@ They do not decide which rules ship.
 | Co-located tests | `naming/test-file-mirror`, and `testing/no-module-mocking` once agents write most of them — expect a migration there, not a lint fix |
 | A path this project has already moved away from | `placement/deprecated-paths` |
 | Standing docs agents read on every task | `health/doc-budgets` — word ceilings that ratchet down, so the docs enforcement leans on stay short enough to be read |
-| Agents writing most of the code | The `types/` assertion trio — `require-safety-comment`, `no-chained-type-assertions`, `no-widen-then-assert` — plus `types/no-type-argument-assertion`, the spelling of the same claim (`api.get<User>(url)`) that all three miss because it never writes `as`. Taking a subset leaves the hole the others close |
+| Agents writing most of the code | The `types/` assertion trio — `require-safety-comment`, `no-chained-type-assertions`, `no-widen-then-assert` — plus `types/no-type-argument-assertion`, the spelling of the same claim (`api.get<User>(url)`) that all three miss because it never writes `as`. Taking a subset leaves the hole the others close; the trio spans both tiers |
 | Effect | Every `effect/` rule. Adopt `@effect/language-service` first; the `effect/` overview explains why that is step zero and these are only what it leaves on the table |
 | A boundary where external data enters (API, queue, file) | `types/no-broad-parameters`, `types/no-unknown-returns`, `types/no-unknown-type-aliases`. These push `unknown` back to the parse site instead of letting it spread inward |
 | TypeScript 4.9+ | `types/no-known-value-widening`. The fix it names, `satisfies`, does not exist before that |
@@ -99,8 +99,13 @@ They do not decide which rules ship.
 
 Two rules appear in no row, because their subject is any TypeScript file rather than a structure a
 project either has or lacks: `types/no-runtime-typeof` and `types/no-conditional-empty-object-spread`.
-Both ship on, the second at `warn`, which is what its `Shows:` header buys. Read
-[oxlint/types/overview.md](oxlint/types/overview.md) for what each rejects that is sometimes correct.
+Both ship on, the second at `warn`.
+
+`types` is **the one tag where the tier split changes what a project gets**: seven of its twelve
+rules need a checker and run in the structural tier, so taking only the oxlint half leaves the tag
+covering assertions and nothing else — and no oxlint run says so. Those seven also want what no other
+check does, a `tsconfig` named on each declared tree. Both `types` overviews carry the detail, and
+what each tier rejects that is sometimes correct.
 
 ## Adopting the catalog
 
@@ -108,8 +113,7 @@ The order of the copy, the dev dependencies and the config files are Phase 4 of
 [SKILL.md](../../SKILL.md). Four facts about the catalog's own shape belong here.
 
 **The project mirrors this tree.** A `lint/` directory at the repo root holds `policy/`, `oxlint/`
-and `structural/`. Copying a rule is then copying a path, and a rule's tier is as visible in the
-project as it is here.
+and `structural/`, so copying a rule is copying a path and a rule's tier stays visible.
 
 **`lint/policy/` goes first, whole, before either tier.** It is four modules and a spec, and the only
 one that changes is `declared-trees.ts`. Both tiers import it, so a declaration that lands there
@@ -117,27 +121,24 @@ reaches every rule at the same moment. Copy the spec too: it proves the tables s
 meant after the repoint.
 
 **A tree left off that list is governed by almost nothing, with no diagnostic saying so.** Every
-tree-scoped rule in both tiers is silent there. Three checks still run: `testing/no-module-mocking`,
-enabled globally because its subject is a test file, and the two project-scoped structural checks.
-`health/file-size` walks its own configured roots; `health/doc-budgets` walks nothing and counts
-exactly the paths its manifest names.
+tree-scoped rule in both tiers is silent there. The three that still run, and what each walks
+instead, are named in [enforcement-implementation.md](../enforcement-implementation.md).
 
 **No rule takes a path pattern as configuration.** Every `arch/` rule but one reads `lint/policy/`
 for where things live and what they are called, so declaring the trees is the whole adaptation of the
-oxlint tier — there is nothing to set in a rule file. The exception is `testing/no-module-mocking`,
-which reads no layout at all.
+oxlint tier. The exception, `testing/no-module-mocking`, reads no layout at all.
 
 Two rules hold a hand-written list in their own source, and neither is a knob:
-`boundary/client-server-infra`'s two client-safe modules — an allowlist a project widens by editing
-the rule, deliberately, so config cannot widen it — and `placement/deprecated-paths`'s moved-away-from
-patterns, which are that rule's whole subject. Nothing else in either tier holds a list of paths.
+`boundary/client-server-infra`'s two client-safe modules — widened by editing the rule, deliberately,
+so config cannot — and `placement/deprecated-paths`'s moved-away-from patterns, which are that rule's
+whole subject. Nothing else in either tier holds a list of paths.
 
 Structural checks are **copied, not adapted**: adopting one means writing config, never
-reimplementing an algorithm. Eight of the sixteen take config at all, and their typed shapes and
-defaults are in [structural/config.ts](structural/config.ts); the other eight read only the tree.
-Six checks answer *where an import lands* rather than *how it is spelled* — `api/feature-visibility`,
-`boundary/import-policy`, `boundary/layer-occupancy`, `graph/domain-cycles`, `graph/feature-deps` and
-`placement/layer-direction` — so the import graph is built before its consumers.
+reimplementing an algorithm. Typed shapes and defaults for the checks that take config are in
+[structural/config.ts](structural/config.ts); the rest read only the tree. Six answer *where an
+import lands* rather than *how it is spelled*, so the import graph is built before its consumers;
+seven ask what a declaration means, so a TypeScript program is built for their trees — lazily, so a
+project running none of them never pays for one.
 
 ## What is verified before it reaches you
 
@@ -166,15 +167,14 @@ gets a different answer there than in production, and its specs are written in t
 answer happens to be the expected one. `types/no-reflect-access` shipped that way: registered,
 documented, typechecked, every case green, and it reported nothing when oxlint ran it.
 
-One rule is proved through a real `oxlint` run on every check today. The rest were each linted
-through the real CLI once, by hand, when the full manifest landed, and nothing re-runs that. So run
-your adapted rule over a file that should fail before you trust it.
+One rule is proved through a real `oxlint` run on every check. The rest were each linted through the
+real CLI once, by hand, and nothing re-runs that. Run your adapted rule over a file that should fail
+before you trust it.
 
 **Whether a rule survives adaptation is covered for neither tier.** Renaming a directory, moving a
-source root or moving a threshold is unverified work: the catalog's specs are written against the
-recommended vocabulary, not yours. Write the project's own specs in the same change as the
-adaptation. What is *not* on the table is repointing a rule at a different path or excluding a tree
-from one.
+source root or a threshold is unverified work: the catalog's specs are written against the
+recommended vocabulary, not yours. Write the project's own specs in the same change. What is *not* on
+the table is repointing a rule at a different path or excluding a tree from one.
 
 The harness does not ship with the skill directory. It lives in `harness/`, beside `skills/` in the
 skill's source repository. The rules and their config do ship, which is the point.

@@ -200,46 +200,48 @@ lint/
   policy/       declared-trees.ts layout.ts import-policy.ts package-owners.ts — the tree list and
                 the tables both tiers read
   oxlint/       plugin.ts, lib/, <tag>/ — rules and their specs
-  structural/   config.ts check-substrate.ts import-graph.ts registry.ts run-structural-checks.ts,
-                arch.config.ts, <tag>/ — checks
+  structural/   config.ts check-substrate.ts import-graph.ts type-checker.ts registry.ts
+                run-structural-checks.ts, arch.config.ts, <tag>/ — checks
 ```
 
 In a monorepo that `lint/` still sits once at the repo root, and `declared-trees.ts` holds one entry
-for each governed package. Two packages that spell their directories differently get one entry each,
-with their own vocabulary. A single-package repo is the same shape with one entry.
+per governed package — two packages spelling their directories differently get one each, with their
+own vocabulary. A single-package repo is the same shape with one entry.
 
 **Greenfield sequence:**
 
 1. **`lint/policy/`** — copied whole, then adapted. `declared-trees.ts` is where this project's
-   source roots are declared, each with the vocabulary its directories are spelled in, and it is the
-   only file under `lint/policy/` that needs an edit. Both tiers read it, so it lands before either.
-   The oxlint specs are adapted in step 2, and each spec spells its own fixture filenames by hand —
-   deliberately, so a wrong vocabulary cannot produce a matching wrong filename and pass.
+   source roots are declared — each with the vocabulary its directories are spelled in and the
+   `tsconfig` whose program contains it — and it is the only file under `lint/policy/` that needs an
+   edit. Both tiers read it, so it lands before either. The oxlint specs are adapted in step 2,
+   and each spells its fixture filenames by hand — deliberately, so a wrong vocabulary cannot produce
+   a matching wrong filename and pass.
 2. **`lint/oxlint/`** — the rules and their specs under `<tag>/`, plus `lib/`, all registered in
    `lint/oxlint/plugin.ts`. Then `.oxlintrc.json` at the root, from
-   [references/setup/oxlintrc.json](references/setup/oxlintrc.json). That file is the whole manifest,
-   not a sample to extend: every registered rule is already named there at a deliberate severity. Its
+   [references/setup/oxlintrc.json](references/setup/oxlintrc.json). That file is the whole manifest, not a
+   sample: every registered rule is already named there at a deliberate severity. Its
    `overrides` block scopes the tree-scoped `arch/` rules to the declared roots — one `<root>/**`
    glob per root, or a nested `.oxlintrc.json` per workspace that `extends` it — and those globs must
-   match `declared-trees.ts`. `arch/no-module-mocking` stays in the global `rules` block, because
-   scoping it to a tree would switch it off for every test outside one. The dev dependencies are
+   match `declared-trees.ts`. `arch/no-module-mocking` stays in the global `rules` block; scoping it
+   to a tree switches it off for every test outside one. The dev dependencies are
    unversioned, so the project gets current releases:
    `bun add -d oxlint oxlint-tsgolint @oxlint/plugins eslint-plugin-sonarjs jscpd`
 3. **`lint/structural/`** — the substrate (`config.ts`, `check-substrate.ts`, `import-graph.ts`,
-   `module-resolution.ts`, `registry.ts`, `run-structural-checks.ts`) and every check, all taken
-   unmodified, plus `bun add -d oxc-resolver`. Write `arch.config.ts` on top of
+   `module-resolution.ts`, `type-checker.ts`, `registry.ts`, `run-structural-checks.ts`) and every
+   check, all taken unmodified, plus `bun add -d oxc-resolver typescript`. The `types/` checks need
+   TypeScript 7 — they read the program each tree's `tsconfig` builds. Write `arch.config.ts` on
    `defaultCheckConfigs`.
 4. **One tsconfig per tier** — [references/setup/oxlint.tsconfig.json](references/setup/oxlint.tsconfig.json)
-   and [references/setup/structural.tsconfig.json](references/setup/structural.tsconfig.json) — and
-   add both to the typecheck script by path. They are separate programs because the tiers run under
-   different runtimes.
-5. **Package.json scripts** — `check:arch`, and `duplication` for the CI-only jscpd pass — plus
-   `.jscpd.json` from [references/setup/jscpd.json](references/setup/jscpd.json).
+   and [references/setup/structural.tsconfig.json](references/setup/structural.tsconfig.json) — added
+   to the typecheck script by path. Separate programs, because the tiers run under different
+   runtimes.
+5. **Package.json scripts** — `check:arch`, plus `duplication` and `.jscpd.json` from
+   [references/setup/jscpd.json](references/setup/jscpd.json) for the CI-only jscpd pass.
 6. **`lefthook.yml`** from [references/setup/lefthook.yml](references/setup/lefthook.yml).
 7. **Framework import protection** in `vite.config.ts`.
 8. **The directory tree**, with empty barrels.
 9. **Documentation** per [documentation-model.md](references/documentation-model.md): the CLAUDE.md
-   rules section, and the `docs/architecture/` files if that choice was made. Then write
+   rules section, and the `docs/architecture/` files if that choice was made. Then
    `docs/doc-budgets.manifest.json` from
    [references/setup/doc-budgets.manifest.json](references/setup/doc-budgets.manifest.json).
    Ceilings come from what the generated docs weigh, so this step follows them.
@@ -271,21 +273,21 @@ phase, and a verification step. Every rule has its spec, and the suite runs in t
 Write the plan to `docs/plans/<date>-enforced-architecture-plan.md`, for example
 `docs/plans/2026-02-19-enforced-architecture-plan.md`.
 
-1. **Decision Summary** — the architectural decisions and the reasoning. Which configurable choices
+1. **Decision Summary** — the architectural decisions and the reasoning: which configurable choices
    were made, and why.
-2. **Target Architecture** — the annotated tree, the responsibility table, the dependency graph, the
-   barrel conventions, the server and client naming.
-3. **Declared Trees** — each governed source root with its vocabulary, and each package deliberately
-   left outside, with the sentence that says an undeclared package is ungoverned.
+2. **Target Architecture** — the annotated tree, the responsibility table, the dependency graph,
+   barrel conventions, server and client naming.
+3. **Declared Trees** — each governed source root with its vocabulary, and each package left
+   outside, with the sentence saying an undeclared package is ungoverned.
 4. **Rule Adaptations** — one table of rule id plus what this project moved for it. See Phase 3.
-   There is no excluded-rules table: the catalog comes in whole, so a rule that reports nothing is a
-   rule whose subject this tree does not have yet, and the only thing that makes a rule silent by
-   decision is a tree left undeclared.
+   There is no excluded-rules table: the catalog comes in whole, so a rule reporting nothing is one
+   whose subject this tree does not have yet, and the only thing making a rule silent by decision is
+   a tree left undeclared.
 5. **SDK Containment** — which packages are wrapped and which are left unconstrained.
-6. **Documentation Spec** — which CLAUDE.md sections to generate, which `docs/architecture/` files to
-   create, and the word ceilings.
+6. **Documentation Spec** — which CLAUDE.md sections and `docs/architecture/` files to generate, and
+   the word ceilings.
 7. **Implementation Checklist** (greenfield) or **Migration Plan** (existing) — from Phase 4.
-8. **Current Violations** (migration only) — from the audit, with file paths and fixes, ordered as
+8. **Current Violations** (migration only) — from the audit, with paths and fixes, ordered as
    [migration-patterns.md](references/migration-patterns.md) orders them.
 
 **The plan lives in the project repo, and agents read it in later sessions.** Include this paragraph
@@ -297,23 +299,22 @@ for rule implementation:
 > so the path names the tier. The project mirrors the tree — copy into its own `lint/`.
 >
 > **`lint/policy/` first, before either tier.** Copy it whole, then declare this project's source
-> roots in `lint/policy/declared-trees.ts`, each with the vocabulary its directories are spelled in.
-> Both tiers import it, and an oxlint rule has no adaptation of its own — its layout comes from
-> that file. A tree left off that list is silent for every tree-scoped rule
-> in both tiers, with nothing saying so; only `testing/no-module-mocking`, `health/file-size` and
-> `health/doc-budgets` still run over it.
+> roots in `lint/policy/declared-trees.ts`, each with the vocabulary its directories are spelled in
+> and the `tsconfig` whose program contains it. Both tiers import it, and an oxlint rule has no
+> adaptation of its own — its layout comes from that file. A tree left off that list is silent for
+> every tree-scoped rule in both tiers, with nothing saying so; only `testing/no-module-mocking`,
+> `health/file-size` and `health/doc-budgets` still run over it.
 >
 > **oxlint rules:** copy the template and its spec into `lint/oxlint/<tag>/`, register it in
-> `lint/oxlint/plugin.ts`, and switch it on in `.oxlintrc.json`. Do not repoint one at a path: tree
+> `lint/oxlint/plugin.ts`, switch it on in `.oxlintrc.json`. Never repoint one at a path: tree
 > scoping comes from `declared-trees.ts` through the `.oxlintrc.json` overrides.
 >
 > **Structural checks:** copy the module and the `lint/structural/` substrate unmodified, register it
 > in `lint/structural/registry.ts`, and put every project-specific value in
-> `lint/structural/arch.config.ts`. The keys and their defaults are in
-> `lint/structural/config.ts`, typed per check; eight of the sixteen checks have one. Do not
-> reimplement a check from its doc.
+> `lint/structural/arch.config.ts`. The keys and defaults are in `lint/structural/config.ts`, typed
+> per check; most checks have none. Do not reimplement a check from its doc.
 
 ## Tone
 
 Be opinionated, and calibrate honestly. Prefer the stricter boundary, but propose only the structure
-the invariants need. Define structural boundaries, not feature behavior.
+the invariants need. Define structural boundaries, not behavior.

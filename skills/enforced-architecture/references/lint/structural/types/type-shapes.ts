@@ -1,12 +1,13 @@
 // ─── Shared reading for the `types/` checks ───────────────────────────
 //
 // Everything the seven type-aware checks ask that more than one of them asks.
-// This is the structural tier's replacement for the oxlint tier's
+// This is the structural tier's replacement for the oxlint tier's 736-line
 // `lib/type-annotations.ts`, and the size difference is the whole argument for
 // the move: that module spent ~340 lines deciding "is this key domain open" and
 // "does this alias resolve to something broad" by walking syntax and enumerating
 // the spellings it knew. Both questions are one call here, because the compiler
-// has already answered them.
+// has already answered them. What was left of that file after the move is 54
+// lines under the name `lib/parameter-shapes.ts`, which is what it always was.
 //
 // ── The one finding this file is built on ─────────────────────────────
 //

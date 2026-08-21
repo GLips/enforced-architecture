@@ -4,8 +4,8 @@ How to wire up the enforcement infrastructure. The rules themselves live in
 [lint/](lint/overview.md).
 
 Most of these artifacts ship as commented files. Copy them and read the comments in place — each
-gotcha sits on the line it governs. Two files cannot carry comments, because they are parsed as
-strict JSON and die on the first one: `jscpd.json` and `doc-budgets.manifest.json`.
+gotcha sits on the line it governs. Two are parsed as strict JSON and die on the first comment:
+`jscpd.json` and `doc-budgets.manifest.json`.
 
 | Artifact | Copy from | Target |
 |---|---|---|
@@ -30,12 +30,11 @@ no Bun APIs, no oxlint or ESTree types, and no import from either tier. See
 [lint/policy/overview.md](lint/policy/overview.md).
 
 Copy it before either tier. Both tiers import it and both tsconfigs include it. No oxlint rule is
-adapted in its own file — every one of them reads its layout from
+adapted in its own file — every one reads its layout from
 [lint/policy/declared-trees.ts](lint/policy/declared-trees.ts), so that file is the adaptation.
 
 The contract exists so one edge cannot reach two verdicts depending on how it was spelled. Split a
-table into a per-tier copy and the two copies drift, with neither failing: each tier sees only its
-own.
+table per tier and the copies drift with neither failing: each tier sees only its own.
 
 ### Declare every tree
 
@@ -44,15 +43,21 @@ declares one entry per governed source root, each carrying the vocabulary its ow
 
 ```ts
 export const DECLARED_TREES: ValidatedTrees = declareTrees([
-  { root: "apps/web/src", vocabulary: RECOMMENDED_VOCABULARY },
+  { root: "apps/web/src", vocabulary: RECOMMENDED_VOCABULARY, tsconfig: "apps/web/tsconfig.json" },
   {
     root: "packages/core/src",
     vocabulary: { ...RECOMMENDED_VOCABULARY, infrastructureDir: "db" },
+    tsconfig: "packages/core/tsconfig.json",
   },
 ]);
 ```
 
 A single-package repo declares one entry. That is the only difference.
+
+`tsconfig` is a project-relative PATH, not compiler options: the seven `types/` checks read a real
+TypeScript program, and the project already says what its code compiles as. A tree whose tsconfig
+misses a `.ts` file the tree holds fails the run with that path named — a program holding none of
+them reports nothing, which is what a clean tree reports too.
 
 **A tree you did not declare is a tree you did not adopt for.** Every tree-scoped rule in the
 catalog, in both tiers, is silent outside every declared tree. No findings, no warnings, no
@@ -65,11 +70,10 @@ Three checks are deliberately not tree-scoped, and naming them is part of statin
 honestly:
 
 - `testing/no-module-mocking` runs everywhere, because its subject is a test file.
-- `health/file-size` and `health/doc-budgets` are project-scoped and walk their own configured roots,
-  because a file's length and a document's word count are not positions in an architecture.
+- `health/file-size` and `health/doc-budgets` are project-scoped and walk their own roots: a file's
+  length and a document's word count are not positions in an architecture.
 
-None of the three says anything about architecture, so an undeclared package is still
-architecturally ungoverned.
+None says anything about architecture, so an undeclared package is still architecturally ungoverned.
 
 Two more things sit outside every tree's reach, and both belong in the project's setup notes:
 
@@ -77,14 +81,13 @@ Two more things sit outside every tree's reach, and both belong in the project's
 - A file outside every declared tree is silent for every tree-scoped rule.
 
 A tree declaration may vary **names and numbers**: the source root, the alias prefix, what the
-directories and feature layers are called, the thresholds. It may not vary which rules apply to it.
-There is no per-tree rule list, and adding one would turn the catalog back into a menu.
+directories and feature layers are called, the thresholds. It may not vary which rules apply. There
+is no per-tree rule list, and adding one would turn the catalog back into a menu.
 
 The declaration list is also the scoping list. `.oxlintrc.json` scopes the `arch/` rules to the same
 roots with one `<root>/**` glob per root, and `harness/run-rule-fixtures.ts` fails the build when the
-two disagree in either direction. A nested `.oxlintrc.json` per workspace that `extends` the root
-config expresses the same scoping as file placement; either way `declared-trees.ts` is the source of
-truth.
+two disagree either way. A nested `.oxlintrc.json` per workspace that `extends` the root config
+expresses the same scoping as file placement; `declared-trees.ts` stays the source of truth.
 
 ---
 
@@ -106,12 +109,11 @@ What each buys, and what breaks without it, is on the lines that switch them on 
 [setup/oxlintrc.json](setup/oxlintrc.json).
 
 Rules share `lint/oxlint/lib/`, and the sharing is load-bearing rather than tidy: one module owns
-each concern, so a new rule inherits the fix rather than a copy of the bug. Every module in that
-directory documents itself in its own header. Read the directory before you write a rule; do not
-re-derive one of them.
+each concern, so a new rule inherits the fix rather than a copy of the bug. Every module documents
+itself in its own header. Read the directory before you write a rule.
 
 **oxlint's JS plugins are alpha** as of 1.77 and say so. The API is ESLint's `create(context)`
-returning a visitor, so the exposure is churn in a young API rather than a design bet.
+returning a visitor, so the exposure is churn in a young API, not a design bet.
 
 ### Writing a rule that matches imports
 
@@ -125,8 +127,8 @@ the mistake both exist to prevent.
   it twice is the failure it is shaped to prevent.
 
 Both headers state their own contracts, including which visitor keys they return and which the
-consuming rule still owns. Read them there rather than here — a second copy of a contract is the
-thing this catalog most reliably gets wrong.
+consuming rule still owns. Read them there — a second copy of a contract is the thing this catalog
+most reliably gets wrong.
 
 ### Where a visitor fails silently
 
@@ -164,15 +166,10 @@ That is four round trips where there should be one, and it is worst exactly when
 worst shape.
 
 The same trap catches the scripts *above* the orchestrator, and it is easy to fix one level and leave
-it in place at the next. Watch two:
-
-- `check:arch` written as `oxlint src && check:structural` lets a lint failure hide every structural
-  finding.
-- `typecheck` written as one `&&` chain of three `tsc` runs lets an app type error hide every error
-  in the check scripts themselves.
-
-Run each independently and aggregate. Reserve `&&` for a step that genuinely cannot run after the
-one before it failed.
+it at the next: `check:arch` as `oxlint src && check:structural` lets a lint failure hide every
+structural finding, and `typecheck` as one `&&` chain of `tsc` runs lets an app type error hide every
+error in the check scripts. Run each independently and aggregate. Reserve `&&` for a step that
+genuinely cannot run after the one before it failed.
 
 ### The substrate
 
@@ -191,20 +188,23 @@ apart on exclusions and on what counts as an import, and neither copy reports th
 - **`import-graph.ts`** — the resolved graph for one tree, plus `scanDeclaredImports` for the one
   check needing raw specifiers. Any check asking where an import *lands* consumes the graph rather
   than matching how the specifier is spelled.
-- **`module-resolution.ts`** — where one specifier lands, over `oxc-resolver` (`bun add -d
-  oxc-resolver`, the tier's one dependency). It sees what path arithmetic cannot: `./rows.js`
-  naming `rows.ts`, a directory naming its barrel. No knob — it reads the tree's vocabulary.
-- **`registry.ts`** — the check list, copied whole.
-- **`run-structural-checks.ts`** — the orchestrator.
+- **`type-checker.ts`** — one TypeScript process per run and one program per declared tree, for the
+  `types/` checks. Built lazily, so a project running none of them never spawns it. The tier's two
+  dev dependencies are `oxc-resolver` and `typescript` 7, whose `unstable/async` API this is the one
+  file to import.
+- **`module-resolution.ts`** — where one specifier lands, over `oxc-resolver`. It sees what path
+  arithmetic cannot: `./rows.js` naming `rows.ts`, a directory naming its barrel. No knob — it reads
+  the tree's vocabulary.
+- **`registry.ts`** — the check list, copied whole. **`run-structural-checks.ts`** — the orchestrator.
 
-Centralising the same *pattern* into a shared file reduces duplication and fixes no correctness.
-Reach for the reader at the same time, or the shared module is only tidier, not better.
+Centralising a *pattern* reduces duplication and fixes no correctness. Reach for the reader at the
+same time, or the shared module is only tidier.
 
 **`Bun.Transpiler` answers questions about imports and exports, and nothing else.** It exposes import
-paths and kinds, export names, and transformed JavaScript. It does not expose component boundaries,
-call expressions, parameter structure, or TypeScript property signatures, and `transform()` erases
-the very annotations a props reader needs. So it retires the extraction patterns and no others. Any
-question about syntax belongs to the plugin tier, which is handed a real AST.
+paths and kinds, export names, and transformed JavaScript — not component boundaries, call
+expressions, parameter structure or TypeScript property signatures, and `transform()` erases the very
+annotations a props reader needs. Any question about syntax belongs to the plugin tier, which is
+handed a real AST.
 
 ### Staged-scoped warnings
 
@@ -235,9 +235,9 @@ surface repo-wide. Two design constraints make that possible, and both bind any 
   60 tokens over 6 lines on normalized tokens in `mild` mode, so renaming every variable does not
   hide the clone, and neither does inserting a comment or a blank line.
   `sonarjs/no-identical-functions` catches what fits inside one rule's window; this catches the copy
-  that spans files. Fence genuinely irreducible repetition with
-  `/* jscpd:ignore-start */ … /* jscpd:ignore-end */`. Do not raise `minTokens` instead: that hides
-  every clone of that size, not the one you meant to allow.
+  that spans files. Fence irreducible repetition with `/* jscpd:ignore-start */ … /* jscpd:ignore-end
+  */`. Do not raise `minTokens`: that hides every clone of that size, not the one you meant to
+  allow.
 
 ---
 
@@ -276,13 +276,12 @@ promises, which is what happened at three separate deployments before this tier 
    and never runs.
 3. Declare the project's trees, then write `arch.config.ts`: spread `defaultCheckConfigs` and
    override what differs. The keys are declared per check in
-   [lint/structural/config.ts](lint/structural/config.ts), and only eight of the sixteen checks take
-   any — the other eight read the tree and nothing else. Directory names, the alias prefix and the
-   layer order are not keys anywhere: the config has no field for them, so the two tiers cannot end
-   up policing two different trees.
+   [lint/structural/config.ts](lint/structural/config.ts); most checks take none and read the tree
+   alone. Directory names, the alias prefix and the layer order are not keys anywhere: the config has
+   no field for them, so the two tiers cannot end up policing two different trees.
 4. Run once against the real tree and calibrate thresholds *just above* current values, so they
-   signal growth rather than firing on day one. A check that fires on the state of the world the day
-   it was installed gets switched off in the same week.
+   signal growth rather than firing on day one. A check that fires on the world as it was installed
+   gets switched off the same week.
 5. Write the project's own three cases against its own code. The catalog's fixtures prove the check;
    yours prove the config.
 6. Run `check:arch`.
@@ -296,10 +295,10 @@ promises, which is what happened at three separate deployments before this tier 
    that tree's vocabulary and graph. `"project"` is for a question with no position in it, and there
    are two of those. A tree-scoped check reading a project path, or the reverse, is a check whose
    subject and scope disagree.
-3. Take imports from `context.importGraph()` and file sets from the substrate's collectors, with the
-   source glob from `lint/policy/layout.ts`. Do not scan files for imports directly, and do not spell
-   your own extension list: six checks each spelling their own glob is how four of them ended up
-   wrong about `.mts`.
+3. Take imports from `context.importGraph()`, types from `context.typeChecker()`, and file sets from
+   the substrate's collectors, with the source glob from `lint/policy/layout.ts`. Do not spell your
+   own extension list: six checks each spelling their own glob is how four ended up wrong about
+   `.mts`.
 4. Put every per-repo value in the config object, never as a constant in the check body. Names of
    directories and layers are not per-repo values — read them off `context.vocabulary`. The test is
    whether a second project could adopt the check by writing config and a tree declaration alone.
@@ -322,11 +321,10 @@ parallel: lint, structural checks, typecheck, tests. Under 15 seconds is the bud
 the check.** Format and lint see the staged files, because a repo-wide formatter would rewrite what
 another agent is mid-edit on, and someone else's per-file violation is not this commit's problem.
 Typecheck, tests and structural checks see the whole repo, because those catch what is broken no
-matter who wrote it. [setup/lefthook.yml](setup/lefthook.yml) is the mechanism and carries its own
-gotchas.
+matter who wrote it. [setup/lefthook.yml](setup/lefthook.yml) carries its own gotchas.
 
-**Tier 3 — CI.** The same checks, as the safety net for `--no-verify`. Only `duplication` is CI-only.
-A violation that reaches Tier 3 means the loop above it already failed.
+**Tier 3 — CI.** The same checks, as the safety net for `--no-verify`; only `duplication` is CI-only.
+A violation reaching Tier 3 means the loop above it already failed.
 
 ---
 
@@ -336,13 +334,13 @@ A violation that reaches Tier 3 means the loop above it already failed.
 header convention that says so, is
 [architecture-principles.md](architecture-principles.md#what-blocks-and-what-does-not).
 
-**Rules detect the narrowest possible violation.** A rule that catches too much trains agents to work
-around it. A rule that needs many exceptions is too broad.
+**Rules detect the narrowest possible violation.** One that catches too much trains agents to work
+around it; one needing many exceptions is too broad.
 
 **Error messages are the documentation.** A message must let the agent fix the violation without
-opening anything else. Per-file messages live in `meta.messages` keyed by `messageId`, and oxlint
-renders one as `error <plugin>(<rule>): <message>`. Because a rule's key is its file name, the
-diagnostic id is also the path to the rule that raised it. Structural findings use:
+opening anything else. Per-file messages live in `meta.messages` keyed by `messageId`, rendered as
+`error <plugin>(<rule>): <message>` — and because a rule's key is its file name, the diagnostic id is
+the path to the rule that raised it. Structural findings use:
 
 ```
 FAIL [rule-name] path/to/file.ts
@@ -354,20 +352,19 @@ FAIL [rule-name] path/to/file.ts
 
 **One global exemption, in one place, never per rule.** Every rule but `testing/no-module-mocking`
 skips test files (`*.test.*`, `__tests__/`, `test/`), one-off scripts (`scripts/`), generated and
-ambient modules (`*.gen.*`, `*.d.*`), and every directory a tree declares as generated output. The
-exemption lives in `isArchitectureExemptSourcePath` in `lint/policy/declared-trees.ts`, and both
-tiers read it: the oxlint tier through `defineTreeRule`, the structural tier through its file
-collection. `testing/no-module-mocking` is the exception because its subject *is* a test file.
-Per-rule copies drift, and they drift identically — each over-matches the same way, and each has to
-be found separately.
+ambient modules (`*.gen.*`, `*.d.*`), and every directory a tree declares as generated output. It
+lives in `isArchitectureExemptSourcePath` in `lint/policy/declared-trees.ts`; the oxlint tier reads it
+through `defineTreeRule`, the structural tier through its file collection.
+`testing/no-module-mocking` is the exception because its subject *is* a test file. Per-rule copies
+drift identically — each over-matches the same way, and each has to be found separately.
 
 ---
 
 ## Rule Specs
 
-**Specs are permanent and they run in CI.** A rule is code with exactly one job and a silent failure
-mode: when it stops matching it does not error, it goes green. Enforcement code needs regression
-tests more than application code does, because application code has users who notice.
+**Specs are permanent and they run in CI.** A rule has exactly one job and a silent failure mode:
+when it stops matching it does not error, it goes green. Enforcement code needs regression tests more
+than application code, which has users who notice.
 
 Every rule ships its spec beside it, importing the rule file directly — one artifact, with no second
 copy to drift. The three kinds and why each exists are the contract of

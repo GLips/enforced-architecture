@@ -22,22 +22,15 @@ import { noInlineColorRule } from "./style/no-inline-color.ts";
 import { noInlineFontSizeRule } from "./style/no-inline-font-size.ts";
 import { noInlineStylePropRule } from "./style/no-inline-style-prop.ts";
 import { noNestedTernaryRule } from "./health/no-nested-ternary.ts";
-import { noOpaqueRecordRule } from "./types/no-opaque-record.ts";
 import { noPlainExportInServerFnModuleRule } from "./placement/no-plain-export-in-server-fn-module.ts";
 import { noRawPrimitivesRule } from "./style/no-raw-primitives.ts";
 import { noRawResultRule } from "./placement/no-raw-result.ts";
-import { noBroadParametersRule } from "./types/no-broad-parameters.ts";
 import { noChainedTypeAssertionsRule } from "./types/no-chained-type-assertions.ts";
 import { noConditionalEmptyObjectSpreadRule } from "./types/no-conditional-empty-object-spread.ts";
-import { noKnownValueWideningRule } from "./types/no-known-value-widening.ts";
 import { noModuleMockingRule } from "./testing/no-module-mocking.ts";
 import { noVacantSymbolNamesRule } from "./naming/no-vacant-symbol-names.ts";
 import { noReflectAccessRule } from "./types/no-reflect-access.ts";
-import { noRuntimeTypeofRule } from "./types/no-runtime-typeof.ts";
 import { noTypeArgumentAssertionRule } from "./types/no-type-argument-assertion.ts";
-import { noUnknownReturnsRule } from "./types/no-unknown-returns.ts";
-import { noUnknownTypeAliasesRule } from "./types/no-unknown-type-aliases.ts";
-import { noWidenThenAssertRule } from "./types/no-widen-then-assert.ts";
 import { requireSafetyCommentRule } from "./types/require-safety-comment.ts";
 import { noTestImportsRule } from "./boundary/no-test-imports.ts";
 import { routeThinnessRule } from "./boundary/route-thinness.ts";
@@ -83,19 +76,12 @@ export default definePlugin({
     "sdk-containment": sdkContainmentRule,
     "server-no-upward": serverNoUpwardRule,
     "no-nested-ternary": noNestedTernaryRule,
-    "no-opaque-record": noOpaqueRecordRule,
-    "no-broad-parameters": noBroadParametersRule,
     "no-chained-type-assertions": noChainedTypeAssertionsRule,
     "no-conditional-empty-object-spread": noConditionalEmptyObjectSpreadRule,
-    "no-known-value-widening": noKnownValueWideningRule,
     "no-module-mocking": noModuleMockingRule,
     "no-vacant-symbol-names": noVacantSymbolNamesRule,
     "no-reflect-access": noReflectAccessRule,
-    "no-runtime-typeof": noRuntimeTypeofRule,
     "no-type-argument-assertion": noTypeArgumentAssertionRule,
-    "no-unknown-returns": noUnknownReturnsRule,
-    "no-unknown-type-aliases": noUnknownTypeAliasesRule,
-    "no-widen-then-assert": noWidenThenAssertRule,
     "require-safety-comment": requireSafetyCommentRule,
     "derived-state": derivedStateRule,
     "hook-count": hookCountRule,

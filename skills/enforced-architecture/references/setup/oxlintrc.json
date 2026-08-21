@@ -218,25 +218,31 @@
   //   here.
   //
   // ── types ──
+  // SEVEN OF THIS TAG'S SUBJECTS RUN IN THE OTHER TIER, and the survey still
+  // belongs here because the question it answers is about a shipped OXLINT rule:
+  // does it replace ours. That question does not change when ours moves. The
+  // names below say which tier owns each — `arch/x` is a rule this config turns
+  // on, `types/x` with no prefix is a structural check in `structural/types/`.
+  //
   // ONE FINDING RUNS THROUGH THIS WHOLE SECTION, so it is stated once. The typed
   // built-ins keep prescribing `unknown` as the fix, and `unknown` in a declaration
   // is what this tag bans. `no-explicit-any` says "Use `unknown` instead";
   // `explicit-module-boundary-types` says "prefer `unknown` and narrow before use";
   // `consistent-indexed-object-style` says "Use a record type such as
   // `Record<string, unknown>`". Each of those sentences is a violation of
-  // `arch/no-broad-parameters`, `arch/no-unknown-returns` or
-  // `arch/no-opaque-record` respectively, written out in the help text. They are not
+  // `types/no-broad-parameters`, `types/no-unknown-returns` or
+  // `types/no-opaque-record` respectively, written out in the help text. They are not
   // weaker versions of these rules; they are the step before them, and following
   // them lands exactly on the code this tag reports. That is an edit loop, and it is
   // why the overlap is only ever on the `any` spelling.
   //
   // `typescript/no-unsafe-type-assertion`: the strongest candidate in the catalog and
   //   the only one that covers a `types/` subject outright. It reports all four
-  //   canonical `arch/no-widen-then-assert` flows — through `unknown`, through `any`,
+  //   canonical `types/no-widen-then-assert` flows — through `unknown`, through `any`,
   //   through `object`, through an open `Record` — on code that typechecks. It stays
   //   off because it is a BAN on narrowing assertions with no hatch, and this catalog
   //   deliberately took justify-over-ban there. It fires on `parsed as User` after a
-  //   `JSON.parse` — the parse boundary `arch/no-widen-then-assert`'s own legal
+  //   `JSON.parse` — the parse boundary `types/no-widen-then-assert`'s own legal
   //   fixture blesses and `arch/require-safety-comment` exists to permit WITH a
   //   stated invariant — and on `el as HTMLElement`. Adding the `// SAFETY:` comment
   //   that `arch/require-safety-comment`'s message asks for does not silence it, so
@@ -249,33 +255,38 @@
   //   judge a VALUE of type `any` flowing somewhere; the `types/` rules judge a
   //   DECLARATION that names a broad type. The two never meet: passing an `any` into
   //   `function handle(payload: unknown)` is safe, so `no-unsafe-argument` is silent
-  //   on exactly the parameter `arch/no-broad-parameters` reports. Both were run over
+  //   on exactly the parameter `types/no-broad-parameters` reports. Both were run over
   //   both rules' full fixture sets and scored 0 on every violation.
   // `no-explicit-any`, `explicit-module-boundary-types`, `explicit-function-return-type`:
   //   the `any` spelling only, on every rule in this tag — see the edit loop above.
-  //   The last two also report `arch/no-unknown-returns`' legal fixture, the inferred
+  //   The last two also report `types/no-unknown-returns`' legal fixture, the inferred
   //   return it leaves to TypeScript on purpose.
-  // `consistent-indexed-object-style`: reports one of `arch/no-opaque-record`'s two
+  // `consistent-indexed-object-style`: reports one of `types/no-opaque-record`'s two
   //   spellings and prescribes the other, whichever way it is configured — at its
   //   default it rewrites `{ [k: string]: unknown }` into `Record<string, unknown>`,
   //   and with `"index-signature"` it rewrites it back. It has no opinion about the
   //   VALUE, which is half the question.
   // `no-redundant-type-constituents`: reports `type T = unknown | string` for
-  //   `arch/no-unknown-type-aliases`, and the fix is to drop the other members,
+  //   `types/no-unknown-type-aliases`, and the fix is to drop the other members,
   //   leaving `type T = unknown` — the alias that rule is named for. Silent on the
   //   bare alias and on an alias chain.
-  // `consistent-type-definitions`: reports the named type `arch/no-opaque-record`'s
+  // `consistent-type-definitions`: reports the named type `types/no-opaque-record`'s
   //   own message asks the author to write, because it prefers `interface`.
-  // `no-unnecessary-condition`: the near neighbour of `arch/no-runtime-typeof`, and
+  // `no-unnecessary-condition`: the near neighbour of `types/no-runtime-typeof`, and
   //   the one rule here reachable in config but absent from `oxlint --print-config
-  //   -D all`. It asks whether a condition is statically decided, so on a genuine
-  //   `typeof input === "string"` over `string | number` it is correctly SILENT —
-  //   which is the case ours exists to report. Control-verified loaded.
+  //   -D all`. It asks whether a condition is statically DECIDED — always true,
+  //   always false — where ours asks whether the operand has a type at all. On
+  //   `typeof input === "string"` over `string | number` both are now silent, and
+  //   that agreement is the redesign: when `types/no-runtime-typeof` moved to a
+  //   checker it stopped reporting the narrowing of a union, which its oxlint-tier
+  //   predecessor named in its own header as code it wrongly reported. What neither
+  //   catches is the typo — `typeof v === "sting"` is a comparison that is merely
+  //   always false, not statically decided. Control-verified loaded.
   // NO CANDIDATE, and this is the load-bearing negative result: on a file holding the
-  //   canonical violations of `arch/no-runtime-typeof`, all 109 `typescript/` rules
-  //   together report NOTHING. `arch/no-opaque-record`'s headline
+  //   canonical violations of `types/no-runtime-typeof`, all 109 `typescript/` rules
+  //   together report NOTHING. `types/no-opaque-record`'s headline
   //   `Record<string, unknown>` also draws nothing from any of them, and neither does
-  //   `arch/no-known-value-widening`'s `const handlers: Record<string, Handler> = {…}`.
+  //   `types/no-known-value-widening`'s `const handlers: Record<string, Handler> = {…}`.
   //
   // ── the structural tier's subjects ──
   // `max-lines`: one threshold at one severity, and `overrides` REPLACES the entry
@@ -538,16 +549,15 @@
 
 
       // ── types: no value arrives somewhere claiming a type nothing checked ──
-      "arch/no-broad-parameters": "error",
+      // Five of this tag's twelve rules run here. The other seven ask what a
+      // declaration MEANS rather than how it is spelled, which this tier cannot
+      // answer, and they run in the structural tier against a real checker —
+      // `structural/types/`, registered in `structural/registry.ts` and proved by
+      // `check:structural`. A project that runs oxlint and not the structural
+      // tier has five of the twelve, not twelve.
       "arch/no-chained-type-assertions": "error",
-      "arch/no-known-value-widening": "error",
-      "arch/no-opaque-record": "error",
       "arch/no-reflect-access": "error",
-      "arch/no-runtime-typeof": "error",
       "arch/no-type-argument-assertion": "error",
-      "arch/no-unknown-returns": "error",
-      "arch/no-unknown-type-aliases": "error",
-      "arch/no-widen-then-assert": "error",
       "arch/require-safety-comment": "error",
       // A report on a spread that could have been written plainly, not a property
       // anything depends on.
