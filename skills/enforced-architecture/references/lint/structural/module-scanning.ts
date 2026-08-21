@@ -8,6 +8,17 @@
 // spellings count, and the disagreement is invisible, because the reader that
 // misses a form reports nothing rather than failing.
 //
+// ONE reader in the tier is outside that claim, and it is stated here rather
+// than left to be discovered: `naming/barrel-discoverability` matches
+// `export * from` and `export { … } from` with its own regexes and quotes the
+// captured specifier back in its message. Its SUBJECT is the exported NAMES —
+// which symbols a barrel puts on its public surface, and whether each is
+// greppable — so it never resolves the specifier, never asks where it lands, and
+// makes no claim about which spellings of an import exist. It reads a statement
+// this module also reads, for a different question. A reader that wanted the set
+// of modules a file names, or where any of them lands, would be a second answer
+// to THIS question and belongs here.
+//
 // This is the third substrate in the tier, beside `module-resolution.ts` (where
 // a specifier LANDS) and `type-checker.ts` (what a declaration MEANS). This one
 // is upstream of both: nothing can be resolved before it is found.
@@ -56,14 +67,22 @@
 //
 // A specifier that is not a static string is not reported and cannot be:
 // `import(`./${name}`)` names a module only at runtime. This is the one import
-// form the tier is blind to, it is blind to it by construction rather than by
-// omission, and `health/trampolines` is the check that notices a module doing
-// enough of that to matter.
+// form the tier is blind to, and it is blind to it by construction rather than
+// by omission.
 //
-// `require()` and `require.resolve()` are reported, because a project that still
-// has CommonJS in it crosses boundaries with them, and an unreported crossing is
-// a rule that silently does not apply to those files. `import.meta` is not an
-// import and is not reported.
+// NOTHING ELSE IN THE CATALOG COVERS IT. No check reads a computed specifier, no
+// check counts how many a module has, and no check reports a module for building
+// one — so a boundary crossed through a computed specifier is crossed with every
+// rule here silent, and the run is green. Do not read this paragraph as a
+// hand-off: there is no second check downstream that catches what this cannot
+// see. A project that routes real crossings through computed specifiers is a
+// project this tier does not govern, and the only fix is to write the specifier
+// statically.
+//
+// `require()`, `require.resolve()` and `import x = require()` are reported,
+// because a project that still has CommonJS in it crosses boundaries with them,
+// and an unreported crossing is a rule that silently does not apply to those
+// files. `import.meta` is not an import and is not reported.
 //
 // PARSE ERRORS THROW. A file whose imports cannot be read is a file no boundary
 // rule governs, and the tier has one job that outranks completing the run.
@@ -145,13 +164,21 @@ function staticSpecifierOf(node: unknown): { specifier: string; offset: number }
 
 /**
  * The import forms `EcmaScriptModule` does not carry: `import("…")`,
- * `require("…")`, `require.resolve("…")`, and `import("…")` in a TYPE position.
+ * `require("…")`, `require.resolve("…")`, `import("…")` in a TYPE position,
+ * `import x = require("…")`, and `export {} from "…"`.
  *
  * The module record describes ES imports and exports. Two of these are
- * CommonJS, one is erased before any module record exists, and the fourth —
- * dynamic import — is on the record but only as a SPAN of source text, which is
- * the raw spelling rather than the module's name. Walking for all four is the
- * cost of not missing them.
+ * CommonJS, one is erased before any module record exists, and dynamic import is
+ * on the record but only as a SPAN of source text, which is the raw spelling
+ * rather than the module's name.
+ *
+ * The last two are on neither side of the record. `import x = require("…")` is
+ * TypeScript's own CommonJS binding: it is not an ES import, and its argument is
+ * a `TSExternalModuleReference` rather than a call, so no `CallExpression` arm
+ * reaches it either — the oxlint tier visits the declaration by name for the
+ * same reason. An export clause with NO NAMES produces no `staticExports`
+ * statement at all, and the module it names is still fetched and evaluated for
+ * its side effects, exactly as `import "./x"` is.
  *
  * A `require` shadowed by a local binding is reported anyway. That is the loud
  * direction and it is deliberate: the alternative is scope analysis to decide an
@@ -173,6 +200,31 @@ function walkForUnrecordedImports(node: unknown, found: ScannedImport[]): void {
   if (type === "CallExpression" && isRequireCallee(record["callee"])) {
     const named = staticSpecifierOf((record["arguments"] as Array<unknown> | undefined)?.[0]);
     if (named !== undefined) found.push({ ...named, typeOnly: false });
+  }
+  if (type === "TSImportEqualsDeclaration") {
+    // `import x = someNamespace.Thing` names no module. Only the external form
+    // carries a specifier, and reading the reference's type is what tells them
+    // apart.
+    const reference = record["moduleReference"] as AstNode | undefined;
+    if (reference?.["type"] === "TSExternalModuleReference") {
+      const named = staticSpecifierOf(reference["expression"]);
+      if (named !== undefined) {
+        found.push({ ...named, typeOnly: record["importKind"] === "type" });
+      }
+    }
+  }
+  // ONLY when the clause is empty. Every other export with a `from` is on the
+  // module record and is read there — matching the declaration unconditionally
+  // would report `export { a } from "./x"` twice, once per structure, and every
+  // rule reading the graph would report that line twice.
+  if (
+    type === "ExportNamedDeclaration" &&
+    (record["specifiers"] as Array<unknown> | undefined)?.length === 0
+  ) {
+    const named = staticSpecifierOf(record["source"]);
+    if (named !== undefined) {
+      found.push({ ...named, typeOnly: record["exportKind"] === "type" });
+    }
   }
 
   // Every key, including `type` itself: it holds a string, which the guard at
@@ -224,6 +276,11 @@ export function scanDeclaredImports(options: { path: string; source: string }): 
   // the two boundaries exactly as an import statement does. They live on the
   // EXPORT record because that is where the grammar puts them, which is the one
   // reason this loop is separate.
+  //
+  // NOT EVERY RE-EXPORT IS HERE. `export {} from "./a"` has no name to make an
+  // entry out of, and the parser emits no statement for it either — so it is
+  // read from the AST by `walkForUnrecordedImports`, with the rest of what the
+  // module record does not carry.
   //
   // GROUPED BY THE MODULE REQUEST, because the export record has one entry per
   // NAME and an occurrence here is one written specifier. `export { type A, b }
