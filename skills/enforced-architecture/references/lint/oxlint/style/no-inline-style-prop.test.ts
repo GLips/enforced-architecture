@@ -32,6 +32,21 @@ describeRule("style/no-inline-style-prop", noInlineStylePropRule, {
       code: `import type { CSSProperties } from "react";\nexport const Row = () => <span style={{ padding: 12 } as CSSProperties} />;`,
       errors: [{ messageId: "inlineStyleObject" }],
     },
+    // `as` was the only one of the wrappers this rule had a case for, so the other spellings could
+    // be dropped with the suite green. They are lib/transparent-wrappers.ts's list now, and these
+    // two hold this rule's end of that agreement.
+    {
+      name: "satisfies is the same packaging as a cast, one keyword over",
+      filename: COMPONENT,
+      code: `import type { CSSProperties } from "react";\nexport const Row = () => <span style={{ padding: 12 } satisfies CSSProperties} />;`,
+      errors: [{ messageId: "inlineStyleObject" }],
+    },
+    {
+      name: "a non-null assertion on a parenthesised literal ships the literal",
+      filename: COMPONENT,
+      code: `export const Row = () => <span style={({ padding: 12 })!} />;`,
+      errors: [{ messageId: "inlineStyleObject" }],
+    },
     {
       name: "a ternary hides the literal in a branch",
       filename: COMPONENT,

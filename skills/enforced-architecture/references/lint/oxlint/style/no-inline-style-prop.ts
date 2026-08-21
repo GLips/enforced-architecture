@@ -32,6 +32,7 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineTreeRule } from "../lib/define-tree-rule.ts";
+import { isTransparentWrapper } from "../lib/transparent-wrappers.ts";
 import { type ESTree } from "@oxlint/plugins";
 import { isAtProfile } from "../../policy/declared-trees.ts";
 
@@ -47,14 +48,16 @@ const STYLE_PROPS = new Set(["style"]);
  * idiomatic way to write the very thing the rule bans.
  */
 function shipsObjectLiteral(node: ESTree.Node): boolean {
+  // The wrappers that change nothing about the value are `lib/transparent-wrappers.ts`'s to list,
+  // not this rule's. The private copy here named four of the five and was the only place in the
+  // catalog that carried `TSTypeAssertion` for a JSX attribute — a branch no input reaches, since
+  // `<never>{…}` does not parse in a .tsx file. The arms below are NOT that list: a ternary, a
+  // logical, and a style array each ship something different from what they contain, which is why
+  // this rule answers for them and the shared module refuses to.
+  if (isTransparentWrapper(node)) return shipsObjectLiteral(node.expression);
   switch (node.type) {
     case "ObjectExpression":
       return true;
-    case "TSAsExpression":
-    case "TSSatisfiesExpression":
-    case "TSNonNullExpression":
-    case "TSTypeAssertion":
-      return shipsObjectLiteral(node.expression);
     case "ConditionalExpression":
       return shipsObjectLiteral(node.consequent) || shipsObjectLiteral(node.alternate);
     case "LogicalExpression":
