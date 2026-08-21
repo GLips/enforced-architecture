@@ -64,8 +64,7 @@ export function visitModuleSources(
     },
     CallExpression(node) {
       if (!isRequireCallee(node.callee)) return;
-      const [argument] = node.arguments;
-      if (argument !== undefined) onStaticSpecifier(argument, onSource);
+      onStaticSpecifier(node.arguments[0], onSource);
     },
   };
 }
@@ -80,17 +79,57 @@ export function visitModuleSources(
  * answered for itself is the one that carried the literal and forgot the template.
  */
 function onStaticSpecifier(
-  source: ESTree.Node,
+  source: ESTree.Node | undefined,
   onSource: (source: ModuleSourceNode, specifier: string) => void,
 ): void {
+  const found = staticModuleSpecifier(source);
+  if (found !== undefined) onSource(found.node, found.specifier);
+}
+
+/**
+ * The one module a specifier expression names, with the node to blame for it — or `undefined` when
+ * it names a family rather than a module.
+ *
+ * THE ONE OWNER of "is this specifier statically known, and what is it". This was two private
+ * copies, one here and one in `lib/imported-names.ts`, and they agreed on every input — which is
+ * the reason to merge them rather than a reason not to. Their COVERAGE diverged: ea-41 fixed the
+ * same backtick bypass in each, one round apart, and only one of the two grew a fixture. So
+ * ``import(`@/infrastructure/db/${name}`)`` — the negative space this module's header names — was
+ * asserted against one copy and against nothing on the other, and nothing would have reported the
+ * next patch landing on one side only.
+ *
+ * The return is an object because the two callers want different halves: `visitModuleSources` blames
+ * a node and `runtimeImportSpecifier` returns a bare string. A superset of both is one function; a
+ * string return would put the blame node back in the caller, which is where the second copy started.
+ *
+ * Takes `undefined` so the missing-argument case — `require()` — is answered here rather than at
+ * each call site. That guard was written in both copies too, in different places.
+ *
+ * NEGATIVE SPACE: a template WITH a substitution names a family of modules and gets `undefined`
+ * rather than its literal prefix. A quasi whose `cooked` is null cannot be reached — an invalid
+ * escape is a SyntaxError outside a tagged template, and a tagged template is not a
+ * `TemplateLiteral` — and is refused rather than trusted.
+ *
+ * The two REFUSALS a fixture can reach are pinned from both sides: `boundary/import-policy` for the
+ * visitor half and `style/no-raw-primitives` for the `runtimeImportSpecifier` half. The non-string
+ * literal check is not one of them — it narrows `Literal["value"]` to `string` and deleting it is a
+ * type error, not a behaviour change, so it carries no fixture by the convention
+ * `lib/imported-names.ts` states. `require(0)` coerces to the specifier `"0"`, which every rule in
+ * the catalog already treats as an ordinary bare package name, so no fixture could tell the two
+ * apart anyway.
+ */
+export function staticModuleSpecifier(
+  source: ESTree.Node | undefined,
+): { node: ModuleSourceNode; specifier: string } | undefined {
+  if (source === undefined) return undefined;
   if (source.type === "Literal") {
-    if (typeof source.value === "string") onSource(source, source.value);
-    return;
+    return typeof source.value === "string" ? { node: source, specifier: source.value } : undefined;
   }
-  if (source.type !== "TemplateLiteral" || source.expressions.length > 0) return;
+  if (source.type !== "TemplateLiteral" || source.expressions.length > 0) return undefined;
   const [quasi] = source.quasis;
   const cooked = quasi?.value.cooked;
-  if (quasi !== undefined && typeof cooked === "string") onSource(quasi, cooked);
+  if (quasi === undefined || typeof cooked !== "string") return undefined;
+  return { node: quasi, specifier: cooked };
 }
 
 /**

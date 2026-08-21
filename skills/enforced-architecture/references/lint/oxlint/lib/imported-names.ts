@@ -1,4 +1,5 @@
 import type { Definition, ESTree, SourceCode, Variable, Visitor } from "@oxlint/plugins";
+import { staticModuleSpecifier } from "./module-source-visitor.ts";
 import { staticKeyName } from "./static-key-name.ts";
 import {
   outermostTransparentWrapper,
@@ -82,11 +83,11 @@ export function runtimeImportSpecifier(
   const outer = withoutTransparentWrappers(node);
   const loaded =
     outer.type === "AwaitExpression" ? withoutTransparentWrappers(outer.argument) : outer;
-  if (loaded.type === "ImportExpression") return staticSpecifier(loaded.source);
+  if (loaded.type === "ImportExpression") return staticModuleSpecifier(loaded.source)?.specifier;
   if (loaded.type !== "CallExpression") return undefined;
   if (loaded.callee.type !== "Identifier" || loaded.callee.name !== "require") return undefined;
   if (isRebound(loaded.callee, sourceCode)) return undefined;
-  return staticSpecifier(loaded.arguments[0]);
+  return staticModuleSpecifier(loaded.arguments[0])?.specifier;
 }
 
 /**
@@ -120,24 +121,6 @@ function isRebound(identifier: ESTree.IdentifierReference, sourceCode: SourceCod
     if (declaration === null || declaration === undefined) return true;
     return !("declare" in declaration && declaration.declare === true);
   });
-}
-
-/**
- * A specifier that names one module for certain: a string literal, or a template with no
- * substitution.
- *
- * The backtick form is here for the reason `lib/module-source-visitor.ts` gives for carrying it —
- * ``require(`react-native`)`` is the same edge as `require("react-native")`, and it is exactly the
- * spelling someone reaches for to make a fence stop matching. A template WITH a substitution names
- * a family of modules and gets `undefined` rather than its literal prefix.
- */
-function staticSpecifier(node: ESTree.Node | undefined): string | undefined {
-  if (node === undefined) return undefined;
-  if (node.type === "Literal") return typeof node.value === "string" ? node.value : undefined;
-  if (node.type !== "TemplateLiteral" || node.expressions.length > 0) return undefined;
-  const [quasi] = node.quasis;
-  const cooked = quasi?.value.cooked;
-  return typeof cooked === "string" ? cooked : undefined;
 }
 
 /**
