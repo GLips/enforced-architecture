@@ -197,11 +197,63 @@ function crossesServerFnBoundary(
   // interpolating a call name into a matcher sound. The MODULE is compared as a
   // plain string rather than matched, so it needs no escaping and no validation
   // beyond being nonempty.
-  const bodyOfFile = source.replace(IMPORT_CLAUSE, "");
-  return boundaryBindingsIn(source, boundary).some(
+  //
+  // The two halves read DIFFERENT texts, and the asymmetry is the contract's
+  // NEVER clause in code. Both halves that could ACCEPT a boundary — the import
+  // and the call — read literal-masked text, because a quoted string is not code:
+  // a review put `'import { createServerFn } from "@tanstack/react-start"'` in a
+  // string beside a local function aliased to that name and fabricated a boundary
+  // the file never crossed, which is a false negative and the one direction this
+  // check may not have. `rebindsName` reads the RAW body instead, because there a
+  // false match REFUSES a boundary — a string that merely looks like a
+  // declaration costs an over-report, and over-reports are the chosen direction.
+  const masked = maskLiteralContents(source);
+  const maskedBody = masked.replace(IMPORT_CLAUSE, "");
+  const rawBody = source.replace(IMPORT_CLAUSE, "");
+  return boundaryBindingsIn(source, masked, boundary).some(
     (local) =>
-      !rebindsName(bodyOfFile, local) && new RegExp(String.raw`\b${local}\s*\(`).test(bodyOfFile),
+      !rebindsName(rawBody, local) && new RegExp(String.raw`\b${local}\s*\(`).test(maskedBody),
   );
+}
+
+/**
+ * `source` with the CONTENTS of every string and template literal replaced by
+ * spaces, offsets and length preserved so a match here indexes the original.
+ *
+ * The quotes themselves stay, so an import's specifier is still a matchable
+ * `"…"` — the caller reads its text back out of the unmasked source over the same
+ * range. Escapes are honoured, or a `"\\""` would end the literal early and
+ * unmask the code after it.
+ *
+ * NEGATIVE SPACE: regex literals are not masked. Telling `/x/` from division
+ * needs the parser this tier does not have, and the failure mode of guessing
+ * wrong is unmasking real code — so it is not guessed. A boundary spelled inside
+ * a regex literal is not reachable anyway: the masking exists to stop a STRING
+ * from reading as an import, and a regex literal cannot hold one.
+ */
+function maskLiteralContents(source: string): string {
+  const out = source.split("");
+  let index = 0;
+  while (index < source.length) {
+    const quote = source[index];
+    if (quote !== '"' && quote !== "'" && quote !== "`") {
+      index += 1;
+      continue;
+    }
+    let cursor = index + 1;
+    while (cursor < source.length && source[cursor] !== quote) {
+      // A newline ends an unterminated single- or double-quoted literal rather
+      // than running to the end of the file and masking everything below it.
+      if (quote !== "`" && source[cursor] === "\n") break;
+      if (source[cursor] === "\\") cursor += 1;
+      cursor += 1;
+    }
+    for (let at = index + 1; at < cursor && at < source.length; at += 1) {
+      if (out[at] !== "\n") out[at] = " ";
+    }
+    index = cursor + 1;
+  }
+  return out.join("");
 }
 
 /**
@@ -299,12 +351,17 @@ const BINDING_FORMS: ((name: string) => string)[] = [
  */
 function boundaryBindingsIn(
   source: string,
+  masked: string,
   boundary: { module: string; calls: string[] },
 ): string[] {
   const locals: string[] = [];
-  for (const match of source.matchAll(IMPORT_CLAUSE)) {
+  // Matched against the MASKED text so a quoted import statement is not one, then
+  // read back out of `source` over the identical range — masking preserves every
+  // offset, and the specifier is the one string this needs the contents of.
+  for (const match of masked.matchAll(IMPORT_CLAUSE)) {
     const clause = match[1] ?? "";
-    if (match[2] !== boundary.module) continue;
+    const declaration = source.slice(match.index, match.index + match[0].length);
+    if (SPECIFIER_TEXT.exec(declaration)?.[1] !== boundary.module) continue;
 
     const namespace = /\*\s+as\s+([A-Za-z_$][\w$]*)/.exec(clause);
     if (namespace !== null) {
@@ -339,7 +396,10 @@ const NAMED_IMPORT_ENTRY = /^([A-Za-z_$][\w$]*)(?:\s+as\s+([A-Za-z_$][\w$]*))?$/
  * A side-effect import (`import "x"`) has no `from` and deliberately does not
  * match — it binds no name, so there is nothing for the call test to be about.
  */
-const IMPORT_CLAUSE = /import\s+([^;]*?)\s+from\s+["']([^"']+)["']/g;
+const IMPORT_CLAUSE = /import\s+([^;]*?)\s+from\s+["']([^"']*)["']/g;
+
+/** The specifier of one import declaration, read from UNMASKED text: group 1 is the module. */
+const SPECIFIER_TEXT = /from\s+["']([^"']+)["']\s*;?\s*$/;
 
 export const barrelPurityCheck: StructuralCheck = {
   id: "api/barrel-purity",

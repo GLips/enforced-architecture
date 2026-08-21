@@ -495,10 +495,20 @@ async function checkCommitGateExtensions(): Promise<string[]> {
   };
   const lefthook = await readFile(LEFTHOOK_PATH, "utf8");
 
-  // The `lint` job's own glob line, not any other job's: `name: lint` then the
-  // next `glob:` above its `run:`.
-  const lintJob = /- name: lint\b[\s\S]*?\n\s+run:/.exec(lefthook)?.[0] ?? "";
-  const glob = /glob:\s*"([^"]+)"/.exec(lintJob)?.[1];
+  // The `lint` job's own block, and EXACTLY one of them. `- name: lint` with a
+  // word boundary also matched `- name: lint-compat`: a review added that job
+  // carrying the correct glob, left the real `lint` job on four extensions, and
+  // this guard stayed green while the thing it guards was broken. The scalar has
+  // to end at the line.
+  const lintJobs = [...lefthook.matchAll(/^\s*- name: lint$[\s\S]*?\n\s+run:/gm)];
+  if (lintJobs.length !== 1) {
+    return [
+      `setup/lefthook.yml has ${lintJobs.length} jobs named exactly \`lint\`, and this guard ` +
+        `reads the one. Zero means the job was renamed and the guard now pins nothing; more ` +
+        `than one means it cannot tell which glob gates the commit`,
+    ];
+  }
+  const glob = /glob:\s*"([^"]+)"/.exec(lintJobs[0]?.[0] ?? "")?.[1];
 
   if (glob === undefined) {
     return [

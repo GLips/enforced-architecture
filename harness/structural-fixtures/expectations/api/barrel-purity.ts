@@ -58,6 +58,11 @@ export const barrelPurityFixtures: CheckFixtures = {
     // the trace stopped at a boundary this file never crossed — a review left
     // all 16 checks green that way.
     "FAIL src/features/sconce/index.ts",
+    // The boundary FABRICATED by a string: no framework import at all, just a
+    // quoted one beside a local function aliased to the boundary's name. This is
+    // the contract's NEVER clause — a spelling ACCEPTED as a boundary that is not
+    // one — and the reason both accepting halves read literal-masked text.
+    "FAIL src/features/facade/index.ts",
   ],
 
   legal: [

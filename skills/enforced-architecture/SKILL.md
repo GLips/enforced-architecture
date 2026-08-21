@@ -98,13 +98,13 @@ Read [lint/overview.md](references/lint/overview.md) for the tag map, and *Rule 
 **Process:**
 1. Read `lint/<tier>/<tag>/overview.md` for every tag. The table has one column per tier, so it also tells you which halves of a tag exist.
 2. Read each rule's template in `lint/<tier>/<tag>/`. Its *Adapt* section names what this project has to set — a template whose *Adapt* section says **nothing here**, which is nearly all of them, reads `lint/policy/`, and declaring the project's trees in `lint/policy/declared-trees.ts` is its whole adaptation.
-3. Set what those sections name: vocabulary, thresholds, explicit rows. Never a path or a pattern — no rule takes one, and the tree scoping comes from `declared-trees.ts`.
+3. Set what those sections name: vocabulary, thresholds, explicit rows, and the handful of validated paths the structural config declares — a manifest path, canonical project-relative roots, one filename. Never a *pattern*: no rule takes a regex or a glob, and no rule's scope is repointed by hand — tree scoping comes from `declared-trees.ts`.
 4. A rule's enforcement mechanism is its tier, and the tier is its directory — `lint/oxlint/` is per-file and real-time, `lint/structural/` is cross-file and pre-commit. Carry the path into the plan and the mechanism comes with it.
 5. Add project-specific rules not covered by the catalog.
 
 Keep the plan's rule section lean — one table, not a copy of template content. The templates already carry mechanism, blocking status, messages, and implementation.
 
-- **Adaptation** — rule id (`tag/name`) and what this project changed for it: a vocabulary name, a threshold, an explicit row, or "Standard". Not a path and not a pattern — no rule takes one.
+- **Adaptation** — rule id (`tag/name`) and what this project changed for it: a vocabulary name, a threshold, an explicit row, a declared path the *Adapt* section names, or "Standard". Never a pattern, and never a hand-repointed scope.
 
 A rule that looks unnecessary is usually a rule whose subject this tree does not have yet — it is silent until the tree grows one, which is the point of taking it now. When a rule's subject genuinely lives somewhere this project does not own, the answer is to say *where it lives* rather than to leave the rule out.
 
