@@ -22,9 +22,12 @@ type OrderedDiagnostic = {
  *
  * NO FIXTURE CAN PIN THIS, and none can be written: `RuleTester` sorts a rule's diagnostics by span
  * before comparing them, so under the harness the order is correct whether this module runs or not.
- * Delete it and `bun run check` stays green. It is verified against the oxlint CLI by hand — a
- * catalog check that runs the CLI and asserts report order is the missing harness, and is filed
- * rather than faked here.
+ * Delete it and `bun run check` stays green. Verify it against the oxlint CLI by hand after any
+ * change to it.
+ *
+ * A harness pass that runs the CLI and asserts report order was proposed and DISMISSED. Do not wait
+ * for one: report order is cosmetic, so that pass would cost a second CLI run over the whole catalog
+ * to assert the one property here that no reader can act on wrongly.
  *
  * NEGATIVE SPACE: `loc`-only diagnostics are not accepted. Sorting needs a span, and every rule in
  * the catalog blames a node.

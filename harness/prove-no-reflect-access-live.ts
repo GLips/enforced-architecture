@@ -56,10 +56,12 @@
  *     that loads the same `plugin.ts` and scopes the same rule to the same
  *     declared tree, so what it proves is the rule, not the manifest. The one
  *     tie to the shipped file is the enablement check below.
- *   - It says nothing about the other 49 rules. Every one of them is proved
- *     through RuleTester alone and carries the same blind spot. Generalizing
- *     this into the rule harness is ea-49; until it lands, a green
- *     `check:rules` still does not mean a rule fires in the linter.
+ *   - It says nothing about the other 48 rules. On every run, each of them is
+ *     proved through RuleTester alone and carries the same blind spot, so a green
+ *     `check:rules` still does not mean a rule fires in the linter. Generalizing
+ *     this file across the tier was proposed and DISMISSED: the whole set was
+ *     linted through the real CLI once by hand when the full manifest landed, and
+ *     no second instance of the scope class has turned up since.
  *   - It reads only diagnostics carrying this rule's code. Another rule firing
  *     on these files, or staying silent on them, is not this file's question.
  */
@@ -217,10 +219,10 @@ try {
  * declines to ask whether a rule is enabled at all. So the key going missing
  * again — the exact state ea-48 fixed — would leave both files green.
  *
- * THIS FUNCTION IS DELETED BY ea-49, not carried alongside it. That pass runs the
- * shipped config over every rule's fixtures, so a rule set to `"off"` fails there
- * by not reporting — the enablement question falls out of the design, and a
- * string match asking it a second time is the drifting copy.
+ * The string match below is the ONLY thing that asks the enablement question, so
+ * it stays. A harness pass that ran the shipped config over every rule's fixtures
+ * would answer the same question by construction and make this redundant; that
+ * pass was proposed and DISMISSED, so nothing else asks it.
  */
 async function assertShippedConfigEnablesTheRule(): Promise<void> {
   const shipped = await readFile(OXLINTRC_PATH, "utf8");
