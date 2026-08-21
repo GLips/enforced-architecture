@@ -165,6 +165,21 @@ export function build<Bag>(): Bag | undefined {
 }`,
     },
     {
+      // The sharpest form of the false positive this rule can produce: the annotation is doing real
+      // work — it is the exhaustiveness check — and the message would tell the author to `satisfies`
+      // it away, which deletes exactly the guarantee it was written for.
+      name: "an enum key domain names every key the literal has",
+      filename: SERVICE,
+      code: `enum Status { Draft, Paid }
+export const handlers: Record<Status, Handler> = { [Status.Draft]: startHandler, [Status.Paid]: stopHandler };`,
+    },
+    {
+      name: "a const-asserted array's element type is a closed key domain",
+      filename: SERVICE,
+      code: `const KEYS = ["start", "stop"] as const;
+export const handlers: Record<(typeof KEYS)[number], Handler> = { start: startHandler, stop: stopHandler };`,
+    },
+    {
       name: "a shape-preserving mapped type deletes no keys either",
       filename: SERVICE,
       code: `export const handlers: { [K in keyof Config]: Handler } = { start: startHandler };`,

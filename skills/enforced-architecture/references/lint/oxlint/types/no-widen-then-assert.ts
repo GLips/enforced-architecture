@@ -53,8 +53,10 @@
 import { defineTreeRule } from "../lib/define-tree-rule.ts";
 import { type ESTree, type Scope, type SourceCode, type Variable } from "@oxlint/plugins";
 import {
-  collectLocalTypeAliases,
+  collectLocalTypeFacts,
+  dictionaryShape,
   isOpaqueDictionaryValue,
+  type LocalTypeFacts,
   lexicalTypeParameterNames,
   openDictionaryValueType,
 } from "../lib/type-annotations.ts";
@@ -162,7 +164,7 @@ export const noWidenThenAssertRule = defineTreeRule({
   create(context) {
 
     const sourceCode = context.sourceCode;
-    let aliases: ReadonlyMap<string, ESTree.TSType> = new Map();
+    let facts: LocalTypeFacts = { aliases: new Map(), enums: new Set() };
 
     const shadowedAt = (node: ESTree.Node) =>
       lexicalTypeParameterNames(node, sourceCode.visitorKeys);
@@ -174,8 +176,8 @@ export const noWidenThenAssertRule = defineTreeRule({
     // Each half is asked at its own node: a mapped type's key binder is in scope in the value and
     // not in the constraint, so one shadow set for the whole type misreads `{ [Key in string]: Key }`.
     function isOpenOpaqueDictionary(type: ESTree.TSType): boolean {
-      const value = openDictionaryValueType(type, aliases, shadowedAt(type));
-      return value !== null && isOpaqueDictionaryValue(value, aliases, shadowedAt(value));
+      const value = openDictionaryValueType(type, facts, shadowedAt(type));
+      return value !== null && isOpaqueDictionaryValue(value, facts, shadowedAt(value));
     }
 
     function broadTypeKind(type: ESTree.TSType): BroadKind | null {
@@ -184,15 +186,20 @@ export const noWidenThenAssertRule = defineTreeRule({
       return isOpenOpaqueDictionary(type) ? "record" : null;
     }
 
-    // Only reached once `broadTypeKind(type)` is null, so an open bag has already been ruled out
-    // and what is left to ask is whether the assertion target says more than the widening did.
+    // Whether the assertion target says more than the widening did.
+    //
+    // Only reached once `broadTypeKind(type)` is null, and that is what makes this as short as it
+    // is: a dictionary arriving here has ALREADY failed to be an open one with an opaque value, so
+    // it closed its keys, named its value type, or both. Either is a recovery. Re-asking the
+    // opaque-value question here would be asking a question already answered — and re-asking the
+    // OPEN-key one would call `Record<'draft' | 'paid', Handler>` not-a-dictionary and drop the
+    // report, which is the flow this rule exists for.
     //
     // Reads the dictionary through the same owner as the widening side. Matching `Record` by name
     // here instead leaves the recovery half blind to the mapped-type and local-alias spellings —
     // the same drift on the other end of one rule, and one keystroke from suppressing the report.
     function isDefinitelyNarrowerDictionary(type: ESTree.TSType): boolean {
-      const value = openDictionaryValueType(type, aliases, shadowedAt(type));
-      if (value !== null) return !isOpaqueDictionaryValue(value, aliases, shadowedAt(value));
+      if (dictionaryShape(type, facts, shadowedAt(type)) !== null) return true;
       // Not a dictionary at all: a literal that names any member is a shape, which says strictly
       // more than the bag the value was widened to.
       return (
@@ -317,7 +324,7 @@ export const noWidenThenAssertRule = defineTreeRule({
       // Collected up front: a type alias is routinely declared below the function that widens
       // through it, and a widening spelled `const stored: Bag = user` reads nothing without it.
       Program(node) {
-        aliases = collectLocalTypeAliases(node);
+        facts = collectLocalTypeFacts(node);
       },
       TSAsExpression: checkAssertion,
       TSTypeAssertion: checkAssertion,

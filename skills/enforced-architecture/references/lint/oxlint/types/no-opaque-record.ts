@@ -23,9 +23,13 @@
 //     and NO rule in this catalog covers opaque values under a closed key domain.
 //   - `Record<keyof T & string, unknown>` is silent: an intersection is closed
 //     once any member is, and `keyof T` closes it.
-//   - `Record<Status, unknown>` reports when `Status` is IMPORTED, even if it is
-//     a literal union, because only local aliases are resolved here. That is the
-//     safe direction, and the fix is to spell the union or name the shape.
+//   - a key domain the walk cannot RESOLVE reports even when it is finite in
+//     fact — an IMPORTED alias or enum, a conditional type, a template literal
+//     over a local prefix. Local aliases, enums, enum members, indexed accesses
+//     and the key-preserving builtins ARE resolved; nothing beyond this file is.
+//     That is the safe direction, since the other default goes silent on every
+//     key spelling nobody enumerated, and the fix is to spell the union or name
+//     the shape.
 //
 // A schema or serialization layer that needs the type gets a path test beside
 // `isArchitectureExemptSourcePath`, such as `/\/schemas?\//`. Do not loosen the type
@@ -46,9 +50,10 @@
 import { defineTreeRule } from "../lib/define-tree-rule.ts";
 import { type ESTree } from "@oxlint/plugins";
 import {
-  collectLocalTypeAliases,
+  collectLocalTypeFacts,
   isOpaqueDictionaryValue,
   isOpenKeyDomain,
+  type LocalTypeFacts,
   lexicalTypeParameterNames,
 } from "../lib/type-annotations.ts";
 
@@ -69,7 +74,7 @@ export const noOpaqueRecordRule = defineTreeRule({
     // Collected before any type node is judged. Visitors fire in document order, so a `Program`
     // handler is the only place that sees an alias declared BELOW the use that resolves through
     // it — and type declarations are routinely ordered that way.
-    let aliases: ReadonlyMap<string, ESTree.TSType> = new Map();
+    let facts: LocalTypeFacts = { aliases: new Map(), enums: new Set() };
 
     // A file that names a type parameter after one of its own aliases must not resolve through the
     // alias: `<Opaque>(bag: Record<string, Opaque>)` is generic, not a bag.
@@ -78,7 +83,7 @@ export const noOpaqueRecordRule = defineTreeRule({
 
     return {
       Program(node) {
-        aliases = collectLocalTypeAliases(node);
+        facts = collectLocalTypeFacts(node);
       },
 
       TSTypeReference(node) {
@@ -88,8 +93,8 @@ export const noOpaqueRecordRule = defineTreeRule({
         const params = node.typeArguments?.params ?? [];
         const [key, value] = params;
         if (params.length !== 2 || key === undefined || value === undefined) return;
-        if (!isOpenKeyDomain(key, aliases, shadowedAt(key))) return;
-        if (isOpaqueDictionaryValue(value, aliases, shadowedAt(value))) {
+        if (!isOpenKeyDomain(key, facts, shadowedAt(key))) return;
+        if (isOpaqueDictionaryValue(value, facts, shadowedAt(value))) {
           context.report({ node, messageId: "opaqueRecord" });
         }
       },
@@ -102,7 +107,7 @@ export const noOpaqueRecordRule = defineTreeRule({
       // rejects a literal index-signature key (TS1336), so every one that compiles is already open.
       TSIndexSignature(node) {
         const value = node.typeAnnotation.typeAnnotation;
-        if (isOpaqueDictionaryValue(value, aliases, shadowedAt(value))) {
+        if (isOpaqueDictionaryValue(value, facts, shadowedAt(value))) {
           context.report({ node, messageId: "opaqueIndexSignature" });
         }
       },
@@ -114,8 +119,8 @@ export const noOpaqueRecordRule = defineTreeRule({
       TSMappedType(node) {
         const value = node.typeAnnotation;
         if (!value) return;
-        if (!isOpenKeyDomain(node.constraint, aliases, shadowedAt(node.constraint))) return;
-        if (isOpaqueDictionaryValue(value, aliases, shadowedAt(value))) {
+        if (!isOpenKeyDomain(node.constraint, facts, shadowedAt(node.constraint))) return;
+        if (isOpaqueDictionaryValue(value, facts, shadowedAt(value))) {
           context.report({ node, messageId: "opaqueIndexSignature" });
         }
       },

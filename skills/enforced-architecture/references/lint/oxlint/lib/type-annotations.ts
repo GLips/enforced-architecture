@@ -428,6 +428,43 @@ const OPAQUE_DICTIONARY_VALUE_KEYWORDS: ReadonlySet<string> = new Set([
   "TSObjectKeyword",
 ]);
 
+// TypeScript built-ins that hand back a subset of their FIRST argument's domain, so they are closed
+// exactly when it is. `Extract<keyof T, string>` and `Exclude<keyof T, "id">` are the ordinary way
+// to write "some of T's keys"; `Lowercase<string>` is still every string and must stay open.
+const KEY_PRESERVING_TYPE_NAMES: ReadonlySet<string> = new Set([
+  "Capitalize",
+  "Exclude",
+  "Extract",
+  "Lowercase",
+  "NoInfer",
+  "Uncapitalize",
+  "Uppercase",
+]);
+
+/**
+ * The file-level declarations the open-dictionary predicates resolve a name against.
+ *
+ * Grouped rather than passed as three sets, because every caller needs all of them and a name means
+ * nothing without the whole group: `Status` is a closed domain if the file declares it as an enum,
+ * an open one if it declares it as `type Status = string`, and unresolvable if it imports it.
+ */
+export type LocalTypeFacts = {
+  readonly aliases: ReadonlyMap<string, ESTree.TSType>;
+  /** `enum X {…}` names declared in this file — a finite domain whose members are not TSTypes. */
+  readonly enums: ReadonlySet<string>;
+};
+
+/** Every local type alias and enum name, collected from `Program` in one pass. */
+export function collectLocalTypeFacts(program: ESTree.Program): LocalTypeFacts {
+  const enums = new Set<string>();
+  for (const statement of program.body) {
+    const declaration =
+      statement.type === "ExportNamedDeclaration" ? statement.declaration : statement;
+    if (declaration?.type === "TSEnumDeclaration") enums.add(declaration.id.name);
+  }
+  return { aliases: collectLocalTypeAliases(program), enums };
+}
+
 /**
  * Whether a key domain admits keys nobody wrote down.
  *
@@ -435,59 +472,77 @@ const OPAQUE_DICTIONARY_VALUE_KEYWORDS: ReadonlySet<string> = new Set([
  * fail loudly. A predicate listing the OPEN spellings instead reads as more precise and goes silent
  * on every one it has not thought of — `Record<any, unknown>`, `` Record<`user_${string}`, unknown> ``,
  * `Record<Lowercase<string>, unknown>` and `Record<string & {}, unknown>` are all bags, and each is
- * a one-token bypass that a green suite cannot distinguish from coverage. What is closed, by
- * contrast, is short and finite: a literal type, a union of them, `keyof X` for any X but `any`, a
- * type parameter in scope, and a local alias to one of those.
+ * a one-token bypass that a green suite cannot distinguish from coverage.
+ *
+ * The cost of that direction is the other kind of mistake, and it has to be paid down by hand:
+ * every closed domain the walk cannot NAME reports. So the closed list covers the spellings a
+ * project actually writes — a literal type, a union of them, an enum or one of its members, an
+ * indexed access, `keyof X` for any X but `any`, the key-preserving built-ins, a type parameter in
+ * scope, and a local alias to any of those.
  *
  * ASKED ONLY WHERE A CLOSED DOMAIN CAN BE SPELLED, which is a `Record` argument and a mapped type's
  * constraint. An index signature is not gated on it: TypeScript rejects a literal key there
  * (TS1336), so every index signature that compiles already has an open domain.
  *
- * NEGATIVE SPACE: an IMPORTED alias to a literal union reads as open, since only local aliases are
- * resolved here — `Record<Status, unknown>` reports when `Status` comes from another module. That
- * is the direction this failure has to run, and the fix is to spell the union or name the shape.
+ * NEGATIVE SPACE: a domain this walk cannot resolve reports even when it is finite in fact — an
+ * IMPORTED alias or enum, a conditional type, and a template literal over a local prefix
+ * (`` `${Prefix}_id` ``, which is not distinguishable here from `` `user_${string}` ``). The fix is
+ * to spell the union or name the shape; the alternative is silence on every key spelling this file
+ * has not enumerated, which is the failure that cannot be seen.
  */
 export function isOpenKeyDomain(
   type: ESTree.TSType,
-  aliases: ReadonlyMap<string, ESTree.TSType>,
+  facts: LocalTypeFacts,
   shadowed: ReadonlySet<string>,
 ): boolean {
-  return !isClosedKeyDomain(type, aliases, shadowed, new Set());
+  return !isClosedKeyDomain(type, facts, shadowed, new Set());
 }
 
 function isClosedKeyDomain(
   type: ESTree.TSType,
-  aliases: ReadonlyMap<string, ESTree.TSType>,
+  facts: LocalTypeFacts,
   shadowed: ReadonlySet<string>,
   visited: ReadonlySet<string>,
 ): boolean {
   if (type.type === "TSLiteralType") return true;
+  // `Row["id"]` and `(typeof KEYS)[number]` name a slice of a type someone declared. The second is
+  // the canonical spelling of a closed domain in TypeScript, so treating it as open reports the
+  // idiom the rule's own message asks for.
+  if (type.type === "TSIndexedAccessType") return true;
   // A union is closed only when EVERY member is, and an intersection when ANY member is, because an
   // intersection can only narrow. `keyof T & string` is the common spelling of the second, and
   // `string & {}` — the trick that stops a literal union widening — of the first.
   if (type.type === "TSUnionType") {
-    return type.types.every((member) => isClosedKeyDomain(member, aliases, shadowed, visited));
+    return type.types.every((member) => isClosedKeyDomain(member, facts, shadowed, visited));
   }
   if (type.type === "TSIntersectionType") {
-    return type.types.some((member) => isClosedKeyDomain(member, aliases, shadowed, visited));
+    return type.types.some((member) => isClosedKeyDomain(member, facts, shadowed, visited));
   }
   // `keyof any` is `PropertyKey` spelled the long way round. Every other `keyof` names a shape.
   if (type.type === "TSTypeOperator" && type.operator === "keyof") {
     return type.typeAnnotation.type !== "TSAnyKeyword";
   }
-  if (type.type !== "TSTypeReference" || type.typeName.type !== "Identifier") return false;
+  if (type.type !== "TSTypeReference") return false;
+  // `Status.Draft` — an enum member, which is a single key however the enum is declared.
+  if (type.typeName.type !== "Identifier") return type.typeName.type === "TSQualifiedName";
 
   const name = type.typeName.name;
   // A type parameter names whatever the caller supplies. Reporting a generic utility for a domain
   // that no use site may ever open is the false positive that trains people to disable a rule.
   if (shadowed.has(name)) return true;
-  // No generic-argument check, unlike `resolvesToBroadType`: `aliases` holds non-generic aliases
-  // only, so `Lowercase<string>` misses and falls to the open default already. There the default
-  // runs the other way, which is what makes the check load-bearing there and dead here.
+  if (facts.enums.has(name)) return true;
+  const typeArguments = type.typeArguments?.params ?? [];
+  const preserved = typeArguments[0];
+  if (KEY_PRESERVING_TYPE_NAMES.has(name)) {
+    return preserved !== undefined && isClosedKeyDomain(preserved, facts, shadowed, visited);
+  }
+  // No generic-argument check on the alias path, unlike `resolvesToBroadType`: `aliases` holds
+  // non-generic aliases only, so a generic reference misses and falls to the open default already.
+  // There the default runs the other way, which is what makes the check load-bearing there.
   if (visited.has(name)) return false;
-  const alias = aliases.get(name);
+  const alias = facts.aliases.get(name);
   if (alias === undefined) return false;
-  return isClosedKeyDomain(alias, aliases, shadowed, new Set([...visited, name]));
+  return isClosedKeyDomain(alias, facts, shadowed, new Set([...visited, name]));
 }
 
 /**
@@ -501,42 +556,47 @@ function isClosedKeyDomain(
  */
 export function isOpaqueDictionaryValue(
   type: ESTree.TSType,
-  aliases: ReadonlyMap<string, ESTree.TSType>,
+  facts: LocalTypeFacts,
   shadowed: ReadonlySet<string>,
 ): boolean {
-  return resolvesToBroadType(type, OPAQUE_DICTIONARY_VALUE_KEYWORDS, aliases, shadowed);
+  return resolvesToBroadType(type, OPAQUE_DICTIONARY_VALUE_KEYWORDS, facts.aliases, shadowed);
 }
 
+/** A dictionary's two halves. `key` is null for an index signature, which has no closed spelling. */
+export type DictionaryShape = {
+  readonly key: ESTree.TSType | null;
+  readonly value: ESTree.TSType;
+};
+
 /**
- * The value type of an open dictionary — `Record<K, V>`, `{ [k: K]: V }`, `{ [K in K]: V }` — or
- * `null` when `type` is not one.
+ * The two halves of a dictionary — `Record<K, V>`, `{ [k: K]: V }`, `{ [K in K]: V }`, or a local
+ * alias to one — or `null` when `type` is not a dictionary at all.
  *
- * For the callers that read a whole annotation rather than visiting its parts. The value comes back
- * instead of a boolean because the two rules that ask disagree on what to do with it: one asks
- * whether it is opaque, the other does not ask at all.
+ * OPEN OR CLOSED, deliberately: the callers want different halves. `openDictionaryValueType` asks
+ * the key question on top of this; `types/no-widen-then-assert` asks whether an assertion target is
+ * a dictionary AT ALL, and a closed-keyed one is exactly what recovering from a bag looks like.
  *
- * A type literal carrying other members ALONGSIDE an index signature is still an open dictionary —
+ * A type literal carrying other members ALONGSIDE an index signature is still a dictionary —
  * `{ id: string; [k: string]: unknown }` accepts every key a bag does, and `id` being typed does
  * not close it. Requiring the literal to hold nothing else is the cheapest way out of a rule.
  *
- * NEGATIVE SPACE: only the FIRST index signature is returned, so a type literal declaring both a
- * string and a number index is judged on whichever comes first.
+ * NEGATIVE SPACE: only the FIRST index signature is read, so a type literal declaring both a string
+ * and a number index is judged on whichever comes first.
  */
-export function openDictionaryValueType(
+export function dictionaryShape(
   type: ESTree.TSType,
-  aliases: ReadonlyMap<string, ESTree.TSType>,
+  facts: LocalTypeFacts,
   shadowed: ReadonlySet<string>,
   visited: ReadonlySet<string> = new Set(),
-): ESTree.TSType | null {
+): DictionaryShape | null {
   if (type.type === "TSMappedType") {
     const value = type.typeAnnotation;
-    if (value === null || value === undefined) return null;
-    return isOpenKeyDomain(type.constraint, aliases, shadowed) ? value : null;
+    return value === null || value === undefined ? null : { key: type.constraint, value };
   }
   if (type.type === "TSTypeLiteral") {
     for (const member of type.members) {
       if (member.type !== "TSIndexSignature") continue;
-      return member.typeAnnotation.typeAnnotation;
+      return { key: null, value: member.typeAnnotation.typeAnnotation };
     }
     return null;
   }
@@ -548,13 +608,30 @@ export function openDictionaryValueType(
   if (name === RECORD_TYPE_NAME) {
     const [key, value] = typeArguments;
     if (typeArguments.length !== 2 || key === undefined || value === undefined) return null;
-    return isOpenKeyDomain(key, aliases, shadowed) ? value : null;
+    return { key, value };
   }
   // A local alias to the bag is the bag. A generic alias is not followed, for the same reason
   // `resolvesToBroadType` does not follow one: its body is written in terms of parameters this tier
   // cannot substitute.
   if (typeArguments.length > 0 || visited.has(name)) return null;
-  const alias = aliases.get(name);
+  const alias = facts.aliases.get(name);
   if (alias === undefined) return null;
-  return openDictionaryValueType(alias, aliases, shadowed, new Set([...visited, name]));
+  return dictionaryShape(alias, facts, shadowed, new Set([...visited, name]));
+}
+
+/**
+ * The value type of a dictionary whose key domain is OPEN, or `null` for anything else.
+ *
+ * The bag question in one call, for the callers that read a whole annotation rather than visiting
+ * its parts. The value comes back instead of a boolean because the rules that ask disagree on what
+ * to do with it: one asks whether it is opaque, the other does not ask at all.
+ */
+export function openDictionaryValueType(
+  type: ESTree.TSType,
+  facts: LocalTypeFacts,
+  shadowed: ReadonlySet<string>,
+): ESTree.TSType | null {
+  const shape = dictionaryShape(type, facts, shadowed);
+  if (shape === null) return null;
+  return shape.key === null || isOpenKeyDomain(shape.key, facts, shadowed) ? shape.value : null;
 }

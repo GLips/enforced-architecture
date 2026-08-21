@@ -15,10 +15,18 @@
 // `types/no-widen-then-assert`, which both go on to ask whether the VALUE is
 // opaque. Every spec pins that row.
 //
-// A CLOSED key domain is not a widening. `Record<'start' | 'stop', Handler>` and
-// `{ [K in keyof Config]: Handler }` name exactly the keys the literal has, so
-// they delete nothing and are legal — the same reading that keeps a dirty-field
-// tracker legal in `types/no-opaque-record`.
+// A CLOSED key domain is not a widening. `Record<'start' | 'stop', Handler>`,
+// `{ [K in keyof Config]: Handler }`, a local enum and `(typeof KEYS)[number]`
+// name exactly the keys the literal has, so they delete nothing and are legal —
+// the same reading that keeps a dirty-field tracker legal in
+// `types/no-opaque-record`, and `lib/type-annotations.ts` owns the list.
+//
+// A domain that walk cannot RESOLVE reports even when it is finite in fact: an
+// imported alias or enum, a conditional type, a template literal over a local
+// prefix. That is deliberate — the alternative default goes silent on every key
+// spelling nobody enumerated — but it means a report here can be a false one, and
+// the fix is to spell the union or name the shape rather than to reach for
+// `satisfies`, which deletes the exhaustiveness check the annotation was for.
 //
 // An empty object or array literal is legal. `const acc: Record<string,
 // Handler> = {}` is an accumulator that gets the type it grows into, which is
@@ -42,7 +50,8 @@
 import { defineTreeRule } from "../lib/define-tree-rule.ts";
 import { type ESTree } from "@oxlint/plugins";
 import {
-  collectLocalTypeAliases,
+  collectLocalTypeFacts,
+  type LocalTypeFacts,
   lexicalTypeParameterNames,
   openDictionaryValueType,
   resolvesToBroadType,
@@ -97,7 +106,7 @@ export const noKnownValueWideningRule = defineTreeRule({
   },
   create(context) {
 
-    let aliases: ReadonlyMap<string, ESTree.TSType> = new Map();
+    let facts: LocalTypeFacts = { aliases: new Map(), enums: new Set() };
 
     // The KEY half of `lib/type-annotations.ts`'s open-dictionary answer, and only that half. What
     // the annotation deletes is the literal's keys, so the value type is not consulted:
@@ -107,8 +116,8 @@ export const noKnownValueWideningRule = defineTreeRule({
     // `{ [K in keyof Config]: Handler }` name the same keys the literal has.
     const isWideningTarget = (type: ESTree.TSType): boolean => {
       const shadowed = lexicalTypeParameterNames(type, context.sourceCode.visitorKeys);
-      if (resolvesToBroadType(type, BROAD_KEYWORDS, aliases, shadowed)) return true;
-      return openDictionaryValueType(type, aliases, shadowed) !== null;
+      if (resolvesToBroadType(type, BROAD_KEYWORDS, facts.aliases, shadowed)) return true;
+      return openDictionaryValueType(type, facts, shadowed) !== null;
     };
 
     const reportIfWidened = (
@@ -129,7 +138,7 @@ export const noKnownValueWideningRule = defineTreeRule({
 
     return {
       Program(node) {
-        aliases = collectLocalTypeAliases(node);
+        facts = collectLocalTypeFacts(node);
       },
       VariableDeclarator(node) {
         if (node.id.type !== "Identifier") return;

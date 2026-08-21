@@ -211,6 +211,42 @@ type Handlers = Record<string, Handler>;`,
       errors: [{ messageId: "widenThenAssert" }],
     },
     {
+      // A CLOSED key domain is a recovery too, and the easiest one to lose. The recovery test must
+      // not ask whether the target is an OPEN dictionary — under that reading a closed-keyed one is
+      // not a dictionary at all, and every assertion back into a named key set drops its report.
+      name: "recovered into a dictionary that closes the key domain",
+      filename: SERVICE,
+      code: `export function load(): Record<"draft" | "paid", Handler> {
+  const invoice: Invoice = buildInvoice();
+  const stored: Record<string, unknown> = invoice;
+  return stored as Record<"draft" | "paid", Handler>;
+}`,
+      errors: [{ messageId: "widenThenAssert" }],
+    },
+    {
+      name: "recovered into a dictionary keyed by a local union alias",
+      filename: SERVICE,
+      code: `type Status = "draft" | "paid";
+export function load(): Record<Status, Handler> {
+  const invoice: Invoice = buildInvoice();
+  const stored: Record<string, unknown> = invoice;
+  return stored as Record<Status, Handler>;
+}`,
+      errors: [{ messageId: "widenThenAssert" }],
+    },
+    {
+      // Even a bag-valued dictionary recovers something once its keys are named, and
+      // `types/no-opaque-record` reports the target itself — two messages, both actionable.
+      name: "recovered into a closed key domain over an opaque value",
+      filename: SERVICE,
+      code: `export function load(): Record<"draft" | "paid", object> {
+  const invoice: Invoice = buildInvoice();
+  const stored: Record<string, unknown> = invoice;
+  return stored as Record<"draft" | "paid", object>;
+}`,
+      errors: [{ messageId: "widenThenAssert" }],
+    },
+    {
       name: "asserted to something unrelated, which is still evidence invented from nothing",
       filename: SERVICE,
       code: `export function load(): AccountId {
@@ -342,19 +378,6 @@ export function second(): void {
   const invoice: Invoice = buildInvoice();
   const stored: Record<"draft" | "paid", unknown> = invoice;
   return stored as Invoice;
-}`,
-    },
-    {
-      // An assertion from one bag to another recovers nothing, so there is no invented type to
-      // report — and `types/no-opaque-record` reports the target anyway, which is what keeps the
-      // two messages jointly actionable instead of an edit loop. The recovery test asks the shared
-      // opaque-value question, so `object` under closed keys is still a bag here.
-      name: "asserting from one bag to another is not a recovery",
-      filename: SERVICE,
-      code: `export function load(): Record<"draft" | "paid", object> {
-  const invoice: Invoice = buildInvoice();
-  const stored: Record<string, unknown> = invoice;
-  return stored as Record<"draft" | "paid", object>;
 }`,
     },
     {

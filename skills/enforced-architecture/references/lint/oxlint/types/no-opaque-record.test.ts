@@ -362,6 +362,51 @@ export type Slugs = { [Key in string]: Key };`,
 export function box<Opaque>(bag: { [k: string]: Opaque }): void {}`,
     },
     {
+      // A local enum is a finite key set whose members are not TSTypes at all, so a walk that only
+      // resolves type aliases sees an unknown name and, defaulting to open, reports the idiom the
+      // rule's own message asks for.
+      name: "a local enum is a closed key domain",
+      filename: SERVICE,
+      code: `enum Status { Draft, Paid }
+export type StatusPayloads = Record<Status, unknown>;`,
+    },
+    {
+      name: "an enum member names a single key",
+      filename: SERVICE,
+      code: `enum Status { Draft, Paid }
+export type DraftPayload = Record<Status.Draft, unknown>;`,
+    },
+    {
+      // The canonical TypeScript spelling of a closed key domain. Reporting it leaves no fix but a
+      // disable comment, which is how a rule stops being enforced.
+      name: "an indexed access over a const-asserted array is closed",
+      filename: SERVICE,
+      code: `const KEYS = ["draft", "paid"] as const;
+export type StatusPayloads = Record<(typeof KEYS)[number], unknown>;`,
+    },
+    {
+      name: "an indexed access into a named type is closed",
+      filename: SERVICE,
+      code: `export type ById = Record<Row["id"], unknown>;`,
+    },
+    {
+      // `Exclude` and `Extract` hand back a subset of their first argument, so they are closed
+      // exactly when it is. This is the ordinary way to write "some of T's keys".
+      name: "a key-preserving builtin over a closed domain stays closed",
+      filename: SERVICE,
+      code: `export type Touched<T> = Record<Exclude<keyof T, "id">, unknown>;`,
+    },
+    {
+      name: "Extract narrowing keyof to its string members",
+      filename: SERVICE,
+      code: `export type Touched<T> = Record<Extract<keyof T, string>, unknown>;`,
+    },
+    {
+      name: "a case-mapping builtin over a literal union",
+      filename: SERVICE,
+      code: `export type Shouted = Record<Uppercase<"draft" | "paid">, unknown>;`,
+    },
+    {
       // A LOCAL alias to a literal union is resolved and found closed. The same union imported
       // from another module reports — stated as negative space in the header, and the direction
       // this failure has to run: a key spelling nobody recognises must report, not go quiet.
