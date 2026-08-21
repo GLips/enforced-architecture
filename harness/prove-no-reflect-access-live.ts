@@ -29,8 +29,10 @@
  * resolved VARIABLE rather than each of its definitions and the merged case must
  * fail; stop walking to `upper` for the reference and the switch case must fail;
  * delete the `resolvesToLocalBinding` call from the rule and the silent cases must
- * fail; set the shipped config's key to `"off"` and the enablement check must fail.
- * A run that stays green through any of them is testing nothing.
+ * fail; move the visitor back from `MemberExpression` to `CallExpression` and the
+ * `call`-forwarded case must fail; set the shipped config's key to `"off"` and the
+ * enablement check must fail. A run that stays green through any of them is testing
+ * nothing.
  *
  * What is NOT probed from here, deliberately: reference resolution versus a
  * scope-chain NAME lookup. Both hosts agree once each definition is asked, so the
@@ -38,10 +40,12 @@
  * is a spec case rather than a live one.
  *
  * And the reverse, which is this file's whole argument in one mutation: turning the
- * rule's `defs.some(bindsAValue)` into `defs.every(…)` leaves all 37 spec cases
- * green and fails two cases here. A binding that merges a type declaration with a
- * value one is the shape that separates the quantifiers, and the host with no
- * global scope resolves it before it gets that far.
+ * rule's `defs.some(bindsAValue)` into `defs.every(…)` leaves every spec case green
+ * and fails two cases here. The shape that separates the quantifiers is a variable
+ * with NO definitions — under the CLI an unshadowed `Reflect` resolves to a
+ * global-scope binding with `defs: []`, where `[].some` is false and reports while
+ * `[].every` is vacuously true and goes silent. RuleTester never builds that
+ * variable at all, which is exactly why no spec case can hold the mutation.
  *
  * NEGATIVE SPACE, and it is why this file is named after one rule rather than
  * after the technique:
@@ -144,6 +148,27 @@ const CASES: LiveCase[] = [
     file: "merged-reflect.ts",
     code: `interface Reflect { get(o: unknown, k: string): unknown }\ndeclare const Reflect: Reflect;\nexport const value = Reflect.get(invoice, key);\n`,
     reports: "`Reflect.get` returns `any` whatever the receiver was",
+  },
+  {
+    // The second silence this rule shipped with, and it needs the real CLI for the
+    // same reason the first one did — under RuleTester the rule was equally silent
+    // here and its spec had no case that noticed. `Reflect.get` sits in the callee's
+    // OBJECT position, so the `CallExpression` visitor this rule started with saw a
+    // member expression whose object was another member expression and returned. One
+    // token from the banned form, emitting verbatim, reporting nothing.
+    name: "the method invoked through `call` reports",
+    file: "call-forwarded.ts",
+    code: `export const value = Reflect.get.call(null, invoice, key);\n`,
+    reports: "`Reflect.get` returns `any` whatever the receiver was",
+  },
+  {
+    // The other half of widening the subject from the call to the read. A rule that
+    // visits every member expression touches far more nodes, and one that lost the
+    // binding question while doing it passes every reporting case above.
+    name: "a locally bound Reflect reached through `call` stays silent",
+    file: "local-call-forwarded.ts",
+    code: `const Reflect = { get: (o: Record<string, unknown>, k: string) => o[k] };\nexport const value = Reflect.get.call(null, invoice, key);\n`,
+    reports: null,
   },
   {
     // The false positive this rule shipped for one commit: a reference is recorded

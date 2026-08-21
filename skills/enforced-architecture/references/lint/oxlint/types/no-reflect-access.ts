@@ -28,22 +28,28 @@
 // itself the equivalent.
 //
 // NEGATIVE SPACE. The subject is the identifier `Reflect` and the member read off
-// it, so every spelling that puts the builtin somewhere else first is out of reach
-// and stays that way. `globalThis.Reflect.get(…)` names it through another object;
-// `const R = Reflect` and — cheapest of all — `const Reflect = globalThis.Reflect`
-// rebind it, the second without touching a single call site; `const { get } =
-// Reflect` takes the method off it. Each hands back the same `any`. Covering them
-// means either tracking values, which one file's syntax cannot do honestly, or
-// matching the member name alone, which reports every `cache.get(key)` in the
-// codebase — and a rule that fires on correct code is one people learn to disable.
-// A codebase that wants the whole family closed wants a type-aware check, which no
-// rule in this catalog is.
+// it — the READ, not the call, so `Reflect.get.call(…)` and `const get =
+// Reflect.get` are covered. What stays out of reach is every spelling that puts the
+// builtin somewhere ELSE first, before any member is read off the identifier:
+// `globalThis.Reflect.get(…)` names it through another object; `const R = Reflect`
+// and — cheapest of all — `const Reflect = globalThis.Reflect` rebind it, the second
+// without touching a single call site; `const { get } = Reflect` takes the method
+// off it without ever naming `get` as a member. Each hands back the same `any`.
+// Covering them means either tracking values, which one file's syntax cannot do
+// honestly, or matching the member name alone, which reports every `cache.get(key)`
+// in the codebase — and a rule that fires on correct code is one people learn to
+// disable. A codebase that wants the whole family closed wants a type-aware check,
+// which no rule in this catalog is.
 //
-// REPORTS CORRECT CODE, in one shape and its alias: a `namespace Reflect` with value
-// members really does bind the name, as does an `import Reflect = <that namespace>`,
-// and this reports on both. `bindsAValue` says why the erased kinds and the
-// instantiated ones are refused together, and the spec asserts the cost rather than
-// leaving it to this paragraph.
+// REPORTS CORRECT CODE, in three shapes. A `namespace Reflect` with value members
+// really does bind the name, as does an `import Reflect = <that namespace>`, and
+// this reports on both; `bindsAValue` says why the erased kinds and the instantiated
+// ones are refused together. The third comes from visiting the read rather than the
+// call: a value-position `typeof Reflect.get === "function"` feature-detect reports,
+// because it is the same member read off the same identifier and nothing in one
+// file's syntax separates probing the builtin from using it. (The TYPE-position
+// `type G = typeof Reflect.get` is a type query, not a member expression, and is
+// silent.) The spec asserts all three rather than leaving them to this paragraph.
 //
 // Not reachable through an adopter's config, which is the obvious next attack and
 // worth stating: declaring `Reflect` in oxlint's `globals` or turning on an `env`
@@ -209,18 +215,24 @@ export const noReflectAccessRule = defineTreeRule({
   create(context) {
 
     return {
-      CallExpression(node) {
-        // TWO places a node can be wedged in, and both leave the source reading `Reflect.get`.
-        // `Reflect.get!(…)` and `(Reflect.get as Getter)(…)` wrap the CALLEE — the member
-        // expression itself — and beat a matcher reading `node.callee` directly.
-        // `(Reflect as never).get(…)` and `Reflect!.get(…)` wrap the callee's OBJECT. Neither is
-        // visible to a reader, and `Reflect.get!(…)` emits byte-identical JS to the plain form.
-        // `lib/transparent-wrappers.ts` owns which nodes those are, for the reason
+      // The MEMBER READ is the subject, not the call, and that is the load-bearing choice in this
+      // visitor. `Reflect.get.call(null, o, k)` is a one-token rewrite of the banned form: it
+      // reads `get` off `Reflect` in place, the source still literally says `Reflect.get`, and it
+      // hands back the same `any`. A `CallExpression` visitor sees the outer call, finds
+      // `Reflect.get` in the callee's OBJECT position rather than the object itself, and stays
+      // silent — a false negative on this rule's whole promise. Visiting the read closes that,
+      // `Reflect["get"].apply(…)` with it, and `const get = Reflect.get` besides.
+      //
+      // It also subsumes the callee-side wedge. `Reflect.get!(…)` and `(Reflect.get as Getter)(…)`
+      // beat a matcher reading `node.callee`, but the member expression inside them is visited
+      // directly, so nothing here has to unwrap a callee to catch them.
+      MemberExpression(node) {
+        // The OBJECT still needs unwrapping: `(Reflect as never).get(…)` and `Reflect!.get(…)` put
+        // a node between this read and the identifier, invisibly to a reader and with no change to
+        // the emitted JS. `lib/transparent-wrappers.ts` owns which nodes those are, for the reason
         // `types/no-type-argument-assertion` gives: a wrapped callee and a wrapped value are one
         // question, and a rule holding its own list of the answer is how the two drift.
-        const callee = withoutTransparentWrappers(node.callee);
-        if (callee.type !== "MemberExpression") return;
-        const owner = withoutTransparentWrappers(callee.object);
+        const owner = withoutTransparentWrappers(node.object);
         // Resolved as a global rather than matched by name, so a local `const Reflect = …` — or an
         // import that shadows it — is correctly left alone.
         if (
@@ -232,7 +244,7 @@ export const noReflectAccessRule = defineTreeRule({
         }
         // `lib/static-key-name.ts` owns both spellings of the member read, and owns the negative
         // space with them: a key no single file can follow is `undefined` rather than a guess.
-        const method = staticKeyName(callee.property, callee.computed);
+        const method = staticKeyName(node.property, node.computed);
         const messageId = method === undefined ? undefined : BANNED_REFLECT_METHODS.get(method);
         if (messageId !== undefined) context.report({ node, messageId });
       },

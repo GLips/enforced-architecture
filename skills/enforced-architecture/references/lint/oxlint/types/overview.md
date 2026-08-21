@@ -40,9 +40,15 @@ erases means reimplementing its instantiation rule out of one file's syntax, and
 left alone are one-line, file-wide off-switches. A per-line disable is the answer for a real one;
 that trade is the reason the rule is not switchable off wholesale.
 
-It also does not see the builtin reached any other way — `globalThis.Reflect.get(…)`,
-`const R = Reflect`, `const Reflect = globalThis.Reflect`, a destructured `const { get } = Reflect`,
-or a template-literal key. Closing that family takes type information, which this tier has none of.
+It reports one more thing on purpose: a value-position `typeof Reflect.get === "function"`. Its
+subject is the member READ rather than the call — which is what closes `Reflect.get.call(…)`, a
+one-token rewrite that no call-shaped matcher can see — and a feature-detect is that same read. The
+type-position `type G = typeof Reflect.get` is a type query, not a member expression, and is silent.
+
+It does not see the builtin reached any other way — every spelling that puts it somewhere else
+*before* a member is read off the identifier. `globalThis.Reflect.get(…)`, `const R = Reflect`,
+`const Reflect = globalThis.Reflect`, a destructured `const { get } = Reflect`, or a
+template-literal key. Closing that family takes type information, which this tier has none of.
 
 ## The two that are not defaults
 

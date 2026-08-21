@@ -204,6 +204,45 @@ export const value = Reflect.get(invoice, key);`,
       errors: [{ messageId: "reflectGet" }],
     },
     {
+      // The one-token rewrite of the banned form, and the reason this rule visits the member READ
+      // rather than the CallExpression. `Reflect.get` sits in the callee's OBJECT position here, so
+      // a call visitor unwrapping `node.callee` finds a member expression whose object is itself a
+      // member expression and returns — silent, on a line that literally says `Reflect.get` and
+      // hands back the same `any`.
+      name: "the method taken off Reflect and invoked through `call`",
+      filename: SERVICE,
+      code: `export const value = Reflect.get.call(null, invoice, key);`,
+      errors: [{ messageId: "reflectGet" }],
+    },
+    {
+      // Both evasions at once: the computed read that hides the name from `property.name`, and the
+      // `.apply` indirection that hides the whole read from a call visitor.
+      name: "the computed read invoked through `apply`",
+      filename: SERVICE,
+      code: `export const value = Reflect["get"].apply(null, [invoice, key]);`,
+      errors: [{ messageId: "reflectGet" }],
+    },
+    {
+      // No call at all. The read is the subject, so parking the method in a local and calling THAT
+      // later is not a way out — and the second line is deliberately not a second finding, because
+      // `get(invoice, key)` names no member of `Reflect`.
+      name: "the method stored in a local and called later",
+      filename: SERVICE,
+      code: `const get = Reflect.get;
+export const value = get(invoice, key);`,
+      errors: [{ messageId: "reflectGet" }],
+    },
+    {
+      // Documented cost, third of three: visiting the read cannot tell probing the builtin from
+      // using it, and one file's syntax carries nothing that would. Silence on this would mean
+      // re-admitting `Reflect.get.call(…)`, which is the same node in a different parent. Kept as
+      // an asserted case so the header's REPORTS CORRECT CODE paragraph cannot go stale.
+      name: "a value-position typeof feature-detect is the same read, and reports",
+      filename: SERVICE,
+      code: `export const hasGet = typeof Reflect.get === "function";`,
+      errors: [{ messageId: "reflectGet" }],
+    },
+    {
       name: "both banned methods in one file are two findings",
       filename: SERVICE,
       code: `export const value = Reflect.get(invoice, key);
@@ -326,6 +365,25 @@ export const value = Reflect[apply](invoice, key);`,
       filename: SERVICE,
       code: `import Reflect = require("./shim");
 export const value = Reflect.get(invoice, key);`,
+    },
+    {
+      // The shadow check has to survive the widened subject. Moving from the call to the read
+      // multiplies the nodes this rule visits, and a fix that reported on the read while losing the
+      // binding question would pass every adversarial case above.
+      name: "a locally bound Reflect reached through `call` is still local",
+      filename: SERVICE,
+      code: `const Reflect = { get: (o, k) => o[k] };
+export const value = Reflect.get.call(null, invoice, key);`,
+    },
+    {
+      // A type query is not a member expression. It reads nothing at run time, so unlike the
+      // value-position `typeof` in the adversarial block it is genuinely outside the subject — the
+      // `absent` half of the REPORTS CORRECT CODE paragraph, which is what states that the cost is
+      // narrow rather than "any `typeof Reflect.get` anywhere".
+      name: "a type-position typeof query reads nothing at run time",
+      filename: SERVICE,
+      code: `type Getter = typeof Reflect.get;
+export declare const getter: Getter;`,
     },
     {
       name: "a same-named method on some other object",
