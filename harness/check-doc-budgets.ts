@@ -46,7 +46,6 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const config: ArchitectureConfig = {
   projectRoot: repoRoot,
-  jsxImportSource: "react",
   checks: {
     ...defaultCheckConfigs,
     "health/doc-budgets": { manifestPath: "docs/doc-budgets.manifest.json" },

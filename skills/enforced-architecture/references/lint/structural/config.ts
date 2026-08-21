@@ -49,7 +49,6 @@
 //
 //   export const architectureConfig: ArchitectureConfig = {
 //     projectRoot: resolve(import.meta.dir, "../.."),
-//     jsxImportSource: "react",
 //     checks: {
 //       ...defaultCheckConfigs,
 //       "style/token-equality": {
@@ -443,15 +442,5 @@ export const defaultCheckConfigs: CheckConfigs = {
 export type ArchitectureConfig = {
   /** Absolute path every project-relative path in this object resolves against. */
   projectRoot: string;
-  /**
-   * `compilerOptions.jsxImportSource` from the project's tsconfig. Under a JSX
-   * loader Bun's reader reports runtime imports it injected rather than ones the
-   * file wrote; this names the package whose surplus `require-call` entries get
-   * filtered. See the extraction notes in `import-graph.ts`.
-   *
-   * A build fact, not an architectural one, which is why it survived the move of
-   * everything else in `source` to the declared-tree list.
-   */
-  jsxImportSource: string;
   checks: CheckConfigs;
 };

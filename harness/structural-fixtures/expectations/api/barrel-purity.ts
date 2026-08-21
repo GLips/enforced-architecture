@@ -49,6 +49,20 @@ export const barrelPurityFixtures: CheckFixtures = {
     // table that maps `.js` to the TypeScript sources alone closes the second
     // half in silence. It is the only `.js` source in the tree.
     "FAIL src/features/nodenext/index.ts",
+    // A side-effect import of a server-only package. It binds no name, so
+    // "every specifier in this statement is type-only" is VACUOUSLY true of it
+    // — and reading that as erased drops the most unambiguously runtime import
+    // in the language. Nothing else in the tree distinguishes the two.
+    "FAIL src/features/sideeffect/index.ts",
+    // A hop spelled with a UNICODE ESCAPE, on each of the THREE readers that can
+    // produce a specifier: the import record, the export record, and the AST.
+    // The parser's COOKED value is the module's name; the source text is only
+    // its spelling, and a resolver handed the spelling finds nothing, stops the
+    // trace, and reports the barrel clean. No one of these can be lost while the
+    // others hold — they are separate code paths reading separate structures.
+    "FAIL src/features/escapade/index.ts",
+    "FAIL src/features/travesty/index.ts",
+    "FAIL src/features/masque/index.ts",
     // The boundary FAKED: a side-effect import of the framework module plus a
     // local function called `createServerFn`. Both halves of a two-question
     // boundary test are satisfied and no boundary is crossed — a review used
@@ -97,6 +111,12 @@ export const barrelPurityFixtures: CheckFixtures = {
   ],
 
   legal: [
+    // A chain reaching a server-only package for its TYPES only. The import is
+    // erased, so nothing of `stripe` reaches a bundle — this check drops
+    // type-only edges, while the import graph over the same scan keeps them.
+    // One scan, two readings, and this is the file that proves the reading here
+    // is not the scanner's.
+    "src/features/erased/index.ts",
     // The server-only leaf sits below a REAL server-function boundary, so the
     // framework strips it from the client bundle and the trace must stop. This
     // is the ordinary way a feature exposes a mutation: a check that fires here

@@ -44,17 +44,30 @@ export const importPolicyFixtures: CheckFixtures = {
     // unclosed JSX and the reader throws, taking the whole graph with it — so
     // this one is caught by the crash guard rather than by a missing finding.
     "FAIL src/features/alpha/ui/generic-arrow-crossing.ts",
-    // The lineless path: a unicode-escaped specifier comes back from the reader
-    // cooked and matches no literal in the text. Reported against the file with
-    // no line, which is why this check must tolerate `line === undefined`.
+    // A unicode-escaped specifier. The scanner returns the COOKED path, so the
+    // resolver is handed the module's name rather than its spelling; the line
+    // comes off the parser's span, which is why no text search has to find a
+    // literal that is not there.
     "FAIL src/features/alpha/ui/escaped-specifier-crossing.ts",
     // A shebang, which is valid at the top of an executable source file and
-    // which the reader rejects outright. Same whole-graph abort as the generic
-    // arrow above, different cause: every graph-reading check goes silent at
-    // once, so this is caught by the crash guard rather than by a missing
-    // finding. The blanking pass in `lint/structural/import-graph.ts` is what it
-    // holds in place.
+    // which a reader that does not expect one rejects outright — taking every
+    // edge in the file, and under the previous substrate the whole graph, with
+    // it.
     "FAIL src/features/alpha/ui/shebang-crossing.ts",
+    // The five type-only forms, each one a valid import that reached NO check
+    // while type edges were recovered by rewriting the source text. The first
+    // three defeat the rewrite; the last two contain no spelling of
+    // `import type` for a rewrite to find, and were never reachable that way.
+    // A type-only crossing is denied on DIRECTION here, so these are ordinary
+    // findings rather than a separate kind.
+    "FAIL src/features/alpha/ui/type-comment-crossing.ts",
+    "FAIL src/features/alpha/ui/export-type-comment-crossing.ts",
+    "FAIL src/features/alpha/ui/type-brace-comment-crossing.ts",
+    "FAIL src/features/alpha/ui/type-position-crossing.ts",
+    "FAIL src/features/alpha/ui/typeof-import-crossing.ts",
+    // A dynamic import whose specifier is a template with nothing interpolated
+    // into it — a static specifier in a spelling that is not a string literal.
+    "FAIL src/features/alpha/ui/template-specifier-crossing.ts",
     // THE hole this check was rebuilt around. `shared/ui/**` and `shared/**` are
     // one boundary, so the boundary comparison this replaces stayed quiet, and
     // the aliased shared-ui rule matched no relative specifier — the edge was

@@ -8,15 +8,16 @@
 //
 // This check does not use the resolved import graph. Graph resolution discards
 // bare package specifiers as "not a boundary question", and bare package names
-// are the subject of this check. It shares the extraction instead, through
-// scanDeclaredImports, and the RESOLUTION through context.resolveModule — the
-// same resolver the graph runs on. Do not resolve a hop here: a suffix list
+// are the subject of this check. It shares the two substrates under the graph
+// instead — scanDeclaredImports for the extraction, context.resolveModule for
+// the resolution — rather than a second answer to either. Do not resolve a hop here: a suffix list
 // against the disk cannot substitute `./target.js` for `target.ts`, and a hop it
 // cannot follow ends the trace and reports the barrel clean.
 //
-// Do not add the pass that recovers "import type" edges. Both Bun scans erase
-// those edges, and this check wants that erasure. A type-only import makes no
-// runtime code and cannot put a package in the client bundle. A mixed re-export
+// TYPE-ONLY imports are dropped here, and that is a position rather than a
+// limit: a type import makes no runtime code and cannot put a package in a
+// client bundle. The scanner reports them, marked, because the import graph
+// needs them; this check filters them out. A mixed re-export
 // (export { type Foo, bar } from "…") stays, because bar is a runtime dependency.
 //
 // ── The server-function boundary: a stated approximation ─────────────────────
@@ -73,16 +74,18 @@
 // bypass of the module half would be a false negative, and there is no longer a
 // hand-written reader there to bypass.
 //
-// A real parser in this tier would fold the name half in too. `oxc-parser` is the
-// candidate and is declined: a native `0.x` dependency with no version line to
-// oxlint's 1.x, shipped into every adopting project for one call site. The
-// transpiler is preferred precisely because it is already here.
+// The tier now HAS a parser — `module-scanning.ts` runs `oxc-parser`, and the
+// module half above reads its answer. Folding the name half in too is a real
+// option and is not taken here: `entries[].localName` would give the binding
+// exactly, and the change is a rewrite of the four regexes below rather than a
+// dependency question. Until someone does it, the contract stated above is what
+// holds, and the direction of its failure is the reason that is tolerable.
 //
 // ──────────────────────────────────────────────────────────────────────
 
 import { extname } from "node:path";
 import { packageNameOf, SOURCE_EXTENSIONS, subdividedDirs } from "../../policy/layout.ts";
-import { scanDeclaredImports } from "../import-graph.ts";
+import { scanDeclaredImports } from "../module-scanning.ts";
 import {
   blankComments,
   collectTreeFiles,
@@ -98,21 +101,22 @@ import {
 /**
  * Every specifier the file imports AT RUNTIME.
  *
- * The scan itself is the tier's shared one — see `scanDeclaredImports`. Only the
- * collapse to a SET is local: this check asks whether a package is reachable,
- * never how many times, so the graph's occurrence counting has nothing to
- * contribute here.
+ * The scan is the tier's shared one — see `module-scanning.ts`. Both narrowings
+ * are local, and both are this check's position rather than the scanner's:
  *
- * Both of Bun's scans ERASE `import type`, and here that erasure is exactly the
- * semantics wanted: a type-only import emits no runtime code and cannot break a
- * client bundle. This is the inverse of the graph's problem, which has to work
- * to recover those edges. Do not reach for its reveal pass. A mixed re-export
- * (`export { type Foo, bar } from "…"`) survives, because `bar` is a runtime
- * dependency and the chain below it is real.
+ * The type-only DROP is what makes this a question about a bundle. An erased
+ * import reaches no bundler and can carry no package into one. The import graph
+ * keeps those same edges, because coupling survives erasure — one scan, two
+ * checks, opposite readings, and neither has to re-extract to get its own.
+ *
+ * The collapse to a SET is because this check asks whether a package is
+ * reachable and never how many times or from which line.
  */
-function runtimeSpecifiers(absolute: string, source: string, jsxImportSource: string): string[] {
-  const scanned = scanDeclaredImports({ path: absolute, source, jsxImportSource });
-  return [...new Set(scanned.map((entry) => entry.path))];
+function runtimeSpecifiers(absolute: string, source: string): string[] {
+  const scanned = scanDeclaredImports({ path: absolute, source });
+  return [
+    ...new Set(scanned.filter((entry) => !entry.typeOnly).map((entry) => entry.specifier)),
+  ];
 }
 
 /**
@@ -171,8 +175,7 @@ function crossesServerFnBoundary(
   runtimeImports: readonly string[],
 ): boolean {
   // THE GATE, and the reason the NEVER clause is a claim rather than a hope.
-  // `runtimeImports` comes from `scanDeclaredImports` — Bun's transpiler, a real
-  // lexer — so a module this file does not actually import cannot be fabricated
+  // `runtimeImports` comes from `scanDeclaredImports` — a real parser — so a module this file does not actually import cannot be fabricated
   // by text that merely looks like an import. Two reviews fabricated one from
   // text the hand reader could not tell from code: first a quoted import in a
   // string, then the same statement spelled as JSX TEXT inside a `<span>`, where
@@ -413,7 +416,6 @@ export const barrelPurityCheck: StructuralCheck = {
     const { config, vocabulary } = context;
     const { serverOnlyPackages, maxTraceDepth, serverFnBoundary } =
       config.checks["api/barrel-purity"];
-    const { jsxImportSource } = config;
     const findings: Finding[] = [];
 
     // Which directories hold barrels, and what a barrel is called, are the
@@ -466,7 +468,7 @@ export const barrelPurityCheck: StructuralCheck = {
             // framework module is among these, and the trace below walks them.
             // One extraction, so the question "what does this file import" has
             // the same answer for both.
-            const imported = runtimeSpecifiers(absolute, raw, jsxImportSource);
+            const imported = runtimeSpecifiers(absolute, raw);
 
             if (
               shortCircuitApplies &&

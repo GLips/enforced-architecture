@@ -45,6 +45,7 @@ import type { CheckFixtures, GeneratedFixture } from "./structural-fixtures/expe
 import { SOURCE_EXTENSIONS } from "../skills/enforced-architecture/references/lint/policy/layout.ts";
 import { declareTrees } from "../skills/enforced-architecture/references/lint/policy/declared-trees.ts";
 import { createTreeModuleResolver } from "../skills/enforced-architecture/references/lint/structural/module-resolution.ts";
+import { scanDeclaredImports } from "../skills/enforced-architecture/references/lint/structural/module-scanning.ts";
 import type { ArchitectureConfig } from "../skills/enforced-architecture/references/lint/structural/config.ts";
 import {
   createTreeContexts,
@@ -317,6 +318,108 @@ assertEveryCheckRanOnEveryTree("misread", PDF_TREE_MISREAD);
         `${stray.sort().join("\n  ")}`,
     );
   }
+}
+
+// ── The graph places an edge where the import is written ─────────────────────
+//
+// Expectations pin a file and a severity, and deliberately never a line, so
+// every edge in the tree can report line 1 with all 23 checks green. The line is
+// most of what a finding is worth to whoever has to act on it, and this tier's
+// findings are blocking.
+//
+// The assertion is the INVERSE of how the line is produced. The graph asks the
+// parser for the specifier's span; this searches the text for the specifier and
+// requires the two to agree. Only where the search is unambiguous — the quoted
+// specifier occurs exactly once in the file — which is most edges and skips the
+// two cases where the text cannot answer: a specifier written with an escape
+// does not appear in the text at all, and one imported twice has no single line.
+{
+  const misplaced: string[] = [];
+  for (const context of createTreeContexts(fixtureConfig, DECLARED_FIXTURE_TREES)) {
+    for (const edge of context.importGraph()) {
+      const text = readFileSync(join(context.config.projectRoot, edge.file), "utf8");
+      const occurrences = [`"${edge.specifier}"`, `'${edge.specifier}'`, `\`${edge.specifier}\``]
+        .flatMap((quoted) => {
+          const at = text.indexOf(quoted);
+          return at === -1 || text.indexOf(quoted, at + 1) !== -1 ? [] : [at];
+        });
+      if (occurrences.length !== 1 || occurrences[0] === undefined) continue;
+      const written = text.slice(0, occurrences[0]).split("\n").length;
+      if (written === edge.line) continue;
+      misplaced.push(
+        `${edge.file} imports "${edge.specifier}" on line ${written}, reported on line ${edge.line}`,
+      );
+    }
+  }
+  if (misplaced.length > 0) {
+    fail(
+      "<import-graph>",
+      `${misplaced.length} edge(s) are reported on a line the import is not on:\n  ` +
+        `${misplaced.sort().join("\n  ")}`,
+    );
+  }
+}
+
+// ── The scanner reports a real position, and refuses what it cannot read ─────
+//
+// Three properties of `module-scanning.ts` that no fixture VERDICT can reach,
+// each deletable with the whole suite green:
+//
+//   - the LINE comes from the parser's span. Expectations pin a file and a
+//     severity and deliberately never a line, so hard-coding every edge to line
+//     1 passes all 23 checks. The line is most of what a finding is worth to the
+//     person reading it.
+//   - a PARSE ERROR throws. No fixture is unparseable — one would take the whole
+//     run down, which is the correct behaviour and a terrible fixture — so the
+//     only way to state "a file whose imports cannot be read is not a file that
+//     reports clean" is to ask the scanner directly.
+//   - occurrences come back in SOURCE ORDER. The comparison is a multiset, so
+//     order is invisible to it; a reader going down a report is who it is for.
+//     Imports, re-exports and the AST forms are read from three separate
+//     structures, so nothing about the code makes the order fall out for free.
+{
+  const complaints: string[] = [];
+
+  // The leading comment is load-bearing: with a static import at offset 0, an
+  // offset hard-coded to zero still lands on line 1 and the assertion passes.
+  const source = [
+    `// four readers, four lines`,
+    `import { a } from "./first.ts";`,
+    `const b = require("./second.ts");`,
+    `export { c } from "./third.ts";`,
+    `type D = import("./fourth.ts").D;`,
+  ].join("\n");
+  const scanned = scanDeclaredImports({ path: "probe.ts", source });
+
+  const lines = scanned.map(
+    (entry) => source.slice(0, entry.offset).split("\n").length,
+  );
+  const expected = [2, 3, 4, 5];
+  if (lines.join(",") !== expected.join(",")) {
+    complaints.push(
+      `four imports on four consecutive lines, one per reader, came back on ` +
+        `lines [${lines.join(", ")}] — the scanner is not reporting the parser's span`,
+    );
+  }
+  if (scanned.map((entry) => entry.specifier).join(",") !==
+      "./first.ts,./second.ts,./third.ts,./fourth.ts") {
+    complaints.push(
+      `the same four came back in the order ` +
+        `[${scanned.map((entry) => entry.specifier).join(", ")}] rather than source order`,
+    );
+  }
+
+  let threw = false;
+  try {
+    scanDeclaredImports({ path: "broken.ts", source: `import { from "./unclosed.ts";` });
+  } catch {
+    threw = true;
+  }
+  if (!threw) {
+    complaints.push("a file the parser cannot read was scanned without complaint");
+  }
+
+  if (complaints.length > 0) fail("<module-scanning>", complaints.join("\n  "));
 }
 
 // ── The resolver reads the tree's vocabulary, not oxc's defaults ─────────────

@@ -97,7 +97,6 @@ export const APP_TREE_TYPE_UNCHECKED: ValidatedTrees = declareTrees([
 
 export const fixtureConfig: ArchitectureConfig = {
   projectRoot: FIXTURE_TREE,
-  jsxImportSource: "react",
   checks: {
     ...defaultCheckConfigs,
 

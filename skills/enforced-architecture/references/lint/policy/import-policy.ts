@@ -329,13 +329,13 @@ export const IMPORT_POLICY: Record<SourceProfile, Record<TargetArea, ImportSurfa
  * This is the only profile where the runtime/type distinction changes an outcome,
  * so it is a flag on one row rather than an applicability framework. Every other profile applies to all imports.
  *
- * The two tiers mark `typeOnly` at different granularities, and both denials are
- * correct. The linter reads it per DECLARATION; the resolved graph reads it per
- * specifier string, so a module a domain imports both as `import type` and at
- * runtime is type-only in neither. A reader comparing the two diagnostics on one
- * line sees `deniedDirection` from the linter and `impureDomainRuntimeImport`
- * from the graph — one edge, two message ids, and the coarser reading is the
- * safe direction to be wrong in.
+ * Both tiers mark `typeOnly` per DECLARATION, so a module a domain imports both
+ * as `import type` and at runtime is type-only on the first line and not on the
+ * second, in either tier. That agreement is a property of both reading a parser
+ * rather than a convention either one keeps: while the graph recovered type
+ * edges by rewriting source text it could only answer per specifier STRING, and
+ * one file's two spellings of one module collapsed into a single coarser
+ * verdict.
  *
  * `package` is deliberately absent, which is stricter than the table's
  * `domain → package: "any"` cell and is meant to be: the cell governs the type

@@ -1,7 +1,9 @@
-// FIRES import-policy: a crossing in a .ts file that also holds a generic
-// arrow. The whole graph aborts if one reader serves every extension — under `tsx`
-// the arrow reads as unclosed JSX. Caught by the crash guard, not by a missing
-// finding, since the abort takes the summary line with it.
+// FIRES import-policy: a crossing in a .ts file that also holds a generic arrow.
+// Read under a JSX grammar the arrow is an unclosed tag and the parse fails,
+// taking this file's edges with it — so which grammar an extension gets is not a
+// detail. `module-scanning.ts` derives it from the same two extension lists the
+// walkers use, and this is the file that goes quiet if that derivation is wrong
+// in the `.ts` direction.
 import { betaThing } from "../../beta/service/beta-thing.ts";
 
 export const firstOf = <T>(rows: T[]) => rows[0];
