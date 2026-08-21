@@ -22,7 +22,9 @@
 // empty run. One typo in manifestPath leaves every doc uncounted while the check
 // reports clean. The fixture tree cannot test this branch: it holds one
 // manifest, and every other case needs that manifest to parse. Zero entries is
-// not an error, and a project without budgets deletes its line in registry.ts.
+// not an error: a project with no budgeted docs yet ships an empty manifest and
+// stays registered, so the check starts governing the first doc the manifest
+// names rather than waiting for someone to remember it exists.
 //
 // ──────────────────────────────────────────────────────────────────────
 
