@@ -37,15 +37,11 @@
 //     default goes silent on every key spelling nobody enumerated, and the fix
 //     is to spell the union or name the shape.
 //
-// A schema or serialization layer that needs the open bag gets no directory of
-// its own. This catalog has no per-rule path exemption, and the one path-shaped
-// silence a tree can name — `generatedDir`, read through
-// `isArchitectureExemptSourcePath` — takes EVERY rule off what it names, so a
-// `schemas/` pointed at it stops being linted rather than stops being read here.
-// The supported recovery is the CLOSED key domain the arms above already allow:
-// `Record<keyof Payload, unknown>` names the shape and is silent. Where the keys
-// are unknown until run time, that one type takes one `oxlint-disable-next-line`.
-// Do not loosen the type match instead — that silences every bag in the tree.
+// A schema or serialization layer that needs the open bag takes the recovery
+// the second bullet above already allows — a CLOSED key domain — or, where the
+// keys are unknown until run time, one `oxlint-disable-next-line` on that one
+// type. No directory silences this rule, and the vocabulary names none for it.
+// Do not loosen the type match instead: that silences every bag in the tree.
 //
 // `Record` is matched by name, not resolved. A project-local type also called
 // `Record` reports. There is no type checker in this tier.
