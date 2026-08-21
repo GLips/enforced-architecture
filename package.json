@@ -3,11 +3,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "bun run typecheck && bun run check:rules && bun run check:structural",
+    "check": "bun run typecheck && bun run check:rules && bun run check:no-reflect-access-live && bun run check:structural",
     "typecheck": "bun run typecheck:oxlint && bun run typecheck:structural",
     "typecheck:oxlint": "tsc --noEmit -p tsconfig.oxlint.json",
     "typecheck:structural": "tsc --noEmit -p tsconfig.structural.json",
     "check:rules": "harness/with-real-node.sh harness/run-rule-fixtures.ts",
+    "check:no-reflect-access-live": "bun harness/prove-no-reflect-access-live.ts",
     "check:structural": "bun harness/run-structural-fixtures.ts"
   },
   "devDependencies": {

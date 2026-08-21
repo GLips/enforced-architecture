@@ -46,6 +46,19 @@ describeRule("types/no-reflect-access", noReflectAccessRule, {
       errors: [{ messageId: "reflectGet" }],
     },
     {
+      // The other half of the resolution, and the one a shadow check written as
+      // "does the file bind this name anywhere" gets wrong. The binding exists,
+      // and the use site is not inside it.
+      name: "a Reflect bound inside another function does not cover the module-level use",
+      filename: SERVICE,
+      code: `function stubReflect() {
+  const Reflect = { get: (o, k) => o[k] };
+  return Reflect;
+}
+export const value = Reflect.get(invoice, key);`,
+      errors: [{ messageId: "reflectGet" }],
+    },
+    {
       name: "both banned methods in one file are two findings",
       filename: SERVICE,
       code: `export const value = Reflect.get(invoice, key);
@@ -77,11 +90,26 @@ export const result = Reflect.apply(settle, invoice, args);`,
     },
     {
       // This is what separates the rule from a text search: the name is resolved, so a local
-      // binding that shadows the global is correctly untouched.
+      // binding that shadows the global is correctly untouched. NOTE that this case, and every
+      // other one in this file, passes under a rule that reports NOTHING in the real linter:
+      // RuleTester populates no global scope, and the global scope is what a resolution written
+      // the obvious way trips over. See the rule header. The catalog proves the other half with
+      // a real `oxlint` run, in `harness/prove-no-reflect-access-live.ts`.
       name: "a local binding named Reflect is not the global",
       filename: SERVICE,
       code: `const Reflect = { get: (o, k) => o[k] };
 export const value = Reflect.get(invoice, key);`,
+    },
+    {
+      // A second DEFINITION KIND, because the branch that decides this reads the
+      // binding's definition site rather than its scope: a parameter is declared
+      // in a function scope, a `const` in the module scope, and the rule owes
+      // both the same silence.
+      name: "a parameter named Reflect is the caller's object, not the global",
+      filename: SERVICE,
+      code: `export function read(Reflect, key) {
+  return Reflect.get(invoice, key);
+}`,
     },
     {
       name: "a same-named method on some other object",

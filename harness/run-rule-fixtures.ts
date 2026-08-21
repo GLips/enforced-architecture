@@ -316,12 +316,14 @@ function stripLineComments(source: string): string {
  * the line the guard looks for.
  *
  * NEGATIVE SPACE: this asks WHICH block a rule is in, never whether it is in one
- * at all. A rule enabled nowhere is the separate registration-versus-enablement
- * defect, and the config records one deliberate instance of it — the HELD BACK
- * note on `arch/no-reflect-access`, which cannot fire under a real global scope
- * and is tracked by ea-48. Asserting existence here would make this guard the
- * second owner of that question and would fail on a hold it has no opinion
- * about.
+ * at all. A rule the plugin registers and this config never names is loaded and
+ * never run, and NOTHING here catches that — not this guard, not the per-rule
+ * checks above. The shipped config currently names every rule, so the hole is
+ * invisible: it opens the next time one is added to `plugin.ts` alone. The one
+ * exception is `arch/no-reflect-access`, whose enablement
+ * `harness/prove-no-reflect-access-live.ts` pins, because that rule spent a
+ * release held back and the note saying so was the only thing keeping the key
+ * out of this file.
  */
 async function checkTreeScoping(): Promise<string[]> {
   const { DECLARED_TREES } = (await import(join(POLICY_ROOT, "declared-trees.ts"))) as {
@@ -425,10 +427,9 @@ async function checkTreeScoping(): Promise<string[]> {
   //
   // Built from the rules this config ENABLES, not from every rule that exists:
   // whether a rule is enabled at all is the separate registration-versus-
-  // enablement question, and the config records one deliberate instance of a
-  // rule held back (see the HELD BACK note on `arch/no-reflect-access`, tracked
-  // by ea-48). This guard asks only that a rule enabled for one declared tree is
-  // enabled for all of them.
+  // enablement question, which nothing in this runner owns (see the header).
+  // This guard asks only that a rule enabled for one declared tree is enabled
+  // for all of them.
   const enabledTreeRules = [...new Set(scopedArchKeys)].filter((key) => treeDependent.has(key));
   const expectedPairs = enabledTreeRules
     .flatMap((key) => DECLARED_TREES.map((tree) => `${key} @ ${tree.root}/**`))

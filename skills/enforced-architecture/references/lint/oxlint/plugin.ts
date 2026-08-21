@@ -57,8 +57,7 @@ import { vendorComponentContainmentRule } from "./style/vendor-component-contain
 //     "rules": { "arch/db-isolation": "error", … } }
 //
 // This list and the `rules` block of `setup/oxlintrc.json` are one list wearing two hats. The
-// shipped config names every key below except `no-reflect-access`, which is held back with its
-// reason and its ticket stated there. So the two are copied together and neither is pruned:
+// shipped config names every key below. So the two are copied together and neither is pruned:
 // dropping a registration here is dropping a rule from the project, which is a decision about the
 // architecture, and a config key naming a rule absent from this file is FATAL — oxlint refuses the
 // whole config and the run lints nothing.

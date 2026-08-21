@@ -100,11 +100,6 @@ Both ship on — `no-conditional-empty-object-spread` at `warn`, which is what i
 buys. Read [oxlint/types/overview.md](oxlint/types/overview.md) for what each rejects that is
 sometimes correct.
 
-`types/no-reflect-access` is in the last row and is **currently inert**: it reports nothing when
-oxlint runs it, so `setup/oxlintrc.json` holds its key back. ea-48 fixes the rule and restores
-the key. Copy it anyway — the registration is what makes the fix arrive as a version bump rather
-than an adoption decision.
-
 ## Adopting a rule
 
 The consuming project mirrors this tree: a `lint/` directory at the repo root holding `policy/`,

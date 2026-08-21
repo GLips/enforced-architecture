@@ -8,6 +8,7 @@ It proves the **chosen examples**, not the header claim in general. The cases an
 bun run check          # types then fixtures, both tiers
 bun run typecheck      # both tier programs, under the tsconfigs the skill hands out
 bun run check:rules    # oxlint rules, under real Node
+bun run check:no-reflect-access-live  # ONE rule, through the real oxlint CLI — see below
 bun run check:structural  # structural checks, under Bun
 ```
 
@@ -85,6 +86,16 @@ Every case carries its own `filename`, in the standard layout, because the rules
 Every one of these was revert-probed when the runner was built. Do it again after any change here: break a rule and expect its adversarial kind to fail, stub a spec and expect all three kinds to report as never run. A harness that stays green through both is not testing anything.
 
 What it still does not check is whether **oxlint** accepts the plugin, as opposed to Node loading it. That path was verified by hand — all 32 rules enabled against a probe tree through the real CLI — and JS plugins being alpha is the reason to re-verify it after an oxlint upgrade rather than trusting a green `check:rules`.
+
+## The host gap, and the one rule that is proved through it
+
+`RuleTester` is not the linter. It parses the same source with the same rule, and it does not build the same environment: **no global scope is populated**. So a rule that reasons about globals gets a different answer in the two hosts, and the spec is written in the host where the answer happens to be the one the author expected.
+
+`types/no-reflect-access` is the measured case. It asked "does any enclosing scope bind `Reflect`?" and read a hit as a local shadow. Under the CLI the global scope binds `Reflect`, so every use answered yes and the rule reported nothing at all — shipped, registered, enabled nowhere, and green across all fifteen of its specs. Two spellings of the question were available and each is wrong in one host: `sourceCode.isGlobalReference` answers `true` under the CLI and `false` under RuleTester for the same identifier (oxlint 1.77.0, both measured). The fix reads the resolved binding's **definition site**, which agrees in both.
+
+`harness/prove-no-reflect-access-live.ts` is what proves it: two files materialized on disk, linted by the real `oxlint` binary through the shipped `plugin.ts`, diagnostics read back. It covers one rule on purpose and says so in its header.
+
+**Every other rule in the catalog carries the same blind spot**, and a green `check:rules` does not mean a rule fires in the linter. Generalizing the live run across the tier is ea-49.
 
 ## The runtime: real Node, not Bun
 

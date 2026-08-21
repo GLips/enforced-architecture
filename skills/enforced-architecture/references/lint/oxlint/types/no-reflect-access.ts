@@ -15,7 +15,18 @@
 // exempt its directory here rather than a disable comment in each trap.
 //
 // `Reflect` is resolved through the scope chain, not matched by name, so a
-// local binding called `Reflect` does not report. The spec pins that.
+// local binding called `Reflect` does not report. The spec pins that, and pins
+// the other half too — a `Reflect` bound in a scope the use site is not inside
+// does not cover it.
+//
+// The resolution asks whether the binding has a DEFINITION SITE in the file, and
+// that is not a detail: both shorter spellings of the question answer differently
+// under the oxlint CLI than under RuleTester, so a rule reading either one is
+// green in its spec and silent in the linter. `resolvesToLocalBinding` says which
+// and why. Proving this rule fires therefore takes a real `oxlint` run over a real
+// file, and no spec can substitute; the catalog does it in
+// `harness/prove-no-reflect-access-live.ts`, and a project adapting this rule owes
+// itself the equivalent.
 //
 // SCOPE, and it is the same for every TREE-SCOPED rule in this catalog — which
 // is every rule but `testing/no-module-mocking`, whose subject is a test file and
@@ -48,14 +59,35 @@ function accessedMethodName(callee: ESTree.MemberExpression): string | null {
   return callee.property.type === "Identifier" ? callee.property.name : null;
 }
 
-// `sourceCode.isGlobalReference` is NOT usable here: oxlint 1.77.0 returns false for `Reflect`,
-// because it only answers for globals its environment configuration declares. Asking the scope
-// chain instead inverts the question — an identifier that resolves to no binding anywhere is the
-// global one — which is both correct and independent of how the host is configured.
-function isShadowedBinding(sourceCode: SourceCode, identifier: ESTree.IdentifierReference): boolean {
+// Whether the name resolves to a binding THIS FILE declares, rather than to the language builtin.
+//
+// Two obvious ways to ask this are each right in exactly one of the two hosts the rule runs in,
+// and silently wrong in the other. Measured on oxlint 1.77.0, both hosts:
+//
+//   under the oxlint CLI     the global scope declares `Reflect`, and `isGlobalReference` is true
+//   under RuleTester         no global scope is populated, and `isGlobalReference` is false
+//
+// So `isGlobalReference` cannot be read — it answers opposite things about the same identifier.
+// Neither can "does any enclosing scope bind the name": under the CLI the global scope binds it
+// for every use, so every use reads as shadowed and the rule reports nothing at all. A spec
+// cannot catch either, because a spec runs in the host each one happens to be right in.
+//
+// The DEFINITION SITE is what agrees in both. The environment's `Reflect` is a binding with no
+// `defs` — nothing in the file declares it. A `const`, an import, a parameter, a `var` at a
+// script's top level each carry one, and each is a real shadow. An assignment with no declaration
+// (`Reflect = {…}`) carries none and is not one: that is the global being overwritten, and a
+// `Reflect.get` after it is still the builtin.
+function resolvesToLocalBinding(
+  sourceCode: SourceCode,
+  identifier: ESTree.IdentifierReference,
+): boolean {
   let scope: Scope | null = sourceCode.getScope(identifier);
   while (scope !== null) {
-    if (scope.set.has(identifier.name)) return true;
+    // The INNERMOST scope binding the name is the one this reference resolves to. An outer scope
+    // binding it too is shadowed by this one and says nothing about this reference, so the walk
+    // answers at the first hit rather than continuing to the top.
+    const binding = scope.set.get(identifier.name);
+    if (binding !== undefined) return binding.defs.length > 0;
     scope = scope.upper;
   }
   return false;
@@ -82,7 +114,7 @@ export const noReflectAccessRule = defineTreeRule({
         if (
           owner.type !== "Identifier" ||
           owner.name !== "Reflect" ||
-          isShadowedBinding(context.sourceCode, owner)
+          resolvesToLocalBinding(context.sourceCode, owner)
         ) {
           return;
         }

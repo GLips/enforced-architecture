@@ -278,6 +278,7 @@
       "arch/no-chained-type-assertions": "error",
       "arch/no-known-value-widening": "error",
       "arch/no-opaque-record": "error",
+      "arch/no-reflect-access": "error",
       "arch/no-runtime-typeof": "error",
       "arch/no-type-argument-assertion": "error",
       "arch/no-unknown-returns": "error",
@@ -287,14 +288,6 @@
       // A report on a spread that could have been written plainly, not a property
       // anything depends on.
       "arch/no-conditional-empty-object-spread": "warn"
-
-      // HELD BACK: `arch/no-reflect-access` is registered in plugin.ts and
-      // deliberately absent here, pending ea-48. It reports nothing when oxlint
-      // runs it — the global scope binds `Reflect`, so the rule's shadow check
-      // treats every use as shadowed and returns early. Its spec stays green
-      // because RuleTester populates no global scope. A key that cannot fire is
-      // worse than a missing one: it reads as coverage. The key goes back in the
-      // same change that fixes the rule.
       }
     }
   ]
