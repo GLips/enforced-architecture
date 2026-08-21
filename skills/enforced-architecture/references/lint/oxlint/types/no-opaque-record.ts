@@ -24,12 +24,13 @@
 //   - `Record<keyof T & string, unknown>` is silent: an intersection is closed
 //     once any member is, and `keyof T` closes it.
 //   - a key domain the walk cannot RESOLVE reports even when it is finite in
-//     fact — an IMPORTED alias or enum, a conditional type, a template literal
-//     over a local prefix. Local aliases, enums, enum members, indexed accesses
-//     and the key-preserving builtins ARE resolved; nothing beyond this file is.
-//     That is the safe direction, since the other default goes silent on every
-//     key spelling nobody enumerated, and the fix is to spell the union or name
-//     the shape.
+//     fact — an IMPORTED alias, an imported enum, a member of an imported enum,
+//     a conditional type, and an indexed access into a named type (`Row['id']`
+//     is every string whenever `Row.id` is one). What IS resolved is what this
+//     file declares: local aliases, local enums and their members, `(typeof
+//     X)[…]`, and the key-preserving builtins. That is the safe direction, since
+//     the other default goes silent on every key spelling nobody enumerated, and
+//     the fix is to spell the union or name the shape.
 //
 // A schema or serialization layer that needs the type gets a path test beside
 // `isArchitectureExemptSourcePath`, such as `/\/schemas?\//`. Do not loosen the type
@@ -48,13 +49,11 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineTreeRule } from "../lib/define-tree-rule.ts";
-import { type ESTree } from "@oxlint/plugins";
 import {
   collectLocalTypeFacts,
   isOpaqueDictionaryValue,
   isOpenKeyDomain,
   type LocalTypeFacts,
-  lexicalTypeParameterNames,
 } from "../lib/type-annotations.ts";
 
 const RECORD_TYPE_NAME = "Record";
@@ -74,16 +73,18 @@ export const noOpaqueRecordRule = defineTreeRule({
     // Collected before any type node is judged. Visitors fire in document order, so a `Program`
     // handler is the only place that sees an alias declared BELOW the use that resolves through
     // it — and type declarations are routinely ordered that way.
-    let facts: LocalTypeFacts = { aliases: new Map(), enums: new Set() };
-
     // A file that names a type parameter after one of its own aliases must not resolve through the
-    // alias: `<Opaque>(bag: Record<string, Opaque>)` is generic, not a bag.
-    const shadowedAt = (node: ESTree.Node) =>
-      lexicalTypeParameterNames(node, context.sourceCode.visitorKeys);
+    // alias: `<Opaque>(bag: Record<string, Opaque>)` is generic, not a bag. The visitor keys ride
+    // along so each predicate asks that question at the node it is judging.
+    let facts: LocalTypeFacts = {
+      aliases: new Map(),
+      enums: new Set(),
+      visitorKeys: context.sourceCode.visitorKeys,
+    };
 
     return {
       Program(node) {
-        facts = collectLocalTypeFacts(node);
+        facts = collectLocalTypeFacts(node, context.sourceCode.visitorKeys);
       },
 
       TSTypeReference(node) {
@@ -93,8 +94,8 @@ export const noOpaqueRecordRule = defineTreeRule({
         const params = node.typeArguments?.params ?? [];
         const [key, value] = params;
         if (params.length !== 2 || key === undefined || value === undefined) return;
-        if (!isOpenKeyDomain(key, facts, shadowedAt(key))) return;
-        if (isOpaqueDictionaryValue(value, facts, shadowedAt(value))) {
+        if (!isOpenKeyDomain(key, facts)) return;
+        if (isOpaqueDictionaryValue(value, facts)) {
           context.report({ node, messageId: "opaqueRecord" });
         }
       },
@@ -107,20 +108,19 @@ export const noOpaqueRecordRule = defineTreeRule({
       // rejects a literal index-signature key (TS1336), so every one that compiles is already open.
       TSIndexSignature(node) {
         const value = node.typeAnnotation.typeAnnotation;
-        if (isOpaqueDictionaryValue(value, facts, shadowedAt(value))) {
+        if (isOpaqueDictionaryValue(value, facts)) {
           context.report({ node, messageId: "opaqueIndexSignature" });
         }
       },
 
-      // Each half is asked at its OWN node, not at the mapped type. The key binder `K` is in scope
-      // in the value and not in the constraint (`[K in X]` cannot reference `K` in `X`), and
-      // `lexicalTypeParameterNames` only reports it when the walk arrives from the value — so
-      // reusing one set here reports `{ [Key in string]: Key }` against a module alias named `Key`.
+      // The key domain is the `as` clause when there is one, and the constraint otherwise:
+      // `{ [K in keyof T as string]: unknown }` has a closed constraint and open keys, so reading
+      // the constraint alone calls that bag a shape.
       TSMappedType(node) {
         const value = node.typeAnnotation;
         if (!value) return;
-        if (!isOpenKeyDomain(node.constraint, facts, shadowedAt(node.constraint))) return;
-        if (isOpaqueDictionaryValue(value, facts, shadowedAt(value))) {
+        if (!isOpenKeyDomain(node.nameType ?? node.constraint, facts)) return;
+        if (isOpaqueDictionaryValue(value, facts)) {
           context.report({ node, messageId: "opaqueIndexSignature" });
         }
       },

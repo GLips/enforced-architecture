@@ -57,7 +57,6 @@ import {
   dictionaryShape,
   isOpaqueDictionaryValue,
   type LocalTypeFacts,
-  lexicalTypeParameterNames,
   openDictionaryValueType,
 } from "../lib/type-annotations.ts";
 
@@ -164,20 +163,18 @@ export const noWidenThenAssertRule = defineTreeRule({
   create(context) {
 
     const sourceCode = context.sourceCode;
-    let facts: LocalTypeFacts = { aliases: new Map(), enums: new Set() };
-
-    const shadowedAt = (node: ESTree.Node) =>
-      lexicalTypeParameterNames(node, sourceCode.visitorKeys);
+    let facts: LocalTypeFacts = {
+      aliases: new Map(),
+      enums: new Set(),
+      visitorKeys: sourceCode.visitorKeys,
+    };
 
     // `lib/type-annotations.ts` owns what an open dictionary is, so this rule and
     // `types/no-opaque-record` cannot disagree about which spellings are bags — both halves,
     // the key domain and the opaque value.
-    //
-    // Each half is asked at its own node: a mapped type's key binder is in scope in the value and
-    // not in the constraint, so one shadow set for the whole type misreads `{ [Key in string]: Key }`.
     function isOpenOpaqueDictionary(type: ESTree.TSType): boolean {
-      const value = openDictionaryValueType(type, facts, shadowedAt(type));
-      return value !== null && isOpaqueDictionaryValue(value, facts, shadowedAt(value));
+      const value = openDictionaryValueType(type, facts);
+      return value !== null && isOpaqueDictionaryValue(value, facts);
     }
 
     function broadTypeKind(type: ESTree.TSType): BroadKind | null {
@@ -199,7 +196,7 @@ export const noWidenThenAssertRule = defineTreeRule({
     // here instead leaves the recovery half blind to the mapped-type and local-alias spellings —
     // the same drift on the other end of one rule, and one keystroke from suppressing the report.
     function isDefinitelyNarrowerDictionary(type: ESTree.TSType): boolean {
-      if (dictionaryShape(type, facts, shadowedAt(type)) !== null) return true;
+      if (dictionaryShape(type, facts) !== null) return true;
       // Not a dictionary at all: a literal that names any member is a shape, which says strictly
       // more than the bag the value was widened to.
       return (
@@ -324,7 +321,7 @@ export const noWidenThenAssertRule = defineTreeRule({
       // Collected up front: a type alias is routinely declared below the function that widens
       // through it, and a widening spelled `const stored: Bag = user` reads nothing without it.
       Program(node) {
-        facts = collectLocalTypeFacts(node);
+        facts = collectLocalTypeFacts(node, sourceCode.visitorKeys);
       },
       TSAsExpression: checkAssertion,
       TSTypeAssertion: checkAssertion,

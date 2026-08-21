@@ -72,6 +72,15 @@ describeRule("types/no-known-value-widening", noKnownValueWideningRule, {
       errors: [{ messageId: "widening" }],
     },
     {
+      // The `as` clause replaces the key domain, so a mapped type can wear a closed CONSTRAINT and
+      // still delete every key the literal has. Reading the constraint alone calls this a
+      // shape-preserving map — one keystroke from the legal fixture below it.
+      name: "a mapped type remapping closed keys to string still deletes them",
+      filename: SERVICE,
+      code: `export const handlers: { [K in keyof Config as string]: Handler } = { start: startHandler };`,
+      errors: [{ messageId: "widening" }],
+    },
+    {
       name: "a mapped type over the number key domain",
       filename: SERVICE,
       code: `export const flags: { [K in number]: boolean } = { 1: true };`,
@@ -183,6 +192,17 @@ export const handlers: Record<(typeof KEYS)[number], Handler> = { start: startHa
       name: "a shape-preserving mapped type deletes no keys either",
       filename: SERVICE,
       code: `export const handlers: { [K in keyof Config]: Handler } = { start: startHandler };`,
+    },
+    {
+      // TS2456 rejects this, but the linter runs on parseable source, not compiling source. Without
+      // the cycle guard the DICTIONARY walk recurses until the stack goes — a crash, not a false
+      // negative, and the only fixture that can tell the difference is one that would not
+      // terminate. The key walk has a guard of its own with a fixture of its own; this is the other.
+      name: "a cyclic alias chain in annotation position terminates",
+      filename: SERVICE,
+      code: `type First = Second;
+type Second = First;
+export const handlers: First = { start: startHandler };`,
     },
     {
       name: "a precise annotation over a literal is a real check",

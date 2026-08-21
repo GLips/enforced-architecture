@@ -224,6 +224,19 @@ type Handlers = Record<string, Handler>;`,
       errors: [{ messageId: "widenThenAssert" }],
     },
     {
+      // The recovery target that is not a dictionary at all. A test asking only "is this a
+      // dictionary" drops the report on the commonest recovery there is — naming the shape
+      // inline — and the drop is invisible, because the rule still reports every other spelling.
+      name: "recovered into an inline shape that names its members",
+      filename: SERVICE,
+      code: `export function load(): { id: string } {
+  const invoice: Invoice = buildInvoice();
+  const stored: Record<string, unknown> = invoice;
+  return stored as { id: string };
+}`,
+      errors: [{ messageId: "widenThenAssert" }],
+    },
+    {
       name: "recovered into a dictionary keyed by a local union alias",
       filename: SERVICE,
       code: `type Status = "draft" | "paid";
@@ -235,8 +248,10 @@ export function load(): Record<Status, Handler> {
       errors: [{ messageId: "widenThenAssert" }],
     },
     {
-      // Even a bag-valued dictionary recovers something once its keys are named, and
-      // `types/no-opaque-record` reports the target itself — two messages, both actionable.
+      // A dictionary recovers something once its keys are named, whatever its value type says, so
+      // this reports here — and NOWHERE else: `types/no-opaque-record` is silent on a closed key
+      // domain by an explicit legal fixture of its own, and states that as negative space. The
+      // round trip is the only thing anything sees about this line.
       name: "recovered into a closed key domain over an opaque value",
       filename: SERVICE,
       code: `export function load(): Record<"draft" | "paid", object> {
@@ -389,6 +404,19 @@ export function second(): void {
   const invoice: Invoice = buildInvoice();
   const stored: Record<string, unknown> = invoice;
   return stored as Record<string, object>;
+}`,
+    },
+    {
+      // A bare imported name after a BAG widening is not known to recover anything: this tier
+      // cannot read `AccountId`, and it may itself be an alias to the same bag. The strictness has
+      // to be asymmetric — after a `unknown`/`any` widening the same assertion reports, because
+      // there nothing survives and any named type is more than nothing.
+      name: "a name this file cannot read is not known to be narrower than a bag",
+      filename: SERVICE,
+      code: `export function load(): AccountId {
+  const invoice: Invoice = buildInvoice();
+  const stored: Record<string, unknown> = invoice;
+  return stored as AccountId;
 }`,
     },
     {

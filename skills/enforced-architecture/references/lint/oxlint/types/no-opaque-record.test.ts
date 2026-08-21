@@ -123,9 +123,39 @@ export type InvoicePayload = Record<First, unknown>;`,
       errors: [{ messageId: "opaqueRecord" }],
     },
     {
-      // A generic string utility is not resolved through, so nothing here is known to be closed —
-      // and the default has to be "open", or every unrecognised key spelling is a silent bypass.
-      name: "a string utility type over an open domain stays open",
+      // `Row["id"]` IS `Record<string, unknown>` whenever `Row.id` is a string, so trusting an
+      // indexed access into a named type hands back a one-token bypass. Only the `typeof` form is
+      // closed, and it is closed because it names a binding this file can see.
+      name: "an indexed access into a named type is not a closed domain",
+      filename: SERVICE,
+      code: `type Row = { id: string };
+export type ById = Record<Row["id"], unknown>;`,
+      errors: [{ messageId: "opaqueRecord" }],
+    },
+    {
+      // The dotted spelling of an imported name. Trusting every qualified name because enum members
+      // wear one makes `Api.AnyKey` silent while the bare imported `AnyKey` reports — a disagreement
+      // inside one rule, reachable by adding a namespace import.
+      name: "a qualified name whose root is not a local enum is not closed",
+      filename: SERVICE,
+      code: `import type * as Api from "./api.ts";
+export type ById = Record<Api.AnyKey, unknown>;`,
+      errors: [{ messageId: "opaqueRecord" }],
+    },
+    {
+      // The `as` clause replaces the key domain outright. Reading the CONSTRAINT here sees
+      // `keyof T` and calls a bag a shape, and remapping to `string` is the ordinary way to write
+      // it — this is not an exotic spelling.
+      name: "a mapped type remapping closed keys to string is open",
+      filename: SERVICE,
+      code: `export type Loosened<T> = { [K in keyof T as string]: unknown };`,
+      errors: [{ messageId: "opaqueIndexSignature" }],
+    },
+    {
+      // `Lowercase` hands back a subset of its argument, so it is closed exactly when the argument
+      // is — and `string` is not. A key-preserving builtin is not an escape hatch: it is transparent
+      // in BOTH directions, which is why `Exclude<keyof T, "id">` is legal a few fixtures down.
+      name: "a key-preserving builtin over an open domain stays open",
       filename: SERVICE,
       code: `export type InvoicePayload = Record<Lowercase<string>, unknown>;`,
       errors: [{ messageId: "opaqueRecord" }],
@@ -371,9 +401,12 @@ export function box<Opaque>(bag: { [k: string]: Opaque }): void {}`,
 export type StatusPayloads = Record<Status, unknown>;`,
     },
     {
-      name: "an enum member names a single key",
+      // An EXPORTED enum sits one level down from the statement, exactly as an exported alias does,
+      // so a collector reading `program.body` directly finds a declaration it does not recognise
+      // and every exported enum key domain reports.
+      name: "an exported enum member names a single key",
       filename: SERVICE,
-      code: `enum Status { Draft, Paid }
+      code: `export enum Status { Draft, Paid }
 export type DraftPayload = Record<Status.Draft, unknown>;`,
     },
     {
@@ -385,9 +418,12 @@ export type DraftPayload = Record<Status.Draft, unknown>;`,
 export type StatusPayloads = Record<(typeof KEYS)[number], unknown>;`,
     },
     {
-      name: "an indexed access into a named type is closed",
+      // `[K in keyof T as `get_${K}`]` names one key per key of T, so the domain is as closed as
+      // `keyof T` is. The binder is in scope in the `as` clause, which is what keeps this from
+      // being read as a template literal over an open hole.
+      name: "a remapped key built from the source binder is closed",
       filename: SERVICE,
-      code: `export type ById = Record<Row["id"], unknown>;`,
+      code: `export type Getters<T> = { [K in keyof T as \`get_\${string & K}\`]: unknown };`,
     },
     {
       // `Exclude` and `Extract` hand back a subset of their first argument, so they are closed

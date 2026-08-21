@@ -21,9 +21,10 @@
 // the same reading that keeps a dirty-field tracker legal in
 // `types/no-opaque-record`, and `lib/type-annotations.ts` owns the list.
 //
-// A domain that walk cannot RESOLVE reports even when it is finite in fact: an
-// imported alias or enum, a conditional type, a template literal over a local
-// prefix. That is deliberate — the alternative default goes silent on every key
+// A domain the walk cannot RESOLVE reports even when it is finite in fact: an
+// imported alias or enum, a member of an imported enum, a conditional type, and
+// an indexed access into a named type such as `Row['id']`, which is every string
+// whenever `Row.id` is one. That is deliberate — the alternative goes silent on every key
 // spelling nobody enumerated — but it means a report here can be a false one, and
 // the fix is to spell the union or name the shape rather than to reach for
 // `satisfies`, which deletes the exhaustiveness check the annotation was for.
@@ -106,7 +107,11 @@ export const noKnownValueWideningRule = defineTreeRule({
   },
   create(context) {
 
-    let facts: LocalTypeFacts = { aliases: new Map(), enums: new Set() };
+    let facts: LocalTypeFacts = {
+      aliases: new Map(),
+      enums: new Set(),
+      visitorKeys: context.sourceCode.visitorKeys,
+    };
 
     // The KEY half of `lib/type-annotations.ts`'s open-dictionary answer, and only that half. What
     // the annotation deletes is the literal's keys, so the value type is not consulted:
@@ -117,7 +122,7 @@ export const noKnownValueWideningRule = defineTreeRule({
     const isWideningTarget = (type: ESTree.TSType): boolean => {
       const shadowed = lexicalTypeParameterNames(type, context.sourceCode.visitorKeys);
       if (resolvesToBroadType(type, BROAD_KEYWORDS, facts.aliases, shadowed)) return true;
-      return openDictionaryValueType(type, facts, shadowed) !== null;
+      return openDictionaryValueType(type, facts) !== null;
     };
 
     const reportIfWidened = (
@@ -138,7 +143,7 @@ export const noKnownValueWideningRule = defineTreeRule({
 
     return {
       Program(node) {
-        facts = collectLocalTypeFacts(node);
+        facts = collectLocalTypeFacts(node, context.sourceCode.visitorKeys);
       },
       VariableDeclarator(node) {
         if (node.id.type !== "Identifier") return;
