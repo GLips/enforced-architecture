@@ -2,6 +2,7 @@ import { describeRule } from "../lib/rule-spec.ts";
 import { propCountRule } from "./prop-count.ts";
 
 const UI = "/repo/src/features/alpha/ui/panel.tsx";
+const UI_JSX = "/repo/src/features/alpha/ui/panel.jsx";
 const SHARED = "/repo/src/shared/ui/panel.tsx";
 
 describeRule("react/prop-count", propCountRule, {
@@ -154,6 +155,115 @@ export function WideImported(props: WideImportedProps) {
   return <section data-tone={props.tone}>{props.title}</section>;
 }`,
       errors: [{ messageId: "tooManyPropsFloor" }],
+    },
+    {
+      name: "the annotation sits on a parameter that carries a default",
+      filename: UI,
+      // `props: P = {…}` wraps the parameter in an AssignmentPattern, and the annotation moves one
+      // node in with it. A rule reading `parameter.typeAnnotation` off an Identifier or an
+      // ObjectPattern finds nothing here — and then finds no destructure either, so the component
+      // has no props at all to this rule while react/hook-count and react/single-component-export
+      // both see it perfectly well.
+      code: `interface DefaultedPanelProps {
+  title: string;
+  subtitle: string;
+  tone: string;
+  size: string;
+  variant: string;
+  icon: string;
+  dense: boolean;
+  onDismiss: () => void;
+}
+
+export function DefaultedPanel(props: DefaultedPanelProps = DEFAULT_PANEL_PROPS) {
+  return <section data-tone={props.tone}>{props.title}</section>;
+}`,
+      errors: [{ messageId: "tooManyProps" }],
+    },
+    {
+      name: "a destructure carrying a default, two quoted keys, and one key the rule cannot read",
+      filename: UI,
+      // Three separate ways to lose this component's props, in the order they bite. The default
+      // wraps the pattern in an AssignmentPattern, so a reader keyed on ObjectPattern finds no
+      // props at all. `["dense"]` is the same prop as `dense` and dropping the two scores six,
+      // which reads as a component under the line. And `[dynamicKey]` names a prop nobody can
+      // follow, so eight is a floor rather than the surface — the confident wording here would be
+      // a number the rule had already decided was incomplete.
+      code: `export function DefaultedDestructure({
+  title,
+  subtitle,
+  tone,
+  size,
+  variant,
+  icon,
+  ["dense"]: dense,
+  ["onDismiss"]: onDismiss,
+  [dynamicKey]: extra,
+} = {}) {
+  return <section data-tone={tone} data-extra={extra} data-dense={dense} onClick={onDismiss}>{title}</section>;
+}`,
+      errors: [{ messageId: "tooManyPropsFloor" }],
+    },
+    {
+      name: "two of the eight members are keyed by a quoted string rather than a name",
+      filename: UI,
+      // `{ ["dense"]: boolean }` is the same member as `dense: boolean` — one owner answers "what
+      // key is this", and every other consumer in the catalog already asks it. Dropping the two
+      // computed members scores six and goes silent, which reads as a component under the line.
+      code: `export function QuotedKeyPanel(props: {
+  title: string;
+  subtitle: string;
+  tone: string;
+  size: string;
+  variant: string;
+  icon: string;
+  ["dense"]: boolean;
+  ["onDismiss"]: () => void;
+}) {
+  return <section data-tone={props.tone}>{props.title}</section>;
+}`,
+      errors: [{ messageId: "tooManyProps" }],
+    },
+    {
+      name: "a member keyed by an expression makes the count a floor rather than a silence",
+      filename: UI,
+      // Eight readable names and one that names nothing this rule can follow. The count is right
+      // and the surface is wider than the count, which is exactly what the floor wording says —
+      // and reporting the confident wording here would be a number the rule had already decided
+      // was incomplete.
+      code: `export function ExpressionKeyPanel(props: {
+  title: string;
+  subtitle: string;
+  tone: string;
+  size: string;
+  variant: string;
+  icon: string;
+  dense: boolean;
+  onDismiss: () => void;
+  [dynamicKey]: string;
+}) {
+  return <section data-tone={props.tone}>{props.title}</section>;
+}`,
+      errors: [{ messageId: "tooManyPropsFloor" }],
+    },
+    {
+      name: "eight destructured props in a .jsx file",
+      filename: UI_JSX,
+      // The extension, not the syntax. A `.jsx` component declares props exactly as a `.tsx` one
+      // does, and there is no annotation to read in either.
+      code: `export function PlainWidePanel({
+  title,
+  subtitle,
+  tone,
+  size,
+  variant,
+  icon,
+  dense,
+  onDismiss,
+}) {
+  return <section data-tone={tone}>{title}</section>;
+}`,
+      errors: [{ messageId: "tooManyProps" }],
     },
     {
       name: "four props, against a threshold of 4 set in the project's config",

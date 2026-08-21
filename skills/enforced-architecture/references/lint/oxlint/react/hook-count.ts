@@ -22,6 +22,10 @@
 // seven different hooks are the same finding, and which hooks matter most is
 // a judgement for the reader.
 //
+// Which calls ARE hooks is `lib/hook-calls.ts`'s answer, shared with
+// react/no-async-effect and react/derived-state — `React.useEffect(…)` and an
+// aliased import count, and that file states what does not.
+//
 // Two components in one file is react/single-component-export's finding.
 //
 // SCOPE, and it is the same for every TREE-SCOPED rule in this catalog — which
@@ -34,13 +38,11 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineTreeRule } from "../lib/define-tree-rule.ts";
-import { type ESTree, type Range } from "@oxlint/plugins";
+import { type Range } from "@oxlint/plugins";
 import { isComponentFile } from "../../policy/declared-trees.ts";
 import { exportedComponents } from "../lib/component-declarations.ts";
+import { hookCallName } from "../lib/hook-calls.ts";
 import { numericRuleOption } from "../lib/rule-options.ts";
-
-/** React's convention, and what `use` in a call position means without a type checker. */
-const HOOK_NAME = /^use[A-Z]/;
 
 const DEFAULT_THRESHOLD = 7;
 
@@ -71,11 +73,13 @@ export const hookCountRule = defineTreeRule({
 
     return {
       CallExpression(node) {
-        if (isHookCallee(node.callee)) hookCalls.push(node.range);
+        if (hookCallName(node.callee, context.sourceCode) !== undefined) {
+          hookCalls.push(node.range);
+        }
       },
 
       "Program:exit"(program) {
-        for (const component of exportedComponents(program)) {
+        for (const component of exportedComponents(program, context.sourceCode)) {
           if (component.fn === null) continue;
 
           const [start, end] = component.fn.range;
@@ -92,14 +96,3 @@ export const hookCountRule = defineTreeRule({
     };
   },
 });
-
-/** `useThing(…)` and the namespaced spelling `React.useThing(…)`. */
-function isHookCallee(callee: ESTree.CallExpression["callee"]): boolean {
-  if (callee.type === "Identifier") return HOOK_NAME.test(callee.name);
-  return (
-    callee.type === "MemberExpression" &&
-    !callee.computed &&
-    callee.property.type === "Identifier" &&
-    HOOK_NAME.test(callee.property.name)
-  );
-}

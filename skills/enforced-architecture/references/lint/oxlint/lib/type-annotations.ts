@@ -69,6 +69,22 @@ export function parameterAnnotation(
   return parameter.typeAnnotation;
 }
 
+/**
+ * The pattern a parameter destructures, reached through the same wrappers `parameterAnnotation`
+ * sees through, or undefined when the parameter binds a plain name.
+ *
+ * A rule reading `parameter.type === "ObjectPattern"` directly sees nothing for
+ * `({ a, b } = { a: 1, b: 2 })`, which is the defaulted spelling of the same destructure.
+ */
+export function parameterObjectPattern(
+  parameter: ESTree.ParamPattern,
+): ESTree.ObjectPattern | undefined {
+  if (parameter.type === "TSParameterProperty") return parameterObjectPattern(parameter.parameter);
+  if (parameter.type === "AssignmentPattern") return parameterObjectPattern(parameter.left);
+  if (parameter.type === "RestElement") return parameterObjectPattern(parameter.argument);
+  return parameter.type === "ObjectPattern" ? parameter : undefined;
+}
+
 /** The parameter's name for the diagnostic, falling back to its source text when destructured. */
 export function parameterName(parameter: ESTree.ParamPattern, sourceCode: SourceCode): string {
   if (parameter.type === "TSParameterProperty") return parameterName(parameter.parameter, sourceCode);

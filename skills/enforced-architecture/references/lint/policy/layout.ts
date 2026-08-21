@@ -399,6 +399,24 @@ export const RECOMMENDED_VOCABULARY: TreeVocabulary = {
 export const SOURCE_EXTENSIONS = ["ts", "tsx", "mts", "cts", "js", "jsx", "mjs", "cjs"];
 
 /**
+ * The source extensions that can hold JSX, which is what "this file renders UI"
+ * means without a type checker.
+ *
+ * DERIVED rather than spelled, and the derivation is the point: a hand-written
+ * copy of two entries out of the eight is how a `.jsx` file comes to be governed
+ * by every rule in the catalog except the ones keyed on rendering, which then
+ * report nothing about it and read as clean. That is the defect commit `ba33135`
+ * fixed for `isTestPath` and for the commit gate's glob, one predicate over.
+ *
+ * The `sx` suffix is the whole test rather than a pair of literals, so an
+ * extension added to the source list arrives here on the same terms: it renders
+ * if its name says it does.
+ */
+export const JSX_SOURCE_EXTENSIONS = SOURCE_EXTENSIONS.filter((extension) =>
+  extension.endsWith("sx"),
+);
+
+/**
  * Every source file in ONE directory: `*.{ts,tsx,mts,cts,…}`.
  *
  * A check that knows the DEPTH of its subject composes this rather than writing

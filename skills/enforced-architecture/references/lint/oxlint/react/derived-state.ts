@@ -12,15 +12,22 @@
 // `requestAnimationFrame`, a debounce helper, an event-bus `.on` — beside
 // them. Delete one instead, and the rule blocks a build over a correct effect.
 //
-// A setter counts only when the same file destructures it from useState. A
-// helper named `setTitle()` is no finding, and neither is a setter from a
-// custom hook. Report on the `set[A-Z]` name alone to catch those, and the
-// rule reports every other function whose name starts with `set` too.
+// A setter counts only when the same file destructures it from useState, and
+// the NAME it is bound to is not a second test. `const [total, updateTotal] =
+// useState(0)` binds a setter, so adding a `set[A-Z]` test would quietly make
+// the destructure not the question after all — the rule would keep reporting
+// every ordinary spelling and say nothing about that one. A helper named
+// `setTitle()` is no finding, and neither is a setter from a custom hook: both
+// fail the destructure, which is the one test.
 //
-// This rule reads .ts as well as .tsx, unlike the other react rules. A custom
-// hook in a .ts module holds the same useState and useEffect pair. Add an
-// `isComponentFile` guard here to match the siblings, and the rule reads no
-// hook module at all.
+// This rule reads every source extension, unlike the other react rules, which
+// read only the ones that can hold JSX. A custom hook in a .ts module holds the
+// same useState and useEffect pair. Add an `isComponentFile` guard here to match
+// the siblings, and the rule reads no hook module at all.
+//
+// Which calls are `useState` and `useEffect` is `lib/hook-calls.ts`'s answer,
+// shared with react/hook-count and react/no-async-effect — `React.useEffect(…)`
+// and an aliased import count, and that file states what does not.
 //
 // SCOPE, and it is the same for every TREE-SCOPED rule in this catalog — which
 // is every rule but `testing/no-module-mocking`, whose subject is a test file and
@@ -33,11 +40,11 @@
 
 import { defineTreeRule } from "../lib/define-tree-rule.ts";
 import { type ESTree, type Range } from "@oxlint/plugins";
+import { hookCallName } from "../lib/hook-calls.ts";
 import { createRangeIndex } from "../lib/range-index.ts";
 
 const STATE_HOOK = "useState";
 const EFFECT_HOOK = "useEffect";
-const SETTER_NAME = /^set[A-Z]/;
 const TIMER_SCHEDULERS = new Set(["setTimeout", "setInterval"]);
 const DEFERRED_METHODS = new Set(["then", "addEventListener"]);
 
@@ -72,7 +79,7 @@ export const derivedStateRule = defineTreeRule({
       VariableDeclarator(node) {
         const { id, init } = node;
         if (init === null || init.type !== "CallExpression") return;
-        if (init.callee.type !== "Identifier" || init.callee.name !== STATE_HOOK) return;
+        if (hookCallName(init.callee, context.sourceCode) !== STATE_HOOK) return;
         if (id.type !== "ArrayPattern") return;
         const setter = id.elements[1];
         if (setter?.type === "Identifier") stateSetters.add(setter.name);
@@ -80,16 +87,25 @@ export const derivedStateRule = defineTreeRule({
       CallExpression(node) {
         const { callee } = node;
 
+        if (hookCallName(callee, context.sourceCode) === EFFECT_HOOK && node.arguments.length > 0) {
+          const [callback] = node.arguments;
+          effects.push({ node, callback: callback.range });
+          return;
+        }
+
         if (callee.type === "Identifier") {
-          // Ordered before the setter test on purpose: `setTimeout` satisfies SETTER_NAME.
+          // A scheduler's excuse is the finding's opposite — an effect that schedules work sets
+          // state outside the render pass — so it takes this arm and records nothing else. Two
+          // records for one call would not change the verdict, since the exit check asks about the
+          // deferral first, but they would say two things about one node.
           if (TIMER_SCHEDULERS.has(callee.name)) {
             index.record(NOT_DERIVED_STATE, node.range);
-          } else if (SETTER_NAME.test(callee.name)) {
-            index.record(setterTag(callee.name), node.range);
-          } else if (callee.name === EFFECT_HOOK && node.arguments.length > 0) {
-            const [callback] = node.arguments;
-            effects.push({ node, callback: callback.range });
+            return;
           }
+          // EVERY other call by name, not just the `set*` ones. Which names are setters is decided
+          // at Program:exit against what the file destructured from useState, and a name test here
+          // would be a second, narrower answer to the same question.
+          index.record(setterTag(callee.name), node.range);
           return;
         }
 

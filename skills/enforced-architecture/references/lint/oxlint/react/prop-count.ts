@@ -22,6 +22,20 @@
 // that a person cannot act on. A floor can miss a wide component. It cannot
 // report one that is not wide.
 //
+// A prop whose NAME is not statically known makes the count a floor for the same
+// reason a base does. `({ ["a"]: a })` and `{ ["a"]: string }` resolve — one
+// owner answers "what key is this", and the quoted spelling is a key like any
+// other — but `({ [k]: v })` names nothing, and the floor wording is what says
+// so. A rule that dropped it and kept the confident wording would be reporting a
+// number it had already decided was incomplete.
+//
+// The parameter is read through `lib/type-annotations.ts`, so a defaulted or
+// rest-spelled parameter carries its annotation to this rule the same way it
+// does to the `types` tag. NEGATIVE SPACE: a rest parameter's annotation is a
+// TUPLE (`(...props: [P])`), and this rule reads a props type, not the shape of
+// an argument list — so that spelling resolves to nothing readable and the
+// component gets no report. The same is true of a union of prop shapes.
+//
 // SCOPE, and it is the same for every TREE-SCOPED rule in this catalog — which
 // is every rule but `testing/no-module-mocking`, whose subject is a test file and
 // which is therefore enabled globally. This rule is silent outside the declared
@@ -37,6 +51,7 @@ import { isComponentFile } from "../../policy/declared-trees.ts";
 import { exportedComponents, type ComponentFunction } from "../lib/component-declarations.ts";
 import { numericRuleOption } from "../lib/rule-options.ts";
 import { staticKeyName } from "../lib/static-key-name.ts";
+import { parameterAnnotation, parameterObjectPattern } from "../lib/type-annotations.ts";
 
 const DEFAULT_THRESHOLD = 8;
 
@@ -87,7 +102,7 @@ export const propCountRule = defineTreeRule({
       "Program:exit"(program) {
         const declarations = collectTypeDeclarations(program);
 
-        for (const component of exportedComponents(program)) {
+        for (const component of exportedComponents(program, context.sourceCode)) {
           if (component.fn === null) continue;
 
           const surface = propSurface(component.fn, declarations);
@@ -153,10 +168,7 @@ function propSurface(fn: ComponentFunction, declarations: TypeDeclarations): Pro
   const [parameter] = fn.params;
   if (parameter === undefined) return null;
 
-  const annotation =
-    parameter.type === "Identifier" || parameter.type === "ObjectPattern"
-      ? parameter.typeAnnotation?.typeAnnotation
-      : undefined;
+  const annotation = parameterAnnotation(parameter)?.typeAnnotation;
 
   if (annotation !== undefined && annotation !== null) {
     const surface = readType(annotation, declarations, new Set());
@@ -168,21 +180,26 @@ function propSurface(fn: ComponentFunction, declarations: TypeDeclarations): Pro
 
   // Fallback: the identifiers in the destructuring pattern. This is what catches the component
   // with no annotation at all.
-  if (parameter.type !== "ObjectPattern") return null;
-  return destructuredSurface(parameter);
+  const pattern = parameterObjectPattern(parameter);
+  if (pattern === undefined) return null;
+  return destructuredSurface(pattern);
 }
 
 /** `({ a, b, ...rest })` — `...rest` is explicit forwarding, not a prop the component consumes. */
 function destructuredSurface(pattern: ESTree.ObjectPattern): PropSurface {
   const names = new Set<string>();
 
+  let complete = true;
   for (const property of pattern.properties) {
-    if (property.type !== "Property" || property.computed) continue;
+    if (property.type !== "Property") continue;
     const name = staticKeyName(property.key, property.computed);
-    if (name !== undefined && !NOT_A_PROP.has(name)) names.add(name);
+    // `({ [key]: value })` destructures a prop whose name this rule cannot know, so the count it
+    // returns is a floor rather than the surface.
+    if (name === undefined) complete = false;
+    else if (!NOT_A_PROP.has(name)) names.add(name);
   }
 
-  return { names, complete: true, unresolved: [] };
+  return { names, complete, unresolved: [] };
 }
 
 /**
@@ -284,9 +301,11 @@ function absorbMembers(members: readonly ESTree.TSSignature[], surface: PropSurf
       if (member.type === "TSIndexSignature") surface.complete = false;
       continue;
     }
-    if (member.computed) continue;
     const name = staticKeyName(member.key, member.computed);
-    if (name !== undefined && !NOT_A_PROP.has(name)) surface.names.add(name);
+    // A member keyed by an expression or a symbol declares a prop with no readable name, which is
+    // the same under-count an unresolved base is and gets the same floor wording.
+    if (name === undefined) surface.complete = false;
+    else if (!NOT_A_PROP.has(name)) surface.names.add(name);
   }
 }
 

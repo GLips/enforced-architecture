@@ -95,6 +95,32 @@ describeRule("react/derived-state", derivedStateRule, {
       errors: [{ messageId: "derivedState" }],
     },
     {
+      name: "both hooks written as members of the React namespace",
+      filename: COMPONENT,
+      // The spelling that split this rule from react/hook-count. `React.useState` binds the same
+      // setter and `React.useEffect` runs the same effect; reading `Identifier` only makes a file
+      // that writes `React.` on every hook invisible to both halves of this rule at once.
+      code: `export const Summary = ({ items }) => {
+  const [total, setTotal] = React.useState(0);
+  React.useEffect(() => { setTotal(items.length); }, [items]);
+  return total;
+};`,
+      errors: [{ messageId: "derivedState" }],
+    },
+    {
+      name: "a setter the destructure did not name set-anything",
+      filename: COMPONENT,
+      // The destructure is the whole test. `updateTotal` is a useState setter by where it came
+      // from, and a rule that also required `set[A-Z]` reported nothing here while its header said
+      // the name was not the question.
+      code: `export const Summary = ({ items }) => {
+  const [total, updateTotal] = useState(0);
+  useEffect(() => { updateTotal(items.length); }, [items]);
+  return total;
+};`,
+      errors: [{ messageId: "derivedState" }],
+    },
+    {
       name: "a setter buried in a branch inside a loop inside the callback",
       filename: COMPONENT,
       code: `export const Summary = ({ items }) => {

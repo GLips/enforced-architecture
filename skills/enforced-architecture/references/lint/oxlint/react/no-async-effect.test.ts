@@ -2,6 +2,7 @@ import { describeRule } from "../lib/rule-spec.ts";
 import { noAsyncEffectRule } from "./no-async-effect.ts";
 
 const COMPONENT = "/repo/src/features/billing/ui/panel.tsx";
+const COMPONENT_JSX = "/repo/src/features/billing/ui/panel.jsx";
 
 describeRule("react/no-async-effect", noAsyncEffectRule, {
   obvious: [
@@ -94,6 +95,43 @@ describeRule("react/no-async-effect", noAsyncEffectRule, {
   return reload;
 };`,
       errors: [{ messageId: "asyncCallback" }, { messageId: "asyncEffect" }],
+    },
+    {
+      name: "both hooks written as members of the React namespace",
+      filename: COMPONENT,
+      // The spelling that made this rule and react/hook-count disagree about the same file:
+      // `React.useEffect` was a hook to one of them and a call expression to the other, so a
+      // component with `React.` on every line drew a warning about hook volume and nothing about
+      // the leak inside it. A clean half certifies the missing half.
+      code: `export const Panel = ({ id }: { id: string }) => {
+  const reload = React.useCallback(async () => { await fetchRows(id); }, [id]);
+  React.useEffect(() => { void (async () => { await ping(); })(); }, [id]);
+  return reload;
+};`,
+      errors: [{ messageId: "asyncCallback" }, { messageId: "asyncEffect" }],
+    },
+    {
+      name: "the effect hook under a local alias",
+      filename: COMPONENT,
+      // `run` is what this file calls it; `useEffect` is what react exported. The second is the
+      // hook's identity, and reading the first leaves the whole file unread.
+      code: `import { useEffect as run } from "react";
+export const Panel = ({ id }: { id: string }) => {
+  run(() => { void (async () => { await fetchRows(id); })(); }, [id]);
+  return null;
+};`,
+      errors: [{ messageId: "asyncEffect" }],
+    },
+    {
+      name: "a leaking effect in a .jsx file",
+      filename: COMPONENT_JSX,
+      // The extension, not the syntax. A `.jsx` component leaks exactly as a `.tsx` one does.
+      code: `export const PlainLoader = ({ id }) => {
+  const [rows, setRows] = useState([]);
+  useEffect(() => { fetchRows(id).then(setRows); }, [id]);
+  return rows;
+};`,
+      errors: [{ messageId: "asyncEffect" }],
     },
     {
       name: "an effect callback that is itself an async arrow",

@@ -7,15 +7,35 @@
 // what keeps them governing the same set.
 //
 // The forms read as one thing and are separate nodes: `export function Name()`, `export default
-// function Name()`, an arrow assigned to a `const`, and a `memo`/`forwardRef` binding. Cover the
-// first and the rest go unread, and the unread ones carry the smell — the component tucked in
-// beside another is usually the small arrow, not the exported function declaration.
+// function Name()`, an arrow assigned to a `const`, a `memo`/`forwardRef` binding, and the two
+// spellings that export a declaration made earlier in the file — `export { Name }` and `export
+// default Name`. Cover the first and the rest go unread, and the unread ones carry the smell — the
+// component tucked in beside another is usually the small arrow, not the exported function
+// declaration, and a file written `const Card = …; const CardRow = …; export { Card, CardRow }`
+// has every component it declares in the one place a declaration-only reader never looks.
+//
+// The export list is resolved through oxlint's SCOPE ANALYSIS rather than by matching names
+// against the file's own declarations. Not a refactor: scope analysis already knows that
+// `export { Card } from "./card"` binds nothing here (so it is a re-export, not a declaration) and
+// that `export { View }` naming an import is that module's component and not this file's, and both
+// fall out as an unresolved or non-declaration reference rather than as arms someone has to
+// remember to write.
+//
+// NEGATIVE SPACE:
+//   - `export * from "./panels"` hands on components this file never declares. Nothing about them
+//     is readable here, and counting the statement as one component would be a guess at a number.
+//   - `export { Card }` where `Card` is a parameter, a `let` reassigned later, or any binding whose
+//     declaration is not a function-or-declarator: the value at export time is a data-flow
+//     question, and these rules read declarations.
+//   - An anonymous `export default () => {}` or `export default function () {}` has no name to
+//     report and no name to grep for, which is a different complaint than any of these three rules
+//     makes.
 //
 // ── Adapt ──
 // `WRAPPER_NAMES` names the higher-order components whose argument is the real component. Add a
 // project's own wrapper (`observer` from mobx, a `withTheme`) if components arrive through it.
 
-import type { ESTree } from "@oxlint/plugins";
+import type { ESTree, SourceCode } from "@oxlint/plugins";
 
 /** React's convention, and the only signal available without a type checker. */
 const COMPONENT_NAME = /^[A-Z]/;
@@ -49,9 +69,28 @@ export type ComponentDeclaration = {
  * both pass a name-only test, and reporting those trains people to ignore the rule, which costs
  * more than the smell it was watching for. That over-match is invisible to every positive fixture;
  * only a legal neighbour catches it.
+ *
+ * A component is listed once however many times it is exported. `export default Card` beside
+ * `export { Card }` is legal and ordinary, and two entries for one declaration would tell
+ * `single-component-export` that a one-component file holds two.
+ *
+ * The name is the DECLARATION'S, not the exported one: `export { CardImpl as Card }` is reported
+ * as `CardImpl`, because these three rules send a reader to the declaration and that is the name
+ * they will find when they get there.
  */
-export function exportedComponents(program: ESTree.Program): ComponentDeclaration[] {
-  const found: ComponentDeclaration[] = [];
+export function exportedComponents(
+  program: ESTree.Program,
+  sourceCode: SourceCode,
+): ComponentDeclaration[] {
+  // Keyed by where the declaration starts, which is what makes the de-duplication above and the
+  // source ordering below one fact rather than two passes. Source order matters to
+  // `single-component-export`, which blames the SECOND component and lists them all in its message;
+  // an export list sits below the declarations it names, so appending as the statements are walked
+  // would order a mixed file by its export statements instead.
+  const found = new Map<number, ComponentDeclaration>();
+  const take = (component: ComponentDeclaration | undefined) => {
+    if (component !== undefined) found.set(component.node.range[0], component);
+  };
 
   for (const statement of program.body) {
     if (statement.type !== "ExportNamedDeclaration" && statement.type !== "ExportDefaultDeclaration") {
@@ -59,30 +98,79 @@ export function exportedComponents(program: ESTree.Program): ComponentDeclaratio
     }
 
     const declaration = statement.declaration;
-    if (declaration === null || declaration === undefined) continue;
-
-    if (declaration.type === "FunctionDeclaration") {
-      // An anonymous `export default function () {}` has no name to report and no name to grep
-      // for, which is a different complaint than any of these three rules makes.
-      if (declaration.id !== null && COMPONENT_NAME.test(declaration.id.name)) {
-        found.push({ name: declaration.id.name, node: declaration, fn: declaration });
+    if (declaration === null || declaration === undefined) {
+      if (statement.type !== "ExportNamedDeclaration") continue;
+      for (const specifier of statement.specifiers) {
+        take(declaredComponent(specifier.local, sourceCode));
       }
       continue;
     }
 
-    if (declaration.type !== "VariableDeclaration") continue;
-
-    for (const declarator of declaration.declarations) {
-      if (declarator.id.type !== "Identifier" || !COMPONENT_NAME.test(declarator.id.name)) continue;
-      if (declarator.init === null || declarator.init === undefined) continue;
-
-      const fn = componentFunctionOf(declarator.init);
-      if (fn === undefined) continue;
-      found.push({ name: declarator.id.name, node: declarator, fn });
+    if (declaration.type === "FunctionDeclaration") {
+      take(componentOfFunctionDeclaration(declaration));
+      continue;
     }
+
+    // `export default Card`, the identifier form. The declaration it names is elsewhere in the
+    // file, so it is resolved exactly as an export list's local name is.
+    if (declaration.type === "Identifier") {
+      take(declaredComponent(declaration, sourceCode));
+      continue;
+    }
+
+    if (declaration.type !== "VariableDeclaration") continue;
+    for (const declarator of declaration.declarations) take(componentOfDeclarator(declarator));
   }
 
-  return found;
+  return [...found.values()].sort((one, other) => one.node.range[0] - other.node.range[0]);
+}
+
+/**
+ * The component a local name was declared as, or undefined when the name resolves to no
+ * declaration in this file — an import, a re-export's specifier, a binding of some other kind.
+ */
+function declaredComponent(
+  local: ESTree.Node,
+  sourceCode: SourceCode,
+): ComponentDeclaration | undefined {
+  // `export { "a-b" as Card }` spells its local name as a string literal, which binds nothing a
+  // reference can resolve.
+  if (local.type !== "Identifier") return undefined;
+
+  const scope = sourceCode.getScope(local);
+  const reference = scope.references.find(
+    (candidate) => candidate.identifier.range[0] === local.range[0],
+  );
+  // The DEFINITION'S NODE is the whole test, and it is the only one: an import's definition node is
+  // an `ImportSpecifier`, a re-export's specifier resolves to no variable at all, and neither is a
+  // shape either arm below matches. A second filter on the definition's KIND would say the same
+  // thing twice and could only ever disagree with this one.
+  for (const definition of reference?.resolved?.defs ?? []) {
+    const node: ESTree.Node = definition.node;
+    if (node.type === "FunctionDeclaration") return componentOfFunctionDeclaration(node);
+    if (node.type === "VariableDeclarator") return componentOfDeclarator(node);
+  }
+  return undefined;
+}
+
+function componentOfFunctionDeclaration(
+  declaration: ESTree.Function,
+): ComponentDeclaration | undefined {
+  if (declaration.id === null || !COMPONENT_NAME.test(declaration.id.name)) return undefined;
+  return { name: declaration.id.name, node: declaration, fn: declaration };
+}
+
+function componentOfDeclarator(
+  declarator: ESTree.VariableDeclarator,
+): ComponentDeclaration | undefined {
+  if (declarator.id.type !== "Identifier" || !COMPONENT_NAME.test(declarator.id.name)) {
+    return undefined;
+  }
+  if (declarator.init === null || declarator.init === undefined) return undefined;
+
+  const fn = componentFunctionOf(declarator.init);
+  if (fn === undefined) return undefined;
+  return { name: declarator.id.name, node: declarator, fn };
 }
 
 /**

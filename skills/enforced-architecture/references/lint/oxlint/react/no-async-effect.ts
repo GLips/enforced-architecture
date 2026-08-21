@@ -19,9 +19,14 @@
 // this rule reads one file. Delete the arm and the indirect form gets no
 // report.
 //
-// The rule reads .tsx files only. Move a hook into a sibling use*.ts file, a
-// refactor this catalog asks for elsewhere, and this rule no longer reads its
-// effects. react/derived-state reads .ts too; this one does not.
+// The rule reads the extensions that can hold JSX and no others. Move a hook
+// into a sibling use*.ts file, a refactor this catalog asks for elsewhere, and
+// this rule no longer reads its effects. react/derived-state reads every source
+// extension; this one does not.
+//
+// Which calls are `useEffect` and `useCallback` is `lib/hook-calls.ts`'s answer,
+// shared with react/hook-count and react/derived-state — `React.useEffect(…)`
+// and an aliased import count, and that file states what does not.
 //
 // The messages below name TanStack Query. That name is the fix instruction, not a
 // detail: a project on SWR, on Apollo, or on a route loader must edit the message
@@ -40,6 +45,7 @@
 import { defineTreeRule } from "../lib/define-tree-rule.ts";
 import { type ESTree, type Range } from "@oxlint/plugins";
 import { isComponentFile } from "../../policy/declared-trees.ts";
+import { hookCallName } from "../lib/hook-calls.ts";
 import { createRangeIndex } from "../lib/range-index.ts";
 
 const EFFECT_HOOK = "useEffect";
@@ -102,13 +108,13 @@ export const noAsyncEffectRule = defineTreeRule({
           index.record(ASYNC_WORK, node.range);
           return;
         }
-        if (callee.type !== "Identifier" || node.arguments.length === 0) return;
-
+        if (node.arguments.length === 0) return;
+        const hook = hookCallName(callee, context.sourceCode);
         const [callback] = node.arguments;
-        if (callee.name === EFFECT_HOOK) {
+        if (hook === EFFECT_HOOK) {
           effects.push({ node, callback: callback.range });
         } else if (
-          callee.name === CALLBACK_HOOK &&
+          hook === CALLBACK_HOOK &&
           (callback.type === "ArrowFunctionExpression" ||
             callback.type === "FunctionExpression") &&
           callback.async

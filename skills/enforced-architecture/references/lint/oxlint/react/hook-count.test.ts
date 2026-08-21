@@ -2,6 +2,7 @@ import { describeRule } from "../lib/rule-spec.ts";
 import { hookCountRule } from "./hook-count.ts";
 
 const UI = "/repo/src/features/alpha/ui/panel.tsx";
+const UI_JSX = "/repo/src/features/alpha/ui/panel.jsx";
 const SHARED = "/repo/src/shared/ui/panel.tsx";
 
 describeRule("react/hook-count", hookCountRule, {
@@ -62,6 +63,44 @@ describeRule("react/hook-count", hookCountRule, {
       errors: [{ messageId: "tooManyHooks" }],
     },
     {
+      name: "seven hooks imported under names that are not hook-shaped",
+      filename: UI,
+      // The hook is whatever the MODULE exported, not what this file decided to call it. Read on
+      // the local spelling alone, `derive` and `bind` are ordinary function calls and this
+      // component makes one hook call.
+      code: `import { useState as pull, useEffect as run, useMemo as derive, useRef as slot, useCallback as bind } from "react";
+
+export function AliasedPanel({ id }: { id: string }) {
+  const [name, setName] = pull(id);
+  const [open, setOpen] = pull(false);
+  const label = derive(() => name, [name]);
+  const node = slot(null);
+  const onOpen = bind(() => setOpen(true), []);
+  const onShut = bind(() => setOpen(false), []);
+  run(() => setName(id), [id]);
+  return <div ref={node} onClick={open ? onShut : onOpen}>{label}</div>;
+}`,
+      errors: [{ messageId: "tooManyHooks" }],
+    },
+    {
+      name: "seven hooks in a .jsx file",
+      filename: UI_JSX,
+      // The extension, not the syntax: a `.jsx` component is a component. Every rule in this
+      // catalog governed this file already except the five keyed on rendering, which read one
+      // extension out of the eight.
+      code: `export function PlainPanel({ id }) {
+  const [name, setName] = useState(id);
+  const [open, setOpen] = useState(false);
+  const [count, bump] = useReducer((n) => n + 1, 0);
+  const node = useRef(null);
+  const label = useMemo(() => name, [name]);
+  const onOpen = useCallback(() => setOpen(true), []);
+  useEffect(() => setName(id), [id]);
+  return <div ref={node} data-count={count} onClick={onOpen}>{open ? label : id}</div>;
+}`,
+      errors: [{ messageId: "tooManyHooks" }],
+    },
+    {
       name: "four hooks, against a threshold of 4 set in the project's config",
       filename: UI,
       options: [{ threshold: 4 }],
@@ -114,6 +153,25 @@ describeRule("react/hook-count", hookCountRule, {
 export function ExtractedHookPanel({ id }: { id: string }) {
   const { count, bump, label, node, onToggle, open } = usePanelState(id);
   return <div ref={node} data-count={count} onClick={onToggle}>{open ? label : id}</div>;
+}`,
+    },
+    {
+      name: "seven calls that are hook-shaped locally and are not hooks at the module that exports them",
+      filename: UI,
+      // The other direction of the same decision, and the one that can only over-match. A project
+      // that aliases a factory into hook clothing has not written seven hooks, and reporting it
+      // would make the count something other than what the message says it is.
+      code: `import { createStore as useStore, makeAtom as useAtom } from "@/shared/state";
+
+export function AliasedFactories({ id }: { id: string }) {
+  const a = useStore(id);
+  const b = useStore(id);
+  const c = useStore(id);
+  const d = useAtom(id);
+  const e = useAtom(id);
+  const f = useAtom(id);
+  const g = useAtom(id);
+  return <div data-a={a} data-b={b} data-c={c} data-d={d} data-e={e} data-f={f}>{g}</div>;
 }`,
     },
     {

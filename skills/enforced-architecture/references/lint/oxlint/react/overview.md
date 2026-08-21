@@ -20,6 +20,18 @@ rules skip, with no report. A project with an unusual component wrapper, `observ
 example, gets a clean run from all three. That run covers fewer components than the three rule ids
 promise.
 
+`hook-count`, `no-async-effect` and `derived-state` read one hook classifier,
+[lib/hook-calls.ts](../lib/hook-calls.ts), for the same reason and with the same instruction: take
+one, copy that file with it. The spelling that split them before it existed was `React.useEffect` —
+`hook-count` counted it and the two blocking rules did not, so a file that namespaces its hooks drew
+a warning about how many it had and nothing about the leak inside it.
+
+Every rule here but `derived-state` gates on the file being able to hold JSX, which is `.tsx` and
+`.jsx` both — one owner, `JSX_SOURCE_EXTENSIONS` in `policy/layout.ts`, derived from the source
+extension list so the two cannot drift apart. `derived-state` deliberately reads every source
+extension: the useState/useEffect pair it watches moves into a `use*.ts` hook module unchanged, and
+that module is the refactor this catalog asks for elsewhere.
+
 `hook-count` and `prop-count` warn and never block, and that severity is a decision. A component
 that assembles a complex view collects many independent hooks by design. A design-system primitive,
 or a wrapper for a third-party component, declares many props by design. If either count blocks the

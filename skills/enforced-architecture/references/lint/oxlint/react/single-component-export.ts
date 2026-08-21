@@ -12,8 +12,10 @@
 //
 // Do not add a declaration form to this file. `lib/component-declarations.ts`
 // answers "what is a component" for `react/hook-count` and `react/prop-count`
-// too. A second answer here makes the three rules govern different sets of
-// files.
+// too, and that includes the export-list spelling this rule cares about most —
+// `const Card = …; const CardRow = …; export { Card, CardRow }` is the file this
+// rule exists for. A second answer here makes the three rules govern different
+// sets of files.
 //
 // This rule gives a warning and does not stop the build. A second component in
 // a file is sometimes correct, and only the author knows. The rule reports the
@@ -62,7 +64,7 @@ export const singleComponentExportRule = defineTreeRule({
 
       "Program:exit"(program) {
         if (compound) return;
-        const components = exportedComponents(program);
+        const components = exportedComponents(program, context.sourceCode);
         const extra = components[1];
         if (extra === undefined) return;
 
