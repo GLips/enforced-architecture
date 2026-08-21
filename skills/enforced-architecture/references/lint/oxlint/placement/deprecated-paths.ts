@@ -1,7 +1,7 @@
 // ─── placement/deprecated-paths ─────────────────────────────────────────
 //
 // Makes sure: No file imports a path that a migration removed. You delete
-// `src/components/` once and it stays deleted, because the next import of
+// `@/components/` once and it stays deleted, because the next import of
 // `@/components/*` fails the lint and the message names the directory that
 // holds the code now. You do not search the tree for old paths after each
 // change an agent writes.

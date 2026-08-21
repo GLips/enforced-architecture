@@ -1,8 +1,8 @@
 // ─── api/barrel-direction ────────────────────────────────────────────
 //
-// Makes sure: A client barrel — `index.ts` in `src/domains/<name>/` or
-// `src/features/<name>/` — names no `index.server` module, its own or another
-// unit's. You add an export to `index.server.ts`, and you do not then open
+// Makes sure: A client barrel — the `index.ts` at the root of a domain or a
+// feature, in the default vocabulary — names no `index.server` module, its own
+// or another unit's. You add an export to `index.server.ts`, and you do not then open
 // `index.ts` to check what a client component now gets from it. The other
 // direction stays legal, so `index.server.ts` re-exports `./index` and one
 // import in a server context gives the whole feature API.

@@ -1,5 +1,24 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { RECOMMENDED_VOCABULARY, type TreeVocabulary } from "../../policy/layout.ts";
 import { describeRule } from "../lib/rule-spec.ts";
-import { noTestImportsRule } from "./no-test-imports.ts";
+import { noTestImportsRule, testImportMessageData } from "./no-test-imports.ts";
+
+// The RuleTester case below pins the WORDING; this pins that the wording is
+// READ FROM THE TREE, and neither is the other. Every fixture in this file runs
+// against the single entry in `DECLARED_TREES`, whose names `RECOMMENDED_VOCABULARY`
+// spells — so a message frozen back to a literal `@/shared/` renders exactly the
+// text asserted below and passes. Measured: deleting the derivation and hard-coding
+// the rendered string leaves this whole spec green. A second vocabulary is the only
+// thing that separates the two, and a rule spec cannot declare a second tree.
+test("boundary/no-test-imports sends the reader to the reporting tree's own shared directory", () => {
+  const RENAMED: TreeVocabulary = {
+    ...RECOMMENDED_VOCABULARY,
+    aliasPrefix: "~/",
+    sharedDir: "common",
+  };
+  assert.deepEqual(testImportMessageData(RENAMED), { shared: "~/common" });
+});
 
 const SERVICE = "/repo/src/features/billing/service/charge.ts";
 const REPO_LAYER = "/repo/src/features/billing/repo/queries.ts";
@@ -7,10 +26,22 @@ const REPO_LAYER = "/repo/src/features/billing/repo/queries.ts";
 describeRule("boundary/no-test-imports", noTestImportsRule, {
   obvious: [
     {
-      name: "production code importing a sibling spec",
+      // The message, asserted whole rather than by `messageId`, because a
+      // message that stopped interpolating would report on exactly these
+      // fixtures and read identically at the `messageId` level. `src/shared/` is
+      // the absent half — the frozen literal this rule shipped with, which named
+      // a directory no tree rooted outside `src` has. What this case cannot say
+      // is that the text is DERIVED: see the derivation test at the top of the
+      // file, which is the half that goes red on a freeze.
+      name: "production code importing a sibling spec, and the message names the tree's own shared directory",
       filename: SERVICE,
       code: `import { makeInvoice } from "./charge.test";\nexport const charge = () => makeInvoice();`,
-      errors: [{ messageId: "testImport" }],
+      errors: [
+        {
+          message:
+            "Production code cannot import from test files. If this utility is needed by both tests and production, move it to @/shared/ or the appropriate production directory.",
+        },
+      ],
     },
     {
       name: "production code importing shared test infrastructure by alias",

@@ -1,10 +1,14 @@
 // ─── boundary/no-test-imports ────────────────────────────────────────
 //
-// Makes sure: No production file under src/ imports a test module — a `.test.`
-// file, a `__tests__/` directory, `@/test/` or `src/test/`. You rewrite a
-// fixture or delete a helper, and only tests break. A test file is exempt from
-// every other rule in this tag, and production code that imports one then
-// reaches any module with no finding.
+// Makes sure: No production file in a declared tree imports a test module — a
+// `.test` module, a `__tests__/` directory anywhere, or the cross-cutting
+// `test/` directory at the tree's source root, `@/test/` under the default
+// alias prefix. Only that prefix is vocabulary: `.test`, `test/` and
+// `__tests__/` are naming facts this catalog fixes for every tree, so a project
+// that spells its test root `tests/` is changing the catalog, not its own
+// names. You rewrite a fixture or delete a helper, and only tests break. A test
+// file is exempt from every other rule in this tag, and production code that
+// imports one then reaches any module with no finding.
 //
 // A file that is ITSELF a test is exempt, and `isArchitectureExemptSourcePath` makes
 // that judgement. Extend it there. A second definition of a test file here is a
@@ -31,18 +35,40 @@
 
 import { defineTreeRule } from "../lib/define-tree-rule.ts";
 import { namesTestModule } from "../../policy/declared-trees.ts";
+import { aliasSpecifierFor, type TreeVocabulary } from "../../policy/layout.ts";
 import { visitModuleSources } from "../lib/module-source-visitor.ts";
+
+/**
+ * Where the message sends a utility that both tests and production need, in the
+ * REPORTING tree's names.
+ *
+ * Spelled as a specifier rather than as a directory on disk, because the
+ * reader's next act is to write an import of it — and the alias is the one
+ * spelling that does not need the tree's root to resolve.
+ *
+ * Exported for its spec, and that is load-bearing rather than convenience.
+ * `DECLARED_TREES` holds one tree, spelled exactly as `RECOMMENDED_VOCABULARY`
+ * spells it, so a message frozen back to a literal `@/shared/` renders the same
+ * text every fixture beside it asserts. Rendering under a SECOND vocabulary is
+ * the only assertion that separates deriving from having been written down
+ * correctly once, and a rule spec has no way to declare a second tree.
+ */
+export function testImportMessageData(vocabulary: TreeVocabulary): { shared: string } {
+  return { shared: aliasSpecifierFor(vocabulary, vocabulary.sharedDir) };
+}
 
 export const noTestImportsRule = defineTreeRule({
   meta: {
     type: "problem",
     messages: {
       testImport:
-        "Production code cannot import from test files. If this utility is needed by both tests and production, move it to src/shared/ or the appropriate production directory.",
+        "Production code cannot import from test files. If this utility is needed by both tests and production, move it to {{shared}}/ or the appropriate production directory.",
     },
   },
   create(context, role) {
-    const { aliasPrefix } = role.tree.vocabulary;
+    const { vocabulary } = role.tree;
+    const { aliasPrefix } = vocabulary;
+    const data = testImportMessageData(vocabulary);
 
     return visitModuleSources((source, specifier) => {
       // The alias prefix is stripped so an aliased specifier and a source-root
@@ -52,7 +78,7 @@ export const noTestImportsRule = defineTreeRule({
         ? specifier.slice(aliasPrefix.length)
         : specifier;
       if (namesTestModule(path)) {
-        context.report({ node: source, messageId: "testImport" });
+        context.report({ node: source, messageId: "testImport", data });
       }
     });
   },

@@ -3,7 +3,7 @@
 // Makes sure: A client file imports only the infrastructure modules on
 // `CLIENT_SAFE_INFRASTRUCTURE`. The build puts no database client, no server
 // auth module, no SDK wrapper and no telemetry key in a browser chunk. To learn
-// what the browser takes from src/infrastructure/, you read that list.
+// what the browser takes from the infrastructure layer, you read that list.
 //
 // A route loader is a client context: @tanstack/router-core calls
 // route.options.loader from the shared load path, which the browser runs too. Do

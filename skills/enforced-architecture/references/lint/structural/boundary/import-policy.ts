@@ -2,7 +2,8 @@
 //
 // Makes sure: Every relative import gets the same verdict as its aliased form,
 // and every import that leaves its unit uses the alias. To find each file that
-// imports a feature, you search for one string, `@/features/<name>`. A rule that
+// imports a feature, you search for one string — `@/features/<name>` in the
+// default vocabulary. A rule that
 // matches aliased paths applies to every edge, because a relative path cannot
 // avoid it.
 //
@@ -12,10 +13,11 @@
 // most frequent one.
 //
 // Pass every relative edge, with no pre-filter — not even a filter that drops an
-// edge whose two ends share a boundary. src/shared/ui/** and src/shared/** are
-// one boundary and two units, and unit identity is what makes an edge
-// `internal`. Such a filter does not see `import { theme } from "../lib/tokens"`
-// in src/shared/ui/.
+// edge whose two ends share a boundary. A tree's shared UI directory and the
+// shared directory that contains it — `shared/ui/**` and `shared/**` in the
+// default vocabulary — are one boundary and two units, and unit identity is what
+// makes an edge `internal`. Such a filter does not see
+// `import { theme } from "../lib/tokens"` in the shared UI directory.
 //
 // There is no exclusion list and no per-directory scope INSIDE a tree. A path
 // that you exclude leaves the whole import policy, and no message says so. The
