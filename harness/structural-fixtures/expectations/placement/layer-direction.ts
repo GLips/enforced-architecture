@@ -27,6 +27,14 @@ export const layerDirectionFixtures: CheckFixtures = {
     // aliased specifier belongs to the linter — so without this arm the edge is
     // governed by nothing in either tier.
     "FAIL src/features/orders/ui/barrel-alias-upward.ts",
+    // The same barrel edge named as the feature DIRECTORY rather than as
+    // `<feature>/index.ts`. Its two neighbours are file requests; only a
+    // directory request can be redirected by a `package.json`, and this feature
+    // carries one pointing at `service/inventory.ts`. Honoured, the target stops
+    // being the barrel and the edge reads ui → service, which runs downward and
+    // is silent — the sharpest upward edge a feature can contain, legalised by a
+    // JSON file the adopter wrote. Nothing else in the tree reaches that shape.
+    "FAIL src/features/orders/ui/barrel-bare-upward.ts",
     // The same barrel edge from a file at the FEATURE ROOT, which sits in no
     // layer. `index.ts` re-exports it, so the cycle is identical — and an arm
     // gated on the source HAVING a layer waves it past, which reads as "the

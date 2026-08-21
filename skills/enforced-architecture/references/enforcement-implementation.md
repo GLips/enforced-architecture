@@ -199,6 +199,7 @@ apart on exclusions and on what counts as an import, and neither copy reports th
 
 Centralising the same *pattern* into a shared file reduces duplication and fixes no correctness.
 Reach for the reader at the same time, or the shared module is only tidier, not better.
+
 **`Bun.Transpiler` answers questions about imports and exports, and nothing else.** It exposes import
 paths and kinds, export names, and transformed JavaScript. It does not expose component boundaries,
 call expressions, parameter structure, or TypeScript property signatures, and `transform()` erases

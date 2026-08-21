@@ -32,6 +32,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } 
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  APP_TREE,
   BOTH_FIXTURE_TREES,
   DECLARED_FIXTURE_TREES,
   FIXTURE_TREE,
@@ -40,6 +41,9 @@ import {
   PDF_TREE_MISREAD,
 } from "./structural-fixtures/config.ts";
 import type { CheckFixtures, GeneratedFixture } from "./structural-fixtures/expectations.ts";
+import { SOURCE_EXTENSIONS } from "../skills/enforced-architecture/references/lint/policy/layout.ts";
+import { declareTrees } from "../skills/enforced-architecture/references/lint/policy/declared-trees.ts";
+import { createTreeModuleResolver } from "../skills/enforced-architecture/references/lint/structural/module-resolution.ts";
 import type { ArchitectureConfig } from "../skills/enforced-architecture/references/lint/structural/config.ts";
 import {
   createTreeContexts,
@@ -271,25 +275,108 @@ assertEveryCheckRanOnEveryTree("misread", PDF_TREE_MISREAD);
 // crosses, and dropping it is how a boundary rule reports clean over an import
 // nobody checked.
 //
-// What a target may NOT be is a DIRECTORY. That is the signature of the
-// substrate this replaced: `@/features/leaf` came back as `features/leaf`, which
-// is where the barrel's directory is and not where any code is. Reverting
-// `import-graph` to path arithmetic puts five of those back in this tree, plus
-// one `./service/posting` naming a `.mts` file by a name it does not have.
+// What a target may NOT be is a directory THAT HOLDS A CLIENT BARREL. That is
+// the signature of the substrate this replaced: `@/features/leaf` came back as
+// `features/leaf`, where the barrel's directory is and not where any code is.
+// Reverting `import-graph` to path arithmetic puts five of those back here.
+//
+// The barrel qualifier is not decoration. A directory with no client barrel
+// genuinely resolves to nothing — `mainFiles` is the CLIENT barrel alone, so a
+// feature holding only `index.server.ts` is unresolvable on purpose, and its
+// target is a real directory on disk. Asserting over every directory reports
+// that shape as a defect the first time the tree grows one, and the cheap fix
+// for a false positive on a substrate assertion is to weaken it.
+//
+// The second arm is the source root itself. `..` in a target means the graph
+// kept an edge that leaves this tree, and the two guards in
+// `module-resolution.ts` that prevent it are the only thing that does — no
+// check reports differently either way, so nothing else here would notice.
 {
   const stray: string[] = [];
   for (const context of createTreeContexts(fixtureConfig, DECLARED_FIXTURE_TREES)) {
+    const barrels = SOURCE_EXTENSIONS.map(
+      (extension) => `${context.vocabulary.clientBarrelModule}.${extension}`,
+    );
     for (const edge of context.importGraph()) {
+      if (edge.target.startsWith("..")) {
+        stray.push(`${edge.file} imports "${edge.specifier}", which LEAVES the tree: ${edge.target}`);
+        continue;
+      }
       const absolute = join(context.sourceRoot, edge.target);
       if (statSync(absolute, { throwIfNoEntry: false })?.isDirectory() !== true) continue;
+      if (!barrels.some((barrel) => existsSync(join(absolute, barrel)))) continue;
       stray.push(`${edge.file} imports "${edge.specifier}" and the graph says ${edge.target}`);
     }
   }
   if (stray.length > 0) {
     fail(
       "<import-graph>",
-      `${stray.length} edge target(s) name a DIRECTORY rather than a module, so the graph is ` +
-        `spelling paths rather than resolving them:\n  ${stray.sort().join("\n  ")}`,
+      `${stray.length} edge target(s) name a DIRECTORY rather than a module, or a path outside ` +
+        `the tree, so the graph is spelling paths rather than resolving them:\n  ` +
+        `${stray.sort().join("\n  ")}`,
+    );
+  }
+}
+
+// ── The resolver reads the tree's vocabulary, not oxc's defaults ─────────────
+//
+// Two of the resolver's settings cannot be reached by any fixture in this tree,
+// and both are deletable-green without what follows.
+//
+// `mainFiles` is the tree's CLIENT BARREL. Delete the line and oxc's own default
+// is `["index"]`, which is what this tree spells its barrel — so every fixture
+// passes and the setting is proved by a coincidence. A tree that renames its
+// barrel is the case that separates them, and no tree here renames one.
+//
+// The schema arm of `boundary/layer-occupancy` compares a POSITION,
+// `infrastructure/db/schema`, and this tree fills it with a directory. A project
+// filling it with one `schema.ts` — the ordinary Drizzle shape — resolves to
+// `infrastructure/db/schema.ts`, which is equal to nothing and under nothing
+// unless the comparison strips the extension. The arm then goes silent for that
+// whole repo, and every fixture here still reports.
+{
+  const treeRoot = join(FIXTURE_TREE, APP_TREE.root);
+  const barrelNamed = (name: string) =>
+    createTreeModuleResolver({ ...APP_TREE.vocabulary, clientBarrelModule: name }, treeRoot)(
+      join(treeRoot, "features/billing/service/invoice-summary.ts"),
+      "@/features/orders",
+    );
+
+  if (barrelNamed("index")?.resolved !== true) {
+    fail("<module-resolution>", "`@/features/orders` does not resolve to this tree's barrel at all");
+  }
+  // The whole assertion. Under a vocabulary whose barrel is `module`, this
+  // feature has none, so the directory must NOT resolve — and it does resolve if
+  // `mainFiles` is left to oxc.
+  if (barrelNamed("module")?.resolved === true) {
+    fail(
+      "<module-resolution>",
+      "a tree whose barrel is `module` still resolved `@/features/orders` to a file, so " +
+        "`mainFiles` is oxc's default `index` rather than the tree's own barrel name",
+    );
+  }
+
+  // Same tree, same registry, one vocabulary word changed — the `PDF_TREE_MISREAD`
+  // idiom. `infrastructure/db/tables.ts` is a single-module schema sitting in
+  // the tree; under the default `dbSchemaSubdir` it is an ordinary
+  // infrastructure module and nothing reports it, and under a vocabulary that
+  // names it, `billing/controllers` reaching it past an occupied `repo/` is the
+  // schema bypass. Read with the extension on, that target is equal to nothing
+  // and under nothing, and the arm is silent for the whole repo.
+  const singleModuleSchema = declareTrees([
+    { ...APP_TREE, vocabulary: { ...APP_TREE.vocabulary, dbSchemaSubdir: "tables" } },
+  ]);
+  const reported = runStructuralChecks(structuralChecks, fixtureConfig, singleModuleSchema)
+    .filter((run) => run.id === "boundary/layer-occupancy")
+    .flatMap((run) => run.findings)
+    .map((finding) => finding.file);
+  const bypass = "harness/structural-fixtures/tree/src/features/billing/controllers/reads-single-module-schema.ts";
+  if (!reported.some((file) => file.endsWith("features/billing/controllers/reads-single-module-schema.ts"))) {
+    fail(
+      "<module-resolution>",
+      `boundary/layer-occupancy reported nothing against ${bypass} when the tree's schema is ONE ` +
+        `MODULE rather than a directory, so that arm is switched off for every project with the ` +
+        `ordinary single-file schema — and every fixture here still passes`,
     );
   }
 }

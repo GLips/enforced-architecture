@@ -22,7 +22,7 @@
 // An import that goes up is placement/layer-direction's finding, not this one's.
 // ──────────────────────────────────────────────────────────────────────
 
-import { dbSchemaPath, orderedLayerDirs } from "../../policy/layout.ts";
+import { dbSchemaPath, orderedLayerDirs, withoutSourceExtension } from "../../policy/layout.ts";
 import type { Finding, StructuralCheck } from "../check-substrate.ts";
 import type { ImportEdge } from "../import-graph.ts";
 
@@ -218,10 +218,19 @@ function typeNote(edge: ImportEdge, fromLayer: string, reached: string): string 
 }
 
 /**
- * Prefix match on whole path segments. A plain `startsWith` makes
+ * Prefix match on whole path segments, with the extension off.
+ *
+ * Two independent things are wrong without each half. A plain `startsWith` makes
  * `infrastructure/db/schema-utils.ts` a schema module, and the finding it
- * produces is one nobody can act on.
+ * produces is one nobody can act on. And `schemaTarget` is a POSITION —
+ * `infrastructure/db/schema` — which a project is free to fill with either a
+ * directory of table modules or one `schema.ts`; the single module is the
+ * ordinary Drizzle shape. Compared with the extension on, that project's target
+ * is `infrastructure/db/schema.ts`, equal to nothing and under nothing, and this
+ * arm goes silent for the whole repo while the directory layout next door still
+ * reports.
  */
 function isUnder(target: string, prefix: string): boolean {
-  return target === prefix || target.startsWith(`${prefix}/`);
+  const bare = withoutSourceExtension(target);
+  return bare === prefix || bare.startsWith(`${prefix}/`);
 }

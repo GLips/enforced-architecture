@@ -10,9 +10,9 @@
 // bare package specifiers as "not a boundary question", and bare package names
 // are the subject of this check. It shares the extraction instead, through
 // scanDeclaredImports, and the RESOLUTION through context.resolveModule — the
-// same resolver the graph runs on. It used to hand-roll a suffix list against
-// the disk, which is how `./target.js` naming `target.ts` ended a trace without
-// a word; every message here carried a paragraph apologising for that.
+// same resolver the graph runs on. Do not resolve a hop here: a suffix list
+// against the disk cannot substitute `./target.js` for `target.ts`, and a hop it
+// cannot follow ends the trace and reports the barrel clean.
 //
 // Do not add the pass that recovers "import type" edges. Both Bun scans erase
 // those edges, and this check wants that erasure. A type-only import makes no

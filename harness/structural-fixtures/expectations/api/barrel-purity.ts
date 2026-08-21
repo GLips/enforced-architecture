@@ -36,6 +36,19 @@ export const barrelPurityFixtures: CheckFixtures = {
     // read clean, and every message this check emitted carried a paragraph
     // saying so. `ledger` above is the extensionless twin and passed throughout.
     "FAIL src/features/nodenext/index.ts",
+    // The SECOND `.js` hop of that barrel, and it is a second entry rather than
+    // a second fixture because it was a second hole. `Chart.tsx` emits `.js`
+    // under the default `jsx` setting, not `.jsx`, so a table giving `.js` only
+    // `.ts` follows the hop above and loses this one — one finding, the
+    // component chain silent, and every other case here green. The count is the
+    // whole assertion: the two only pass together.
+    "FAIL src/features/nodenext/index.ts",
+    // The THIRD hop of that barrel: a real `.js` file imported by the name it
+    // actually has. `extensionAlias` REPLACES an extension rather than adding to
+    // it, so the nodenext mapping and plain JavaScript are one entry, and a
+    // table that maps `.js` to the TypeScript sources alone closes the second
+    // half in silence. It is the only `.js` source in the tree.
+    "FAIL src/features/nodenext/index.ts",
     // The boundary FAKED: a side-effect import of the framework module plus a
     // local function called `createServerFn`. Both halves of a two-question
     // boundary test are satisfied and no boundary is crossed — a review used
@@ -99,6 +112,13 @@ export const barrelPurityFixtures: CheckFixtures = {
     // the trace runs to the depth cap and reports the cap against a barrel that
     // imports nothing server-only at all.
     "src/features/loyalty/index.ts",
+    // The hop is `./service/rates.js` and BOTH `rates.ts` and `rates.js` are on
+    // disk — a build step's output left beside its source. The `.ts` is clean
+    // and the `.js` reaches `postgres`, so this barrel is silent only while
+    // `extensionAlias` keeps source extensions ahead of the emitted one. Reverse
+    // that order and it reports a chain the compiler never builds; nothing else
+    // in the tree has both spellings of one module.
+    "src/features/compiled/index.ts",
     // Already in the tree for `placement/topology`: a barrel re-exporting one
     // local module that imports nothing. The trivial case still has to be
     // silent, and it is the only barrel here that predates this check.

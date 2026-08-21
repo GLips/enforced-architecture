@@ -1,0 +1,4 @@
+{
+  "name": "orders-off-switch",
+  "main": "./service/inventory.ts"
+}

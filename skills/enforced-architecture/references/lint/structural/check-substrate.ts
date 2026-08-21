@@ -177,8 +177,11 @@ export function createTreeContext(config: ArchitectureConfig, tree: DeclaredTree
       return graph;
     },
 
-    // Built on first use, not at context creation, so a project adopting only
-    // the file-level checks never loads the resolver's native binding.
+    // One factory per tree, built on first use and shared from then on: it
+    // caches the filesystem, and the graph build and `api/barrel-purity` walk
+    // overlapping chains. This does NOT defer loading the native binding —
+    // `module-resolution.ts` is a static import, so the binding is resolved when
+    // this module is.
     resolveModule(fromFile, specifier) {
       resolver ??= createTreeModuleResolver(context.vocabulary, context.sourceRoot);
       return resolver(fromFile, specifier);
