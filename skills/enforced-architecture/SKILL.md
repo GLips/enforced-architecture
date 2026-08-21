@@ -97,8 +97,8 @@ Read [lint/overview.md](references/lint/overview.md) for the tag map, and *Rule 
 
 **Process:**
 1. Read `lint/<tier>/<tag>/overview.md` for every tag. The table has one column per tier, so it also tells you which halves of a tag exist.
-2. Read each rule's template in `lint/<tier>/<tag>/`. Its *Adapt* section names what this project has to repoint — a template whose *Adapt* section says **nothing here** reads `lint/policy/`, and declaring the project's trees in `lint/policy/declared-trees.ts` is its whole adaptation.
-3. Adapt each rule to the project's directory names, import patterns and thresholds.
+2. Read each rule's template in `lint/<tier>/<tag>/`. Its *Adapt* section names what this project has to set — a template whose *Adapt* section says **nothing here**, which is nearly all of them, reads `lint/policy/`, and declaring the project's trees in `lint/policy/declared-trees.ts` is its whole adaptation.
+3. Set what those sections name: vocabulary, thresholds, explicit rows. Never a path or a pattern — no rule takes one, and the tree scoping comes from `declared-trees.ts`.
 4. A rule's enforcement mechanism is its tier, and the tier is its directory — `lint/oxlint/` is per-file and real-time, `lint/structural/` is cross-file and pre-commit. Carry the path into the plan and the mechanism comes with it.
 5. Add project-specific rules not covered by the catalog.
 
@@ -141,7 +141,7 @@ lint/
 
 **Migration:** Decompose into atomic phases per [migration-patterns.md](references/migration-patterns.md). Each phase produces a clean repo.
 
-**The two tiers adopt differently, and treating them alike is the mistake to avoid.** Structural checks are copied wholesale and configured on top of `defaultCheckConfigs` — reimplementing one from its doc is how a check ends up silently matching less than its doc promises. oxlint rules *are* adapted, because their path patterns are written against one standard layout. Parallelize the adapting with one subagent per tag directory, and have them register in `lint/oxlint/plugin.ts` in one pass afterwards rather than editing that file concurrently. Procedures for both are in [enforcement-implementation.md](references/enforcement-implementation.md).
+**The two tiers adopt differently, and treating them alike is the mistake to avoid.** Structural checks are copied wholesale and configured on top of `defaultCheckConfigs` — reimplementing one from its doc is how a check ends up silently matching less than its doc promises. oxlint rules are copied wholesale too — none holds a path pattern — and the few that name constants name enumerable vocabulary. Parallelize the copying with one subagent per tag directory, and have them register in `lint/oxlint/plugin.ts` in one pass afterwards rather than editing that file concurrently. Procedures for both are in [enforcement-implementation.md](references/enforcement-implementation.md).
 
 **Every rule ships with a permanent spec, and one of its cases is adversarial.** A rule's failure mode is silent: when it stops matching it goes green, not red. The adversarial case — the violation written the way your rule *misses* — is the one that decides whether the rule works.
 

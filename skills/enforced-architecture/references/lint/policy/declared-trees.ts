@@ -7,9 +7,12 @@
 //
 // NEGATIVE SPACE, and it has to be in the setup docs as well as here: a tree you
 // did not declare is a tree you did not adopt for. Every TREE-SCOPED rule in this
-// catalog — which is every rule but `testing/no-module-mocking`, whose subject is
-// a test file — is SILENT outside every declared tree — no findings, no warnings, no "unclassified"
-// diagnostic — and that silence is not coverage. An undeclared package reads
+// catalog is SILENT outside every declared tree — no findings, no warnings, no
+// "unclassified" diagnostic. THREE checks are not tree-scoped and do still run
+// there: `testing/no-module-mocking`, whose subject is a test file and which is
+// therefore enabled globally, and the project-scoped `health/file-size` and
+// `health/doc-budgets`, which walk their own configured roots. That is the whole
+// list, and it is not coverage. An undeclared package reads
 // exactly like a clean one, so a repo that adds `packages/reporting/` and forgets
 // this file has added an unpoliced tree and nothing will say so.
 //

@@ -27,8 +27,11 @@
 // trace limits and package names. Every one of those is a number or a name that
 // says nothing about the shape of the tree.
 //
-// And every one of them is a number or a NAME. No field here is a regex, a glob
-// or a list an adopter grows: a predicate is a rule's own claim, and handed over
+// And every one of them is a number or a NAME. No field here is a regex, a glob,
+// or a list of EXEMPTIONS an adopter grows. Lists of subject names are fine and
+// several exist — `serverOnlyPackages`, the boundary's `calls`, the file-size
+// roots — because each widens what a check looks at rather than narrowing what it
+// may say. A predicate is a rule's own claim, and handed over
 // as configuration it becomes an off-switch that leaves the check listed as
 // enabled — `behaviorKeywords: /.*/` took `health/trampolines` from four
 // findings to zero in this repo's own fixtures. Where a check needed a

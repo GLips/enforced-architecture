@@ -272,7 +272,7 @@ Every rule ships its spec beside it, importing the rule file directly — one ar
 Two things the contract cannot enforce for you:
 
 - **Assert the diagnostics exactly** — the count as well as the message id, so a missing diagnostic (a dead branch) and a duplicate on an expected line (an over-match) both fail. The expectation lives on the case, so extending a case extends its expectation.
-- **Give every case a full realistic `filename`** (`/repo/src/features/billing/service/charge.ts`), because the rules read the path: a path-guarded rule checked against a bare basename passes vacuously. A by-path exemption gets its own legal case — the exempted file carrying the leak spelling verbatim — and its own adversarial case for the near-miss the exemption must *not* cover (`legacy-repo/` is not `repo/`).
+- **Give every case a full realistic `filename`** (`/repo/src/features/billing/service/charge.ts`), because the rules classify the path through `lint/policy/`: a rule checked against a bare basename lands in no declared tree, so it is silent and the case passes vacuously. A structural exemption gets its own legal case — the exempted file carrying the leak spelling verbatim — and its own adversarial case for the near-miss the classifier must *not* fold in (`legacy-repo/` is not the `repo` layer).
 
 ### Adversarial checklist
 
@@ -286,7 +286,7 @@ Write the case even when you are confident:
 | Type-only spelling | `import { type X }` reported by a rule that only checks `importKind` on the declaration |
 | Path depth | `../../service/x` from a nested directory where the pattern assumed one `../` |
 | Alias spelling | `@/features/self/controllers/x` for a rule matching only relative paths, and vice versa |
-| Segment boundary | `legacy-repo/` matching a `repo/` exemption, `@/features-legacy` matching `@/features` — anchor on `/src/` and on the separator |
+| Segment boundary | `legacy-repo/` reading as the `repo` layer, `@/features-legacy` as `@/features` — the classifiers in `lint/policy/layout.ts` own this, so the case belongs there as well as here |
 | Package subpath | `pkg/lib/thing` where the rule matched bare `pkg` |
 | Dynamic import | `await import("…")`, which an `ImportDeclaration` visitor does not see |
 | Indirect member access | `process["env"].X`, `globalThis.process.env.X`, `React.useEffect` |

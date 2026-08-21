@@ -37,9 +37,9 @@ skills/enforced-architecture/references/lint/oxlint/<tag>/<rule>.ts        the r
 skills/enforced-architecture/references/lint/oxlint/<tag>/<rule>.test.ts   its specs
 ```
 
-The spec imports the shipped rule directly, so there is no second copy of any rule and nothing to drift. That is possible because the templates are not placeholder-bearing, which is the thing worth knowing before touching this. They are concrete rules written against one standard layout — `src/domains`, `src/features/<name>/{controllers,repo,service,ui}`, `src/infrastructure`, `src/routes`, `src/shared/ui`, and the `@/` alias. Their **Adapt** sections document *alternatives* in prose; they do not mark holes that something has to fill.
+The spec imports the shipped rule directly, so there is no second copy of any rule and nothing to drift. That is possible because the templates are not placeholder-bearing, which is the thing worth knowing before touching this. They are concrete rules, and the layout they read — `src/domains`, `src/features/<name>/{controllers,repo,service,ui}`, `src/infrastructure`, `src/routes`, `src/shared/ui`, the `@/` alias — is the RECOMMENDED vocabulary in `lint/policy/declared-trees.ts` rather than anything spelled in a rule. Their **Adapt** sections document *alternatives* in prose; they do not mark holes that something has to fill.
 
-**What this shape does not test:** whether a template survives adaptation. A project that repoints `/src/domains/` at `/src/core/` is on its own, and its own spec suite is what covers it — see *Rule Specs* in `references/enforcement-implementation.md`.
+**What this shape does not test:** whether a template survives adaptation. These specs are written against the recommended vocabulary, so a project that renames `domains/` to `core/` in its tree's vocabulary is on its own, and its own spec suite is what covers it — see *Rule Specs* in `references/enforcement-implementation.md`.
 
 ### Why the fixture trees are gone
 
