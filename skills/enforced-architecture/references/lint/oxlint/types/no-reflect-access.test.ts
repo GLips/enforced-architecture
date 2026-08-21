@@ -99,6 +99,42 @@ export const value = Reflect.get(invoice, key);`,
       errors: [{ messageId: "reflectGet" }],
     },
     {
+      // The merge. TypeScript folds these two declarations into ONE binding with
+      // two definitions, and between them they bind nothing at run time — the file
+      // compiles under `--strict` and emits the call verbatim. Reading the
+      // variable rather than each definition said "this file binds Reflect".
+      name: "an interface merged with an ambient const still binds no value",
+      filename: SERVICE,
+      code: `interface Reflect { get(o: unknown, k: string): unknown }
+declare const Reflect: Reflect;
+export const value = Reflect.get(invoice, key);`,
+      errors: [{ messageId: "reflectGet" }],
+    },
+    {
+      // A namespace with no value members is erased at emit, so the call is still
+      // the builtin's. One line, and it reads as ordinary organisation.
+      name: "an uninstantiated namespace named Reflect is erased",
+      filename: SERVICE,
+      code: `namespace Reflect { export type Key = string }
+declare const named: Reflect.Key;
+export const value = Reflect.get(invoice, named);`,
+      errors: [{ messageId: "reflectGet" }],
+    },
+    {
+      // The same read with a node wedged in, and a bypass a reader cannot see —
+      // the source still says `Reflect.get`.
+      name: "an assertion wrapped around the owner is the same read",
+      filename: SERVICE,
+      code: `export const value = (Reflect as never).get(invoice, key);`,
+      errors: [{ messageId: "reflectGet" }],
+    },
+    {
+      name: "a non-null assertion wrapped around the owner is the same read",
+      filename: SERVICE,
+      code: `export const value = Reflect!.get(invoice, key);`,
+      errors: [{ messageId: "reflectGet" }],
+    },
+    {
       name: "both banned methods in one file are two findings",
       filename: SERVICE,
       code: `export const value = Reflect.get(invoice, key);
@@ -153,10 +189,10 @@ export function read(key) {
 }`,
     },
     {
-      // A second DEFINITION KIND, because the branch that decides this reads the
-      // binding's definition site rather than its scope: a parameter is declared
-      // in a function scope, a `const` in the module scope, and the rule owes
-      // both the same silence.
+      // The narrowest real shadow there is — it binds for one call, and the object
+      // is whatever the caller passed. Nothing in the rule branches on a parameter
+      // specifically; this is here because the silence has to hold for every way a
+      // file can bind the name, not just the ones the implementation names.
       name: "a parameter named Reflect is the caller's object, not the global",
       filename: SERVICE,
       code: `export function read(Reflect, key) {
@@ -171,6 +207,23 @@ export function read(key) {
       filename: SERVICE,
       code: `import { Reflect } from "./shim.ts";
 export const value = Reflect.get(invoice, key);`,
+    },
+    {
+      // A reference is recorded on the scope that CONTAINS it, and for a `switch`
+      // discriminant that is the scope ABOVE the one `getScope` returns. Looking in
+      // one scope alone finds nothing, and a rule that fails open then reports on a
+      // binding the file really does declare.
+      name: "a shadow read as a switch discriminant is still a shadow",
+      filename: SERVICE,
+      code: `const Reflect = { get: (o, k) => o[k] };
+export function classify(key) {
+  switch (Reflect.get(invoice, key)) {
+    case "paid":
+      return 1;
+    default:
+      return 0;
+  }
+}`,
     },
     {
       name: "a same-named method on some other object",

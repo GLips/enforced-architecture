@@ -17,11 +17,12 @@
  *     bun run check:no-reflect-access-live
  *
  * So this materializes real files, runs the shipped `plugin.ts` over them through
- * the `oxlint` binary, and reads the diagnostics back. Three cases pulling in
- * different directions: without the reporting one, the inert rule passes; without
- * the silent one, a rule that dropped its shadow check passes; without the
- * type-space one, a rule that resolves the name by LOOKUP rather than by
- * reference passes, and an adopter switches it off in one line.
+ * the `oxlint` binary, and reads the diagnostics back. The cases pull in different
+ * directions: without a reporting one, the inert rule passes; without a silent one,
+ * a rule that dropped its shadow check passes; without the type-space and merged
+ * ones, a rule that resolves the name by LOOKUP rather than by reference passes,
+ * or one that reads the variable rather than each of its definitions does, and an
+ * adopter switches the rule off in one line either way.
  *
  * REVERT-PROBE after any change here, all four. Put back the old scope walk (`if
  * (scope.set.has(name)) return true`) and the reporting case must fail; look the
@@ -122,6 +123,26 @@ const CASES: LiveCase[] = [
     file: "type-alias-reflect.ts",
     code: `type Reflect = never;\nexport const value = Reflect.get(invoice, key);\n`,
     reports: "`Reflect.get` returns `any` whatever the receiver was",
+  },
+  {
+    // TypeScript MERGES these into one binding with two definitions, neither of
+    // which puts a value in the file. Reading the variable rather than each of its
+    // definitions reopens the ambient arm in one adjacent line, and this is the
+    // shape that catches it under the host where merging actually happens.
+    name: "a merged type-and-ambient declaration does not silence the rule",
+    file: "merged-reflect.ts",
+    code: `interface Reflect { get(o: unknown, k: string): unknown }\ndeclare const Reflect: Reflect;\nexport const value = Reflect.get(invoice, key);\n`,
+    reports: "`Reflect.get` returns `any` whatever the receiver was",
+  },
+  {
+    // The false positive this rule shipped for one commit: a reference is recorded
+    // on the scope that CONTAINS it, and a `switch` discriminant's is the scope
+    // above the one `getScope` returns. Silence here is the rule leaving a real
+    // local binding alone.
+    name: "a shadow read as a switch discriminant stays silent",
+    file: "switch-reflect.ts",
+    code: `const Reflect = { get: (o: Record<string, unknown>, k: string) => String(o[k]) };\nexport function classify(key: string) {\n  switch (Reflect.get(invoice, key)) {\n    case "paid":\n      return 1;\n    default:\n      return 0;\n  }\n}\n`,
+    reports: null,
   },
 ];
 

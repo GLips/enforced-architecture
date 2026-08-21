@@ -14,13 +14,12 @@
 // way to write a trap that forwards to the target. If the project has one,
 // exempt its directory here rather than a disable comment in each trap.
 //
-// `Reflect` is resolved through the scope chain, not matched by name, so a
-// local binding called `Reflect` does not report. The spec pins that, and pins
-// the other half too — a `Reflect` bound in a scope the use site is not inside
-// does not cover it.
+// `Reflect` is resolved as a REFERENCE, not matched by name, so a local binding
+// called `Reflect` does not report. The spec pins that, and pins the other half
+// too — a `Reflect` bound in a scope the use site is not inside does not cover it.
 //
-// The resolution asks whether the binding has a DEFINITION SITE in the file, and
-// that is not a detail: both shorter spellings of the question answer differently
+// The question the resolution asks is whether the binding puts a VALUE in the file,
+// and that is not a detail: both shorter spellings of it answer differently
 // under the oxlint CLI than under RuleTester, so a rule reading either one is
 // green in its spec and silent in the linter. `resolvesToLocalBinding` says which
 // and why. Proving this rule fires therefore takes a real `oxlint` run over a real
@@ -29,13 +28,16 @@
 // itself the equivalent.
 //
 // NEGATIVE SPACE. The subject is the identifier `Reflect` and the member read off
-// it, so three spellings of the same access are deliberately not covered and no
-// amount of scope resolution reaches them: `globalThis.Reflect.get(…)`, an alias
-// (`const R = Reflect`), and a destructured method (`const { get } = Reflect`).
-// Each hands back the same `any`. They are out because covering them means either
-// tracking values, which one file's syntax cannot do honestly, or matching the
-// member name alone, which reports every `cache.get(key)` in the codebase — and a
-// rule that fires on correct code is one people learn to disable.
+// it, so every spelling that puts the builtin somewhere else first is out of reach
+// and stays that way. `globalThis.Reflect.get(…)` names it through another object;
+// `const R = Reflect` and — cheapest of all — `const Reflect = globalThis.Reflect`
+// rebind it, the second without touching a single call site; `const { get } =
+// Reflect` takes the method off it. Each hands back the same `any`. Covering them
+// means either tracking values, which one file's syntax cannot do honestly, or
+// matching the member name alone, which reports every `cache.get(key)` in the
+// codebase — and a rule that fires on correct code is one people learn to disable.
+// A codebase that wants the whole family closed wants a type-aware check, which no
+// rule in this catalog is.
 //
 // SCOPE, and it is the same for every TREE-SCOPED rule in this catalog — which
 // is every rule but `testing/no-module-mocking`, whose subject is a test file and
@@ -47,6 +49,8 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineTreeRule } from "../lib/define-tree-rule.ts";
+import { staticKeyName } from "../lib/static-key-name.ts";
+import { withoutTransparentWrappers } from "../lib/transparent-wrappers.ts";
 import { type ESTree, type Scope, type SourceCode } from "@oxlint/plugins";
 
 // Keyed by `string` on purpose: every lookup is a member name read off the AST, so a map narrowed
@@ -56,17 +60,6 @@ const BANNED_REFLECT_METHODS = new Map<string, "reflectGet" | "reflectApply">([
   ["get", "reflectGet"],
   ["apply", "reflectApply"],
 ]);
-
-// Both spellings of the member access. `Reflect["get"](…)` is the one a rule reading only
-// `property.name` misses, and it is a single keystroke from the plain form.
-function accessedMethodName(callee: ESTree.MemberExpression): string | null {
-  if (callee.computed) {
-    return callee.property.type === "Literal" && typeof callee.property.value === "string"
-      ? callee.property.value
-      : null;
-  }
-  return callee.property.type === "Identifier" ? callee.property.name : null;
-}
 
 // Whether the name resolves to a binding THIS FILE declares a VALUE for, rather than to the
 // language builtin.
@@ -82,48 +75,74 @@ function accessedMethodName(callee: ESTree.MemberExpression): string | null {
 // for every use, so every use reads as shadowed and the rule reports nothing at all. A spec cannot
 // catch either, because a spec runs in the host each one happens to be right in.
 //
-// Asking the RESOLVED REFERENCE agrees in both, and that is not a smaller version of the name
-// lookup — it is a different question. A name lookup finds `type Reflect = never` and
-// `interface Reflect {}`, which bind nothing at run time; the resolver skips them, because a
-// VALUE reference does not resolve to a type-space binding. Getting that wrong is not a corner:
-// `type Reflect = never;` is one line, compiles under `--strict`, leaves `Reflect.get` returning
-// `any`, and would switch this rule off for the whole file. `lib/imported-names.ts` reaches for
-// the resolver over a name lookup for exactly these cases, spelled `require`.
+// Asking the RESOLVED REFERENCE agrees in both, and an unresolved one is the builtin — nothing in
+// the file declares it. Under the CLI it resolves instead to a global-scope variable with no
+// definitions, which says the same thing. `lib/imported-names.ts` reaches for the resolver over a
+// name lookup for the same reason, spelled `require`.
 //
-// An unresolved reference is the builtin — nothing in the file declares it. Under the CLI it
-// resolves instead to a global-scope variable with no definitions, which says the same thing.
-function resolvesToLocalBinding(
-  sourceCode: SourceCode,
-  identifier: ESTree.IdentifierReference,
-): boolean {
-  const scope = sourceCode.getScope(identifier);
-  const reference = scope.references.find(
-    (candidate) => candidate.identifier.range[0] === identifier.range[0],
-  );
-  const variable = reference?.resolved;
-  if (variable === null || variable === undefined) return false;
-  return variable.defs.some(bindsAValue);
+// The walk to `upper` is not the old name walk coming back. A reference is recorded on the scope
+// that CONTAINS it, which for a `switch` discriminant is the scope above the one `getScope`
+// returns — so a lookup in one scope misses it, `resolved` comes back undefined, and the rule
+// reports on a local binding it should have left alone. That was a live false positive on
+// `switch (Reflect.get(…))` with a `const Reflect` in the file.
+// Takes the identifier as a plain `Node`, because it arrives through
+// `withoutTransparentWrappers` — which answers "what is this value" and cannot know that this
+// caller narrowed it to an identifier. The two fields read here are on every identifier node.
+function resolvesToLocalBinding(sourceCode: SourceCode, identifier: ESTree.Node): boolean {
+  let scope: Scope | null = sourceCode.getScope(identifier);
+  while (scope !== null) {
+    const reference = scope.references.find(
+      (candidate) => candidate.identifier.range[0] === identifier.range[0],
+    );
+    if (reference !== undefined) {
+      const variable = reference.resolved;
+      return variable !== null && variable.defs.some(bindsAValue);
+    }
+    scope = scope.upper;
+  }
+  return false;
 }
 
-// The two definition kinds the resolver hands back that still bind no value.
+// Whether one definition of the resolved variable puts a value in the file at run time.
 //
-//   `declare const Reflect: …`   describes something that already exists. Nothing carrying
-//       `declare` introduces a runtime binding — not a function, class, namespace or module —
-//       and an ambient `.d.ts` never reaches this rule at all, so the arm has no legitimate
-//       case to suppress.
-//   `import type { Reflect }`    and its inline spelling `import { type Reflect }`. The resolver
-//       does NOT skip these the way it skips a type alias, so both have to be read: `importKind`
-//       sits on the DECLARATION for the first and on the SPECIFIER for the second.
+// Asked per definition and not per variable, because TypeScript MERGES declarations into one:
+// `interface Reflect {…}` beside `declare const Reflect: Reflect` is a single variable with two
+// definitions, and reading only the first said "this file binds Reflect" about two declarations
+// that between them bind nothing. Both halves compile under `--strict` and emit the call verbatim.
 //
-// Both are otherwise one-line off-switches an adopter can write, which is the thing this catalog
-// refuses. `lib/imported-names.ts` carries the same two reads for `require`; they are a fact
-// about the TypeScript AST rather than a policy, and the third caller is where extracting one
-// copy of it stops being premature — see ea-57.
-function bindsAValue(definition: { node: ESTree.Node; parent: ESTree.Node | null }): boolean {
+// Three ways a definition binds nothing, each a one-line file-wide off-switch otherwise:
+//
+//   a type-space KIND       `type Reflect = never` and `interface Reflect {}`. The resolver skips
+//       these when they stand alone — a value reference resolves past them to the builtin — but
+//       NOT when they merge with a value declaration, which is why the kind is read here rather
+//       than left to the resolver. `Definition["type"]` as `@oxlint/plugins` declares it does not
+//       list these; the runtime produces them, measured.
+//   `declare`               describes something that already exists. Nothing carrying it
+//       introduces a runtime binding — const, function, class, namespace or module — and an
+//       ambient `.d.ts` never reaches this rule at all, so the arm suppresses no legitimate case.
+//   a type-only import      `import type { Reflect }` and `import { type Reflect }`. The resolver
+//       does NOT skip these the way it skips a type alias, so both spellings have to be read:
+//       `importKind` sits on the DECLARATION for the first and on the SPECIFIER for the second.
+//
+// NEGATIVE SPACE, in the false-positive direction, and it is the reason `TSModuleName` is refused
+// by kind rather than by inspection: an INSTANTIATED namespace — `namespace Reflect { export const
+// get = … }` — does bind a value, and this reports on it. Telling it from the erased kind means
+// reimplementing TypeScript's instantiation rule, to buy silence on a namespace shadowing a
+// language builtin. A real instance is one `oxlint-disable-next-line`; the uninstantiated half
+// left open is a file-wide off-switch with no bound.
+//
+// `TSEnumName` is deliberately absent from the list. An `enum Reflect` shadow does not compile —
+// `Property 'get' does not exist on type 'typeof Reflect'` — so an arm for it could never be
+// fixtured, and an unreachable branch is indistinguishable from a broken one.
+const TYPE_SPACE_DEFINITIONS: readonly string[] = ["Type", "TSModuleName"];
+
+function bindsAValue(definition: { type: string; node: ESTree.Node; parent: ESTree.Node | null }): boolean {
+  if (TYPE_SPACE_DEFINITIONS.includes(definition.type)) return false;
   if (isTypeOnlyImport(definition.node) || isTypeOnlyImport(definition.parent)) return false;
   // `declare` sits on the DECLARATION, and a `Variable` definition's node is the DECLARATOR
   // inside it, so reading the flag off `definition.node` finds nothing there and calls every
-  // ambient declaration a real binding.
+  // ambient declaration a real binding. Unreachable in practice — every definition kind that
+  // reaches here carries a node — and `true` keeps an unforeseen one reporting rather than silent.
   const declaration = definition.node.type === "VariableDeclarator" ? definition.parent : definition.node;
   if (declaration === null) return true;
   return !("declare" in declaration && declaration.declare === true);
@@ -148,7 +167,10 @@ export const noReflectAccessRule = defineTreeRule({
     return {
       CallExpression(node) {
         if (node.callee.type !== "MemberExpression") return;
-        const owner = node.callee.object;
+        // `(Reflect as never).get(…)` and `Reflect!.get(…)` are the same read with a node wedged
+        // in, and a bypass a reader cannot see — the source still says `Reflect.get`.
+        // `lib/transparent-wrappers.ts` owns which nodes those are.
+        const owner = withoutTransparentWrappers(node.callee.object);
         // Resolved as a global rather than matched by name, so a local `const Reflect = …` — or an
         // import that shadows it — is correctly left alone.
         if (
@@ -158,8 +180,10 @@ export const noReflectAccessRule = defineTreeRule({
         ) {
           return;
         }
-        const method = accessedMethodName(node.callee);
-        const messageId = method === null ? undefined : BANNED_REFLECT_METHODS.get(method);
+        // `lib/static-key-name.ts` owns both spellings of the member read, and owns the negative
+        // space with them: a key no single file can follow is `undefined` rather than a guess.
+        const method = staticKeyName(node.callee.property, node.callee.computed);
+        const messageId = method === undefined ? undefined : BANNED_REFLECT_METHODS.get(method);
         if (messageId !== undefined) context.report({ node, messageId });
       },
     };
