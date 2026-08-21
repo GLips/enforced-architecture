@@ -88,6 +88,15 @@ function isInvoiceId(value: unknown): boolean { return typeof value === "string"
       errors: [{ messageId: "runtimeTypeof" }],
     },
     {
+      // A method's overload set is matched on `static` as well as name, because TypeScript will
+      // not pair a static signature with an instance implementation — they are two members that
+      // happen to share a name, and reading them as one set vouches for a body nothing declared.
+      name: "a static predicate signature does not vouch for the instance method beside it",
+      filename: SERVICE,
+      code: `export class Guards { static isId(value: unknown): value is InvoiceId; static isId(value: unknown): boolean { return value !== null; } isId(value: unknown): boolean { return typeof value === "string"; } }`,
+      errors: [{ messageId: "runtimeTypeof" }],
+    },
+    {
       // Same shape as a guard, minus the predicate — the narrowing stays private to this body
       // instead of becoming a contract, so it reports.
       name: "a throwing narrower without a predicate is not a guard",
@@ -139,6 +148,23 @@ function isInvoiceId(value: unknown): boolean { return typeof value === "string"
       name: "an overloaded guard declares its predicate on the signature",
       filename: SERVICE,
       code: `export function isInvoiceId(value: unknown): value is InvoiceId;
+export function isInvoiceId(value: unknown): boolean { return typeof value === "string"; }`,
+    },
+    {
+      // The class spelling of the same overload set, and a different node the whole way down: a
+      // `MethodDefinition` holding a body-less `TSEmptyBodyFunctionExpression`, with the name on a
+      // key rather than an id.
+      name: "an overloaded guard written as a method declares its predicate the same way",
+      filename: SERVICE,
+      code: `export class Guards { isId(value: unknown): value is InvoiceId; isId(value: unknown): boolean { return typeof value === "string"; } }`,
+    },
+    {
+      // An overload set may lead with a fast path that declares no predicate. Stopping the search
+      // at the first same-name signature reads that one as the whole contract and rejects the body.
+      name: "a predicate on the second overload still vouches for the implementation",
+      filename: SERVICE,
+      code: `export function isInvoiceId(value: InvoiceId): boolean;
+export function isInvoiceId(value: unknown): value is InvoiceId;
 export function isInvoiceId(value: unknown): boolean { return typeof value === "string"; }`,
     },
     {

@@ -93,6 +93,49 @@ type Payload = unknown;`,
       errors: [{ messageId: "unknownParameter" }],
     },
     {
+      // The exemption reaches the value the predicate NAMES and no further. Letting a guard's
+      // return annotation clear its whole parameter list turns `value is T` into one free
+      // `unknown` per extra argument.
+      name: "a second broad input beside the value a guard vouches for",
+      filename: SERVICE,
+      code: `export function isInvoiceId(value: unknown, options: unknown): value is InvoiceId { return typeof value === "string"; }`,
+      errors: [{ messageId: "unknownParameter" }],
+    },
+    {
+      // Guard-shaped naming is not a guard. Keying the exemption off the name instead of the
+      // return annotation would be the curated list this catalog refuses.
+      name: "a guard-shaped name that promises no predicate",
+      filename: SERVICE,
+      code: `export function isInvoiceId(value: unknown): boolean { return typeof value === "string"; }`,
+      errors: [{ messageId: "unknownParameter" }],
+    },
+    {
+      // An overload set that promises no predicate is not a guard, so BOTH the signature and the
+      // implementation answer for their own inputs.
+      name: "an overload set with no predicate exempts neither of its signatures",
+      filename: SERVICE,
+      code: `function isInvoiceId(value: unknown): boolean;
+function isInvoiceId(value: unknown): boolean { return typeof value === "string"; }`,
+      errors: [{ messageId: "unknownParameter" }, { messageId: "unknownParameter" }],
+    },
+    {
+      // The method overload set is matched on `static` as well as name. TypeScript will not pair a
+      // static signature with an instance implementation, so reading them as one set would exempt
+      // an input nothing vouched for.
+      name: "a static predicate signature does not vouch for the instance method beside it",
+      filename: SERVICE,
+      code: `export class Guards { static isId(value: unknown): value is InvoiceId; static isId(value: unknown): boolean { return value !== null; } isId(candidate: unknown): boolean { return candidate !== null; } }`,
+      errors: [{ messageId: "unknownParameter" }],
+    },
+    {
+      // `this is T` narrows the receiver, which is not in `params` at all. Reading the predicate's
+      // subject as "whatever sits first" would exempt an unrelated argument.
+      name: "a predicate over this names no parameter and so exempts none",
+      filename: SERVICE,
+      code: `export class Invoice { isSettled(ledger: unknown): this is SettledInvoice { return Boolean(ledger); } }`,
+      errors: [{ messageId: "unknownParameter" }],
+    },
+    {
       name: "both halves in one signature are two findings",
       filename: SERVICE,
       code: `export function merge(a: unknown, b: object): void {}`,
@@ -125,6 +168,72 @@ type Weird<Input> = Input extends (string extends infer Item ? true : false) ? (
       name: "the cause convention, the one honest unknown input",
       filename: SERVICE,
       code: `export function wrapError(message: string, cause: unknown): Error { return new Error(message, { cause }); }`,
+    },
+    {
+      // `types/no-runtime-typeof` tells you to write this signature. Reporting it would make the
+      // two rules jointly unactionable — following one's message violates the other's.
+      name: "a type predicate, the signature the guard rules ask for",
+      filename: SERVICE,
+      code: `export function isInvoiceId(value: unknown): value is InvoiceId { return typeof value === "string"; }`,
+    },
+    {
+      name: "an assertion function, the same guard with the throw",
+      filename: SERVICE,
+      code: `export function assertInvoiceId(value: unknown): asserts value is InvoiceId { if (typeof value !== "string") throw new Error("not an InvoiceId"); }`,
+    },
+    {
+      // `asserts value` with no `is` still parses to a TSTypePredicate, and it still vouches for
+      // the input it names.
+      name: "a bare asserts with no narrowed type",
+      filename: SERVICE,
+      code: `export function assertPresent(value: unknown): asserts value { if (value == null) throw new Error("absent"); }`,
+    },
+    {
+      name: "a guard written as an arrow, where the predicate hangs off the expression",
+      filename: SERVICE,
+      code: `export const isInvoiceId = (value: unknown): value is InvoiceId => typeof value === "string";`,
+    },
+    {
+      // The predicate lives on the SIGNATURE and the implementation widens its own return type, so
+      // the implementation read alone vouches for nothing. It may also rename the parameter, which
+      // is why the exemption travels by position rather than by the name the predicate uses.
+      name: "an overloaded guard declares its predicate on the signature",
+      filename: SERVICE,
+      code: `export function isInvoiceId(value: unknown): value is InvoiceId;
+export function isInvoiceId(candidate: unknown): boolean { return typeof candidate === "string"; }`,
+    },
+    {
+      // The class spelling of the same overload set — a `MethodDefinition` holding a body-less
+      // `TSEmptyBodyFunctionExpression`, with the name on a key rather than an id. Missing this
+      // arm reports the input of a method `types/no-runtime-typeof` calls a correct guard.
+      name: "an overloaded guard written as a method",
+      filename: SERVICE,
+      code: `export class Guards { isId(value: unknown): value is InvoiceId; isId(candidate: unknown): boolean { return typeof candidate === "string"; } }`,
+    },
+    {
+      // An overload set may lead with a fast path that declares no predicate. Stopping at the
+      // first same-name signature reads that one as the whole contract.
+      name: "a predicate on the second overload still vouches for the implementation",
+      filename: SERVICE,
+      code: `export function isInvoiceId(value: InvoiceId): boolean;
+export function isInvoiceId(value: unknown): value is InvoiceId;
+export function isInvoiceId(candidate: unknown): boolean { return typeof candidate === "string"; }`,
+    },
+    {
+      // Each signature in a set vouches for its own position, so the implementation collects every
+      // one of them. Reading only the first leaves the second predicate's subject reporting.
+      name: "an overload set whose signatures vouch for different positions",
+      filename: SERVICE,
+      code: `export function pick(a: unknown): a is InvoiceId;
+export function pick(a: InvoiceId, b: unknown): b is Invoice;
+export function pick(a: unknown, b?: unknown): boolean { return a !== null && b !== null; }`,
+    },
+    {
+      // The exemption is about the POSITION a guard cannot type, not about which broad keyword
+      // spells it — nagging this one into `unknown` is noise, not a contract.
+      name: "a guard narrowing from object rather than unknown",
+      filename: SERVICE,
+      code: `export function isInvoiceRow(value: object): value is InvoiceRow { return "id" in value; }`,
     },
     {
       name: "the named type the message asks for",

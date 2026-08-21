@@ -31,20 +31,26 @@ All three key on `as` and its angle-bracket twin, so all three are silent on the
 | [no-runtime-typeof](no-runtime-typeof.ts) | Yes | Each representation check sits in one named guard or one schema. **Reports correct code** — see below |
 | [no-conditional-empty-object-spread](no-conditional-empty-object-spread.ts) | No | Shows which object literals do not state their own keys. Ships non-blocking |
 
+## The default that still reports correct code
+
+`no-reflect-access` is in the hub's selection table and ships at `error`, and it costs something
+anyway. It reports a `namespace Reflect` — or an `import Reflect = <entity>` — that has value
+members, which is a real binding and not the builtin. Separating those from the kinds TypeScript
+erases means reimplementing its instantiation rule out of one file's syntax, and the erased kinds
+left alone are one-line, file-wide off-switches. A per-line disable is the answer for a real one;
+that trade is the reason the rule is not switchable off wholesale.
+
+It also does not see the builtin reached any other way — `globalThis.Reflect.get(…)`,
+`const R = Reflect`, `const Reflect = globalThis.Reflect`, a destructured `const { get } = Reflect`,
+or a template-literal key. Closing that family takes type information, which this tier has none of.
+
 ## The two that are not defaults
 
 Neither appears in the hub's selection table. Both reject code that is often correct.
 
-- **`no-reflect-access`** hits a `namespace Reflect` that has value members, because separating it
-  from the erased kind means reimplementing TypeScript's instantiation rule out of one file's
-  syntax — and the erased kind left alone is a one-line, file-wide off-switch. A per-line disable is
-  the answer for a real one. The rule also does not see the builtin reached any other way:
-  `globalThis.Reflect.get(…)`, `const R = Reflect`, `const Reflect = globalThis.Reflect`, or a
-  destructured `const { get } = Reflect`. Closing that family takes type information, which this
-  tier has none of.
 - **`no-runtime-typeof`** hits the SSR guard (`typeof window === "undefined"`) and any union the compiler already narrowed. This tier has no type information, so the ban is a tooling limit, not a position. The one carve-out is the direct body of a type guard, where the check leaves a named predicate behind; everywhere else, expect per-line disables.
 - **`no-conditional-empty-object-spread`** targets an idiom that is deliberate under `exactOptionalPropertyTypes`. A signal about density, not a defect.
 
-`no-broad-parameters`, `no-unknown-returns`, and `no-unknown-type-aliases` share [../lib/type-annotations.ts](../lib/type-annotations.ts) — copy it alongside any of the three.
+`no-broad-parameters`, `no-unknown-returns`, `no-unknown-type-aliases`, and `no-runtime-typeof` share [../lib/type-annotations.ts](../lib/type-annotations.ts) — copy it alongside any of the four. It owns what counts as a type-guard signature, which is why `no-broad-parameters` exempts the value a guard vouches for and `no-runtime-typeof` allows the `typeof` inside that guard from one reading.
 
 Adoption mechanics, the spec contract, and cross-tag rule selection: [../../overview.md](../../overview.md).

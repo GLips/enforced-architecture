@@ -1,15 +1,29 @@
 // ─── types/no-broad-parameters ───────────────────────────────────────
 //
 // Makes sure: Every parameter names what it accepts. No input is `unknown` or
-// `any`, so the body reads the value with no guard of its own. No input is
-// `object`, so no property read needs a cast, and a wrong argument fails at the
-// call site rather than inside the function.
+// `any`, so no body outside a type guard reads a value it has to check first.
+// No input is `object`, so no property read needs a cast, and a wrong argument
+// fails at the call site rather than inside the function.
 //
 // A parameter named `cause` is exempt. A `catch` binding is `unknown`, so the
 // value passed to `new Error(msg, { cause })` has no type to name. The
 // exemption is by name and not by position, so it stays greppable. Keep
 // `ALLOWED_UNKNOWN_PARAMETER_NAMES` short: each entry is a place where the type
 // system gives no help.
+//
+// The value a type guard vouches for is exempt too — the subject of
+// `value is InvoiceId` or `asserts value is InvoiceId`. A guard exists to give a
+// type to input that has none, so demanding one is asking for the answer as the
+// question; `types/no-runtime-typeof` tells you to write exactly this signature.
+// That exemption is a fact about the return annotation, not a list, so it is not
+// configurable. It reaches ONLY the parameters the predicates name: a second
+// broad input on a guard still reports, and a predicate over `this` vouches for
+// the receiver, which is not a parameter, so it exempts none. An overloaded
+// guard declares its predicate on a signature and widens the implementation's
+// return type, so both the function and the method spelling of that set are read
+// through to the signature — `lib/type-annotations.ts` owns that reading, and
+// `types/no-runtime-typeof` shares it so the two rules cannot disagree about
+// what a guard is.
 //
 // The rule bans `unknown` on INPUTS, not the type itself. A parser
 // (`parseInvoice(input: unknown): Invoice`) is the signature the rest of this
@@ -34,9 +48,9 @@ import {
   parameterAnnotation,
   parameterName,
   resolvesToBroadType,
+  type SignatureNode,
+  typePredicateSubjectPositions,
 } from "../lib/type-annotations.ts";
-
-type SignatureNode = ESTree.Node & { params: ESTree.ParamPattern[] };
 
 const UNKNOWN_KEYWORDS = new Set(["TSUnknownKeyword", "TSAnyKeyword"]);
 const OBJECT_KEYWORDS = new Set(["TSObjectKeyword"]);
@@ -61,7 +75,9 @@ export const noBroadParametersRule = defineTreeRule({
 
     const checkParameters = (node: SignatureNode) => {
       const shadowed = lexicalTypeParameterNames(node, context.sourceCode.visitorKeys);
-      for (const parameter of node.params) {
+      const vouchedFor = typePredicateSubjectPositions(node, context.sourceCode);
+      for (const [position, parameter] of node.params.entries()) {
+        if (vouchedFor.has(position)) continue;
         const annotation = parameterAnnotation(parameter);
         if (annotation === null || annotation === undefined) continue;
         const declared = annotation.typeAnnotation;
