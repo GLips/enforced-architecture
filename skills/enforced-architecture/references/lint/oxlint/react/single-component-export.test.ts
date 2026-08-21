@@ -132,8 +132,12 @@ export const Card = Object.assign(CardRoot, { Header: CardHeader });`,
       filename: UI,
       // Every one of these was a real false positive at some point. A PascalCase const is very
       // often not a component, and reporting a context or a constant is what teaches people the
-      // rule is noise.
+      // rule is noise. `formatAlphaLabel` is the other half of that test and the only one of the
+      // four an arrow-bound const cannot pass on its value alone: it IS a function literal, so the
+      // capital letter is the only thing between it and being counted.
       code: `export const AlphaCtx = createContext<string | null>(null);
+
+export const formatAlphaLabel = (id: string) => id.toUpperCase();
 
 export const DRAG_SLOP = 4;
 

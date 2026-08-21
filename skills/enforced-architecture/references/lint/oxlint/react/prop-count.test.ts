@@ -154,7 +154,14 @@ export function WideExtends(props: WideExtendsProps) {
 export function WideImported(props: WideImportedProps) {
   return <section data-tone={props.tone}>{props.title}</section>;
 }`,
-      errors: [{ messageId: "tooManyPropsFloor" }],
+      // The other floor, and its wording is the difference: this one CAN name what it could not
+      // read, and telling the reader to go and open `ViewProps` is the whole value of the report.
+      errors: [
+        {
+          message:
+            "WideImported has at least 8 props (threshold: 8). That is a floor: this rule could not read ViewProps out of this file, and it resolves a base type by name within one file, so the real surface is wider. Decompose into smaller components, group props that always travel together into one object, or lift shared data into context.",
+        },
+      ],
     },
     {
       name: "the annotation sits on a parameter that carries a default",
@@ -202,7 +209,7 @@ export function DefaultedPanel(props: DefaultedPanelProps = DEFAULT_PANEL_PROPS)
 } = {}) {
   return <section data-tone={tone} data-extra={extra} data-dense={dense} onClick={onDismiss}>{title}</section>;
 }`,
-      errors: [{ messageId: "tooManyPropsFloor" }],
+      errors: [{ messageId: "tooManyPropsFloorUnreadable" }],
     },
     {
       name: "two of the eight members are keyed by a quoted string rather than a name",
@@ -244,7 +251,15 @@ export function DefaultedPanel(props: DefaultedPanelProps = DEFAULT_PANEL_PROPS)
 }) {
   return <section data-tone={props.tone}>{props.title}</section>;
 }`,
-      errors: [{ messageId: "tooManyPropsFloor" }],
+      // The TEXT, not just the id: this floor names no base type, because there is no base to go
+      // and open. The other floor message's instruction — read `{{bases}}` out of another file —
+      // would send the reader looking for something this file does not have.
+      errors: [
+        {
+          message:
+            "ExpressionKeyPanel has at least 8 props (threshold: 8). That is a floor: part of its props type declares no name this rule can read \u2014 a computed key, a union of prop shapes, or an index signature \u2014 so the real surface is wider. Decompose into smaller components, group props that always travel together into one object, or lift shared data into context.",
+        },
+      ],
     },
     {
       name: "eight destructured props in a .jsx file",
@@ -376,6 +391,42 @@ export function NarrowIntersectionNeighbour(props: NarrowIntersectionNeighbourPr
   g: string;
   h: string;
 }>(null);`,
+    },
+    {
+      name: "a rest parameter declares an argument list, which is not a props surface",
+      filename: UI,
+      // The negative space this rule states, held in both its spellings. `...props: [WideRestProps]`
+      // annotates a TUPLE, and `...{ … }` destructures the ARGUMENTS ARRAY — whose keys are `0`,
+      // `1` and `length`, not the caller's object. Following either one hands the count a set of
+      // names that are not the component's props, so the rule says nothing about these two rather
+      // than something wrong.
+      code: `interface WideRestProps {
+  title: string;
+  subtitle: string;
+  tone: string;
+  size: string;
+  variant: string;
+  icon: string;
+  dense: boolean;
+  onDismiss: () => void;
+}
+
+export function TupleRestPanel(...props: [WideRestProps]) {
+  return <section data-tone={props[0].tone}>{props[0].title}</section>;
+}
+
+export function DestructuredRestPanel(...{
+  title,
+  subtitle,
+  tone,
+  size,
+  variant,
+  icon,
+  dense,
+  onDismiss,
+}) {
+  return <section data-tone={tone}>{title}</section>;
+}`,
     },
     {
       name: "eight props, against a threshold of 9 set in the project's config",

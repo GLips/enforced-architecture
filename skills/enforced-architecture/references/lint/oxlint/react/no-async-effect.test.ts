@@ -111,11 +111,17 @@ describeRule("react/no-async-effect", noAsyncEffectRule, {
       errors: [{ messageId: "asyncCallback" }, { messageId: "asyncEffect" }],
     },
     {
-      name: "the effect hook under a local alias",
+      name: "the effect hook under a local alias whose name also declares a type",
       filename: COMPONENT,
       // `run` is what this file calls it; `useEffect` is what react exported. The second is the
       // hook's identity, and reading the first leaves the whole file unread.
-      code: `import { useEffect as run } from "react";
+      //
+      // The type alias above it compiles — an import binding and a type of one name merge rather
+      // than collide — and oxlint files both under ONE binding with the type declaration first. A
+      // resolver that read the first definition and stopped finds a `TSTypeAliasDeclaration`, no
+      // import, and no hook.
+      code: `type run = never;
+import { useEffect as run } from "react";
 export const Panel = ({ id }: { id: string }) => {
   run(() => { void (async () => { await fetchRows(id); })(); }, [id]);
   return null;

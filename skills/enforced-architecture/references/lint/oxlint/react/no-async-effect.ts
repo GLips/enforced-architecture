@@ -26,7 +26,9 @@
 //
 // Which calls are `useEffect` and `useCallback` is `lib/hook-calls.ts`'s answer,
 // shared with react/hook-count and react/derived-state — `React.useEffect(…)`
-// and an aliased import count, and that file states what does not.
+// counts, and an import counts under the name the EXPORTING module gave it, so
+// `useEffect as useE` is a hook and `createStore as useStore` is not. That file
+// states the rest of what does not count.
 //
 // The messages below name TanStack Query. That name is the fix instruction, not a
 // detail: a project on SWR, on Apollo, or on a route loader must edit the message

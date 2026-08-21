@@ -27,7 +27,9 @@
 //
 // Which calls are `useState` and `useEffect` is `lib/hook-calls.ts`'s answer,
 // shared with react/hook-count and react/no-async-effect — `React.useEffect(…)`
-// and an aliased import count, and that file states what does not.
+// counts, and an import counts under the name the EXPORTING module gave it, so
+// `useEffect as useE` is a hook and `createStore as useStore` is not. That file
+// states the rest of what does not count.
 //
 // SCOPE, and it is the same for every TREE-SCOPED rule in this catalog — which
 // is every rule but `testing/no-module-mocking`, whose subject is a test file and

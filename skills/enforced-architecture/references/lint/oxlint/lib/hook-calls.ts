@@ -25,8 +25,12 @@
 //   - A member read whose key is aliased on the OTHER side: `hooks.effect(…)` re-exported from a
 //     local module as React's `useEffect`. Only the property name is available here, and following
 //     it means opening another file.
-//   - The default-imported hook, `import useEffect from "react"`. There is no exported name on an
-//     `ImportDefaultSpecifier`, so the local spelling is all there is and it is what gets used.
+//   - The default-imported hook, in both its spellings: `import useAuth from "./use-auth"` and
+//     `import { default as useAuth } from "./use-auth"`. A default export has no name of its own,
+//     so the local spelling is all there is and it is what gets used. The second spelling wears a
+//     named specifier's node shape and is NOT a module export called "default" —
+//     `lib/imported-names.ts` decides it the same way, and two owners disagreeing about one
+//     spelling is the defect this file exists to remove.
 //
 // The OBJECT of a member read is deliberately not checked: `React.useEffect`, `ReactDOM.useEffect`
 // and `whatever.useEffect` are all read as `useEffect`. Requiring the object to be React means
@@ -94,7 +98,12 @@ function importedNameOf(
   // describes nothing that happens.
   for (const definition of reference?.resolved?.defs ?? []) {
     const specifier: ESTree.Node = definition.node;
-    if (specifier.type === "ImportSpecifier") return exportedName(specifier.imported);
+    if (specifier.type !== "ImportSpecifier") continue;
+    const name = exportedName(specifier.imported);
+    // `{ default as useAuth }` binds the module's default export, which has no name — so there is
+    // nothing here to prefer over the local spelling, and returning the string "default" would
+    // make the one spelling of a default import that carries a specifier stop being a hook.
+    return name === "default" ? undefined : name;
   }
   return undefined;
 }

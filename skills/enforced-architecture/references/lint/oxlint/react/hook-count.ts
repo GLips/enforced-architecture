@@ -23,8 +23,10 @@
 // a judgement for the reader.
 //
 // Which calls ARE hooks is `lib/hook-calls.ts`'s answer, shared with
-// react/no-async-effect and react/derived-state — `React.useEffect(…)` and an
-// aliased import count, and that file states what does not.
+// react/no-async-effect and react/derived-state — `React.useEffect(…)` counts,
+// and an import counts under the name the EXPORTING module gave it — so
+// `useEffect as useE` is a hook and `createStore as useStore` is not. That file
+// states the rest of what does not count.
 //
 // Two components in one file is react/single-component-export's finding.
 //

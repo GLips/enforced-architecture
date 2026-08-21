@@ -31,10 +31,12 @@
 //
 // The parameter is read through `lib/type-annotations.ts`, so a defaulted or
 // rest-spelled parameter carries its annotation to this rule the same way it
-// does to the `types` tag. NEGATIVE SPACE: a rest parameter's annotation is a
-// TUPLE (`(...props: [P])`), and this rule reads a props type, not the shape of
-// an argument list — so that spelling resolves to nothing readable and the
-// component gets no report. The same is true of a union of prop shapes.
+// does to the `types` tag. NEGATIVE SPACE: a rest parameter declares the shape of
+// an ARGUMENT LIST rather than a props type — `(...props: [P])` annotates a tuple
+// and `(...{ a, b })` destructures the arguments array — so a component spelled
+// that way gets no report from this rule at all. A union of prop shapes is a
+// floor for the same reason: this rule reads one shape, and a union has members
+// this walk never reaches.
 //
 // SCOPE, and it is the same for every TREE-SCOPED rule in this catalog — which
 // is every rule but `testing/no-module-mocking`, whose subject is a test file and
@@ -91,6 +93,8 @@ export const propCountRule = defineTreeRule({
         "{{name}} has {{count}} props (threshold: {{threshold}}). Decompose into smaller components, group props that always travel together into one object, or lift shared data into context. If the wide surface is deliberate — a design-system primitive, or a wrapper forwarding to a third party — raise the threshold in the project's oxlint config.",
       tooManyPropsFloor:
         "{{name}} has at least {{count}} props (threshold: {{threshold}}). That is a floor: this rule could not read {{bases}} out of this file, and it resolves a base type by name within one file, so the real surface is wider. Decompose into smaller components, group props that always travel together into one object, or lift shared data into context.",
+      tooManyPropsFloorUnreadable:
+        "{{name}} has at least {{count}} props (threshold: {{threshold}}). That is a floor: part of its props type declares no name this rule can read — a computed key, a union of prop shapes, or an index signature — so the real surface is wider. Decompose into smaller components, group props that always travel together into one object, or lift shared data into context.",
     },
   },
   create(context) {
@@ -110,12 +114,12 @@ export const propCountRule = defineTreeRule({
 
           context.report({
             node: component.node,
-            messageId: surface.complete ? "tooManyProps" : "tooManyPropsFloor",
+            messageId: floorMessageId(surface),
             data: {
               name: component.name,
               count: surface.names.size,
               threshold,
-              bases: describeUnresolved(surface),
+              bases: surface.unresolved.join(", "),
             },
           });
         }
@@ -124,10 +128,18 @@ export const propCountRule = defineTreeRule({
   },
 });
 
-function describeUnresolved(surface: PropSurface): string {
-  return surface.unresolved.length > 0
-    ? surface.unresolved.join(", ")
-    : "part of its props type";
+/**
+ * Which of the three the finding is: a complete surface, one a base type widens, or one a key
+ * nothing can read widens.
+ *
+ * The two floors are separate messages because the base one names a type and tells the reader to
+ * go and open it. Sending that instruction to someone whose floor came from `({ [key]: value })`
+ * is sending them to look for a base that is not there — and this rule's whole claim in the floor
+ * case is that it knows what it could not read.
+ */
+function floorMessageId(surface: PropSurface): "tooManyProps" | "tooManyPropsFloor" | "tooManyPropsFloorUnreadable" {
+  if (surface.complete) return "tooManyProps";
+  return surface.unresolved.length > 0 ? "tooManyPropsFloor" : "tooManyPropsFloorUnreadable";
 }
 
 /**

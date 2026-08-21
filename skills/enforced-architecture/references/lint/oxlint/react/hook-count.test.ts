@@ -83,6 +83,27 @@ export function AliasedPanel({ id }: { id: string }) {
       errors: [{ messageId: "tooManyHooks" }],
     },
     {
+      name: "one of the seven is a default-imported custom hook, specifier spelling",
+      filename: UI,
+      // `{ default as usePanelState }` is a default export wearing a named specifier's node shape.
+      // The name it hands over is the string "default", which is not a hook name — so a reader that
+      // trusted the exported name here would drop the call and score six, while the identical
+      // `import usePanelState from "./…"` still counted. One spelling, two answers.
+      code: `import { default as usePanelState } from "./use-panel-state.ts";
+
+export function DefaultImportedHookPanel({ id }: { id: string }) {
+  const { open, toggle } = usePanelState(id);
+  const [name, setName] = useState(id);
+  const label = useMemo(() => name, [name]);
+  const node = useRef(null);
+  const onOpen = useCallback(() => toggle(true), [toggle]);
+  const onShut = useCallback(() => toggle(false), [toggle]);
+  useEffect(() => setName(id), [id]);
+  return <div ref={node} onClick={open ? onShut : onOpen}>{label}</div>;
+}`,
+      errors: [{ messageId: "tooManyHooks" }],
+    },
+    {
       name: "seven hooks in a .jsx file",
       filename: UI_JSX,
       // The extension, not the syntax: a `.jsx` component is a component. Every rule in this

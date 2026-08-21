@@ -24,9 +24,11 @@
 // NEGATIVE SPACE:
 //   - `export * from "./panels"` hands on components this file never declares. Nothing about them
 //     is readable here, and counting the statement as one component would be a guess at a number.
-//   - `export { Card }` where `Card` is a parameter, a `let` reassigned later, or any binding whose
-//     declaration is not a function-or-declarator: the value at export time is a data-flow
-//     question, and these rules read declarations.
+//   - `export { Card }` where the name's declaration is neither a function declaration nor a
+//     declarator with an initializer — a parameter, a class, `let Card; Card = () => …`. What such
+//     a name holds at export time is a data-flow question, and these rules read declarations. A
+//     `let` that IS initialized with a function is read like any other declarator, reassignment
+//     below it included, for the same reason.
 //   - An anonymous `export default () => {}` or `export default function () {}` has no name to
 //     report and no name to grep for, which is a different complaint than any of these three rules
 //     makes.
@@ -130,13 +132,12 @@ export function exportedComponents(
  * declaration in this file — an import, a re-export's specifier, a binding of some other kind.
  */
 function declaredComponent(
-  local: ESTree.Node,
+  local: ESTree.ModuleExportName | ESTree.Expression,
   sourceCode: SourceCode,
 ): ComponentDeclaration | undefined {
-  // `export { "a-b" as Card }` spells its local name as a string literal, which binds nothing a
-  // reference can resolve.
-  if (local.type !== "Identifier") return undefined;
-
+  // NO arm for the string-literal spelling of a local name. `export { "a-b" as Card }` is only
+  // legal with a `from` clause, so it is a re-export, and a re-export's specifier resolves to no
+  // reference at all — the walk below returns nothing for it without being told to.
   const scope = sourceCode.getScope(local);
   const reference = scope.references.find(
     (candidate) => candidate.identifier.range[0] === local.range[0],

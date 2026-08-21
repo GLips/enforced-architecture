@@ -1,4 +1,6 @@
-// Shared reading of TypeScript annotations for the `types` tag.
+// Shared reading of a function signature: what its parameters are annotated with, what they
+// destructure, and whether it is a type guard. Every rule in the `types` tag reads this file, and
+// `react/prop-count` reads the parameter half of it.
 //
 // Every rule in that tag asks a version of the same question — "does this annotation resolve to a
 // type that carries no information?" — and each one can be beaten by the same three spellings: a
@@ -70,18 +72,22 @@ export function parameterAnnotation(
 }
 
 /**
- * The pattern a parameter destructures, reached through the same wrappers `parameterAnnotation`
- * sees through, or undefined when the parameter binds a plain name.
+ * The pattern a parameter destructures, or undefined when the parameter binds a plain name.
  *
  * A rule reading `parameter.type === "ObjectPattern"` directly sees nothing for
  * `({ a, b } = { a: 1, b: 2 })`, which is the defaulted spelling of the same destructure.
+ *
+ * ONE wrapper is seen through, not the three `parameterAnnotation` sees through, and the asymmetry
+ * is a fact about the language rather than an omission. `constructor(private { a }: P)` is TS1187 —
+ * a parameter property must name a binding — so `TSParameterProperty` can never hold one of these.
+ * And `(...{ a, b })` destructures the ARGUMENTS ARRAY: its keys are `0`, `1`, `length`, not the
+ * caller's object, so following the rest element would hand a caller a set of names that are not
+ * the parameter's at all.
  */
 export function parameterObjectPattern(
   parameter: ESTree.ParamPattern,
 ): ESTree.ObjectPattern | undefined {
-  if (parameter.type === "TSParameterProperty") return parameterObjectPattern(parameter.parameter);
   if (parameter.type === "AssignmentPattern") return parameterObjectPattern(parameter.left);
-  if (parameter.type === "RestElement") return parameterObjectPattern(parameter.argument);
   return parameter.type === "ObjectPattern" ? parameter : undefined;
 }
 
