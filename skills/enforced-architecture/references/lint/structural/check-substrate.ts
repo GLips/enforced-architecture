@@ -18,6 +18,7 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { relative, resolve } from "node:path";
 import {
   type DeclaredTree,
+  type ValidatedTrees,
   DECLARED_TREES,
   isArchitectureExemptProjectPath,
   isArchitectureExemptSourcePath,
@@ -140,7 +141,7 @@ export type StructuralCheck =
 /** One context per declared tree, in declaration order. */
 export function createTreeContexts(
   config: ArchitectureConfig,
-  trees: readonly DeclaredTree[] = DECLARED_TREES,
+  trees: ValidatedTrees = DECLARED_TREES,
 ): TreeContext[] {
   return trees.map((tree) => createTreeContext(config, tree));
 }

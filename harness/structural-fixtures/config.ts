@@ -22,7 +22,11 @@
 //     probe there.
 
 import { resolve } from "node:path";
-import type { DeclaredTree } from "../../skills/enforced-architecture/references/lint/policy/declared-trees.ts";
+import {
+  declareTrees,
+  type DeclaredTree,
+  type ValidatedTrees,
+} from "../../skills/enforced-architecture/references/lint/policy/declared-trees.ts";
 import {
   RECOMMENDED_VOCABULARY,
   type TreeVocabulary,
@@ -54,10 +58,10 @@ export const PDF_VOCABULARY: TreeVocabulary = {
 export const PDF_TREE: DeclaredTree = { root: "packages/pdf/src", vocabulary: PDF_VOCABULARY };
 
 /** What the suite runs against: one tree, exactly as a single-app project declares. */
-export const DECLARED_FIXTURE_TREES: DeclaredTree[] = [APP_TREE];
+export const DECLARED_FIXTURE_TREES: ValidatedTrees = declareTrees([APP_TREE]);
 
 /** The same project after it adopts the catalog for its second package. */
-export const BOTH_FIXTURE_TREES: DeclaredTree[] = [APP_TREE, PDF_TREE];
+export const BOTH_FIXTURE_TREES: ValidatedTrees = declareTrees([APP_TREE, PDF_TREE]);
 
 /**
  * The POSITIVE CONTROL for the vocabulary half of the probe: the same second
@@ -70,10 +74,10 @@ export const BOTH_FIXTURE_TREES: DeclaredTree[] = [APP_TREE, PDF_TREE];
  * load-bearing: read with the app tree's spelling, `capabilities/` is a
  * top-level directory no grammar claims and topology must report it.
  */
-export const PDF_TREE_MISREAD: DeclaredTree[] = [
+export const PDF_TREE_MISREAD: ValidatedTrees = declareTrees([
   APP_TREE,
   { root: PDF_TREE.root, vocabulary: RECOMMENDED_VOCABULARY },
-];
+]);
 
 export const fixtureConfig: ArchitectureConfig = {
   projectRoot: FIXTURE_TREE,

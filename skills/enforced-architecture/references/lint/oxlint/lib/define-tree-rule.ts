@@ -49,7 +49,12 @@ export function defineTreeRule(definition: TreeRuleDefinition): Rule {
       // The one gate, and the reason `role` is a parameter of the definition's
       // `create` rather than something its body fetches: a rule body never sees
       // the undefined case, so it cannot forget to handle it.
-      const role = classifyFileRole(context.filename);
+      // `context.cwd` is the project root oxlint was invoked from, and a declared
+      // root is spelled relative to it. Without it the only way to find a root in
+      // an absolute path is to search for the segment, and every choice about
+      // which occurrence to take is wrong for some real tree — see
+      // `declaredTreeFor` for the two that were.
+      const role = classifyFileRole(context.filename, context.cwd);
       if (role === undefined) return {};
       return definition.create(context, role);
     },

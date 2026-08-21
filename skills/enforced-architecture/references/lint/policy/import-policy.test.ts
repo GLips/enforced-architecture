@@ -59,6 +59,7 @@ import {
 import {
   assertDistinctDeclaredRoots,
   classifyFileRole,
+  declareTrees,
   declaredTreeFor,
   type DeclaredTree,
 } from "./declared-trees.ts";
@@ -67,6 +68,11 @@ import {
 // cases spell the recommended one, because the rows are the recommended layout;
 // the two-tree cases at the bottom are where a SECOND vocabulary is exercised.
 const VOCABULARY = RECOMMENDED_VOCABULARY;
+
+// The project root every absolute fixture path below is written under. A declared
+// root is project-relative, so the resolver is given this rather than left to find
+// a root inside the path — see `declaredTreeFor`.
+const PROJECT_ROOT = "/repo";
 
 // node:test's `describe` and `it` hand back the suite's promise, and the runner
 // owns and awaits the suite it created. Discarding the handle is correct rather
@@ -600,11 +606,11 @@ const TWO_TREES: DeclaredTree[] = [APP_TREE, PDF_TREE];
 
 describeSuite("resolving a file into the tree that owns it", () => {
   testCase("a file resolves to its own tree, with a path from THAT tree's root", () => {
-    assert.deepEqual(declaredTreeFor("/repo/apps/web/src/features/billing/ui/panel.tsx", TWO_TREES), {
+    assert.deepEqual(declaredTreeFor(PROJECT_ROOT + "/apps/web/src/features/billing/ui/panel.tsx", PROJECT_ROOT, TWO_TREES), {
       tree: APP_TREE,
       sourcePath: "features/billing/ui/panel.tsx",
     });
-    assert.deepEqual(declaredTreeFor("/repo/packages/pdf/src/capabilities/render/ui/page.ts", TWO_TREES), {
+    assert.deepEqual(declaredTreeFor(PROJECT_ROOT + "/packages/pdf/src/capabilities/render/ui/page.ts", PROJECT_ROOT, TWO_TREES), {
       tree: PDF_TREE,
       sourcePath: "capabilities/render/ui/page.ts",
     });
@@ -614,63 +620,82 @@ describeSuite("resolving a file into the tree that owns it", () => {
     // `capabilities/` is this tree's features directory and `features/` is not.
     // Under the app tree's vocabulary both answers invert, which is what makes
     // this pair a test of the resolution rather than of the classifier.
-    const role = classifyFileRole("/repo/packages/pdf/src/capabilities/render/ui/page.ts", TWO_TREES);
+    const role = classifyFileRole(PROJECT_ROOT + "/packages/pdf/src/capabilities/render/ui/page.ts", PROJECT_ROOT, TWO_TREES);
     assert.equal(role?.place?.profile, "feature-ui");
     // The unit carries the tree's OWN directory name, which is the second half
     // of reading with its vocabulary: nothing downstream has to re-derive it.
     assert.equal(role?.place?.unit, "capabilities/render");
 
-    const asAppTreeWouldRead = classifyFileRole("/repo/packages/pdf/src/features/render/ui/page.ts", TWO_TREES);
+    const asAppTreeWouldRead = classifyFileRole(PROJECT_ROOT + "/packages/pdf/src/features/render/ui/page.ts", PROJECT_ROOT, TWO_TREES);
     assert.equal(asAppTreeWouldRead?.place, undefined);
   });
 
   testCase("an undeclared sibling is in no tree at all, which is the whole of the scoping claim", () => {
-    assert.equal(declaredTreeFor("/repo/packages/cli/src/features/billing/ui/panel.tsx", TWO_TREES), undefined);
-    assert.equal(classifyFileRole("/repo/packages/cli/src/features/billing/ui/panel.tsx", TWO_TREES), undefined);
+    assert.equal(declaredTreeFor(PROJECT_ROOT + "/packages/cli/src/features/billing/ui/panel.tsx", PROJECT_ROOT, TWO_TREES), undefined);
+    assert.equal(classifyFileRole(PROJECT_ROOT + "/packages/cli/src/features/billing/ui/panel.tsx", PROJECT_ROOT, TWO_TREES), undefined);
   });
 
   testCase("declaring the sibling is the only thing that turns it on", () => {
     const declared: DeclaredTree[] = [...TWO_TREES, { root: "packages/cli/src", vocabulary: RECOMMENDED_VOCABULARY }];
-    const role = classifyFileRole("/repo/packages/cli/src/features/billing/ui/panel.tsx", declared);
+    const role = classifyFileRole(PROJECT_ROOT + "/packages/cli/src/features/billing/ui/panel.tsx", PROJECT_ROOT, declared);
     assert.equal(role?.place?.profile, "feature-ui");
   });
 
   testCase("the most specific root wins, so a bare root does not swallow a nested one", () => {
     const nested: DeclaredTree[] = [{ root: "src", vocabulary: RECOMMENDED_VOCABULARY }, APP_TREE];
-    assert.equal(declaredTreeFor("/repo/apps/web/src/features/billing/ui/panel.tsx", nested)?.tree, APP_TREE);
+    assert.equal(declaredTreeFor(PROJECT_ROOT + "/apps/web/src/features/billing/ui/panel.tsx", PROJECT_ROOT, nested)?.tree, APP_TREE);
   });
 
+  // The two paths that defeated searching the absolute path for the root's
+  // segment. Neither choice of occurrence answers both: taking the FIRST breaks
+  // the checkout, taking the LAST breaks the nested directory. Only measuring
+  // from the project root answers both, and both are pinned because a fix for one
+  // that reintroduces the other reads as green.
   testCase("a checkout living under a directory called src is not mistaken for the tree", () => {
-    // ONE tree, and the root name appears twice in the path. The LAST occurrence
-    // is the tree; the first is somebody's home directory. Reading the first
-    // gives every file a sourcePath with the repo name still on the front, which
-    // classifies as nothing and reports the whole tree as unclassified.
     const single: DeclaredTree[] = [{ root: "src", vocabulary: RECOMMENDED_VOCABULARY }];
-    assert.deepEqual(declaredTreeFor("/home/me/src/repo/src/features/billing/ui/panel.tsx", single), {
-      tree: single[0],
-      sourcePath: "features/billing/ui/panel.tsx",
-    });
+    assert.deepEqual(
+      declaredTreeFor("/home/me/src/repo/src/features/billing/ui/panel.tsx", "/home/me/src/repo", single),
+      { tree: single[0], sourcePath: "features/billing/ui/panel.tsx" },
+    );
   });
 
-  testCase("two roots ending at the same offset are broken by the longer declaration", () => {
-    // `src` and `apps/web/src` both end at the same character here, so the depth
-    // comparison cannot separate them and only the tie-break can.
+  testCase("a directory called src nested INSIDE the tree is an ordinary directory", () => {
+    // The `lastIndexOf` version resolved this to the source-root module
+    // `helper.ts`, so the oxlint tier read a feature's service file as a root
+    // entrypoint while the structural tier, which measures from the root it was
+    // given, read it correctly — one file, two positions, two policies.
+    const single: DeclaredTree[] = [{ root: "src", vocabulary: RECOMMENDED_VOCABULARY }];
+    assert.deepEqual(
+      declaredTreeFor(PROJECT_ROOT + "/src/features/billing/service/src/helper.ts", PROJECT_ROOT, single),
+      { tree: single[0], sourcePath: "features/billing/service/src/helper.ts" },
+    );
+  });
+
+  testCase("a file outside the project root is in no tree, whatever its path spells", () => {
+    const single: DeclaredTree[] = [{ root: "src", vocabulary: RECOMMENDED_VOCABULARY }];
+    assert.equal(
+      declaredTreeFor("/elsewhere/src/features/billing/ui/panel.tsx", PROJECT_ROOT, single),
+      undefined,
+    );
+  });
+
+  testCase("the longest declaration that prefixes the path wins", () => {
     const nested: DeclaredTree[] = [{ root: "src", vocabulary: RECOMMENDED_VOCABULARY }, APP_TREE];
-    assert.deepEqual(declaredTreeFor("/repo/apps/web/src/features/billing/ui/panel.tsx", nested), {
+    assert.deepEqual(declaredTreeFor(PROJECT_ROOT + "/apps/web/src/features/billing/ui/panel.tsx", PROJECT_ROOT, nested), {
       tree: APP_TREE,
       sourcePath: "features/billing/ui/panel.tsx",
     });
   });
 
   testCase("a position inside a declared tree that no profile claims is loud, not silent", () => {
-    const role = classifyFileRole("/repo/packages/pdf/src/lib/stray.ts", TWO_TREES);
+    const role = classifyFileRole(PROJECT_ROOT + "/packages/pdf/src/lib/stray.ts", PROJECT_ROOT, TWO_TREES);
     assert.notEqual(role, undefined);
     assert.equal(role?.place, undefined);
   });
 
   testCase("an architecture-exempt file inside a declared tree has no subject", () => {
-    assert.equal(classifyFileRole("/repo/apps/web/src/features/billing/ui/panel.test.tsx", TWO_TREES), undefined);
-    assert.equal(classifyFileRole("/repo/apps/web/src/scripts/backfill.ts", TWO_TREES), undefined);
+    assert.equal(classifyFileRole(PROJECT_ROOT + "/apps/web/src/features/billing/ui/panel.test.tsx", PROJECT_ROOT, TWO_TREES), undefined);
+    assert.equal(classifyFileRole(PROJECT_ROOT + "/apps/web/src/scripts/backfill.ts", PROJECT_ROOT, TWO_TREES), undefined);
   });
 });
 
@@ -771,6 +796,40 @@ describeSuite("a vocabulary cannot declare its own tree out of existence", () =>
   testCase("a name that is a path is not a name", () => {
     const path: TreeVocabulary = { ...RECOMMENDED_VOCABULARY, sharedUiSubdir: "ui/primitives" };
     assert.throws(() => assertGoverningVocabulary(path, "src"), /not a single path segment/);
+  });
+
+  // Syntactically perfect names that make a governed position architecture-exempt.
+  // Every one of these passed `assertGoverningVocabulary`, and every representative
+  // file then came back undefined from `classifyFileRole` — the position named in
+  // the vocabulary as policed and silent in both tiers. `declareTrees` is the
+  // caller under test, because the point is that DECLARING a tree is what holds a
+  // vocabulary to this.
+  for (const [label, vocabulary] of [
+    ["a features directory called scripts", { ...RECOMMENDED_VOCABULARY, featuresDir: "scripts" }],
+    ["a features directory called test", { ...RECOMMENDED_VOCABULARY, featuresDir: "test" }],
+    ["a routes directory called __tests__", { ...RECOMMENDED_VOCABULARY, routesDir: "__tests__" }],
+    [
+      "a service layer called scripts",
+      {
+        ...RECOMMENDED_VOCABULARY,
+        featureLayerDirs: { ...RECOMMENDED_VOCABULARY.featureLayerDirs, service: "scripts" },
+      },
+    ],
+    ["a server suffix of .test", { ...RECOMMENDED_VOCABULARY, serverModuleSuffix: ".test" }],
+    ["a server suffix of .gen", { ...RECOMMENDED_VOCABULARY, serverModuleSuffix: ".gen" }],
+    ["a server suffix of .d", { ...RECOMMENDED_VOCABULARY, serverModuleSuffix: ".d" }],
+    ["a client barrel called index.d", { ...RECOMMENDED_VOCABULARY, clientBarrelModule: "index.d" }],
+  ] as [string, TreeVocabulary][]) {
+    testCase(`${label} exempts a governed position from every rule`, () => {
+      assert.throws(
+        () => declareTrees([{ root: "src", vocabulary }]),
+        /architecture-exempt/,
+      );
+    });
+  }
+
+  testCase("declaring the recommended vocabulary is accepted by the factory too", () => {
+    assert.doesNotThrow(() => declareTrees([{ root: "src", vocabulary: RECOMMENDED_VOCABULARY }]));
   });
 
   testCase("one root declared twice is governed by one vocabulary and checked by two", () => {

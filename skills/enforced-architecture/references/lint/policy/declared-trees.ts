@@ -17,21 +17,25 @@
 //
 // One entry per tree the catalog governs. A single-app repo declares one:
 //
-//   export const DECLARED_TREES: DeclaredTree[] = [
+//   export const DECLARED_TREES: ValidatedTrees = declareTrees([
 //     { root: "src", vocabulary: RECOMMENDED_VOCABULARY },
-//   ];
+//   ]);
 //
 // A monorepo declares one per governed source root, and each carries its OWN
 // vocabulary — the app may layer features while a package spells its adapters
 // differently:
 //
-//   export const DECLARED_TREES: DeclaredTree[] = [
+//   export const DECLARED_TREES: ValidatedTrees = declareTrees([
 //     { root: "apps/web/src", vocabulary: RECOMMENDED_VOCABULARY },
 //     {
 //       root: "packages/core/src",
 //       vocabulary: { ...RECOMMENDED_VOCABULARY, infrastructureDir: "db" },
 //     },
-//   ];
+//   ]);
+//
+// `declareTrees` is not decoration: it validates each vocabulary and brands the
+// list, and every consumer takes the branded type — so a declaration that skips
+// it does not compile.
 //
 // The vocabulary is names and numbers only — see `TreeVocabulary`. What a tree
 // cannot declare is which INVARIANTS apply to it: there is no per-tree rule list
@@ -47,6 +51,10 @@
 
 import {
   assertGoverningVocabulary,
+  rootRouteModule,
+  sharedUiDir,
+  themeModule,
+  topLevelDirsByField,
   barrelModules,
   classifySourcePath,
   isServerModule,
@@ -60,33 +68,157 @@ import {
 
 export type DeclaredTree = {
   /**
-   * The tree's source root, project-relative, with no trailing slash:
+   * The tree's source root, PROJECT-RELATIVE, with no trailing slash:
    * `src`, `apps/web/src`, `packages/core/src`.
    *
-   * The oxlint tier is handed an ABSOLUTE filename and has no project root to
-   * measure against, so a file is matched to a tree by finding this path as a
-   * run of whole segments — which is why a multi-segment root is worth
-   * declaring even when its last segment would be unique. `apps/web/src` and
-   * `packages/core/src` are distinguishable; two roots both declared as `src`
-   * are not, and the classifier cannot invent the difference.
+   * Both tiers measure a file from the project root before comparing it against
+   * this — `context.cwd` in the oxlint tier, `config.projectRoot` in the
+   * structural one. A multi-segment root is therefore exact rather than a
+   * disambiguating hint: `apps/web/src` and `packages/core/src` name two
+   * directories, and neither can be confused with a `src` nested inside a
+   * feature.
    */
   root: string;
   vocabulary: TreeVocabulary;
 };
 
+// The naming conventions the exemption reads, hoisted above the tree list
+// below: `declareTrees` validates at module load and walks the exemption
+// predicate to do it, so these have to be initialised before it runs.
+/**
+ * The suffix that makes a module a TEST, with the extension already gone.
+ *
+ * ONE owner, and it has to be: `naming/test-file-mirror` reads this same
+ * constant to decide what it is auditing. While that check carried its own
+ * configurable `testSuffixes`, a project could bless a spelling the catalog-wide
+ * exemption did not recognise — the file was a test to one owner and ordinary
+ * application source to every rule in both tiers.
+ *
+ * Not vocabulary. `.test`, `.gen` and `.d` are naming facts the ecosystem
+ * already agrees on, in the same sense `.ts` is; changing one is a change to
+ * this catalog. The off-convention branch of `naming/test-file-mirror` exists to
+ * steer a project that spells tests some other way toward this one.
+ */
+export const TEST_MODULE_SUFFIX = ".test";
+
+/**
+ * What a file's name says about who wrote it, with the extension already gone:
+ * `.gen` is generated, `.d` is an ambient declaration.
+ *
+ * A closed list of conventions, not an adopter's exemption list — each entry is
+ * a naming fact the whole ecosystem already agrees on, and adding to it is a
+ * change to this catalog rather than a knob a project turns.
+ *
+ * `TEST_MODULE_SUFFIX` is deliberately not here: it is the one exemption a check
+ * can be the subject of, so it is asked separately.
+ */
+const UNAUTHORED_MODULE_SUFFIXES = [".gen", ".d"];
+
+declare const VALIDATED_DECLARATION: unique symbol;
+
+/**
+ * A tree list that has been through `declareTrees`, and the type every consumer
+ * of the shipped list takes.
+ *
+ * The brand exists because the validation was DELETABLE-GREEN. The checks used to
+ * be two loose statements below the list, and a review deleted them and ran the
+ * whole suite: 50/50 oxlint specs and 16/16 structural checks, exit 0 — because
+ * every malformed-vocabulary case calls `assertGoverningVocabulary` directly and
+ * none of them proves that the declaration itself is held to it. There is no
+ * assertion that fixes that, only a shape: an unvalidated array literal is not
+ * assignable here, so removing the factory call is a compile error rather than a
+ * green run.
+ */
+export type ValidatedTrees = readonly (DeclaredTree & {
+  readonly [VALIDATED_DECLARATION]: true;
+})[];
+
 /**
  * The trees this project has adopted the catalog for. Edit this list; do not
  * edit a rule.
  */
-export const DECLARED_TREES: DeclaredTree[] = [
+export const DECLARED_TREES: ValidatedTrees = declareTrees([
   { root: "src", vocabulary: RECOMMENDED_VOCABULARY },
-];
+]);
 
-// Checked at MODULE LOAD, so a project whose vocabulary would silence its own
-// tree fails on the first import of this file rather than reporting clean
-// forever. A harness assertion would cover this repo's list and no adopter's.
-for (const tree of DECLARED_TREES) assertGoverningVocabulary(tree.vocabulary, tree.root);
-assertDistinctDeclaredRoots(DECLARED_TREES);
+/**
+ * Validates a tree list at the point of DECLARATION and brands it, which is the
+ * only way a consumer can be sure the list it was handed was checked.
+ *
+ * Called at module load for the shipped list, so a project whose vocabulary would
+ * silence its own tree fails on the first import of this file rather than
+ * reporting clean forever. A harness assertion would cover this repo's list and
+ * no adopter's.
+ */
+export function declareTrees(trees: readonly DeclaredTree[]): ValidatedTrees {
+  for (const tree of trees) {
+    assertGoverningVocabulary(tree.vocabulary, tree.root);
+    assertGovernedPositionsAreNotExempt(tree.vocabulary, tree.root);
+  }
+  assertDistinctDeclaredRoots(trees);
+  return trees as ValidatedTrees;
+}
+
+/**
+ * Rejects a vocabulary whose own names make a governed position architecture-exempt.
+ *
+ * `assertGoverningVocabulary` checks SYNTAX — one segment, no glob, no extension —
+ * and a review walked straight past it with names that are syntactically perfect
+ * and semantically fatal: `featuresDir: "scripts"`, `featuresDir: "test"`, a
+ * service layer called `scripts`, `serverModuleSuffix: ".test"` / `".gen"` /
+ * `".d"`. Every one passed validation, and every representative file then came
+ * back `undefined` from `classifyFileRole` — the position spelled in the
+ * vocabulary as governed, exempt from every rule in the catalog, with nothing
+ * saying so.
+ *
+ * The test is a REPRESENTATIVE PATH through the real predicate rather than a list
+ * of reserved words. A reserved-word list is a second copy of the exemption
+ * conventions and would drift from `isExemptByFileName` the first time either
+ * moved; building the path this vocabulary implies and asking the one owner
+ * cannot.
+ *
+ * NEGATIVE SPACE: `generatedDir` is deliberately absent. It is exempt on purpose,
+ * and that exemption is bounded by the collision check in
+ * `assertGoverningVocabulary` instead.
+ *
+ * `extraSourceRootModules` and `extraFeatureRootModules` are absent for a
+ * different reason: they PERMIT a file at a position rather than govern one, and
+ * the recommended vocabulary lists `routeTree.gen` — a file whose own name makes
+ * it exempt whether or not it is declared. Nothing is silenced by naming it.
+ */
+function assertGovernedPositionsAreNotExempt(vocabulary: TreeVocabulary, treeRoot: string): void {
+  const unit = `${vocabulary.featuresDir}/alpha`;
+  const layerPaths = Object.entries(vocabulary.featureLayerDirs).map(
+    ([role, dir]) => [`featureLayerDirs.${role}`, `${unit}/${dir}/module.ts`] as const,
+  );
+
+  const positions: (readonly [string, string])[] = [
+    ...Object.entries(topLevelDirsByField(vocabulary)).map(
+      ([field, dir]) => [field, `${dir}/module.ts`] as const,
+    ),
+    ...layerPaths,
+    ["sharedUiSubdir", `${sharedUiDir(vocabulary)}/Button.tsx`],
+    ["clientBarrelModule", `${unit}/${vocabulary.clientBarrelModule}.ts`],
+    ["serverBarrelModule", `${unit}/${vocabulary.serverBarrelModule}.ts`],
+    // The suffix is the one entry that is not a position: it is spliced onto an
+    // ordinary module name, so a suffix that reads as an exemption takes every
+    // server-only module in the tree out of the catalog at once.
+    ["serverModuleSuffix", `${unit}/charge${vocabulary.serverModuleSuffix}.ts`],
+    ["themeModuleName", `${themeModule(vocabulary)}.ts`],
+    ["rootRouteName", `${rootRouteModule(vocabulary)}.tsx`],
+  ];
+
+  for (const [field, path] of positions) {
+    if (!isArchitectureExemptSourcePath(vocabulary, path)) continue;
+    throw new Error(
+      `The tree at "${treeRoot}" spells ${field} such that "${path}" is architecture-exempt — ` +
+        `it reads as a test, a script, or generated output. That position is silent in both ` +
+        `tiers while still being named in the vocabulary as though it were policed, which is ` +
+        `exactly the undeclared-tree failure one level down. Pick a name the exemption ` +
+        `conventions do not claim.`,
+    );
+  }
+}
 
 /**
  * Rejects a list that declares one root twice.
@@ -264,35 +396,6 @@ export function isArchitectureExemptProjectPath(
 }
 
 /**
- * The suffix that makes a module a TEST, with the extension already gone.
- *
- * ONE owner, and it has to be: `naming/test-file-mirror` reads this same
- * constant to decide what it is auditing. While that check carried its own
- * configurable `testSuffixes`, a project could bless a spelling the catalog-wide
- * exemption did not recognise — the file was a test to one owner and ordinary
- * application source to every rule in both tiers.
- *
- * Not vocabulary. `.test`, `.gen` and `.d` are naming facts the ecosystem
- * already agrees on, in the same sense `.ts` is; changing one is a change to
- * this catalog. The off-convention branch of `naming/test-file-mirror` exists to
- * steer a project that spells tests some other way toward this one.
- */
-export const TEST_MODULE_SUFFIX = ".test";
-
-/**
- * What a file's name says about who wrote it, with the extension already gone:
- * `.gen` is generated, `.d` is an ambient declaration.
- *
- * A closed list of conventions, not an adopter's exemption list — each entry is
- * a naming fact the whole ecosystem already agrees on, and adding to it is a
- * change to this catalog rather than a knob a project turns.
- *
- * `TEST_MODULE_SUFFIX` is deliberately not here: it is the one exemption a check
- * can be the subject of, so it is asked separately.
- */
-const UNAUTHORED_MODULE_SUFFIXES = [".gen", ".d"];
-
-/**
  * True when a path sits in a test directory: `__tests__` anywhere, or the
  * cross-cutting `test/` directory at the root of the frame.
  *
@@ -352,38 +455,45 @@ export type FileRole = {
 /**
  * The declared tree a file sits in, and its path from that tree's root.
  *
+ * A declared root is project-relative, so this needs the PROJECT ROOT to read
+ * one: `projectRoot` is `context.cwd` in the oxlint tier and `config.projectRoot`
+ * in the structural one, and the file is made project-relative before any root is
+ * compared. There is no version of this that works without it — a review searched
+ * the absolute path for `/${root}/` instead, and every choice about which
+ * occurrence to take is wrong for some real tree. Taking the FIRST breaks a
+ * checkout under a directory called `src` (`/home/me/src/repo/src/...`). Taking
+ * the LAST breaks a legitimately nested one: with `src` declared,
+ * `/repo/src/features/billing/service/src/helper.ts` resolved to the source-root
+ * module `helper.ts`, so the two tiers gave the same file different positions and
+ * different policies.
+ *
  * The most specific root wins: with `src` and `apps/web/src` both declared, a
- * file under the latter belongs to the latter. Ties on depth are broken by the
- * longer declaration, so a root declared with its disambiguating segments always
- * beats a bare one.
+ * file under the latter belongs to the latter. Roots are canonical and
+ * duplicate-free (`assertDistinctDeclaredRoots`), so "longest declaration that
+ * prefixes this path" is unambiguous.
  *
  * Undefined means the file is in no declared tree — which is a real answer and
- * the one that makes the whole catalog silent there.
+ * the one that makes the whole catalog silent there. A file outside the project
+ * root entirely is the same answer for the same reason.
  */
 export function declaredTreeFor(
   absolutePath: string,
+  projectRoot: string,
   trees: readonly DeclaredTree[] = DECLARED_TREES,
 ): { tree: DeclaredTree; sourcePath: string } | undefined {
-  let best: { tree: DeclaredTree; sourcePath: string; end: number } | undefined;
+  const prefix = projectRoot.endsWith("/") ? projectRoot : `${projectRoot}/`;
+  if (!absolutePath.startsWith(prefix)) return undefined;
+  const projectPath = absolutePath.slice(prefix.length);
 
+  let best: { tree: DeclaredTree; sourcePath: string } | undefined;
   for (const tree of trees) {
-    const marker = `/${tree.root}/`;
-    // The LAST occurrence: a checkout living under a directory called `src` is
-    // far more likely than an application directory called `src` nested inside
-    // one.
-    const at = absolutePath.lastIndexOf(marker);
-    if (at === -1) continue;
-    const end = at + marker.length;
-    if (
-      best === undefined ||
-      end > best.end ||
-      (end === best.end && tree.root.length > best.tree.root.length)
-    ) {
-      best = { tree, sourcePath: absolutePath.slice(end), end };
+    const marker = `${tree.root}/`;
+    if (!projectPath.startsWith(marker)) continue;
+    if (best === undefined || tree.root.length > best.tree.root.length) {
+      best = { tree, sourcePath: projectPath.slice(marker.length) };
     }
   }
-
-  return best === undefined ? undefined : { tree: best.tree, sourcePath: best.sourcePath };
+  return best;
 }
 
 /**
@@ -401,9 +511,10 @@ export function declaredTreeFor(
  */
 export function classifyFileRole(
   absolutePath: string,
+  projectRoot: string,
   trees: readonly DeclaredTree[] = DECLARED_TREES,
 ): FileRole | undefined {
-  const found = declaredTreeFor(absolutePath, trees);
+  const found = declaredTreeFor(absolutePath, projectRoot, trees);
   if (found === undefined) return undefined;
   if (isArchitectureExemptSourcePath(found.tree.vocabulary, found.sourcePath)) return undefined;
   return {

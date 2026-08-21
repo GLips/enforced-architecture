@@ -41,9 +41,16 @@ export function describeRule(
     }
   }
 
+  // Every spec filename in this catalog is written under `/repo`, so `/repo` is the project root
+  // the rules resolve declared trees against. This has to be stated rather than defaulted:
+  // RuleTester's default cwd is the directory holding the spec file, which is inside this
+  // repository — under that root no `/repo/src/...` filename is in any declared tree, every
+  // tree-scoped rule returns early, and all 50 specs go green on zero coverage.
+  const SPEC_PROJECT_ROOT = "/repo";
+
   // Three `run` calls rather than one, so the reporter names which kind failed. Each needs both
   // keys present — RuleTester rejects a scenario object missing either.
-  const tester = new RuleTester();
+  const tester = new RuleTester({ cwd: SPEC_PROJECT_ROOT });
   tester.run(`${ruleId} (obvious)`, rule, { valid: [], invalid: cases.obvious });
   tester.run(`${ruleId} (adversarial)`, rule, { valid: [], invalid: cases.adversarial });
   tester.run(`${ruleId} (legal)`, rule, { valid: cases.legal, invalid: [] });
