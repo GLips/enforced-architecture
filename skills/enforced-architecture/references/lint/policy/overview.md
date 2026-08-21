@@ -44,10 +44,15 @@ argument runs through the layer roles: a tree may RENAME `service/` in its vocab
 string, but adding a layer means adding a role to `FEATURE_LAYER_ROLES`, and every row of the table
 then fails to compile until the new cells are decided.
 
-**A tree you did not declare is a tree you did not adopt for.** Both tiers are silent outside every
-root in `declared-trees.ts` — no findings, no "unclassified" diagnostic — and that silence is not
-coverage. The file's own header says it, and a project's setup notes have to say it too, because an
-undeclared package reads exactly like a clean one.
+**A tree you did not declare is a tree you did not adopt for.** Every tree-scoped rule in both tiers
+is silent outside every root in `declared-trees.ts` — no findings, no "unclassified" diagnostic —
+and that silence is not coverage. The file's own header says it, and a project's setup notes have to
+say it too, because an undeclared package reads exactly like a clean one.
+
+Three checks are not tree-scoped and do run there: `testing/no-module-mocking`, whose subject is a
+test file and which is therefore global, and the two project-scoped structural checks
+`health/file-size` and `health/doc-budgets`, which walk their own configured roots. None of them
+says anything about architecture, so the claim above holds for everything this directory owns.
 
 ## There is a second path classifier, and which one to reach for
 

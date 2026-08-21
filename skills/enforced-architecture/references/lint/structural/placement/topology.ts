@@ -121,9 +121,9 @@ export const topologyCheck: StructuralCheck = {
             `The files that belong there are: ${allowedRootFiles.join(", ")}.\n` +
             `Move this under one of the layers — ${layers} — into whichever one's job it\n` +
             `is doing. If it genuinely is an entrypoint or an env module, add its name to\n` +
-            `this tree's \`extraSourceRootModules\` in lint/policy/layout.ts — which is what\n` +
-            `\`sourceRootModules()\` adds to the env modules, and what the import policy\n` +
-            `reads too.`,
+            `this tree's \`extraSourceRootModules\` where the tree is declared, in\n` +
+            `lint/policy/declared-trees.ts — which is what \`sourceRootModules()\` adds to\n` +
+            `the env modules, and what the import policy reads too.`,
         );
         continue;
       }
@@ -174,8 +174,9 @@ export const topologyCheck: StructuralCheck = {
             `${root}/${name}/ holds ${grammar.rootFiles.join(", ")} and nothing else.\n` +
             `Move this into ${boundaryLayers} — whichever layer's job it is doing.\n` +
             `If every ${root} boundary needs a file by this name, it goes in this tree's\n` +
-            `\`extraFeatureRootModules\` in lint/policy/layout.ts, which is what\n` +
-            `\`featureRootModules()\` adds to the two barrels.`,
+            `\`extraFeatureRootModules\` where the tree is declared, in\n` +
+            `lint/policy/declared-trees.ts, which is what \`featureRootModules()\` adds to\n` +
+            `the two barrels.`,
         );
         continue;
       }

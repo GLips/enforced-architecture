@@ -38,10 +38,18 @@ each tier can only see its own.
 ### Declare every tree, and know what an undeclared one costs
 
 `DECLARED_TREES` is a list of source roots. **A tree you did not declare is a tree you did not adopt
-for.** Every rule in this catalog — both tiers — is *silent* outside every declared tree: no
-findings, no warnings, no "unclassified" diagnostic. That silence is not coverage. A repo that adds
-`packages/reporting/` and forgets this file has added an unpoliced tree, and a clean run over it
-looks exactly like a clean run over a governed one.
+for.** Every TREE-SCOPED rule in this catalog — both tiers — is *silent* outside every declared
+tree: no findings, no warnings, no "unclassified" diagnostic. That silence is not coverage. A repo
+that adds `packages/reporting/` and forgets this file has added an unpoliced tree, and a clean run
+over it looks exactly like a clean run over a governed one.
+
+Three checks are deliberately not tree-scoped, and naming them is part of stating the silence
+honestly rather than a loophole in it. `testing/no-module-mocking` is enabled globally because its
+subject is a test file, which `classifyFileRole` reports as no subject at all — including the
+repo-root `test/` directory this catalog treats as a first-class convention. `health/file-size` and
+`health/doc-budgets` are project-scoped: file size and doc weight are questions about anything a
+human maintains, so they walk their own configured roots. None of the three says anything about
+architecture, so an undeclared package is still architecturally ungoverned.
 
 So the declaration list is the adoption decision, and it is the only place the answer lives:
 

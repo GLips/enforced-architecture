@@ -50,11 +50,12 @@ import {
  * this says reads `edge.target`, which is the resolved path — see the note on
  * that field.
  *
- * A tree that gave `featuresDir` and `domainsDir` the same spelling gets
- * `feature`, because features are tested first. That is one directory claiming
- * to be two subdivisions, and nothing here rejects it: `graph/domain-cycles` and
- * every other domain rule would simply go quiet, which is silence rather than
- * coverage.
+ * Features are tested before domains, so a tree that gave `featuresDir` and
+ * `domainsDir` the same spelling would classify every domain as a feature and
+ * take every domain rule quiet. That vocabulary cannot be declared —
+ * `assertGoverningVocabulary` refuses a name collision among the top-level
+ * positions, for exactly this reason — so the order here is an implementation
+ * detail rather than a hole.
  */
 export type Classification =
   | {

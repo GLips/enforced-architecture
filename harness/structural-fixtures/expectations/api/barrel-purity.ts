@@ -34,6 +34,12 @@ export const barrelPurityFixtures: CheckFixtures = {
     // boundary test are satisfied and no boundary is crossed — a review used
     // exactly this to suppress the reachable `postgres` finding with a green run.
     "FAIL src/features/impostor/index.ts",
+    // The boundary SHADOWED: the framework import is real and unused, and the
+    // call that runs is a parameter of the same name. Reading the import clause
+    // and then accepting any same-named call anywhere in the file treats this as
+    // a boundary and stops. This tier has no parser, so scope is approximated
+    // one-sidedly — see `rebindsName`.
+    "FAIL src/features/shadow/index.ts",
   ],
 
   legal: [

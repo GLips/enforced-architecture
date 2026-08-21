@@ -156,9 +156,43 @@ function crossesServerFnBoundary(
   // interpolating a call name into a matcher sound. The MODULE is compared as a
   // plain string rather than matched, so it needs no escaping and no validation
   // beyond being nonempty.
-  return boundaryBindingsIn(source, boundary).some((local) =>
-    new RegExp(String.raw`\b${local}\s*\(`).test(source),
+  const bodyOfFile = source.replace(IMPORT_CLAUSE, "");
+  return boundaryBindingsIn(source, boundary).some(
+    (local) =>
+      !rebindsName(bodyOfFile, local) && new RegExp(String.raw`\b${local}\s*\(`).test(bodyOfFile),
   );
+}
+
+/**
+ * True when `body` declares `local` itself — so a call of that name might be the
+ * file's own binding rather than the imported one.
+ *
+ * This tier has no parser. Bun's transpiler hands back specifiers, not an AST,
+ * and TypeScript 7 ships its AST behind an `unstable/` entry point that a copied
+ * template must not depend on. So scope is approximated, and the approximation is
+ * deliberately one-sided: ANY local declaration or parameter of the name makes
+ * the file not-a-boundary, which keeps the trace going. A review shadowed the
+ * imported name with a function parameter — `function settleWith(createServerFn:
+ * …)` — and the version without this accepted the shadowed call as a boundary and
+ * suppressed a reachable `postgres` finding.
+ *
+ * Being one-sided is what makes it sound without a parser: the cost of a false
+ * positive here is a chain that gets traced and possibly reported, which is the
+ * over-report this check already names in its header. The cost of a false
+ * negative is a server-only package in the client bundle and a green run.
+ *
+ * NEGATIVE SPACE: passing the binding as an ARGUMENT (`register(createServerFn)`)
+ * reads as a parameter position to this and takes the file out of the boundary,
+ * for the same one-sided reason.
+ */
+function rebindsName(body: string, local: string): boolean {
+  // A namespace binding is spelled `RS\.createServerFn` here, and a member
+  // expression is never a declaration — only the namespace object could be
+  // rebound, and it is checked as its own name.
+  const [head] = local.split("\\.");
+  return new RegExp(
+    String.raw`\b(?:function|const|let|var|class)\s+${head}\b|[(,]\s*${head}\s*[:,)=]`,
+  ).test(body);
 }
 
 /**
@@ -175,6 +209,10 @@ function crossesServerFnBoundary(
  * A namespace import is read too — `import * as RS` makes the boundary
  * `RS.createServerFn` — because a file that imports the module that way and calls
  * through it has crossed exactly the same boundary.
+ *
+ * This reads the import CLAUSE only. Whether the name it binds is the one
+ * actually called is `rebindsName`'s question, and the two together are what
+ * make this a claim about a binding rather than about two words.
  *
  * NEGATIVE SPACE: a binding that arrives through a LOCAL re-export
  * (`export { createServerFn } from "@tanstack/react-start"` in a sibling, then

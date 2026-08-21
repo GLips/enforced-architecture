@@ -108,7 +108,7 @@ Keep the plan's rule section lean — one table, not a copy of template content.
 
 A rule that looks unnecessary is usually a rule whose subject this tree does not have yet — it is silent until the tree grows one, which is the point of taking it now. When a rule's subject genuinely lives somewhere this project does not own, the answer is to say *where it lives* rather than to leave the rule out.
 
-**Every governed tree goes in `lint/policy/declared-trees.ts`, and a tree left off it is enforced by nothing** — both tiers, no findings, no diagnostic. Record the list in the plan, and record what is deliberately outside it, because an undeclared package reads exactly like a clean one. Note too that nothing in either tier reports an import from one declared tree into another.
+**Every governed tree goes in `lint/policy/declared-trees.ts`, and a tree left off it is enforced by almost nothing** — every tree-scoped rule in both tiers is silent there: no findings, no diagnostic. Three checks are not tree-scoped and do still run over an undeclared package: `testing/no-module-mocking` (its subject is a test file, so it is enabled globally) and the two project-scoped structural checks, `health/file-size` and `health/doc-budgets`, which walk their own configured roots. Architecturally, an undeclared package is ungoverned. Record the list in the plan, and record what is deliberately outside it, because an undeclared package reads exactly like a clean one. Note too that nothing in either tier reports an import from one declared tree into another.
 
 **Done when:** Every catalog rule is registered and switched on, and every one that needed repointing records what it was repointed at.
 

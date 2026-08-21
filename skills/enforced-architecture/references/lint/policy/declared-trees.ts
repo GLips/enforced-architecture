@@ -50,7 +50,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import {
+  apiClientModule,
   assertGoverningVocabulary,
+  browserStorageModule,
+  dbDir,
+  dbSchemaPath,
   rootRouteModule,
   sharedUiDir,
   themeModule,
@@ -128,10 +132,15 @@ declare const VALIDATED_DECLARATION: unique symbol;
  * assertion that fixes that, only a shape: an unvalidated array literal is not
  * assignable here, so removing the factory call is a compile error rather than a
  * green run.
+ *
+ * The brand is on the ARRAY, not on its elements, and a review is why: with it on
+ * the elements, `export const DECLARED_TREES: ValidatedTrees = []` satisfied the
+ * type vacuously — an empty list has no element to fail — and typechecked clean
+ * in both configurations, which is the whole catalog silent on every tree.
  */
-export type ValidatedTrees = readonly (DeclaredTree & {
+export type ValidatedTrees = readonly DeclaredTree[] & {
   readonly [VALIDATED_DECLARATION]: true;
-})[];
+};
 
 /**
  * The trees this project has adopted the catalog for. Edit this list; do not
@@ -151,12 +160,40 @@ export const DECLARED_TREES: ValidatedTrees = declareTrees([
  * no adopter's.
  */
 export function declareTrees(trees: readonly DeclaredTree[]): ValidatedTrees {
+  if (trees.length === 0) {
+    throw new Error(
+      `No trees declared. Every tree-scoped rule in this catalog resolves the file it is handed ` +
+        `into a declared tree first, so an empty list is the whole catalog switched off with ` +
+        `nothing in it saying so — and a repo in that state reads exactly like a clean one.`,
+    );
+  }
   for (const tree of trees) {
     assertGoverningVocabulary(tree.vocabulary, tree.root);
     assertGovernedPositionsAreNotExempt(tree.vocabulary, tree.root);
   }
   assertDistinctDeclaredRoots(trees);
-  return trees as ValidatedTrees;
+  // Frozen IN PLACE rather than copied, so the caller's own reference is frozen
+  // too. Validating and handing back a live array leaves the checked state
+  // aliased: a review kept its literal, called this, and then reassigned
+  // `trees[0].root` to a path outside the project — validated once, governing
+  // somewhere else. Copying would not have closed that, because the original is
+  // what the adopter's module still holds.
+  return deepFreeze(trees) as ValidatedTrees;
+}
+
+/**
+ * Freezes `value` and everything reachable through it, in place.
+ *
+ * Deep, because the mutable state that matters is nested: a vocabulary's
+ * `featureLayerDirs`, its extension lists, the tree object itself. Freezing only
+ * the array leaves every one of those writable through the element the array
+ * already holds.
+ */
+function deepFreeze<T>(value: T): T {
+  if (typeof value !== "object" || value === null || Object.isFrozen(value)) return value;
+  Object.freeze(value);
+  for (const nested of Object.values(value)) deepFreeze(nested);
+  return value;
 }
 
 /**
@@ -206,6 +243,17 @@ function assertGovernedPositionsAreNotExempt(vocabulary: TreeVocabulary, treeRoo
     ["serverModuleSuffix", `${unit}/charge${vocabulary.serverModuleSuffix}.ts`],
     ["themeModuleName", `${themeModule(vocabulary)}.ts`],
     ["rootRouteName", `${rootRouteModule(vocabulary)}.tsx`],
+    // The composites. Each is a position two rules key on, and each is spelled
+    // from a field that the top-level loop above never reaches on its own — a
+    // review found all four plus the env modules by walking exactly the fields
+    // the first version of this list did not.
+    ["dbSubdir", `${dbDir(vocabulary)}/client.ts`],
+    ["dbSchemaSubdir", `${dbSchemaPath(vocabulary)}/invoices.ts`],
+    ["apiClientName", `${apiClientModule(vocabulary)}.ts`],
+    ["browserStorageName", `${browserStorageModule(vocabulary)}.ts`],
+    ...Object.keys(vocabulary.envModules).map(
+      (module) => [`an envModules key`, `${module}.ts`] as const,
+    ),
   ];
 
   for (const [field, path] of positions) {
@@ -234,18 +282,20 @@ export function assertDistinctDeclaredRoots(trees: readonly DeclaredTree[]): voi
   const seen = new Set<string>();
   for (const tree of trees) {
     // Compared as WRITTEN, which is only sound because a root has one spelling.
-    // `src` and `./src` are the same directory to the structural tier, which
-    // resolves them, and two different strings to the oxlint tier, which
-    // searches an absolute path for `/${root}/` and finds neither `./src`. The
-    // duplicate would pass this check, one declaration would never be read, and
-    // the tree would be scanned twice by the tier that resolves.
+    // Both tiers now measure from the project root, so `./src` never matches the
+    // project-relative `src/...` a file resolves to and the tree it declares is
+    // reached by nothing. It also has to match the shipped `oxlintrc.json`
+    // override glob character for character — `harness/run-rule-fixtures.ts`
+    // compares the two lists — and `<root>/**` built from `./src` is a glob for a
+    // directory that does not exist.
     if (tree.root !== canonicalRoot(tree.root)) {
       throw new Error(
         `The tree at "${tree.root}" is not written canonically. A root is segments joined by ` +
           `single slashes with no "./" or "../", no leading or trailing slash, and no empty ` +
-          `segment: "src", "apps/web/src". The oxlint tier matches this string against a path ` +
-          `rather than resolving it, so a second spelling of one directory is a tree one tier ` +
-          `governs twice and the other governs once.`,
+          `segment: "src", "apps/web/src". Both tiers compare this string against a ` +
+          `project-relative path rather than resolving it, and the shipped oxlintrc builds ` +
+          `"<root>/**" from it — so a second spelling of one directory is a root nothing ` +
+          `resolves to and a glob matching nothing.`,
       );
     }
     if (seen.has(tree.root)) {

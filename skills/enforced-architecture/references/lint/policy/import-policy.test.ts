@@ -819,6 +819,13 @@ describeSuite("a vocabulary cannot declare its own tree out of existence", () =>
     ["a server suffix of .gen", { ...RECOMMENDED_VOCABULARY, serverModuleSuffix: ".gen" }],
     ["a server suffix of .d", { ...RECOMMENDED_VOCABULARY, serverModuleSuffix: ".d" }],
     ["a client barrel called index.d", { ...RECOMMENDED_VOCABULARY, clientBarrelModule: "index.d" }],
+    // The composites and the env modules — the fields the first version of this
+    // walk did not reach. Same failure, one level of joining away.
+    ["a db directory called scripts", { ...RECOMMENDED_VOCABULARY, dbSubdir: "scripts" }],
+    ["a schema directory called scripts", { ...RECOMMENDED_VOCABULARY, dbSchemaSubdir: "scripts" }],
+    ["an api client called api.test", { ...RECOMMENDED_VOCABULARY, apiClientName: "api.test" }],
+    ["browser storage called storage.gen", { ...RECOMMENDED_VOCABULARY, browserStorageName: "storage.gen" }],
+    ["an env module called env.test", { ...RECOMMENDED_VOCABULARY, envModules: { "env.test": "env-server" } }],
   ] as [string, TreeVocabulary][]) {
     testCase(`${label} exempts a governed position from every rule`, () => {
       assert.throws(
@@ -827,6 +834,26 @@ describeSuite("a vocabulary cannot declare its own tree out of existence", () =>
       );
     });
   }
+
+  // An empty list is every tree-scoped rule switched off, and it is the one value
+  // the BRAND cannot refuse on its own: with the brand on the elements rather
+  // than the array, `[]` satisfied the type vacuously and typechecked clean.
+  testCase("declaring no trees at all is the whole catalog switched off", () => {
+    assert.throws(() => declareTrees([]), /No trees declared/);
+  });
+
+  // Validated once, then reassigned. Freezing the caller's own array is what
+  // makes the brand a claim about the value rather than about one moment.
+  testCase("a validated list cannot be edited afterwards", () => {
+    const trees = declareTrees([{ root: "src", vocabulary: RECOMMENDED_VOCABULARY }]);
+    assert.throws(() => {
+      (trees as unknown as DeclaredTree[])[0]!.root = "../outside";
+    });
+    assert.equal(trees[0]?.root, "src");
+    assert.throws(() => {
+      (trees[0]!.vocabulary.featureLayerDirs as Record<string, string>).ui = "scripts";
+    });
+  });
 
   testCase("declaring the recommended vocabulary is accepted by the factory too", () => {
     assert.doesNotThrow(() => declareTrees([{ root: "src", vocabulary: RECOMMENDED_VOCABULARY }]));
