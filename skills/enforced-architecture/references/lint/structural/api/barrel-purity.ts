@@ -16,20 +16,55 @@
 // runtime code and cannot put a package in the client bundle. A mixed re-export
 // (export { type Foo, bar } from "…") stays, because bar is a runtime dependency.
 //
-// The server-function boundary is recognised by a BINDING: the file imports one
-// of the boundary's calls from the framework module, under whatever name it gives
-// it, and calls that name. Not by the word appearing in the file, and not by the
-// module and the word appearing independently.
+// ── The server-function boundary: a stated approximation ─────────────────────
 //
-// This check OVER-reports in exactly two ways, both of them false blocking
-// errors. A boundary reached through a local re-export is not recognised, so the
-// trace continues past it and can report a chain the framework would have cut.
-// And the shadow test that decides whether the imported binding is the one CALLED
-// is textual and one-sided: a file that imports the boundary for real and also
-// mentions the same name in a binding-shaped position — `{ createServerFn }` in
-// an object literal, or the name passed as an argument — reads as having rebound
-// it, and comes out of the boundary. `rebindsName` is where that trade is made
-// and argued.
+// The trace stops at a module that crosses the framework's server-function
+// boundary, because the compiler cuts the chain there. Deciding whether a given
+// module crosses it is a question about SYNTAX — which name an import bound,
+// whether the call reaches that binding or a shadow — and this tier has no
+// parser for that. What follows is the approximation, its contract, and why it
+// is not going to be replaced by a better parser or a bigger regex.
+//
+// IN — recognised as a boundary. A named import of one of the boundary's calls
+// from the boundary's module, read as `imported as local` so the alias direction
+// is not guessable, plus a call of that local name in the body, plus no
+// binding-shaped occurrence of that name anywhere else in the file. A namespace
+// import counts, as `NS.createServerFn`.
+//
+// OUT — deliberately not recognised, and OUT MEANS THE TRACE CONTINUES. Every
+// omission here is an over-report: a chain the framework would have cut, reported
+// as a blocking error. That is the safe direction and it is chosen. A boundary
+// reached through a local re-export is out. A file that imports the boundary for
+// real and also mentions the name in a binding-shaped position — `{ createServerFn }`
+// in an object literal, the name passed as an argument — reads as having rebound
+// it and is out. A rest binding is out, and `rebindsName` says why.
+//
+// NEVER — the direction that would be a false NEGATIVE, a server-only package in
+// the client bundle behind a green run. No spelling is accepted as a boundary
+// without an import of the boundary's own module. `rebindsName` is one-sided for
+// exactly this reason: any doubt about which binding runs resolves to "not a
+// boundary", never to "boundary".
+//
+// WHY IT STAYS AN APPROXIMATION. `placement/no-plain-export-in-server-fn-module`
+// reads the same syntax EXACTLY, with a real AST: it decides bridge-ness from the
+// initializer's call chain, and it reports four of the six shadow fixtures below
+// on its own. It does NOT report `impostor` or `sconce`, whose exports ARE
+// bridge-shaped chains over a name that is not the framework's — the two cases
+// where the binding, not the shape, is the whole question. So it cannot be the
+// only owner, and neither can it be replaced by this: its subject is one file and
+// the consumer of this answer is a cross-file trace the oxlint tier cannot run.
+// The two are jointly actionable — that rule says "make this export a bridge or
+// move it", this one says "move the export to the server barrel or put it behind
+// a server function", and following either never violates the other.
+//
+// So this is a second, deliberately WEAKER reading of a question another rule
+// owns exactly. Treat further bypasses of it as the known approximation this
+// paragraph names, not as bugs to patch one spelling at a time. Four rounds of
+// review found four spellings; a fifth is not evidence the design is wrong, it is
+// the design. The thing that would change the design is a real parser in THIS
+// tier — `oxc-parser` is the candidate, and it is declined here because it is a
+// native `0.x` dependency with no version line to oxlint's 1.x, shipped into
+// every adopting project for one call site.
 //
 // ──────────────────────────────────────────────────────────────────────
 
