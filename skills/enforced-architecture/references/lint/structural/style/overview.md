@@ -31,4 +31,4 @@ style-object surfaces (`padding: 16` in a `StyleSheet.create` call) work with no
 prop surfaces apply only if your primitives take spacing props; if they do not, set `spacingProps`
 and `radiusProps` empty.
 
-Adoption mechanics, the spec contract, and cross-tag rule selection: [../../overview.md](../../overview.md).
+Adoption mechanics, the spec contract, and what part of the tree owns each rule's subject: [../../overview.md](../../overview.md).

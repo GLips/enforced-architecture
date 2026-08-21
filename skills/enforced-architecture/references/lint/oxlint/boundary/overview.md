@@ -33,4 +33,4 @@ its policy is a config map rather than a path regex.
 | [no-test-imports](no-test-imports.ts) | Yes | You rewrite a fixture or delete a helper, and only tests break |
 | [ambient-globals](ambient-globals.ts) | Yes | One reader for `process.env`, `fetch` and `localStorage`, so a missing variable fails at boot in `@/env`. Matches references, not import specifiers |
 
-Adoption mechanics, the spec contract, and cross-tag rule selection: [../../overview.md](../../overview.md).
+Adoption mechanics, the spec contract, and what part of the tree owns each rule's subject: [../../overview.md](../../overview.md).

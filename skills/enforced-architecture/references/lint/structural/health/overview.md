@@ -33,4 +33,4 @@ role — a role rather than a directory name, so a tree that calls the layer som
 without a second list to keep in step. Never add the repo role: a thin wrapper on a query is the job
 of that layer, so the check then reports all of it.
 
-Adoption mechanics, the spec contract, and cross-tag rule selection: [../../overview.md](../../overview.md).
+Adoption mechanics, the spec contract, and what part of the tree owns each rule's subject: [../../overview.md](../../overview.md).

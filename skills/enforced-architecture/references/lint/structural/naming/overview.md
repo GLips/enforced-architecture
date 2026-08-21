@@ -22,4 +22,4 @@ check the project turns off. Both of its findings have severity `warning`, and t
 the code, not in the config. A project with a fully co-located test layout can change the two values
 to `error`.
 
-Adoption mechanics, the spec contract, and cross-tag rule selection: [../../overview.md](../../overview.md).
+Adoption mechanics, the spec contract, and what part of the tree owns each rule's subject: [../../overview.md](../../overview.md).

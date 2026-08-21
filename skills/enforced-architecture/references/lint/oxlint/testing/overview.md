@@ -6,4 +6,4 @@
 |---|---|---|
 | [no-module-mocking](no-module-mocking.ts) | Yes | Every test runs the real module that it names, so a change to that module fails the tests that cover it |
 
-Adoption mechanics, the spec contract, and cross-tag rule selection: [../../overview.md](../../overview.md).
+Adoption mechanics, the spec contract, and what part of the tree owns each rule's subject: [../../overview.md](../../overview.md).

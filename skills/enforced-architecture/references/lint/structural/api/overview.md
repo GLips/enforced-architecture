@@ -29,4 +29,4 @@ it and does not read the grants, thus a cycle of fully granted edges still fails
 that collects more and more grants is the same signal as an edge count that goes up in
 `graph/feature-deps`: the split between the features is on the wrong axis.
 
-Adoption mechanics, the spec contract, and cross-tag rule selection: [../../overview.md](../../overview.md).
+Adoption mechanics, the spec contract, and what part of the tree owns each rule's subject: [../../overview.md](../../overview.md).

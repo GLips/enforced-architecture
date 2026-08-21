@@ -97,10 +97,10 @@ for (const id of registeredIds) {
   if (!existsSync(implementation)) {
     fail(id, `registered, but there is no structural/${id}.ts — the id and the file disagree`);
   }
-  // A check whose header states no value line is a check nobody can select. The
-  // header is the ONLY documentation that reaches the project the check is
-  // copied into, so an omission here is invisible until someone is reading a
-  // finding in a repo that has no catalog.
+  // A check whose header states no value line is a check whose findings nobody
+  // can act on. The header is the ONLY documentation that reaches the project
+  // the check is copied into, so an omission here is invisible until someone is
+  // reading a finding in a repo that has no catalog.
   else if (!statesWhatItBuys(implementation)) {
     fail(
       id,

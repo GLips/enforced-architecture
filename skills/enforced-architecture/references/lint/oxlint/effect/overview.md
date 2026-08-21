@@ -77,4 +77,4 @@ The source config carries five more rules. They are absent on purpose, and re-de
 - **`prefer-option-from-nullable`** and **`pipe-max-arguments`** — formatting preferences. A rule that fires on working, readable code buys ignored diagnostics.
 - **`no-void-expression`** is actively harmful and would be worth removing from a project that has it. `void somePromise` is the standard marker for a deliberately un-awaited promise — the thing `no-floating-promises` and every reviewer look for. Banning it does not remove floating promises; it removes the annotation that says a given one was intended, leaving the codebase with the same promises and no way to tell deliberate from forgotten.
 
-Adoption mechanics, the spec contract, and cross-tag rule selection: [../../overview.md](../../overview.md).
+Adoption mechanics, the spec contract, and what part of the tree owns each rule's subject: [../../overview.md](../../overview.md).

@@ -7,4 +7,4 @@ The per-file half — one rule. The counts that need a file set or a word ceilin
 |---|---|---|
 | [no-nested-ternary](no-nested-ternary.ts) | Yes | No expression selects a result behind more than two conditions |
 
-Adoption mechanics, the spec contract, and cross-tag rule selection: [../../overview.md](../../overview.md).
+Adoption mechanics, the spec contract, and what part of the tree owns each rule's subject: [../../overview.md](../../overview.md).

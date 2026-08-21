@@ -16,4 +16,4 @@ is no single answer a per-file rule could hold.
 | [barrel-direction](barrel-direction.ts) | Yes | You add an export to `index.server.ts` with no change to what `index.ts` gives a client component |
 | [server-import-context](server-import-context.ts) | Yes | Every caller of a `*/index.server` barrel sits in a server directory or a `*.server.ts` file |
 
-Adoption mechanics, the spec contract, and cross-tag rule selection: [../../overview.md](../../overview.md).
+Adoption mechanics, the spec contract, and what part of the tree owns each rule's subject: [../../overview.md](../../overview.md).

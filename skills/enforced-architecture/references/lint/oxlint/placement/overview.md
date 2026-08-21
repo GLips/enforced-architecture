@@ -20,4 +20,4 @@ matched.
 | [server-fn-validation](server-fn-validation.ts) | Yes | Client input reaches a handler only after a schema checks it |
 | [no-raw-result](no-raw-result.ts) | Yes | No Drizzle write result reaches the RPC serializer, which throws on one at run time |
 
-Adoption mechanics, the spec contract, and cross-tag rule selection: [../../overview.md](../../overview.md).
+Adoption mechanics, the spec contract, and what part of the tree owns each rule's subject: [../../overview.md](../../overview.md).

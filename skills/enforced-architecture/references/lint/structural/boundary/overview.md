@@ -30,4 +30,4 @@ bypass one, and there is no exclusion list.
 The coverage of both checks is the coverage of the import graph. An import spelling that
 `graph/import-graph` does not reveal is an edge that neither check receives.
 
-Adoption mechanics, the spec contract, and cross-tag rule selection: [../../overview.md](../../overview.md).
+Adoption mechanics, the spec contract, and what part of the tree owns each rule's subject: [../../overview.md](../../overview.md).

@@ -26,4 +26,4 @@ feature must not register it. A check with no subject looks like coverage, and t
 `feature-deps` asks what shape the whole edge set forms; `api/feature-visibility` asks whether one
 edge is intended. One does not cover the other: a cycle of granted edges still fails `feature-deps`.
 
-Adoption mechanics, the spec contract, and cross-tag rule selection: [../../overview.md](../../overview.md).
+Adoption mechanics, the spec contract, and what part of the tree owns each rule's subject: [../../overview.md](../../overview.md).

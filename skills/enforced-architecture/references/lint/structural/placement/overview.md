@@ -34,4 +34,4 @@ and its severity is not configurable, so a codebase that adopts it must correct 
 already has. Its coverage is the coverage of `graph/import-graph`: an import form the graph does not
 reveal is an edge this rule never receives.
 
-Adoption mechanics, the spec contract, and cross-tag rule selection: [../../overview.md](../../overview.md).
+Adoption mechanics, the spec contract, and what part of the tree owns each rule's subject: [../../overview.md](../../overview.md).

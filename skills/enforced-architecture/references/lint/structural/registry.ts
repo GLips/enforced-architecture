@@ -1,13 +1,17 @@
 // ─── The structural-check manifest ────────────────────────────────────
 //
-// The list a consuming project copies and prunes. A check absent from it is a
-// file nobody loads — implemented, fixtured, and never run — so the fixture
-// harness loads this module rather than grepping for check names: a
-// commented-out registration is invisible to a text search and not to an import.
+// The list a consuming project copies whole. A check absent from it is a file
+// nobody loads — implemented, fixtured, and never run — so the fixture harness
+// loads this module rather than grepping for check names: a commented-out
+// registration is invisible to a text search and not to an import.
 //
-// Prune to what the project adopted. A check pointed at a root that does not
-// exist returns cleanly by design, so an unadopted check left registered reads
-// as coverage that is not there.
+// Nothing is dropped from this list on adoption. A check whose subject a tree
+// does not have yet returns cleanly and starts reporting the day the tree grows
+// one — a project with no `domains/` directory keeps `graph/domain-cycles` for
+// the day it has one. Unregistering it buys the same quiet with no record that
+// anyone decided, which reads as coverage that is not there. Where a check looks
+// is set in `policy/declared-trees.ts` for the tree-scoped ones and in
+// `arch.config.ts` for the two project-scoped ones, never here.
 //
 // Each check's id is declared inside the check itself as well as being the key
 // to its documentation and its fixtures, so the three can be compared. A check

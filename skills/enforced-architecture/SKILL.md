@@ -27,9 +27,9 @@ Read these references before and during the process:
 | [enforcement-implementation.md](references/enforcement-implementation.md) | Phase 3–4 (rules and wiring) | Rule design principles, the three tiers, oxlint config, lefthook, structural orchestration |
 | [documentation-model.md](references/documentation-model.md) | Phase 4 (documentation) | What to document in CLAUDE.md and docs/architecture/, content checklists |
 | [migration-patterns.md](references/migration-patterns.md) | Phase 4 (migration) | Atomic phase decomposition, sequencing, verification |
-| [lint/overview.md](references/lint/overview.md) | Phase 3–4 (rule catalog) | The catalog map: what each tag governs, and which rules a project needs |
+| [lint/overview.md](references/lint/overview.md) | Phase 3–4 (rule catalog) | The catalog map: what each tag governs, and what part of the tree owns each rule's subject |
 
-The catalog is split by **tier** first and **tag** second — `lint/oxlint/` is the per-file tier, `lint/structural/` the whole-tree tier, `lint/policy/` the runtime-neutral tables both read. It is three layers deep: [lint/overview.md](references/lint/overview.md) picks tags, each `lint/<tier>/<tag>/overview.md` picks rules within that tier, each rule template carries its own *Adapt* section.
+The catalog is split by **tier** first and **tag** second — `lint/oxlint/` is the per-file tier, `lint/structural/` the whole-tree tier, `lint/policy/` the runtime-neutral tables both read. It is three layers deep: [lint/overview.md](references/lint/overview.md) maps the tags, each `lint/<tier>/<tag>/overview.md` holds that tier's half of one tag, each rule template carries its own *Adapt* section.
 
 **This reference set is too heavy for one context.** When implementing from scratch, dispatch a subagent per tag directory and have it return adapted rules rather than its reading.
 
@@ -156,7 +156,7 @@ Combine all phases into a single document:
 1. **Decision Summary** — Core architectural decisions and rationale. Which configurable choices were made and why (including documentation depth).
 2. **Target Architecture** — Directory layout (annotated tree), responsibility split table, dependency graph, public API conventions, server/client file naming.
 3. **Import Boundary Matrix** — Top-level matrix, within-feature boundaries, cross-feature rules, SDK containment configuration.
-4. **Rule Selection** — Included rules table (rule + adaptation notes) and excluded rules table (rule + reason). See Phase 3 for the format.
+4. **Rule Adaptations** — The declared trees from `lint/policy/declared-trees.ts`, what is deliberately outside them, and one table of rule id + what this project moved for it. See Phase 3 for the format. There is no excluded-rules table: the catalog comes in whole, so a rule that reports nothing is a rule whose subject this tree does not have yet, and the only thing that makes a rule silent by decision is a tree left undeclared.
 5. **Documentation Spec** — Which CLAUDE.md sections to generate and which docs/architecture/ files to create. Content checklist per [documentation-model.md](references/documentation-model.md).
 6. **Implementation Checklist** (greenfield) or **Migration Plan** (existing) — From Phase 4.
 7. **Current Violations** (migration only) — Prioritized from the audit, with specific file paths and fix descriptions.

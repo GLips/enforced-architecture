@@ -24,4 +24,4 @@ Every rule below keys off two project facts: where the primitives layer lives (w
 | [no-arbitrary-class-values](no-arbitrary-class-values.ts) | Yes | A utility class names a semantic token, so the theme config is the one place a size or a color changes |
 | [vendor-component-containment](vendor-component-containment.ts) | Yes | Every use of a wrapped component goes through the app wrapper, so a library swap is an edit to the wrapper |
 
-Adoption mechanics, the spec contract, and cross-tag rule selection: [../../overview.md](../../overview.md).
+Adoption mechanics, the spec contract, and what part of the tree owns each rule's subject: [../../overview.md](../../overview.md).

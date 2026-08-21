@@ -39,7 +39,7 @@ lint/
 
 So adopting a rule is copying a path, and the path says which tier you're in.
 
-Start with [`lint/overview.md`](skills/enforced-architecture/references/lint/overview.md)—it maps the eleven tags, says which tier each one lands in, and has a *Selecting rules* table for "if your project has X, take these." Each tag folder has its own `overview.md` listing that tier's half of the tag.
+Start with [`lint/overview.md`](skills/enforced-architecture/references/lint/overview.md)—it maps the eleven tags, says which tier each one lands in, and has a *What each rule's subject is* table for "if your project has X, these rules have a subject in it." Each tag folder has its own `overview.md` listing that tier's half of the tag.
 
 ## What happens when an agent breaks a rule
 

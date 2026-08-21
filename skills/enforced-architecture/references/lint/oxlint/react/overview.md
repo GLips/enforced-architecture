@@ -27,4 +27,4 @@ Set `threshold` on each of the two counts from the current tree: just above the 
 The rule then reports growth, and not the code that is there on the day of adoption. A `threshold`
 below the current tree makes `prop-count` report almost every component in a component library.
 
-Adoption mechanics, the spec contract, and cross-tag rule selection: [../../overview.md](../../overview.md).
+Adoption mechanics, the spec contract, and what part of the tree owns each rule's subject: [../../overview.md](../../overview.md).

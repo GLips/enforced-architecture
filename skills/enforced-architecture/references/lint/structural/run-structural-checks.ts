@@ -24,9 +24,10 @@
 //   import { structuralChecks } from "./registry.ts";
 //   process.exitCode = reportStructuralChecks(structuralChecks, architectureConfig);
 //
-// Drop the registrations for checks the project has not adopted — a check
-// pointed at a root that does not exist returns cleanly, so an unadopted check
-// left registered reads as coverage that is not there.
+// `registry.ts` is copied whole and stays that way — see its header. What a
+// tree-scoped check covers comes from `policy/declared-trees.ts`, so a tree left
+// off that list gets no run and no diagnostic, and this reporter cannot tell you
+// about a run it was never asked for.
 //
 // ──────────────────────────────────────────────────────────────────────
 
