@@ -21,14 +21,23 @@
   // reach for that only to scope a plugin to a subtree.
   "jsPlugins": ["./lint/oxlint/plugin.ts", "eslint-plugin-sonarjs"],
 
-  // The BUILT-IN plugin set, and writing it at all is the hazard. oxlint's
-  // implicit default is exactly `["unicorn", "typescript", "oxc"]`; an explicit
-  // array REPLACES that default rather than adding to it, so `["react"]` alone
-  // silently unloads three plugins this config already leans on and the rules
-  // named below stop being enforced with no error — `--print-config` reports 88
-  // rules instead of 111. Everything relied on is therefore listed here, and the
-  // way to check a change is to count: `npx oxlint --print-config` before and
-  // after. `react` is the addition; the other three are the default restated.
+  // The BUILT-IN plugin set, and writing it at all is the hazard. oxlint's implicit
+  // default is exactly `["unicorn", "typescript", "oxc"]`; an explicit array
+  // REPLACES that default rather than adding to it. So `["react"]` alone unloads
+  // three plugins this config leans on, and it does it SILENTLY — a rule named in
+  // the block below whose plugin is not listed here is dropped with no error and no
+  // diagnostic, which reads exactly like a file with nothing wrong in it. The count
+  // is the check, and `npx oxlint --print-config` prints it: on oxlint 1.79 this
+  // array yields 142 built-in rules, no `plugins` key at all yields 111 and both
+  // `react/` rules below vanish, and `["react"]` alone yields 88 — each time
+  // silently. `react` is the addition here; the other three are the default
+  // restated. Count before and after any edit to this line.
+  //
+  // `unicorn` earns its place here even though no `unicorn/` key appears below it:
+  // it carries 13 rules through the correctness CATEGORY — `no-invalid-fetch-options`
+  // and `no-await-in-promise-methods` among them — so dropping the word because the
+  // rules block never says it costs all 13 with no error. A plugin is named for what
+  // its category contributes, not only for what this file spells out.
   //
   // `jsPlugins` entries do NOT belong in this array — `arch` and `sonarjs` are
   // registered by the array above and are unaffected by what this one says.
@@ -413,34 +422,53 @@
 
     // ── health: a decision is readable ──
     //
-    // BOTH, and the pair is load-bearing rather than belt-and-braces. The core rule
-    // reads a nested conditional wherever it sits; the unicorn one is silent on
-    // `p ? 1 : (q ? 2 : 3)`, the parenthesised spelling, so it misses cases the core
-    // rule catches — and it catches the un-parenthesised chain the core rule's own
-    // fixtures leave to it. Dropping either loses adversarial cases the catalog had.
+    // THE CORE RULE ALONE, and `unicorn/no-nested-ternary` is deliberately NOT beside
+    // it. MEASURED rather than read: on every spelling probed, each file unicorn
+    // reports the core rule reports too, and the core rule reports four more. Unicorn
+    // recognises exactly two shapes — a nesting written WITHOUT parentheses, and a
+    // chain more than one level deep — so the ordinary `p ? 1 : (q ? 2 : 3)` is silent
+    // under it. It is a strict subset, and a subset buys no coverage.
     //
-    // DEPTH 2 IS THE LIMIT NOW, down from the budget of 3 the deleted
-    // `arch/no-nested-ternary` documented, and it is not tunable: `{ "max": 2 }`,
-    // a bare `2` and `{ "depth": 3 }` are each rejected as invalid configuration by
-    // both rules. A project wanting three levels has to say so in review, not here.
+    // It would also cost something. Unicorn's message says "add parentheses around
+    // the nested ternary", and adding them does NOT clear the core rule — so an author
+    // following one message lands on the other, and only one of the two fixes
+    // terminates. That is the edit loop this catalog names in "one invariant, one
+    // owner": two rules may speak to an edge only when they are JOINTLY ACTIONABLE.
+    // These two are not, which decides it on posture as well as on coverage.
     //
-    // Both also report the chain extracted to its own binding, which is the refactor
-    // the message asks for — so the fix is to name the branches, not to move them.
+    // NEGATIVE SPACE: this does not read the TEST position. `(a ? b : c) ? 1 : 2`
+    // draws nothing, and unicorn would not have covered it either — verified through
+    // the CLI against both.
+    //
+    // DEPTH 2 IS THE LIMIT, and it is NOT a threshold this project sets: `{ "max": 2 }`,
+    // a bare `2` and `{ "depth": 3 }` are each rejected as invalid configuration. This
+    // is the one number in the catalog an adopter cannot move, and it is lower than the
+    // budget the catalog documented while it owned the rule. A project wanting a third
+    // level argues it in review; there is no knob.
+    //
+    // It also reports the chain extracted to its own binding, which is the refactor the
+    // message asks for — so the fix is to name the branches, not to move them.
     "no-nested-ternary": "error",
-    "unicorn/no-nested-ternary": "error",
 
     // ── react: state is derived, not synchronised in an effect ──
     //
     // BOTH again, and this pair is the less obvious one. `no-deriving-state-in-effects`
-    // sounds like the whole claim and is not: run alone it misses the headline shape,
-    // a `useEffect` that calls a `useState` setter from a prop. `set-state-in-effect`
-    // is the rule that does that work. Together they are what oxlint 1.79 exposed when
-    // it split `react/react-compiler`; before the split neither was reachable without
-    // the compiler's purity diagnostics.
+    // sounds like the whole claim and is not: it reports only where it can name the
+    // reactive value the state was derived FROM, so `setTotal(sum)` — the same
+    // derivation routed through a binding declared in the effect — draws nothing from
+    // it, and neither does `setReady(true)` on mount. `set-state-in-effect` reports
+    // both, so it is the rule doing the work and the one to keep if only one could
+    // stay. Together they are what oxlint 1.79 exposed when it split
+    // `react/react-compiler`; before that split neither was reachable without the
+    // compiler's purity diagnostics.
+    //
+    // Both read every source extension, `.ts` included, so the `use*.ts` hook module
+    // this catalog asks you to extract stays covered — which the `react/` folder's own
+    // rules, gated on JSX extensions, do not manage.
     //
     // NEGATIVE SPACE: a setter called through a helper DECLARED INSIDE the effect
-    // callback draws nothing from either. The deleted `arch/derived-state` read that
-    // shape; nothing here does now, and no run says so.
+    // callback draws nothing from either — verified through the CLI, not assumed. No
+    // rule in this catalog reads that shape, and no run will say so.
     "react/set-state-in-effect": "error",
     "react/no-deriving-state-in-effects": "error"
   },
@@ -618,9 +646,9 @@
     // `[tj]sx?` would miss it), a `__tests__` directory anywhere, the cross-cutting
     // `test/` directory at the root of the frame, a `.d` or `.gen` name, and any
     // segment named `scripts`. The three brace lists are `SOURCE_EXTENSIONS` from
-    // `lint/policy/layout.ts` written out, and they move when it does.
-    // Growing this list past what the predicate computes is
-    // the menu, and shrinking it re-reports code the catalog exempts everywhere else.
+    // `lint/policy/layout.ts` written out, and they move when it does. Growing this
+    // list past what the predicate computes is the menu; shrinking it re-reports code
+    // the catalog exempts everywhere else.
     //
     // `generatedDir` is deliberately ABSENT even though the predicate reads it:
     // `ignorePatterns` at the top of this file already spells it for the built-ins,
@@ -641,7 +669,6 @@
       ],
       "rules": {
         "no-nested-ternary": "off",
-        "unicorn/no-nested-ternary": "off",
         "react/set-state-in-effect": "off",
         "react/no-deriving-state-in-effects": "off"
       }

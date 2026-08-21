@@ -3,7 +3,7 @@
 The whole-tree half. Set thresholds from the codebase, not the defaults. One that fires on a third
 of the repo on day one teaches everyone the linter cries wolf, which costs you the boundary rules
 too. This tag has no oxlint half: its one per-file rule was nested-ternary depth, and the shipped
-`no-nested-ternary` and `unicorn/no-nested-ternary` own that now, enabled in `setup/oxlintrc.json`.
+`no-nested-ternary` owns that now, enabled in `setup/oxlintrc.json`.
 
 | Rule | Blocking | What it buys |
 |---|---|---|
