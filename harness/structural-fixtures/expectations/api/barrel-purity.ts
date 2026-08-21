@@ -134,6 +134,17 @@ export const barrelPurityFixtures: CheckFixtures = {
     // scan without filtering `typeOnly` reports it. The import graph over that
     // same scan keeps the edge, which is why the filter has to live here.
     "src/features/invoices/index.ts",
+    // The same erasure claimed by an import in a TYPE POSITION — `type X =
+    // import("stripe").Y` — which is on no module record and is read off the
+    // AST. `erased` and `invoices` above are both `import type`, so the mark set
+    // on the AST arm is deletable with every one of them green.
+    "src/features/typeposition/index.ts",
+    // A re-export where every name is a type. The mark on a re-export is
+    // computed across the statement's entries, and dropping it entirely turns
+    // this erased statement into a runtime hop into a module that imports
+    // `postgres`. `tailtype` above pins the OTHER direction — a mixed statement
+    // read as erased — and neither case covers the other.
+    "src/features/typereexport/index.ts",
     // Two modules below the barrel re-export each other. Without a visited set
     // the trace runs to the depth cap and reports the cap against a barrel that
     // imports nothing server-only at all.

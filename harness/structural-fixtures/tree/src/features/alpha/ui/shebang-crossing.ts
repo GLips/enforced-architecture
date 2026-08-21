@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 // FIRES import-policy, and the shebang is the point.
 //
 // A shebang is valid at the top of an executable source file, and a reader that

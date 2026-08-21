@@ -33,6 +33,12 @@ export const importPolicyFixtures: CheckFixtures = {
     "FAIL src/features/alpha/ui/wrapped-static-crossing.ts",
     "FAIL src/features/alpha/ui/wrapped-dynamic-crossing.ts",
     "FAIL src/features/alpha/ui/wrapped-require-crossing.ts",
+    // `require.resolve(…)`, whose callee is a member expression rather than the
+    // bare identifier the line above has. The scanner tests the two separately,
+    // so the pair is the assertion: the identifier arm alone leaves every
+    // build-time path resolution in a CommonJS project crossing boundaries with
+    // no rule reading it, and `wrapped-require-crossing.ts` stays green.
+    "FAIL src/features/alpha/ui/require-resolve-crossing.ts",
     // Three syntax classes that defeat delimiter pairing rather than line
     // splitting: a backtick inside a quoted string, a backtick inside a regex
     // literal, and an import inside a `${…}` interpolation — where blanking
