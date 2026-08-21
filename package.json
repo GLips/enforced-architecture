@@ -3,13 +3,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "bun run typecheck && bun run check:rules && bun run check:no-reflect-access-live && bun run check:structural",
-    "typecheck": "bun run typecheck:oxlint && bun run typecheck:structural",
+    "check": "sh -c 'w=0; for s in typecheck check:rules check:no-reflect-access-live check:structural check:doc-budgets; do bun run $s; c=$?; [ $c -gt $w ] && w=$c; done; exit $w'",
+    "typecheck": "sh -c 'bun run typecheck:oxlint; a=$?; bun run typecheck:structural; b=$?; [ $a -gt $b ] && exit $a; exit $b'",
     "typecheck:oxlint": "tsc --noEmit -p tsconfig.oxlint.json",
     "typecheck:structural": "tsc --noEmit -p tsconfig.structural.json",
     "check:rules": "harness/with-real-node.sh harness/run-rule-fixtures.ts",
     "check:no-reflect-access-live": "bun harness/prove-no-reflect-access-live.ts",
-    "check:structural": "bun harness/run-structural-fixtures.ts"
+    "check:structural": "bun harness/run-structural-fixtures.ts",
+    "check:doc-budgets": "bun harness/check-doc-budgets.ts"
   },
   "devDependencies": {
     "@oxlint/plugins": "^1.77.0",

@@ -13,10 +13,19 @@
 //
 // ── Adapt ─────────────────────────────────────────────────────────────
 //
-// Point it at the project's config and wire it into the pre-commit hook and CI:
+// Point it at the project's config and wire it into the pre-commit hook and CI.
+//
+// Run the two tiers so that BOTH run and the worst status wins. `oxlint && bun
+// check-structure.ts` is the same defect this file exists to avoid, one level
+// up: oxlint failing means the structural tier never runs, and a tier that never
+// ran is indistinguishable from a clean one in the output.
 //
 //   // package.json
-//   { "scripts": { "check:arch": "oxlint && bun lint/structural/check-structure.ts" } }
+//   {
+//     "scripts": {
+//       "check:arch": "sh -c 'oxlint; a=$?; bun lint/structural/check-structure.ts; b=$?; exit $((a > b ? a : b))'"
+//     }
+//   }
 //
 //   // lint/structural/check-structure.ts
 //   import { architectureConfig } from "./arch.config.ts";

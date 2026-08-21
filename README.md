@@ -12,7 +12,7 @@ A catalog of dozens of ready-to-steal enforcement rules for TypeScript codebases
 
 - **Rules that explain their own fix.** The error message *is* the instruction, so an agent resolves a violation without reading another file or asking you.
 - **Boundaries that hold.** Not a convention people remember—an import that can't exist.
-- **Dozens of rules across 11 categories**, each with a header stating what it prevents and an **Adapt** section for repointing it at your directory layout.
+- **Dozens of rules across 11 categories**, each with a header stating what it prevents and an **Adapt** section naming what your project sets for it.
 
 ## Quick start
 
@@ -99,11 +99,11 @@ This is heavily inspired by OpenAI's [harness engineering](https://openai.com/in
 
 The templates target Bun, TanStack Start, oxlint, Drizzle, Postgres, React, Zod, and lefthook, written against one standard layout (`src/features/<name>/{controllers,repo,service,ui}`, `src/domains`, `src/infrastructure`, `src/shared/ui`, and the `@/` alias).
 
-**On that stack?** Most rules are close to drop-in. Each one's **Adapt** section names the seams—the path patterns, package lists, and exempt directories you're most likely to repoint.
+**On that stack?** Most rules are drop-in. Nearly every **Adapt** section says *nothing here*: the rule reads `lint/policy/`, so declaring your source roots in `lint/policy/declared-trees.ts`—each with the vocabulary its directories are spelled in—is its whole adaptation. What a rule does hoist is enumerable: names, numbers, explicit rows. No rule takes a regex or a glob, and no rule's scope is repointed by hand.
 
 **On something else?** The rules won't paste in, but the boundaries they encode don't depend on your framework, and every rule spells out its own reasoning. Point your agent at the repo and let it translate them to ESLint, ArchUnit-style fitness functions, or plain scripts. That's the intended use for most readers.
 
-Either way, confirm your adapted rule still fires before you trust it. A lint rule that stops matching doesn't error—it goes green, and a passing check looks exactly like a working one. Every rule here is proved against three kinds of case in CI before it reaches you: the obvious violation, the adversarial spelling that beats a naive implementation, and the legal neighbour that must stay silent. Those cases run in oxlint's rule-test harness rather than in the linter itself, and the two do not build the same environment — one rule shipped green across all of them and reported nothing when oxlint actually ran it. So the advice above is not a formality: run your adapted rule over a file that should fail. oxlint rules carry their spec in the file beside them, so copy it along with the rule and repoint it at your paths; the cross-file checks are proved against a shared fixture tree that stays in this repo, so their equivalent is fixtures you write once against your own code. ([How that's set up.](harness/README.md))
+Either way, confirm your adapted rule still fires before you trust it. A lint rule that stops matching doesn't error—it goes green, and a passing check looks exactly like a working one. Every rule here is proved against three kinds of case in CI before it reaches you: the obvious violation, the adversarial spelling that beats a naive implementation, and the legal neighbour that must stay silent. Those cases run in oxlint's rule-test harness rather than in the linter itself, and the two do not build the same environment — one rule shipped green across all of them and reported nothing when oxlint actually ran it. So the advice above is not a formality: run your adapted rule over a file that should fail. oxlint rules carry their spec in the file beside them, so copy it along with the rule and respell its fixture filenames in your vocabulary; the cross-file checks are proved against a shared fixture tree that stays in this repo, so their equivalent is fixtures you write once against your own code. ([How that's set up.](harness/README.md))
 
 ## License
 

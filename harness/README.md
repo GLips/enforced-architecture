@@ -85,7 +85,7 @@ Every case carries its own `filename`, in the standard layout, because the rules
 
 Every one of these was revert-probed when the runner was built. Do it again after any change here: break a rule and expect its adversarial kind to fail, stub a spec and expect all three kinds to report as never run. A harness that stays green through both is not testing anything.
 
-What it still does not check is whether **oxlint** accepts the plugin, as opposed to Node loading it. That path was verified by hand when the plugin landed — the 32 rules that existed then, enabled against a probe tree through the real CLI. It has not been redone since, and JS plugins being alpha is the reason to redo it after an oxlint upgrade rather than trusting a green `check:rules`.
+What it still does not check is whether **oxlint** accepts the plugin, as opposed to Node loading it. That path is verified by hand, and was last redone when the full rule manifest landed: every rule enabled against a probe tree through the real CLI. Nothing re-runs it. JS plugins being alpha is the reason to redo it by hand after an oxlint upgrade rather than trusting a green `check:rules`.
 
 ## The host gap, and the one rule that is proved through it
 
@@ -95,7 +95,9 @@ What it still does not check is whether **oxlint** accepts the plugin, as oppose
 
 `harness/prove-no-reflect-access-live.ts` is what proves it: files materialized on disk, linted by the real `oxlint` binary through the shipped `plugin.ts`, diagnostics read back. It covers one rule on purpose and says so in its header.
 
-**Every other rule in the catalog carries the same blind spot**, and a green `check:rules` does not mean a rule fires in the linter. Generalizing the live run across the tier is ea-49.
+**Every other rule in the catalog carries the same blind spot**, and a green `check:rules` does not mean a rule fires in the linter.
+
+Generalizing the live run across the tier was proposed and **dismissed**, so do not wait for it. Every rule's obvious fixtures were materialized as real files and linted through the shipped `.oxlintrc.json` once, by hand, when the full manifest landed: all of them reported their own diagnostic id. That one-off covered the inert-rule class and the registration-versus-enablement gap for every fixtured rule, which was most of what a standing pass would buy. What a standing pass would still add is a sweep for the scope class this section describes, and nobody has a second instance of it. Adopting the catalog on a real repo is the live proof instead. Revisit this only if an adoption turns up a rule that is green here and silent in the linter.
 
 ## The runtime: real Node, not Bun
 
@@ -111,8 +113,17 @@ Verified on oxlint 1.77.0 / bun 1.3.13 / Node 24.17.0. Re-check whether JavaScri
 
 Every rule in the catalog has cases: the oxlint rules through `check:rules`, the structural checks through `check:structural`. Nothing ships as an untested description any more.
 
-Having cases is not the same as being proved to FIRE, and the section above is the difference. One oxlint rule — `types/no-reflect-access` — is additionally run through the real linter; the other 49 are proved only in `RuleTester`'s environment, which is not the one an adopting project runs. ea-49 closes that.
+Having cases is not the same as being proved to FIRE, and the section above is the difference. One oxlint rule — `types/no-reflect-access` — is additionally run through the real linter on every `bun run check`. The other 48 are proved on every run only in `RuleTester`'s environment, which is not the one an adopting project runs. Each of them was linted through the real CLI once, by hand, when the full manifest landed; nothing re-checks that.
 
 The structural tier used to be prose. Each consuming project hand-rolled an implementation from the algorithm in the `.md`, and three independent audits found the same result: the implementations drifted, and each one had silently stopped matching part of what its doc promised. One deployment's layer-occupancy check had three bypasses and hardcoded a path its own doc documented as configurable; another's barrel-purity discovered a third of the barrels it claimed to. Every one of those was green. That is the argument for shipping code and config rather than an algorithm — the adaptation step is where the silence was getting in, so the adaptation step is now writing config.
 
-What is still not covered, for either tier: whether a rule survives **adaptation**. Repointing a root, extending a package list, or adding an exclusion is unverified work in the consuming project — see *Rule Specs* in `references/enforcement-implementation.md`.
+What is still not covered, for either tier: whether a rule survives **adaptation**. Renaming a directory, moving a source root, or moving a threshold is unverified work in the consuming project — the catalog's specs are written against the recommended vocabulary, not that project's — so the project writes its own specs in the same change. Repointing a rule at a different path is not on that list, because it is not on offer: no rule takes a pattern as configuration. See *Rule Specs* in `references/enforcement-implementation.md`.
+
+## The catalog under its own doc ratchet
+
+`bun run check:doc-budgets` runs the shipped `health/doc-budgets` check against this repository, with ceilings in `docs/doc-budgets.manifest.json`. It imports the shipped check rather than counting words itself, so the ratchet the catalog ships and the ratchet the catalog lives under cannot disagree.
+
+It budgets the standing prose: `CLAUDE.md`, `README.md`, this file, `SKILL.md` and the eight files under `references/`. It deliberately budgets neither the per-tag `references/lint/**/overview.md` indexes, whose length is a function of the rule count rather than of prose, nor rule header comments, which are code and belong to `health/file-size`.
+
+The ratchet fires in both directions: a doc that grows past its ceiling fails, and a doc that shrinks without its ceiling following fails as well. All three failing statuses — over, slack, and a ceiling over a file that is not there — were probed live against this manifest, not assumed.
+
