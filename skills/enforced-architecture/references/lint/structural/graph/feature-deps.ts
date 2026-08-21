@@ -39,7 +39,7 @@ export const featureDepsCheck: StructuralCheck = {
   id: "graph/feature-deps",
   scope: "tree",
 
-  run({ config, tree, vocabulary, importGraph, occupiedDirs }) {
+  async run({ config, tree, vocabulary, importGraph, occupiedDirs }) {
     const { totalEdgeThreshold, pairSaturationThreshold, fanOutThreshold } =
       config.checks["graph/feature-deps"];
     const { featuresDir: featuresDirName } = vocabulary;

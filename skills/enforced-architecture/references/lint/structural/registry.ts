@@ -32,6 +32,7 @@ import { layerOccupancyCheck } from "./boundary/layer-occupancy.ts";
 import { shadowSourceCheck } from "./style/shadow-source.ts";
 import { testFileMirrorCheck } from "./naming/test-file-mirror.ts";
 import { tokenEqualityCheck } from "./style/token-equality.ts";
+import { noOpaqueRecordCheck } from "./types/no-opaque-record.ts";
 import { topologyCheck } from "./placement/topology.ts";
 import { trampolinesCheck } from "./health/trampolines.ts";
 import type { StructuralCheck } from "./check-substrate.ts";
@@ -53,4 +54,5 @@ export const structuralChecks: StructuralCheck[] = [
   cssTokensCheck,
   shadowSourceCheck,
   tokenEqualityCheck,
+  noOpaqueRecordCheck,
 ];

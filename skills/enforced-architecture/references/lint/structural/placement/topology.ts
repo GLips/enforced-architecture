@@ -83,7 +83,7 @@ export const topologyCheck: StructuralCheck = {
   id: "placement/topology",
   scope: "tree",
 
-  run(context) {
+  async run(context) {
     const { config, tree, vocabulary } = context;
     const allowedRoots = topLevelDirs(vocabulary);
     const allowedRootFiles = sourceRootModules(vocabulary);

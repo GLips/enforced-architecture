@@ -418,6 +418,28 @@ export const JSX_SOURCE_EXTENSIONS = SOURCE_EXTENSIONS.filter((extension) =>
 );
 
 /**
+ * The source extensions that carry TYPE SYNTAX, which is the subject of the
+ * `types/` tag and of nothing else in the catalog.
+ *
+ * Derived on the same terms as `JSX_SOURCE_EXTENSIONS`, and the tail is the
+ * whole test: `ts`, `tsx`, `mts` and `cts` all end in a `ts` optionally followed
+ * by an `x`, and none of `js`/`jsx`/`mjs`/`cjs` does.
+ *
+ * A `.js` file is not a narrower subject here, it is NO subject: it has no
+ * annotation to widen, no assertion to chain, and no type alias to declare. It
+ * is also the one file TypeScript may structurally refuse to compile — a
+ * `rates.js` beside a `rates.ts` is shadowed and never enters the program — so
+ * measuring type coverage over it would report the tsconfig as broken on a
+ * project where nothing is wrong.
+ */
+export const TYPESCRIPT_SOURCE_EXTENSIONS = SOURCE_EXTENSIONS.filter((extension) =>
+  /tsx?$/.test(extension),
+);
+
+/** Every type-carrying source file in a tree: `**\/*.{ts,tsx,mts,cts}`. */
+export const TYPESCRIPT_FILE_GLOB = `**/*.{${TYPESCRIPT_SOURCE_EXTENSIONS.join(",")}}`;
+
+/**
  * Every source file in ONE directory: `*.{ts,tsx,mts,cts,…}`.
  *
  * A check that knows the DEPTH of its subject composes this rather than writing

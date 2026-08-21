@@ -45,7 +45,7 @@ export const importPolicyCheck: StructuralCheck = {
   id: "boundary/import-policy",
   scope: "tree",
 
-  run({ vocabulary, importGraph }) {
+  async run({ vocabulary, importGraph }) {
     const findings: Finding[] = [];
     // An unclassified file is a fact about the FILE, not about each of its
     // imports, and the linter already reports it once per file — including for a

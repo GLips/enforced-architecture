@@ -87,7 +87,7 @@ export const featureVisibilityCheck: StructuralCheck = {
   id: "api/feature-visibility",
   scope: "tree",
 
-  run({ config, tree, vocabulary, importGraph, subdirs }) {
+  async run({ config, tree, vocabulary, importGraph, subdirs }) {
     const { visibilityFilename } = config.checks["api/feature-visibility"];
     const { featuresDir: featuresDirName } = vocabulary;
     const findings: Finding[] = [];

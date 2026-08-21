@@ -53,7 +53,7 @@ const config: ArchitectureConfig = {
   },
 };
 
-const findings = docBudgetsCheck.scope === "project" ? docBudgetsCheck.run({ config }) : [];
+const findings = docBudgetsCheck.scope === "project" ? await docBudgetsCheck.run({ config }) : [];
 
 for (const finding of findings) {
   console.error(`  ${finding.severity.toUpperCase()}  ${finding.file}\n${finding.message}\n`);

@@ -30,7 +30,7 @@ export const layerOccupancyCheck: StructuralCheck = {
   id: "boundary/layer-occupancy",
   scope: "tree",
 
-  run({ vocabulary, importGraph, occupiedDirs }) {
+  async run({ vocabulary, importGraph, occupiedDirs }) {
     // Every name here is the tree's, and none of them is a knob of this check's
     // own. A schema path or a layer name configured beside this rule is the
     // vocabulary written twice, and the copy that drifts goes quiet rather than

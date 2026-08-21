@@ -409,7 +409,7 @@ export const barrelPurityCheck: StructuralCheck = {
   id: "api/barrel-purity",
   scope: "tree",
 
-  run(context) {
+  async run(context) {
     const { config, vocabulary } = context;
     const { serverOnlyPackages, maxTraceDepth, serverFnBoundary } =
       config.checks["api/barrel-purity"];

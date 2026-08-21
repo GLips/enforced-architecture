@@ -7,6 +7,7 @@
 //   2. resolution across the tree   — where an import LANDS, not how it is spelled
 //   3. a surface the linter cannot see — `.css`, `visibility.json`
 //   4. reading the project's own source of truth — the token scale
+//   5. asking what a declaration MEANS — a type, not a token (`type-checker.ts`)
 //
 // Everything here is what more than one such check needs. A check reaching for
 // its own file walker or its own exclusion list is how two checks end up
@@ -14,7 +15,7 @@
 //
 // ──────────────────────────────────────────────────────────────────────
 
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, realpathSync } from "node:fs";
 import { relative, resolve } from "node:path";
 import {
   type DeclaredTree,
@@ -24,10 +25,15 @@ import {
   isArchitectureExemptSourcePath,
   isUnauthoredSourcePath,
 } from "../policy/declared-trees.ts";
-import { SOURCE_FILE_GLOB, type TreeVocabulary } from "../policy/layout.ts";
+import {
+  SOURCE_FILE_GLOB,
+  TYPESCRIPT_FILE_GLOB,
+  type TreeVocabulary,
+} from "../policy/layout.ts";
 import type { ArchitectureConfig } from "./config.ts";
 import { buildImportGraph, type ImportEdge } from "./import-graph.ts";
 import { createTreeModuleResolver, type TreeModuleResolver } from "./module-resolution.ts";
+import { sharedTypeCheckerHost, type TreeTypeChecker } from "./type-checker.ts";
 
 export type Severity = "error" | "warning";
 
@@ -86,6 +92,23 @@ export type TreeContext = {
    * of hand-rolled resolvers this one replaced.
    */
   resolveModule: TreeModuleResolver;
+  /**
+   * This tree's TypeScript program and checker — see `type-checker.ts`. Every
+   * `types/` check reads its answers through here and nothing else does.
+   *
+   * Booted on FIRST CALL, so a project whose only enabled checks are structural
+   * never spawns a compiler. The promise is memoised rather than the value,
+   * which also memoises a rejection: a tree whose tsconfig is missing or whose
+   * program does not contain it fails identically for every types check that
+   * asks, instead of paying seven boots to produce seven copies of one error.
+   *
+   * The agreement between the tsconfig and the tree is checked HERE, once, on
+   * that first call — see `assertTreeIsTypeChecked`. Doing it at declaration
+   * time instead would make every adopter's `declareTrees` read the filesystem
+   * and boot a compiler at module load, including in the oxlint tier, which has
+   * no use for either.
+   */
+  typeChecker(): Promise<TreeTypeChecker>;
   /**
    * Names of the immediate subdirectories of a source-root-relative directory,
    * whether or not they hold source this tier walks.
@@ -147,10 +170,17 @@ export type ProjectContext = {
  * A discriminated union rather than an optional context field: the scope decides
  * what the runner hands the check, and a check that could receive either would
  * have to guard at runtime for a combination the registry can never produce.
+ *
+ * `run` is async for EVERY check, including the twelve that never await
+ * anything. The type checker's client is asynchronous — `type-checker.ts` says
+ * why that is not a preference — and one uniform signature is worth more than a
+ * union of sync and async: `Finding[] | Promise<Finding[]>` is one forgotten
+ * `await` away from a check whose findings arrive as a pending promise, which
+ * the runner would record as a run that found nothing.
  */
 export type StructuralCheck =
-  | { id: string; scope: "tree"; run(context: TreeContext): Finding[] }
-  | { id: string; scope: "project"; run(context: ProjectContext): Finding[] };
+  | { id: string; scope: "tree"; run(context: TreeContext): Promise<Finding[]> }
+  | { id: string; scope: "project"; run(context: ProjectContext): Promise<Finding[]> };
 
 /** One context per declared tree, in declaration order. */
 export function createTreeContexts(
@@ -163,6 +193,7 @@ export function createTreeContexts(
 export function createTreeContext(config: ArchitectureConfig, tree: DeclaredTree): TreeContext {
   let graph: ImportEdge[] | undefined;
   let resolver: TreeModuleResolver | undefined;
+  let typed: Promise<TreeTypeChecker> | undefined;
   const subdirectories = new Map<string, string[]>();
   const occupied = new Map<string, string[]>();
 
@@ -185,6 +216,15 @@ export function createTreeContext(config: ArchitectureConfig, tree: DeclaredTree
     resolveModule(fromFile, specifier) {
       resolver ??= createTreeModuleResolver(context.vocabulary, context.sourceRoot);
       return resolver(fromFile, specifier);
+    },
+
+    typeChecker() {
+      typed ??= (async () => {
+        const checker = await sharedTypeCheckerHost().forTree(config.projectRoot, tree);
+        await assertTreeIsTypeChecked(context, checker);
+        return checker;
+      })();
+      return typed;
     },
 
     subdirs(sourceRelativeDir) {
@@ -221,6 +261,83 @@ export function createTreeContext(config: ArchitectureConfig, tree: DeclaredTree
   };
 
   return context;
+}
+
+/**
+ * Fails when a tree's declared tsconfig builds a program that does not contain
+ * the tree.
+ *
+ * The two declarations in `DeclaredTree` answer different questions — `root`
+ * says which files the catalog governs, `tsconfig` says which files TypeScript
+ * compiled — and NOTHING makes them agree. A tsconfig that `exclude`s the tree,
+ * an `include` narrowed to `src/app`, a monorepo root config that reaches only
+ * as far as `apps/`: each of them leaves the types checks walking a program with
+ * none of the governed files in it, reporting zero findings on every one. That
+ * result is byte-identical to a tree with no violations, which is the failure
+ * this catalog exists to prevent and the one it keeps committing.
+ *
+ * Measured over `collectTreeFiles`, so the exemptions are the catalog's own: a
+ * tsconfig that excludes `*.test.ts` or the generated directories is the normal
+ * case and is not a disagreement, because no check reads those files either.
+ * Measured over `TYPESCRIPT_FILE_GLOB` rather than every source extension for
+ * the reason given there: a `.js` file has no type syntax to check, and one
+ * shadowed by a same-named `.ts` can never be in the program at all.
+ *
+ * The direction is one-way on purpose. A program REACHING past the tree is
+ * fine — a tsconfig at the repo root legitimately compiles four packages — and
+ * failing on it would make the correct monorepo config unusable.
+ */
+export async function assertTreeIsTypeChecked(
+  context: TreeContext,
+  checker: TreeTypeChecker,
+): Promise<void> {
+  const inProgram = new Set(await checker.sourceFileNames());
+  const absent = collectTreeFiles(context, TYPESCRIPT_FILE_GLOB).filter(
+    (absolute) => !inProgram.has(absolute),
+  );
+  if (absent.length === 0) return;
+
+  // A SECOND pass through realpath, and only over what the first pass could not
+  // find, because the two walkers spell a symlinked directory differently. TypeScript
+  // enumerates THROUGH the link (`features/aliased-link/index.ts`) while
+  // `collectTreeFiles` runs `Bun.Glob.scanSync`, which does not traverse symlinks
+  // and therefore reports the target (`features/aliased-target/index.ts`). One
+  // file, two names, and a set comparison calls it unchecked — this guard's own
+  // false alarm, on a tree where every file really is in the program.
+  //
+  // Deferred rather than folded into the first comparison so the common case
+  // stays one string hash per file: a tree with no symlinks never touches the
+  // filesystem here at all.
+  const realInProgram = new Set([...inProgram].map(realpathOrSelf));
+  const missing = absent.filter((absolute) => !realInProgram.has(realpathOrSelf(absolute)));
+  if (missing.length === 0) return;
+
+  const shown = missing.slice(0, 5).map((absolute) => `  ${toProjectPath(context.config, absolute)}`);
+  const rest = missing.length > shown.length ? `\n  …and ${missing.length - shown.length} more` : "";
+  throw new Error(
+    `The tree at '${context.tree.root}' declares tsconfig '${context.tree.tsconfig}', and ` +
+      `${missing.length} of its source file(s) are not in the program that config builds:\n` +
+      `${shown.join("\n")}${rest}\n` +
+      `Every types check reads its answers out of that program, so those files are unchecked ` +
+      `and would have reported nothing — which is what a clean tree looks like. Widen the ` +
+      `tsconfig's 'include', drop the 'exclude' that covers them, or point the tree at the ` +
+      `config that does compile it.`,
+  );
+}
+
+/**
+ * `realpathSync`, with a path that no longer resolves passed through unchanged.
+ *
+ * The tolerance is the point: this runs to compare two lists, and a program name
+ * whose file was deleted between the compiler's walk and ours must fail to match
+ * rather than take the whole run down with an ENOENT from a helper.
+ */
+function realpathOrSelf(absolute: string): string {
+  try {
+    return realpathSync(absolute);
+  } catch {
+    return absolute;
+  }
 }
 
 /** Project-relative path, for findings a human has to act on. */

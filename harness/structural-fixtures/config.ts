@@ -40,7 +40,7 @@ import { radius, spacing } from "./tree/src/shared/ui/theme.ts";
 export const FIXTURE_TREE = resolve(import.meta.dir, "tree");
 
 /** The tree every fixture in `tree/src` belongs to. */
-export const APP_TREE: DeclaredTree = { root: "src", vocabulary: RECOMMENDED_VOCABULARY };
+export const APP_TREE: DeclaredTree = { root: "src", vocabulary: RECOMMENDED_VOCABULARY, tsconfig: "tsconfig.json" };
 
 /**
  * A second tree that renames one directory, which is the whole of what a
@@ -55,7 +55,7 @@ export const PDF_VOCABULARY: TreeVocabulary = {
   featuresDir: "capabilities",
 };
 
-export const PDF_TREE: DeclaredTree = { root: "packages/pdf/src", vocabulary: PDF_VOCABULARY };
+export const PDF_TREE: DeclaredTree = { root: "packages/pdf/src", vocabulary: PDF_VOCABULARY, tsconfig: "tsconfig.json" };
 
 /** What the suite runs against: one tree, exactly as a single-app project declares. */
 export const DECLARED_FIXTURE_TREES: ValidatedTrees = declareTrees([APP_TREE]);
@@ -76,7 +76,23 @@ export const BOTH_FIXTURE_TREES: ValidatedTrees = declareTrees([APP_TREE, PDF_TR
  */
 export const PDF_TREE_MISREAD: ValidatedTrees = declareTrees([
   APP_TREE,
-  { root: PDF_TREE.root, vocabulary: RECOMMENDED_VOCABULARY },
+  { root: PDF_TREE.root, vocabulary: RECOMMENDED_VOCABULARY, tsconfig: PDF_TREE.tsconfig },
+]);
+
+/**
+ * The POSITIVE CONTROL for `assertTreeIsTypeChecked`: the app tree declared
+ * against a tsconfig that compiles a different package.
+ *
+ * The same argument as `PDF_TREE_MISREAD`, one substrate over. Every `types/`
+ * expectation already goes red when the program is empty — but it goes red
+ * because this tree HAS fixtures, and an adopting project in the same state has
+ * none, so it gets zero findings and a green run. This list is what makes the
+ * guard itself load-bearing: `tsconfig.type-unchecked.json` is a working config
+ * that simply does not contain `src`, and declaring it has to CRASH the types
+ * checks rather than quiet them.
+ */
+export const APP_TREE_TYPE_UNCHECKED: ValidatedTrees = declareTrees([
+  { ...APP_TREE, tsconfig: "tsconfig.type-unchecked.json" },
 ]);
 
 export const fixtureConfig: ArchitectureConfig = {

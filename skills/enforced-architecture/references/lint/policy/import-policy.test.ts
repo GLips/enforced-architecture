@@ -589,7 +589,7 @@ describeSuite("the adapter contract: the one flag, and the loud defaults", () =>
 // both vocabularies proves nothing here. Every assertion below is one the app
 // tree's vocabulary would answer differently.
 
-const APP_TREE: DeclaredTree = { root: "apps/web/src", vocabulary: RECOMMENDED_VOCABULARY };
+const APP_TREE: DeclaredTree = { root: "apps/web/src", vocabulary: RECOMMENDED_VOCABULARY, tsconfig: "tsconfig.json" };
 
 const PDF_VOCABULARY: TreeVocabulary = {
   ...RECOMMENDED_VOCABULARY,
@@ -600,7 +600,7 @@ const PDF_VOCABULARY: TreeVocabulary = {
   sharedDir: "common",
 };
 
-const PDF_TREE: DeclaredTree = { root: "packages/pdf/src", vocabulary: PDF_VOCABULARY };
+const PDF_TREE: DeclaredTree = { root: "packages/pdf/src", vocabulary: PDF_VOCABULARY, tsconfig: "tsconfig.json" };
 
 const TWO_TREES: DeclaredTree[] = [APP_TREE, PDF_TREE];
 
@@ -636,13 +636,13 @@ describeSuite("resolving a file into the tree that owns it", () => {
   });
 
   testCase("declaring the sibling is the only thing that turns it on", () => {
-    const declared: DeclaredTree[] = [...TWO_TREES, { root: "packages/cli/src", vocabulary: RECOMMENDED_VOCABULARY }];
+    const declared: DeclaredTree[] = [...TWO_TREES, { root: "packages/cli/src", vocabulary: RECOMMENDED_VOCABULARY, tsconfig: "tsconfig.json" }];
     const role = classifyFileRole(PROJECT_ROOT + "/packages/cli/src/features/billing/ui/panel.tsx", PROJECT_ROOT, declared);
     assert.equal(role?.place?.profile, "feature-ui");
   });
 
   testCase("the most specific root wins, so a bare root does not swallow a nested one", () => {
-    const nested: DeclaredTree[] = [{ root: "src", vocabulary: RECOMMENDED_VOCABULARY }, APP_TREE];
+    const nested: DeclaredTree[] = [{ root: "src", vocabulary: RECOMMENDED_VOCABULARY, tsconfig: "tsconfig.json" }, APP_TREE];
     assert.equal(declaredTreeFor(PROJECT_ROOT + "/apps/web/src/features/billing/ui/panel.tsx", PROJECT_ROOT, nested)?.tree, APP_TREE);
   });
 
@@ -652,7 +652,7 @@ describeSuite("resolving a file into the tree that owns it", () => {
   // from the project root answers both, and both are pinned because a fix for one
   // that reintroduces the other reads as green.
   testCase("a checkout living under a directory called src is not mistaken for the tree", () => {
-    const single: DeclaredTree[] = [{ root: "src", vocabulary: RECOMMENDED_VOCABULARY }];
+    const single: DeclaredTree[] = [{ root: "src", vocabulary: RECOMMENDED_VOCABULARY, tsconfig: "tsconfig.json" }];
     assert.deepEqual(
       declaredTreeFor("/home/me/src/repo/src/features/billing/ui/panel.tsx", "/home/me/src/repo", single),
       { tree: single[0], sourcePath: "features/billing/ui/panel.tsx" },
@@ -664,7 +664,7 @@ describeSuite("resolving a file into the tree that owns it", () => {
     // `helper.ts`, so the oxlint tier read a feature's service file as a root
     // entrypoint while the structural tier, which measures from the root it was
     // given, read it correctly — one file, two positions, two policies.
-    const single: DeclaredTree[] = [{ root: "src", vocabulary: RECOMMENDED_VOCABULARY }];
+    const single: DeclaredTree[] = [{ root: "src", vocabulary: RECOMMENDED_VOCABULARY, tsconfig: "tsconfig.json" }];
     assert.deepEqual(
       declaredTreeFor(PROJECT_ROOT + "/src/features/billing/service/src/helper.ts", PROJECT_ROOT, single),
       { tree: single[0], sourcePath: "features/billing/service/src/helper.ts" },
@@ -672,7 +672,7 @@ describeSuite("resolving a file into the tree that owns it", () => {
   });
 
   testCase("a file outside the project root is in no tree, whatever its path spells", () => {
-    const single: DeclaredTree[] = [{ root: "src", vocabulary: RECOMMENDED_VOCABULARY }];
+    const single: DeclaredTree[] = [{ root: "src", vocabulary: RECOMMENDED_VOCABULARY, tsconfig: "tsconfig.json" }];
     assert.equal(
       declaredTreeFor("/elsewhere/src/features/billing/ui/panel.tsx", PROJECT_ROOT, single),
       undefined,
@@ -680,7 +680,7 @@ describeSuite("resolving a file into the tree that owns it", () => {
   });
 
   testCase("the longest declaration that prefixes the path wins", () => {
-    const nested: DeclaredTree[] = [{ root: "src", vocabulary: RECOMMENDED_VOCABULARY }, APP_TREE];
+    const nested: DeclaredTree[] = [{ root: "src", vocabulary: RECOMMENDED_VOCABULARY, tsconfig: "tsconfig.json" }, APP_TREE];
     assert.deepEqual(declaredTreeFor(PROJECT_ROOT + "/apps/web/src/features/billing/ui/panel.tsx", PROJECT_ROOT, nested), {
       tree: APP_TREE,
       sourcePath: "features/billing/ui/panel.tsx",
@@ -856,7 +856,7 @@ describeSuite("a vocabulary cannot declare its own tree out of existence", () =>
   ] as [string, TreeVocabulary][]) {
     testCase(`${label} exempts a governed position from every rule`, () => {
       assert.throws(
-        () => declareTrees([{ root: "src", vocabulary }]),
+        () => declareTrees([{ root: "src", vocabulary, tsconfig: "tsconfig.json" }]),
         /architecture-exempt/,
       );
     });
@@ -870,7 +870,7 @@ describeSuite("a vocabulary cannot declare its own tree out of existence", () =>
   // exception rather than a skipped record.
   testCase("the generated routeTree may name itself exempt and nothing else may", () => {
     assert.doesNotThrow(() =>
-      declareTrees([{ root: "src", vocabulary: RECOMMENDED_VOCABULARY }]),
+      declareTrees([{ root: "src", vocabulary: RECOMMENDED_VOCABULARY, tsconfig: "tsconfig.json" }]),
     );
     assert.strictEqual(RECOMMENDED_VOCABULARY.sourceRootPositions.routeTree, "routeTree.gen");
   });
@@ -885,7 +885,7 @@ describeSuite("a vocabulary cannot declare its own tree out of existence", () =>
   // Validated once, then reassigned. Freezing the caller's own array is what
   // makes the brand a claim about the value rather than about one moment.
   testCase("a validated list cannot be edited afterwards", () => {
-    const trees = declareTrees([{ root: "src", vocabulary: RECOMMENDED_VOCABULARY }]);
+    const trees = declareTrees([{ root: "src", vocabulary: RECOMMENDED_VOCABULARY, tsconfig: "tsconfig.json" }]);
     assert.throws(() => {
       (trees as unknown as DeclaredTree[])[0]!.root = "../outside";
     });
@@ -901,7 +901,7 @@ describeSuite("a vocabulary cannot declare its own tree out of existence", () =>
   // the brand still sitting on the value.
   testCase("a list the caller froze first is still frozen all the way down", () => {
     const trees = declareTrees(
-      Object.freeze([{ root: "src", vocabulary: RECOMMENDED_VOCABULARY }]),
+      Object.freeze([{ root: "src", vocabulary: RECOMMENDED_VOCABULARY, tsconfig: "tsconfig.json" }]),
     );
     assert.throws(() => {
       (trees as unknown as DeclaredTree[])[0]!.root = "../outside";
@@ -914,13 +914,13 @@ describeSuite("a vocabulary cannot declare its own tree out of existence", () =>
   });
 
   testCase("declaring the recommended vocabulary is accepted by the factory too", () => {
-    assert.doesNotThrow(() => declareTrees([{ root: "src", vocabulary: RECOMMENDED_VOCABULARY }]));
+    assert.doesNotThrow(() => declareTrees([{ root: "src", vocabulary: RECOMMENDED_VOCABULARY, tsconfig: "tsconfig.json" }]));
   });
 
   testCase("one root declared twice is governed by one vocabulary and checked by two", () => {
     const twice: DeclaredTree[] = [
-      { root: "src", vocabulary: RECOMMENDED_VOCABULARY },
-      { root: "src", vocabulary: { ...RECOMMENDED_VOCABULARY, featuresDir: "capabilities" } },
+      { root: "src", vocabulary: RECOMMENDED_VOCABULARY, tsconfig: "tsconfig.json" },
+      { root: "src", vocabulary: { ...RECOMMENDED_VOCABULARY, featuresDir: "capabilities" }, tsconfig: "tsconfig.json" },
     ];
     assert.throws(() => assertDistinctDeclaredRoots(twice), /declared twice/);
   });
@@ -1014,14 +1014,14 @@ describeSuite("a vocabulary cannot declare its own tree out of existence", () =>
 
   testCase("a second spelling of one root passes a string comparison and is refused here", () => {
     const equivalent: DeclaredTree[] = [
-      { root: "src", vocabulary: RECOMMENDED_VOCABULARY },
-      { root: "./src", vocabulary: RECOMMENDED_VOCABULARY },
+      { root: "src", vocabulary: RECOMMENDED_VOCABULARY, tsconfig: "tsconfig.json" },
+      { root: "./src", vocabulary: RECOMMENDED_VOCABULARY, tsconfig: "tsconfig.json" },
     ];
     assert.throws(() => assertDistinctDeclaredRoots(equivalent), /not written canonically/);
   });
 
   testCase("a trailing slash is the same directory written a third way", () => {
-    const trailing: DeclaredTree[] = [{ root: "src/", vocabulary: RECOMMENDED_VOCABULARY }];
+    const trailing: DeclaredTree[] = [{ root: "src/", vocabulary: RECOMMENDED_VOCABULARY, tsconfig: "tsconfig.json" }];
     assert.throws(() => assertDistinctDeclaredRoots(trailing), /not written canonically/);
   });
 
@@ -1033,15 +1033,15 @@ describeSuite("a vocabulary cannot declare its own tree out of existence", () =>
   // policed by nothing.
   for (const pattern of ["src*", "src?", "{src,app}", "src/[a-z]*", "!src", "src\\web"]) {
     testCase(`a root spelled "${pattern}" is a pattern, not a directory`, () => {
-      const globbed: DeclaredTree[] = [{ root: pattern, vocabulary: RECOMMENDED_VOCABULARY }];
+      const globbed: DeclaredTree[] = [{ root: pattern, vocabulary: RECOMMENDED_VOCABULARY, tsconfig: "tsconfig.json" }];
       assert.throws(() => assertDistinctDeclaredRoots(globbed), /not written canonically/);
     });
   }
 
   testCase("two DIFFERENT roots are the monorepo case and stay legal", () => {
     const both: DeclaredTree[] = [
-      { root: "apps/web/src", vocabulary: RECOMMENDED_VOCABULARY },
-      { root: "packages/core/src", vocabulary: RECOMMENDED_VOCABULARY },
+      { root: "apps/web/src", vocabulary: RECOMMENDED_VOCABULARY, tsconfig: "tsconfig.json" },
+      { root: "packages/core/src", vocabulary: RECOMMENDED_VOCABULARY, tsconfig: "tsconfig.json" },
     ];
     assert.doesNotThrow(() => assertDistinctDeclaredRoots(both));
   });

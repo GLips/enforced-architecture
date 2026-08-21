@@ -44,7 +44,7 @@ export const fileSizeCheck: StructuralCheck = {
   // nothing else in.
   scope: "project",
 
-  run({ config }) {
+  async run({ config }) {
     const { roots, warnThreshold, failThreshold } = config.checks["health/file-size"];
     const findings: Finding[] = [];
 

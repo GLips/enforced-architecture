@@ -39,7 +39,7 @@ export const domainCyclesCheck: StructuralCheck = {
   id: "graph/domain-cycles",
   scope: "tree",
 
-  run({ tree, vocabulary, importGraph, occupiedDirs }) {
+  async run({ tree, vocabulary, importGraph, occupiedDirs }) {
     const { domainsDir: domainsDirName } = vocabulary;
 
     // Occupancy rather than directory presence. An empty leftover directory

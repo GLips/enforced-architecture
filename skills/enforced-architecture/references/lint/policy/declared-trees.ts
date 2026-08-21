@@ -21,7 +21,7 @@
 // One entry per tree the catalog governs. A single-app repo declares one:
 //
 //   export const DECLARED_TREES: ValidatedTrees = declareTrees([
-//     { root: "src", vocabulary: RECOMMENDED_VOCABULARY },
+//     { root: "src", vocabulary: RECOMMENDED_VOCABULARY, tsconfig: "tsconfig.json" },
 //   ]);
 //
 // A monorepo declares one per governed source root, and each carries its OWN
@@ -29,10 +29,11 @@
 // differently:
 //
 //   export const DECLARED_TREES: ValidatedTrees = declareTrees([
-//     { root: "apps/web/src", vocabulary: RECOMMENDED_VOCABULARY },
+//     { root: "apps/web/src", vocabulary: RECOMMENDED_VOCABULARY, tsconfig: "apps/web/tsconfig.json" },
 //     {
 //       root: "packages/core/src",
 //       vocabulary: { ...RECOMMENDED_VOCABULARY, infrastructureDir: "db" },
+//       tsconfig: "packages/core/tsconfig.json",
 //     },
 //   ]);
 //
@@ -91,6 +92,24 @@ export type DeclaredTree = {
    */
   root: string;
   vocabulary: TreeVocabulary;
+  /**
+   * The tsconfig whose program contains this tree, PROJECT-RELATIVE. The
+   * structural tier's `types/` checks read their answers out of that program, so
+   * a tree without one has no type information and every one of them is silent
+   * on it.
+   *
+   * A path rather than a set of compiler options, and that is the whole point:
+   * the project already has a tsconfig, and stating its own would be a second
+   * answer to what `strict` means. It is vocabulary in the same sense `root`
+   * is — where a thing lives, not whether a rule applies.
+   *
+   * The two declarations here can disagree: a tsconfig may `exclude` half the
+   * tree, or reach files outside it. `assertTreeIsTypeChecked` in the structural
+   * tier compares them and fails loudly, because a tree the program does not
+   * contain produces no findings and reads exactly like a clean one — the same
+   * silence this file's own negative space is written about, one level down.
+   */
+  tsconfig: string;
 };
 
 // The naming conventions the exemption reads, hoisted above the tree list
@@ -154,7 +173,7 @@ export type ValidatedTrees = readonly DeclaredTree[] & {
  * edit a rule.
  */
 export const DECLARED_TREES: ValidatedTrees = declareTrees([
-  { root: "src", vocabulary: RECOMMENDED_VOCABULARY },
+  { root: "src", vocabulary: RECOMMENDED_VOCABULARY, tsconfig: "tsconfig.json" },
 ]);
 
 /**
@@ -177,6 +196,7 @@ export function declareTrees(trees: readonly DeclaredTree[]): ValidatedTrees {
   for (const tree of trees) {
     assertGoverningVocabulary(tree.vocabulary, tree.root);
     assertGovernedPositionsAreNotExempt(tree.vocabulary, tree.root);
+    assertDeclaredTsconfigPath(tree);
   }
   assertDistinctDeclaredRoots(trees);
   // Frozen IN PLACE rather than copied, so the caller's own reference is frozen
@@ -298,6 +318,47 @@ function assertGovernedPositionsAreNotExempt(vocabulary: TreeVocabulary, treeRoo
         `tiers while still being named in the vocabulary as though it were policed, which is ` +
         `exactly the undeclared-tree failure one level down. Pick a name the exemption ` +
         `conventions do not claim.`,
+    );
+  }
+}
+
+/**
+ * Rejects a `tsconfig` that names something other than one project-relative JSON file.
+ *
+ * The failure this closes is the tier's characteristic one. `forTree` resolves
+ * this string against the project root and asks TypeScript for the project at
+ * that path; a path that resolves somewhere real but WRONG loads a program that
+ * contains none of the tree's files, and every `types/` check then walks zero
+ * files and reports zero findings. Nothing in that run is red.
+ *
+ * Absolute is the sharpest case and the reason this is not left to `forTree`'s
+ * own check: `resolve(projectRoot, "/Users/me/other/tsconfig.json")` discards the
+ * project root entirely and succeeds, so the tree is type-checked against a
+ * different repository. `..` is the same escape written relatively.
+ *
+ * The `.json` tail is a canonical-spelling check in the sense `canonicalRoot` is,
+ * not a claim about what TypeScript accepts. `tsconfig.build.json` and
+ * `config/tsconfig.app.json` both pass. A DIRECTORY does not: TypeScript would
+ * resolve `apps/web` to the `tsconfig.json` inside it, which means the file the
+ * declaration governs and the file it names are two different strings, and a
+ * later `tsconfig.build.json` beside it silently keeps winning nothing.
+ */
+function assertDeclaredTsconfigPath(tree: DeclaredTree): void {
+  const segments = tree.tsconfig.split("/");
+  const looksCanonical =
+    tree.tsconfig.length > 0 &&
+    segments.every(isSafeDirectorySegment) &&
+    segments[segments.length - 1]?.endsWith(".json") === true;
+  if (!looksCanonical) {
+    throw new Error(
+      `The tree at "${tree.root}" declares tsconfig "${tree.tsconfig}", which is not a ` +
+        `project-relative path to a JSON file. Write it the way "root" is written — literal ` +
+        `names joined by single slashes, no "./" or "../", no leading slash, no glob syntax — ` +
+        `and end it in ".json": "tsconfig.json", "apps/web/tsconfig.json". An absolute path ` +
+        `resolves AWAY from the project root and type-checks this tree against whatever lives ` +
+        `there, and a directory leaves TypeScript to pick the file. Either way the program ` +
+        `holds none of this tree's files and every types check on it reports zero, which reads ` +
+        `exactly like a tree with no violations.`,
     );
   }
 }

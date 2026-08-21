@@ -68,7 +68,7 @@ export const barrelDiscoverabilityCheck: StructuralCheck = {
   id: "naming/barrel-discoverability",
   scope: "tree",
 
-  run(context) {
+  async run(context) {
     const { config, vocabulary } = context;
     const findings: Finding[] = [];
 

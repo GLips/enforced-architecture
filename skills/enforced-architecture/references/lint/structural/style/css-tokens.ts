@@ -58,7 +58,7 @@ export const cssTokensCheck: StructuralCheck = {
   id: "style/css-tokens",
   scope: "tree",
 
-  run(context) {
+  async run(context) {
     const { config, vocabulary } = context;
     const findings: Finding[] = [];
 

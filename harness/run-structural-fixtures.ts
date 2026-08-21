@@ -38,6 +38,7 @@ import {
   FIXTURE_TREE,
   fixtureConfig,
   PDF_TREE,
+  APP_TREE_TYPE_UNCHECKED,
   PDF_TREE_MISREAD,
 } from "./structural-fixtures/config.ts";
 import type { CheckFixtures, GeneratedFixture } from "./structural-fixtures/expectations.ts";
@@ -202,14 +203,14 @@ let runs: CheckRun[];
 let bothTrees: CheckRun[];
 let misread: CheckRun[];
 try {
-  runs = runStructuralChecks(spiedChecks("declared"), fixtureConfig, DECLARED_FIXTURE_TREES);
+  runs = await runStructuralChecks(spiedChecks("declared"), fixtureConfig, DECLARED_FIXTURE_TREES);
   // The probe reuses the same registry and config and varies ONLY the tree list,
   // because that is the claim: declaring a tree is the whole of what turns the
   // catalog on over it.
-  bothTrees = runStructuralChecks(spiedChecks("both"), fixtureConfig, BOTH_FIXTURE_TREES);
+  bothTrees = await runStructuralChecks(spiedChecks("both"), fixtureConfig, BOTH_FIXTURE_TREES);
   // The positive control for the vocabulary assertion below. Same root, wrong
   // vocabulary — see PDF_TREE_MISREAD for why the negative alone is not enough.
-  misread = runStructuralChecks(spiedChecks("misread"), fixtureConfig, PDF_TREE_MISREAD);
+  misread = await runStructuralChecks(spiedChecks("misread"), fixtureConfig, PDF_TREE_MISREAD);
 } finally {
   // Removed whether the run passed, failed, or threw, so by the first assertion
   // below the tree is back to its committed fixtures and nothing surprising is
@@ -366,7 +367,7 @@ assertEveryCheckRanOnEveryTree("misread", PDF_TREE_MISREAD);
   const singleModuleSchema = declareTrees([
     { ...APP_TREE, vocabulary: { ...APP_TREE.vocabulary, dbSchemaSubdir: "tables" } },
   ]);
-  const reported = runStructuralChecks(structuralChecks, fixtureConfig, singleModuleSchema)
+  const reported = (await runStructuralChecks(structuralChecks, fixtureConfig, singleModuleSchema))
     .filter((run) => run.id === "boundary/layer-occupancy")
     .flatMap((run) => run.findings)
     .map((finding) => finding.file);
@@ -463,7 +464,12 @@ const refusedConfigs: { detail: string; config: ArchitectureConfig }[] = [
 for (const { detail, config } of refusedConfigs) {
   let threw = false;
   try {
-    runStructuralChecks(structuralChecks, config, DECLARED_FIXTURE_TREES);
+    // AWAITED, and the await is the assertion. `runStructuralChecks` is async,
+    // so an unawaited call rejects rather than throws: this `catch` sees nothing,
+    // `threw` stays false, and every one of these refusal cases fails — which is
+    // the good outcome. The bad one is the same mistake in a check body, where
+    // an unawaited call quietly returns a promise and the run counts no findings.
+    await runStructuralChecks(structuralChecks, config, DECLARED_FIXTURE_TREES);
   } catch {
     threw = true;
   }
@@ -488,7 +494,7 @@ for (const { detail, config } of refusedConfigs) {
   });
   const baseline = findingsOf(runs, "api/barrel-purity");
   const withDecoy = findingsOf(
-    runStructuralChecks(structuralChecks, decoy, DECLARED_FIXTURE_TREES),
+    await runStructuralChecks(structuralChecks, decoy, DECLARED_FIXTURE_TREES),
     "api/barrel-purity",
   );
   if (baseline !== withDecoy) {
@@ -498,6 +504,47 @@ for (const { detail, config } of refusedConfigs) {
         `findings to ${withDecoy} — the boundary is being recognised by the word appearing in ` +
         `a file rather than by the module being imported and the call being made`,
     );
+  }
+}
+
+// A tree the type checker's program does not contain has to be LOUD, and this is
+// the only assertion in the suite that can say so. Every `types/` expectation
+// already fails when the program is empty — but it fails because this tree has
+// fixtures, and the adopting project this guard protects has none: it would get
+// zero findings, a green run, and no way to tell that from a clean tree. So the
+// claim here is about the CRASH, not about the findings.
+{
+  const typeCheckedIds = structuralChecks
+    .filter((check) => check.id.startsWith("types/"))
+    .map((check) => check.id);
+  if (typeCheckedIds.length === 0) {
+    fail("<type-checker>", "no types/ check is registered, so nothing exercises the type checker");
+  }
+
+  const unchecked = await runStructuralChecks(
+    structuralChecks,
+    fixtureConfig,
+    APP_TREE_TYPE_UNCHECKED,
+  );
+  for (const id of typeCheckedIds) {
+    const run = unchecked.find((candidate) => candidate.id === id);
+    const crashed = run?.crashed;
+    if (crashed === undefined) {
+      fail(
+        id,
+        `ran against a tsconfig that compiles none of the tree and reported ` +
+          `${run?.findings.length ?? 0} finding(s) without complaint — a tree the program does ` +
+          `not contain must fail loudly, because zero findings there is indistinguishable ` +
+          `from a clean tree`,
+      );
+      continue;
+    }
+    // The wording is asserted because the verdict cannot distinguish this crash
+    // from any other. A check that threw for an unrelated reason satisfies
+    // "crashed" and proves nothing about the guard.
+    if (!crashed.message.includes("not in the program that config builds")) {
+      fail(id, `crashed on a type-unchecked tree, but not from the guard: ${crashed.message}`);
+    }
   }
 }
 

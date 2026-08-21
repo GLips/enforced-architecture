@@ -115,7 +115,7 @@ export const docBudgetsCheck: StructuralCheck = {
   // tree would report the same overrun twice in a monorepo.
   scope: "project",
 
-  run({ config }) {
+  async run({ config }) {
     const { manifestPath } = config.checks["health/doc-budgets"];
     const manifest = readDocBudgets(config.projectRoot, manifestPath);
 

@@ -31,7 +31,7 @@ export const layerDirectionCheck: StructuralCheck = {
   id: "placement/layer-direction",
   scope: "tree",
 
-  run({ vocabulary, importGraph }) {
+  async run({ vocabulary, importGraph }) {
     const layerOrder = orderedLayerDirs(vocabulary);
 
     const findings: Finding[] = [];

@@ -1,0 +1,42 @@
+{
+  // ─── The fixture tree's OWN program ──────────────────────────────────
+  //
+  // What `APP_TREE.tsconfig` and `PDF_TREE.tsconfig` point at. It stands in for
+  // the tsconfig an adopting project already has, so the `types/` checks in this
+  // suite read a real `Program` and a real `Checker` rather than a stub.
+  //
+  // Not part of the catalog's own typecheck gate, and it must not become one:
+  // `tsconfig.structural.json` at the repo root EXCLUDES this directory, because
+  // the tree is deliberately broken input — dangling imports, misplaced layers,
+  // a `capabilities/` directory that is a violation under one vocabulary and a
+  // feature under another. Nothing here is expected to compile clean, and
+  // `bun run typecheck` would fail on it if it were included.
+  //
+  // Type ERRORS inside a fixture are still fine for the checks that read this
+  // program — a checker answers `getTypeAtLocation` for a file with errors in it
+  // — but an UNRESOLVED NAME is not: it produces an error type carrying the
+  // `Any` flag, which is exactly what several `types/` checks look for. A
+  // `types/` fixture that references a name it never declares therefore reports
+  // for a reason that has nothing to do with what it is testing. Declare the
+  // names the fixture uses, in the fixture.
+  //
+  // `include` covers BOTH declared roots. A config that reached only `src` would
+  // leave `packages/pdf/src` out of the program, and `assertTreeIsTypeChecked`
+  // would fail the moment the second tree is declared — which is that guard
+  // working, but here it would be the harness's own bug rather than a finding.
+  "compilerOptions": {
+    "lib": ["ESNext", "DOM"],
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "target": "ESNext",
+    "jsx": "react-jsx",
+    "jsxImportSource": "react",
+    "types": [],
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true
+  },
+  "include": ["src/**/*", "packages/pdf/src/**/*"]
+}

@@ -1,0 +1,33 @@
+{
+  // ─── The POSITIVE CONTROL for `assertTreeIsTypeChecked` ──────────────
+  //
+  // A tsconfig that compiles a real project and contains NONE of the `src` tree
+  // — the shape of every accident that guard exists for: an `include` narrowed
+  // to one app, an `exclude` that swallowed the tree, a monorepo root config
+  // that only reaches as far as `packages/`.
+  //
+  // Why the control has to exist. Without it the guard is deletable-green: the
+  // `types/` expectations already fail when the program is empty, because a
+  // check that walks nothing reports nothing and the obvious case goes MISSED.
+  // That failure comes from the FIXTURES, not from the guard, and it only
+  // happens because this tree has fixtures. An adopting project whose tsconfig
+  // misses a tree has no expectations to go red — it gets zero findings and a
+  // clean run, which is precisely the silence the catalog exists to prevent.
+  //
+  // So the assertion in `run-structural-fixtures.ts` is that declaring `src`
+  // against THIS config makes the types checks CRASH rather than report clean.
+  // Nothing else in the suite can say that.
+  "compilerOptions": {
+    "lib": ["ESNext"],
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "target": "ESNext",
+    "types": [],
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true
+  },
+  "include": ["packages/pdf/src/**/*"]
+}

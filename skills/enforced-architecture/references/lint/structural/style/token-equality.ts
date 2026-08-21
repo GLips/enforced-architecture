@@ -54,7 +54,7 @@ export const tokenEqualityCheck: StructuralCheck = {
   id: "style/token-equality",
   scope: "tree",
 
-  run(context) {
+  async run(context) {
     const { config, vocabulary } = context;
     const { spacingScale, radiusScale, spacingProps, radiusProps, spacingKeys, radiusKeys } =
       config.checks["style/token-equality"];
