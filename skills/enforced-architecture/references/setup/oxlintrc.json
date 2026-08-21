@@ -63,24 +63,40 @@
 
   // ── the shipped rules this catalog does NOT enable ──────────────────────
   //
-  // oxlint bundles 847 rules across fifteen plugins, at no dependency cost. Every
-  // `arch/` rule was run head-to-head against the closest of them, on that rule's
-  // OWN spec fixtures, with a control proving the candidate was loaded. This block
-  // is the result: each shipped rule that speaks to a subject an `arch/` rule owns,
-  // and the one line saying why it stays off. Absent a line, an adopter re-runs the
-  // search — and a rule missing from a config is indistinguishable from one nobody
-  // thought about.
+  // oxlint bundles 847 rules — 14 plugins plus the unprefixed eslint core set — at
+  // no dependency cost. Each `arch/` rule below was run head-to-head against the
+  // closest of them, on that rule's OWN spec fixtures, with a control proving the
+  // candidate was loaded. This block is the result: each shipped rule that speaks to
+  // a subject an `arch/` rule owns, and the line saying why it stays off. Absent a
+  // line, an adopter re-runs the search — and a rule missing from a config is
+  // indistinguishable from one nobody thought about.
+  //
+  // SCOPE, because the paragraph above is exactly the kind of claim this file asks
+  // to be checked. The head-to-head covered api, boundary, effect, health, naming,
+  // placement, react, style and testing. It did NOT cover `types/`, whose twelve
+  // rules want type information this tier cannot give them; their replacement check
+  // against tsgolint's type-aware set is ea-86's and HAS NOT RUN. So the twelve
+  // `arch/` keys under "types" in the overrides block below carry no line here, and
+  // that silence means "not yet searched", not "searched and kept".
+  //
+  // The structural tier's subjects are covered too, in their own section at the end.
+  // Those checks have no oxlint spec fixtures for a candidate to run against, so
+  // those lines are arguments from what each built-in reports on the shared fixture
+  // tree, not fixture-for-fixture verdicts like the rest.
   //
   // Nothing here is a taste verdict. In every case the built-in either misses a
   // spelling ours reports, or reports something ours deliberately allows — usually
   // the fix our own message prescribes, which is an edit loop rather than a second
   // opinion.
   //
-  // Two facts that shorten every search below: oxlint ships NO `no-restricted-syntax`
-  // and NO `import/no-restricted-paths`, so the AST-selector and the zone-glob
-  // escape hatches an adopter reaches for first do not exist here. And no shipped
-  // rule folds `..` in a specifier before judging it, so `@/shared/../infrastructure/db`
-  // is invisible to all of them.
+  // Two facts that shorten every search below. First, oxlint ships NO
+  // `no-restricted-syntax` and NO `import/no-restricted-paths`, so the AST-selector
+  // and the zone-glob escape hatches an adopter reaches for first do not exist here.
+  // Second, no shipped rule FOLDS `..` in a specifier before judging it — which cuts
+  // less far than it sounds, and the difference matters: a `**` glob still catches
+  // `@/shared/../infrastructure/db`, because it matches the unfolded string
+  // literally. It is the exact-specifier `paths` form and
+  // `import/no-relative-parent-imports` that miss it.
   //
   // THE RESTRICTED-* FAMILY, which is the generic form of about fifteen rules here.
   // `no-restricted-imports`, `no-restricted-properties`, `no-restricted-globals` and
@@ -91,10 +107,12 @@
   // for that file also unbans `fetch` there. `no-restricted-properties` reads a
   // member access, so it misses an object-literal KEY entirely (all 11 of
   // `arch/no-disable-validation`'s violations) and bans `Effect.void` everywhere
-  // rather than in the catch-handler position. `no-restricted-imports` reads static
-  // import declarations only — no `require()`, no backtick specifier — and its
-  // exact-specifier `paths` form cannot name a directory, while its `patterns` form
-  // is gitignore-style, so a bare `stripe` matches any path segment named stripe,
+  // rather than in the catch-handler position. `no-restricted-imports` reads a
+  // static string specifier only: it DOES see `import x = require("stripe")` and
+  // `await import("stripe")` — more than its name suggests — but not a
+  // `require("stripe")` call and not a backtick specifier. Its exact-specifier
+  // `paths` form cannot name a directory, while its `patterns` form is
+  // gitignore-style, so a bare `stripe` matches any path segment named stripe,
   // including the wrapper our own message tells the author to import.
   //
   // Several of them DO reach fixture parity — but only once `overrides.files` globs
@@ -103,12 +121,15 @@
   // becomes a dozen globs an adopter widens, instead of one vocabulary table.
   //
   // ── health, naming, testing ──
-  // `no-nested-ternary` (core) and `unicorn/no-nested-ternary`: both ban depth 2,
-  //   which `arch/no-nested-ternary`'s header names as the budget on purpose, and
-  //   NEITHER takes an option to raise it — `{max}`, `{depth}` and a bare number are
-  //   all rejected as invalid configuration. Both also report the chain extracted to
-  //   its own binding, which is the refactor our message asks for. Seven of our nine
-  //   legal fixtures draw a diagnostic from them.
+  // `no-nested-ternary` (core) and `unicorn/no-nested-ternary`: the core rule bans
+  //   depth 2, which `arch/no-nested-ternary`'s header names as the budget on
+  //   purpose; the unicorn one bans depth 2 spelled WITHOUT parentheses and is
+  //   silent on `p ? 1 : (q ? 2 : 3)`, so it is the looser of the two and misses
+  //   cases the core rule catches. NEITHER takes an option to raise the depth —
+  //   `{max}`, `{depth}` and a bare number are all rejected as invalid
+  //   configuration. Both also report the chain extracted to its own binding, which
+  //   is the refactor our message asks for. Run as a pair, seven of our nine legal
+  //   fixtures draw a diagnostic from them.
   // `id-denylist`, `id-match`, `id-length`: `id-denylist` compares the WHOLE
   //   identifier, so it bans `data` and allows `InvoiceData` — it reports none of
   //   `arch/no-vacant-symbol-names`' eleven violations. `id-match` cannot express the
@@ -124,8 +145,10 @@
   //   names the PROJECT's; this one names the rule's subject.
   // The rest of the mocking catalogue — `vitest/no-restricted-vi-methods` (the same
   //   rule under a second name, already drifted: no `unstable_mockModule` entry),
-  //   `jest`/`vitest/no-mocks-import` (only `__mocks__/` imports), `prefer-spy-on`
-  //   and `no-untyped-mock-factory` (they rewrite the mock ours asks you to delete).
+  //   `jest/no-mocks-import` and `vitest/no-mocks-import` (only `__mocks__/`
+  //   imports), `jest/prefer-spy-on` and `vitest/prefer-spy-on`, and
+  //   `jest/no-untyped-mock-factory` (which has no vitest twin) — all rewrite or
+  //   narrow the mock ours asks you to delete.
   //
   // ── react ──
   // `react/no-multi-comp`: finds the same second component and then reports the fix
@@ -145,8 +168,12 @@
   //   reports the number `arch/hook-count` and `arch/prop-count` report. A component
   //   takes one parameter, so `max-params` never sees a props surface; the size rules
   //   fire on the six-hook legal at any threshold that catches the seven-hook
-  //   violation; `vue/max-props` reads Vue SFCs only. (These six shipped rules take a
-  //   NUMBER as their only option, which is the precedent for ours doing the same.)
+  //   violation; `vue/max-props` reads Vue SFCs only. `vue/max-props` is also the
+  //   precedent for a threshold being legal vocabulary — `maxProps` is its ONLY
+  //   option, a number and nothing else. The other three are not that precedent:
+  //   each pairs its `max` with a behaviour switch (`ignoreTopLevelFunctions`,
+  //   `countVoidThis`, `skipComments`), which is the shape the `max-lines` entry
+  //   below is rejected for.
   //
   // ── style ──
   // `react/forbid-dom-props`, `react/forbid-component-props`: they ban a prop NAME;
@@ -171,9 +198,20 @@
   // `typescript/no-unnecessary-type-arguments`: asks whether a type argument equals
   //   its parameter's DEFAULT. A correct `sql<Invoice>` never does, so it is silent on
   //   every fixture `arch/no-sql-type-parameter` owns.
-  // Nothing in Effect's own tooling covers these six either: `@effect/eslint-plugin`
-  //   ships two rules (`dprint`, `no-import-from-barrel-package`), and none of
-  //   `@effect/language-service`'s 77 diagnostics names any of these subjects.
+  // Effect's own tooling, READ FROM SOURCE rather than run — neither package is a
+  //   dependency here, and the language service is a TypeScript plugin oxlint cannot
+  //   host. `@effect/eslint-plugin` ships two rules (`dprint`,
+  //   `no-import-from-barrel-package`), neither in range. `@effect/language-service`
+  //   ships 77 diagnostics, and two are near neighbours worth knowing about rather
+  //   than replacements: `multipleEffectProvide` rewrites
+  //   `x.pipe(Effect.provide(A), Effect.provide(B))` into
+  //   `Effect.provide(Layer.mergeAll(A, B))` — the sequential shape
+  //   `arch/no-nested-layer-provide` asks FOR, though it matches `Effect.provide`
+  //   where ours reads `Layer.provide`, so the two do not currently collide; and
+  //   `effectSucceedWithVoid` normalises `Effect.succeed(undefined)` to
+  //   `Effect.void`, inside `arch/no-silent-error-swallow`'s void set. A project
+  //   running the language service should expect both, and neither removes a rule
+  //   here.
   //
   // ── the structural tier's subjects ──
   // `max-lines`: one threshold at one severity, and `overrides` REPLACES the entry
@@ -208,9 +246,24 @@
   // NEGATIVE SPACE ON THE NEGATIVE SPACE: oxlint opens no CSS and no markdown —
   // `oxlint -D all` on either reports "No files found to lint". So `style/css-tokens`,
   // `style/shadow-source`, `style/token-equality` and `health/doc-budgets` have no
-  // zero-cost candidate by construction, and the ones that exist (stylelint,
-  // markdownlint) are configured by regex and were weighed as real dependencies
-  // rather than run. See each check's header.
+  // zero-cost candidate by construction, and what follows was WEIGHED, NOT RUN — the
+  // packages are not dependencies here and installing them was out of scope.
+  //
+  // stylelint could plausibly own `style/css-tokens` alone. There is no built-in
+  // "must be `var(--token)`" rule; the routes are
+  // `declaration-property-value-allowed-list` or the third-party
+  // `stylelint-declaration-strict-value`, and BOTH take regexes as configuration —
+  // the predicate knob, handed to the adopter, plus two to four new packages. It
+  // cannot own the other two at all: `style/shadow-source` and
+  // `style/token-equality` report on `.tsx` style objects and JSX props, and every
+  // maintained CSS-in-JS syntax parses tagged template literals only. The
+  // object-literal stack that once did (`@stylelint/postcss-css-in-js`,
+  // `postcss-jsx`) is deprecated, and stylelint removed `processors` in v15.
+  //
+  // markdownlint cannot own `health/doc-budgets`: its nearest rule, MD013, is a
+  // per-LINE character limit, and there is no word-count rule and no ratchet — a
+  // ceiling that may only move down — anywhere in its index. vale and textlint
+  // govern prose style, not document size.
 
   // The built-in rules, on for every file in the repo. Every `arch/` key sits in
   // the tree-scoped `overrides` block at the bottom, with the rationale for the
