@@ -166,6 +166,7 @@ export const noWidenThenAssertRule = defineTreeRule({
     let facts: LocalTypeFacts = {
       aliases: new Map(),
       enums: new Set(),
+      constAsserted: new Set(),
       visitorKeys: sourceCode.visitorKeys,
     };
 

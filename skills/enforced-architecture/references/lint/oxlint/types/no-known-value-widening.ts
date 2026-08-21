@@ -22,12 +22,21 @@
 // `types/no-opaque-record`, and `lib/type-annotations.ts` owns the list.
 //
 // A domain the walk cannot RESOLVE reports even when it is finite in fact: an
-// imported alias or enum, a member of an imported enum, a conditional type, and
-// an indexed access into a named type such as `Row['id']`, which is every string
-// whenever `Row.id` is one. That is deliberate — the alternative goes silent on every key
-// spelling nobody enumerated — but it means a report here can be a false one, and
-// the fix is to spell the union or name the shape rather than to reach for
-// `satisfies`, which deletes the exhaustiveness check the annotation was for.
+// imported alias or enum, a member of an imported enum, an enum nested in a
+// `namespace`, a conditional type, an indexed access into a named type such as
+// `Row['id']` (every string whenever `Row.id` is one), a bare `typeof x` naming
+// a local `const`, and `(typeof X)[…]` where `X` is declared inside a function.
+// That is deliberate — the alternative goes silent on every key spelling nobody
+// enumerated — but it means a report here can be a false one, and the fix is to
+// spell the union or name the shape rather than to reach for `satisfies`, which
+// deletes the exhaustiveness check the annotation was for.
+//
+// A WRAPPED dictionary is silent: `Partial<Record<string, Handler>>` and
+// `Readonly<Record<string, Handler>>` read as one annotation this rule does not
+// look inside. For an OPAQUE value `types/no-opaque-record` reports the inner
+// `Record` at its declaration, but for a precise one — as here — it is correctly
+// silent too, so nothing covers the wrapped spelling. Unwrapping means deciding
+// which generics preserve a key domain, which is a predicate, not vocabulary.
 //
 // An empty object or array literal is legal. `const acc: Record<string,
 // Handler> = {}` is an accumulator that gets the type it grows into, which is
@@ -110,6 +119,7 @@ export const noKnownValueWideningRule = defineTreeRule({
     let facts: LocalTypeFacts = {
       aliases: new Map(),
       enums: new Set(),
+      constAsserted: new Set(),
       visitorKeys: context.sourceCode.visitorKeys,
     };
 

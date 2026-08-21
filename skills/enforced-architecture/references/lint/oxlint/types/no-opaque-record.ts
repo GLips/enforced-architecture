@@ -22,15 +22,20 @@
 //     misspelling is already a compile error — but its reads still need casts,
 //     and NO rule in this catalog covers opaque values under a closed key domain.
 //   - `Record<keyof T & string, unknown>` is silent: an intersection is closed
-//     once any member is, and `keyof T` closes it.
+//     once any member is, and `keyof T` closes it. `keyof` is the one arm that
+//     trusts a name it cannot read, because `Record<keyof Config, unknown>` over
+//     an imported `Config` is the tracker this rule's own message asks for. The
+//     price is that `keyof` of a type that is ITSELF a bag stays silent.
 //   - a key domain the walk cannot RESOLVE reports even when it is finite in
 //     fact — an IMPORTED alias, an imported enum, a member of an imported enum,
-//     a conditional type, and an indexed access into a named type (`Row['id']`
-//     is every string whenever `Row.id` is one). What IS resolved is what this
-//     file declares: local aliases, local enums and their members, `(typeof
-//     X)[…]`, and the key-preserving builtins. That is the safe direction, since
-//     the other default goes silent on every key spelling nobody enumerated, and
-//     the fix is to spell the union or name the shape.
+//     an enum nested in a `namespace`, a conditional type, an indexed access
+//     into a named type (`Row['id']` is every string whenever `Row.id` is one),
+//     a bare `typeof x` naming a local `const`, and `(typeof X)[…]` where `X` is
+//     declared inside a function. What IS resolved is what this file declares at
+//     top level: aliases, enums and their members, `as const` bindings, and the
+//     key-preserving builtins. That is the safe direction, since the other
+//     default goes silent on every key spelling nobody enumerated, and the fix
+//     is to spell the union or name the shape.
 //
 // A schema or serialization layer that needs the type gets a path test beside
 // `isArchitectureExemptSourcePath`, such as `/\/schemas?\//`. Do not loosen the type
@@ -79,6 +84,7 @@ export const noOpaqueRecordRule = defineTreeRule({
     let facts: LocalTypeFacts = {
       aliases: new Map(),
       enums: new Set(),
+      constAsserted: new Set(),
       visitorKeys: context.sourceCode.visitorKeys,
     };
 
@@ -91,9 +97,11 @@ export const noOpaqueRecordRule = defineTreeRule({
         if (node.typeName.type !== "Identifier") return;
         if (node.typeName.name !== RECORD_TYPE_NAME) return;
 
-        const params = node.typeArguments?.params ?? [];
-        const [key, value] = params;
-        if (params.length !== 2 || key === undefined || value === undefined) return;
+        // Two arguments read, arity unchecked — the same reading `dictionaryShape` uses, so this
+        // rule and `types/no-widen-then-assert` cannot disagree about `Record<A, B, C>`.
+        // Under- and over-applied `Record` are compile errors either way.
+        const [key, value] = node.typeArguments?.params ?? [];
+        if (key === undefined || value === undefined) return;
         if (!isOpenKeyDomain(key, facts)) return;
         if (isOpaqueDictionaryValue(value, facts)) {
           context.report({ node, messageId: "opaqueRecord" });

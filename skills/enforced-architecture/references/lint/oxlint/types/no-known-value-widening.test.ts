@@ -81,6 +81,16 @@ describeRule("types/no-known-value-widening", noKnownValueWideningRule, {
       errors: [{ messageId: "widening" }],
     },
     {
+      // `as const` is the whole of what closes the legal fixture this mirrors. Deleting it leaves
+      // `KEYS` as `string[]`, so the annotation is `Record<string, Handler>` — the divergence row —
+      // and the literal's keys are gone.
+      name: "an indexed access over an array that is not const-asserted deletes the keys",
+      filename: SERVICE,
+      code: `const KEYS = ["start", "stop"];
+export const handlers: Record<(typeof KEYS)[number], Handler> = { start: startHandler };`,
+      errors: [{ messageId: "widening" }],
+    },
+    {
       name: "a mapped type over the number key domain",
       filename: SERVICE,
       code: `export const flags: { [K in number]: boolean } = { 1: true };`,

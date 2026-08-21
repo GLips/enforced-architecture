@@ -123,6 +123,38 @@ export type InvoicePayload = Record<First, unknown>;`,
       errors: [{ messageId: "opaqueRecord" }],
     },
     {
+      // TWO holes, one closed and one open, which is the only shape that reads the quantifier. Every
+      // single-hole template passes whether the arm asks EVERY or SOME, so without this fixture the
+      // direction is free to be wrong — the same trap as the union arm, whose closed-beside-open
+      // fixture sits a few rows above.
+      name: "a template literal with one closed hole beside an open one is open",
+      filename: SERVICE,
+      code: `export type InvoicePayload = Record<\`\${"a" | "b"}\${string}\`, unknown>;`,
+      errors: [{ messageId: "opaqueRecord" }],
+    },
+    {
+      // `as const` is the whole of what makes the idiom above it closed, and deleting it is a
+      // one-token edit that leaves the code reading exactly the same. `KEYS` is `string[]` here, so
+      // this IS `Record<string, unknown>` — and nothing else in the catalog would catch it.
+      name: "an indexed access over an array that is not const-asserted is open",
+      filename: SERVICE,
+      code: `const KEYS = ["draft", "paid"];
+export type StatusPayloads = Record<(typeof KEYS)[number], unknown>;`,
+      errors: [{ messageId: "opaqueRecord" }],
+    },
+    {
+      // Only `program.body` is read, so a binding declared inside a function is not resolved. Stated
+      // as negative space in the lib header; a fixture rather than a sentence, so the silence
+      // stays a decision.
+      name: "a const-asserted binding inside a function is not resolved",
+      filename: SERVICE,
+      code: `export function build() {
+  const KEYS = ["draft", "paid"] as const;
+  return null as unknown as Record<(typeof KEYS)[number], unknown>;
+}`,
+      errors: [{ messageId: "opaqueRecord" }],
+    },
+    {
       // `Row["id"]` IS `Record<string, unknown>` whenever `Row.id` is a string, so trusting an
       // indexed access into a named type hands back a one-token bypass. Only the `typeof` form is
       // closed, and it is closed because it names a binding this file can see.
@@ -411,10 +443,18 @@ export type DraftPayload = Record<Status.Draft, unknown>;`,
     },
     {
       // The canonical TypeScript spelling of a closed key domain. Reporting it leaves no fix but a
-      // disable comment, which is how a rule stops being enforced.
+      // disable comment, which is how a rule stops being enforced. Its adversarial twin below is
+      // the same three lines with `as const` deleted, and that pair is the whole point: the
+      // assertion is what closes the domain, so a rule reading the `typeof` SHAPE passes both.
       name: "an indexed access over a const-asserted array is closed",
       filename: SERVICE,
       code: `const KEYS = ["draft", "paid"] as const;
+export type StatusPayloads = Record<(typeof KEYS)[number], unknown>;`,
+    },
+    {
+      name: "an as-const array checked by satisfies is still const-asserted",
+      filename: SERVICE,
+      code: `const KEYS = ["draft", "paid"] as const satisfies readonly string[];
 export type StatusPayloads = Record<(typeof KEYS)[number], unknown>;`,
     },
     {

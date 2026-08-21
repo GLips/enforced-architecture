@@ -458,22 +458,65 @@ export type LocalTypeFacts = {
   readonly aliases: ReadonlyMap<string, ESTree.TSType>;
   /** `enum X {…}` names declared in this file — a finite domain whose members are not TSTypes. */
   readonly enums: ReadonlySet<string>;
+  /** Names this file initializes with `as const`. See `namesConstAssertedBinding`. */
+  readonly constAsserted: ReadonlySet<string>;
   readonly visitorKeys: VisitorKeys;
 };
 
-/** Every local type alias and enum name, collected from `Program` in one pass. */
+/** Whether an initializer ends in `as const`, through a trailing `satisfies`. */
+function isConstAssertedInitializer(expression: ESTree.Expression): boolean {
+  // `[…] as const satisfies readonly string[]` is the spelling that keeps the literal narrow AND
+  // checks it, so the assertion sits one level in.
+  if (expression.type === "TSSatisfiesExpression") {
+    return isConstAssertedInitializer(expression.expression);
+  }
+  return (
+    expression.type === "TSAsExpression" &&
+    expression.typeAnnotation.type === "TSTypeReference" &&
+    expression.typeAnnotation.typeName.type === "Identifier" &&
+    expression.typeAnnotation.typeName.name === "const"
+  );
+}
+
+/** Every local type alias, enum name and `as const` binding, collected from `Program` in one pass. */
 export function collectLocalTypeFacts(
   program: ESTree.Program,
   visitorKeys: VisitorKeys,
 ): LocalTypeFacts {
   const enums = new Set<string>();
+  const constAsserted = new Set<string>();
   for (const statement of program.body) {
     // An exported enum is one level down from the statement, exactly as an exported alias is.
     const declaration =
       statement.type === "ExportNamedDeclaration" ? statement.declaration : statement;
     if (declaration?.type === "TSEnumDeclaration") enums.add(declaration.id.name);
+    // The `as const` is what closes the domain, not the declaration kind. `let KEYS = […] as const`
+    // still has the literal type, so gating on `const` here would report it for no reason.
+    if (declaration?.type !== "VariableDeclaration") continue;
+    for (const declarator of declaration.declarations) {
+      if (declarator.id.type !== "Identifier" || declarator.init == null) continue;
+      if (isConstAssertedInitializer(declarator.init)) constAsserted.add(declarator.id.name);
+    }
   }
-  return { aliases: collectLocalTypeAliases(program), enums, visitorKeys };
+  return { aliases: collectLocalTypeAliases(program), enums, constAsserted, visitorKeys };
+}
+
+/**
+ * Whether a type query names a binding this file declared with `as const`.
+ *
+ * `as const` is the whole of what makes `(typeof KEYS)[number]` a closed domain, and dropping it is
+ * a one-token edit that changes nothing else about how the code reads. `const KEYS = ["draft"]` is
+ * `string[]`, so `(typeof KEYS)[number]` is `string` and the `Record` over it is the bag — with no
+ * compiler complaint, because it is a perfectly valid type. Trusting the `typeof` SHAPE rather than
+ * the declaration behind it makes forgetting `as const` silence all three rules at once.
+ *
+ * NEGATIVE SPACE: only a top-level declaration in this file counts. A binding declared inside a
+ * function or a block, or imported, reports — `program.body` is the whole of what is read.
+ */
+function namesConstAssertedBinding(type: ESTree.TSType, facts: LocalTypeFacts): boolean {
+  if (type.type !== "TSTypeQuery") return false;
+  const { exprName } = type;
+  return exprName.type === "Identifier" && facts.constAsserted.has(exprName.name);
 }
 
 /**
@@ -500,24 +543,34 @@ function qualifiedNameRoot(name: ESTree.TSTypeName): string | null {
  *
  * The cost of that direction is the other kind of mistake, and it is paid down by naming the closed
  * spellings a project actually writes: a literal type, a union of them, a template literal whose
- * every hole is closed, `(typeof X)[…]`, a local enum or a member of one, `keyof X` for any X but
- * `any`, the key-preserving built-ins, a type parameter in scope, and a local alias to any of those.
+ * every hole is closed, `(typeof X)[…]` over an `as const` binding, a local enum or a member of one,
+ * `keyof X`, the key-preserving built-ins, a type parameter in scope, and a local alias to any of
+ * those.
  *
- * NOTHING BEYOND THIS FILE IS TRUSTED, and that is the line the closed list must not cross. Every
- * arm above resolves to a declaration in this file or to syntax that is finite on its face.
+ * EVERY ARM BUT `keyof` RESOLVES TO A DECLARATION IN THIS FILE, or to syntax finite on its face.
  * `Row["id"]` is deliberately NOT closed: it is `Record<string, unknown>` whenever `Row.id` is a
  * string, and reading it as closed would hand back a one-token bypass — the very thing the open-list
- * version was replaced for. `(typeof KEYS)[number]` is closed because `typeof` names a value in this
- * file, which is what makes the canonical `as const` idiom safe to trust.
+ * version was replaced for. `(typeof KEYS)[number]` is closed only when this file declares `KEYS`
+ * `as const`, because `as const` is the whole of what closes it.
+ *
+ * `keyof X` IS THE ONE ARM THAT TRUSTS A NAME IT CANNOT READ, and it is a deliberate trade rather
+ * than an oversight. `Record<keyof Config, unknown>` over an imported `Config` is the dirty-field
+ * tracker this rule's own message asks for, and reporting it would leave no fix but a disable
+ * comment. The cost is that `keyof` of a type that is ITSELF a bag stays silent —
+ * `type Loose = { [k: string]: number }; Record<keyof Loose, unknown>` is `Record<string | number,
+ * unknown>` and is not reported. That is a two-step laundering rather than a spelling anyone writes
+ * by accident, which is the line this catalog draws between a bypass and an exotic case.
  *
  * ASKED ONLY WHERE A CLOSED DOMAIN CAN BE SPELLED, which is a `Record` argument and a mapped type's
  * key domain. An index signature is not gated on it: TypeScript rejects a literal key there
  * (TS1336), so every index signature that compiles already has an open domain.
  *
  * NEGATIVE SPACE: a domain this walk cannot resolve reports even when it is finite in fact — an
- * IMPORTED alias or enum, an imported enum's member, a conditional type, and an indexed access into
- * a named type. The fix is to spell the union or name the shape; the alternative default goes silent
- * on every key spelling nobody enumerated, which is the failure that cannot be seen.
+ * IMPORTED alias or enum, an imported enum's member, an enum nested in a `namespace`, a conditional
+ * type, an indexed access into a named type, a bare `typeof x` naming a local `const`, and
+ * `(typeof X)[…]` where `X` is declared inside a function rather than at the top level. The fix is
+ * to spell the union or name the shape; the alternative default goes silent on every key spelling
+ * nobody enumerated, which is the failure that cannot be seen.
  */
 export function isOpenKeyDomain(type: ESTree.TSType, facts: LocalTypeFacts): boolean {
   return !isClosedKeyDomain(type, facts, new Set());
@@ -535,10 +588,12 @@ function isClosedKeyDomain(
   if (type.type === "TSTemplateLiteralType") {
     return type.types.every((hole) => isClosedKeyDomain(hole, facts, visited));
   }
-  // `(typeof KEYS)[number]` — the canonical closed domain, and closed because `typeof` names a
-  // binding in this file. An indexed access into a TYPE is not: `Row["id"]` is every string
+  // `(typeof KEYS)[number]` — the canonical closed domain, and closed because `KEYS` is declared
+  // `as const` in this file. An indexed access into a TYPE is not: `Row["id"]` is every string
   // whenever `Row.id` is one.
-  if (type.type === "TSIndexedAccessType") return type.objectType.type === "TSTypeQuery";
+  if (type.type === "TSIndexedAccessType") {
+    return namesConstAssertedBinding(type.objectType, facts);
+  }
   // A union is closed only when EVERY member is, and an intersection when ANY member is, because an
   // intersection can only narrow. `keyof T & string` is the common spelling of the second, and
   // `string & {}` — the trick that stops a literal union widening — of the first.
