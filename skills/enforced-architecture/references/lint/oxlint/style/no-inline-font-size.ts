@@ -15,8 +15,8 @@
 //
 // The subject is a property being SET, so only object-literal keys and JSX
 // attribute names are read. Binding the name — `const { fontSize } = theme`, or
-// the assignment form — is not covered, because that is the read the message
-// asks for. Nothing here stops the bound value being handed to a style prop
+// the assignment form — is not covered: reading a size off the scale is not
+// deciding one. Nothing here stops the bound value being handed to a style prop
 // afterwards; the object literal that receives it is where that is caught.
 //
 // A computed key IS read where it names the property for certain — `{ ["fontSize"]: 13 }`
@@ -45,6 +45,20 @@
 // `isStyleSubject` in lint/policy/layout.ts, which the whole style tier calls —
 // these three rules and style/token-equality.
 //
+// The primitives layer is skipped too, and this is the ONE style rule that skips
+// it. `size='caption'` — the fix the message names — has to become a real
+// `fontSize` somewhere, and the primitive is where. Without the exemption the
+// rule forbids its own fix, which is the same reason
+// `style/no-inline-style-prop` and `style/no-raw-primitives` skip it, and this
+// is the same `isAtProfile(role, "shared-ui")` call rather than a fourth
+// private copy.
+//
+// Do NOT move that exemption into `isStyleSubject`. Its two siblings ban a
+// VALUE, not a key, and the primitives layer has a compliant spelling for both
+// — `theme.colors.surface`, `bg-surface` — so exempting them there would open a
+// hole nothing earns. What separates this rule is that it bans the key, which
+// is exactly what the primitive must write.
+//
 // SCOPE, and it is the same for every TREE-SCOPED rule in this catalog — which
 // is every rule but `testing/no-module-mocking`, whose subject is a test file and
 // which is therefore enabled globally. This rule is silent outside the declared
@@ -55,6 +69,7 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineTreeRule } from "../lib/define-tree-rule.ts";
+import { isAtProfile } from "../../policy/declared-trees.ts";
 import { staticKeyName } from "../lib/static-key-name.ts";
 import { type ESTree } from "@oxlint/plugins";
 import { isStyleSubject } from "../../policy/layout.ts";
@@ -65,8 +80,12 @@ export const noInlineFontSizeRule = defineTreeRule({
   meta: {
     type: "problem",
     messages: {
+      // Names the PROP form only. The scale token — `var(--text-caption)`, `theme.typography.caption`
+      // — is still a value assigned to `fontSize`, so naming it here would prescribe the very edit
+      // this rule then reports again. Writing the token IS the fix, but one layer down: the
+      // primitives are exempt precisely so they can turn `size='caption'` into it.
       rawFontSize:
-        "Raw fontSize override. Use a named size from the type scale instead — a size prop on the text primitive (`size='caption'`, `variant='heading-xs'`) or the scale token (`var(--text-caption)`, `theme.typography.caption`). If the size you want is not on the scale, add it to the scale rather than writing it here. See docs/architecture/design-system.md.",
+        "Raw fontSize override. Use a named size from the type scale instead — a size prop on the text primitive (`size='caption'`, `variant='heading-xs'`), or a semantic type class (`text-caption`). Setting `fontSize` to a scale token is still setting `fontSize`; the primitives layer is the one place that does it. If the size you want is not on the scale, add it to the scale rather than writing it here. See docs/architecture/design-system.md.",
     },
   },
   create(context, role) {
@@ -78,11 +97,16 @@ export const noInlineFontSizeRule = defineTreeRule({
     // suffix, so a `legacy-theme.ts` beside it does not inherit the exemption.
     if (!isStyleSubject(role.tree.vocabulary, role.sourcePath)) return {};
 
+    // The primitives layer as a PROFILE, so a feature's own `shared/ui/` folder, or a
+    // `shared/ui-legacy/`, does not inherit its exemption. The header says why this rule alone
+    // takes it.
+    if (isAtProfile(role, "shared-ui")) return {};
+
     return {
       Property(node) {
-        // A destructuring pattern or an assignment target reads a size; it does not set one.
-        // `const { fontSize } = theme.typography.caption` is the remedy this rule's own message
-        // names, so reporting it would send the reader in a circle.
+        // A destructuring pattern or an assignment target reads a size; it does not set one, and
+        // the subject is the decision. `const { fontSize } = theme.typography.caption` takes the
+        // scale's own answer, which is the opposite of what this rule reports.
         if (node.parent.type !== "ObjectExpression") return;
 
         // oxlint fires this visitor for destructuring and assignment-target properties too, and all

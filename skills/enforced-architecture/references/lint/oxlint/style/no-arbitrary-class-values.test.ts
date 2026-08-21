@@ -85,6 +85,26 @@ describeRule("style/no-arbitrary-class-values", noArbitraryClassValuesRule, {
       errors: [{ messageId: "arbitraryValue" }],
     },
     {
+      // The colour half of the bracket, which this rule owns OUTRIGHT — `style/no-inline-color`
+      // is silent on both of these, because its own message prescribes `var(--…)` and writing
+      // that into a bracket draws `arbitraryVar` instead. The message is asserted rather than the
+      // id: it is the only one of the three that names a terminating fix for a colour, and it is
+      // now the only message an adopter sees for this input.
+      //
+      // The rgb spelling is the one a hex-only pattern misses, and it is the reason both rules
+      // read `lib/color-literals.ts` rather than each holding a hex.
+      name: "a colour in a bracket, hex and rgb alike, is this rule's alone",
+      filename: COMPONENT,
+      code: `export const s = { a: "bg-[#0a0c10]", b: "text-[rgb(10,12,16)]" };`,
+      errors: [
+        {
+          message:
+            "Arbitrary-value utility class. Use a semantic token class instead (text-body not text-[13px], p-m not p-[12px], bg-surface not bg-[#0a0c10]). If no token fits, add one to the theme — the bracket syntax is a blank cheque no compiler reads. See docs/architecture/design-system.md.",
+        },
+        { messageId: "arbitraryValue" },
+      ],
+    },
+    {
       // The token source is the tree's named theme module, not any file called
       // theme-something. A path-suffix exemption would hand every neighbour the
       // permission to define a second scale.
@@ -118,6 +138,15 @@ describeRule("style/no-arbitrary-class-values", noArbitraryClassValuesRule, {
       name: "the semantic token classes the rule points people to",
       filename: COMPONENT,
       code: `export const Badge = () => <div className="text-body bg-surface p-m gap-s rounded-lg flex items-center" />;`,
+    },
+    {
+      // NEGATIVE SPACE, stated in the header and pinned here: `COLOR_LITERAL`'s word boundary ends
+      // the hex at eight digits, so a longer run is not a colour to either style rule. The
+      // boundary is what stops `"#abcdef123"` — an anchor, a sha — reading as one in a plain
+      // string value, and it is worth more than a notation nothing renders.
+      name: "more than eight hex digits is not a colour in any notation",
+      filename: COMPONENT,
+      code: `export const s = "bg-[#0123456789]";`,
     },
     {
       name: "a bracket class with no unit and no hex is an arbitrary variant, not a raw value",

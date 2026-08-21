@@ -24,4 +24,22 @@ Every rule below keys off two project facts: where the primitives layer lives (w
 | [no-arbitrary-class-values](no-arbitrary-class-values.ts) | Yes | A utility class names a semantic token, so the theme config is the one place a size or a color changes |
 | [vendor-component-containment](vendor-component-containment.ts) | Yes | Every use of a wrapped component goes through the app wrapper, so a library swap is an edit to the wrapper |
 
+## Who owns which edge
+
+Two of these rules can see the same characters, and the split between them is deliberate. A colour
+literal inside a utility class — `bg-[#0a0c10]` — is `no-arbitrary-class-values`', not
+`no-inline-color`'s, because the only fix that terminates inside a class string is the mapped token
+class. `no-inline-color`'s message names `var(--app-surface)`, and that written into a bracket is a
+third diagnostic. A colour anywhere else in the JS is `no-inline-color`'s. Both match a colour with
+the one pattern in [../lib/color-literals.ts](../lib/color-literals.ts), so they cannot drift into
+disagreeing about what a colour is.
+
+The primitives layer is exempt from `no-raw-primitives`, `no-inline-style-prop` and
+`no-inline-font-size`, and from nothing else here. Those three ban something a primitive must do to
+implement a token prop — render the vendor component, write the `style` object, set the `fontSize`
+key. The rest ban a VALUE, and a primitive has `theme.colors.surface` and `bg-surface` available to
+it, so an exemption there would be a hole with nothing behind it. This is why the exemption is three
+call sites of `isAtProfile(role, "shared-ui")` rather than a fourth condition inside
+`isStyleSubject`, which all four style rules read.
+
 Adoption mechanics, the spec contract, and what part of the tree owns each rule's subject: [../../overview.md](../../overview.md).

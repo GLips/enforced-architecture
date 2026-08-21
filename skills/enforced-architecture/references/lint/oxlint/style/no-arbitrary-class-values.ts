@@ -19,6 +19,13 @@
 // placement/topology and boundary/import-policy report; a styling diagnostic on
 // top of theirs would prescribe a token where the fix is to move the file.
 //
+// This rule owns a COLOUR literal inside a bracket outright — `bg-[#0a0c10]`,
+// `bg-[rgb(0,0,0)]` — and `style/no-inline-color` steps back from it, because
+// the fix inside a class string is the mapped token class and that is this
+// rule's `arbitraryValue` message. `lib/color-literals.ts` holds the pattern
+// both rules match a colour with, so the two cannot drift into disagreeing
+// about what a colour is.
+//
 // Add GENERIC_SCALE_UTILITY only after the semantic type classes exist
 // (`text-body`, `text-caption`). Before that, an agent has a banned class and
 // no allowed one, and it writes `text-[13px]` instead.
@@ -40,6 +47,7 @@
 // body checks either one.
 // ──────────────────────────────────────────────────────────────────────
 
+import { COLOR_LITERAL } from "../lib/color-literals.ts";
 import { defineTreeRule } from "../lib/define-tree-rule.ts";
 import { type ESTree } from "@oxlint/plugins";
 import { isStyleSubject } from "../../policy/layout.ts";
@@ -59,13 +67,17 @@ import { isStyleSubject } from "../../policy/layout.ts";
 // fallback — does draw both arms, and that is right rather than a leak: it has both defects, the two
 // messages name different halves of it, and doing what either one says leaves the other still true.
 //
-// NEGATIVE SPACE, both directions, and the unit list is the whole of it. Only `px`, `rem`, `em` and
-// `%` are units here, so `h-[100vh]`, `w-[2ch]` and `m-[10pt]` carry raw values and pass — extend
-// the alternation if the project writes those. And a real value inside an arbitrary VARIANT rather
-// than an arbitrary value (`data-[size=2em]:flex`) reports, because nothing in a class string
-// distinguishes the two; it is rarer than what the digit closes, and it is the residue.
-const ARBITRARY_VALUE_UTILITY =
-  /\b[a-z-]+-\[[^\]]*(?:\d(?:px|rem|em|%)|#[0-9a-fA-F]{3,8})[^\]]*\]/;
+// NEGATIVE SPACE, both directions. Only `px`, `rem`, `em` and `%` are units here, so `h-[100vh]`,
+// `w-[2ch]` and `m-[10pt]` carry raw values and pass — extend the alternation if the project writes
+// those. A real value inside an arbitrary VARIANT rather than an arbitrary value
+// (`data-[size=2em]:flex`) reports, because nothing in a class string distinguishes the two; it is
+// rarer than what the digit closes, and it is the residue. And the colour half ends at eight hex
+// digits, so `bg-[#0123456789]` passes — that is `COLOR_LITERAL`'s word boundary, which is there so
+// an anchor or a sha in a string value does not read as a colour, and it is worth more than a
+// notation nothing renders.
+const ARBITRARY_VALUE_UTILITY = new RegExp(
+  String.raw`\b[a-z-]+-\[[^\]]*(?:\d(?:px|rem|em|%)|` + COLOR_LITERAL.source + String.raw`)[^\]]*\]`,
+);
 
 // `bg-[var(--background)]` — a token reached around the theme mapping.
 const ARBITRARY_VAR_UTILITY =

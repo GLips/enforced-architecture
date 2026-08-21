@@ -12,6 +12,13 @@
 // The primitives-layer exemption is mandatory. The primitives turn token props
 // into real declarations, so without it the rule forbids its own fix.
 //
+// `style/no-inline-font-size` takes the same exemption for the same reason, and
+// the two are jointly actionable only because it does: it bans the `fontSize`
+// KEY, so `size='caption'` — the fix both messages point at — has nowhere to
+// become a real declaration unless the primitive may write one. The style
+// tier's other rules ban a VALUE and are not exempt here; a primitive has
+// `theme.colors.surface` and `bg-surface` available to it.
+//
 // `style={someVar}` passes on purpose. A variable usually names a stylesheet
 // entry, which is the shape this rule asks for, so a report there fires on the
 // fix.

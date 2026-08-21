@@ -71,6 +71,32 @@ describeRule("style/no-inline-font-size", noInlineFontSizeRule, {
       code: `export const styles = { fontSize: 13 };`,
       errors: [{ messageId: "rawFontSize" }],
     },
+    {
+      // The message, asserted, because its wording is the half of this rule that had to change
+      // when the primitives layer became exempt. It must NOT name `var(--text-caption)` or
+      // `theme.typography.caption`: both are values assigned to `fontSize`, so a reader who does
+      // what the message says draws this same diagnostic again. `absent` is the load-bearing
+      // assertion here — it is the only way to state that the token spellings are deliberately
+      // not offered outside the primitives.
+      name: "the message names the prop form, and not a token spelling that reports again",
+      filename: COMPONENT,
+      code: `export const Row = () => <span style={{ fontSize: "var(--text-caption)" }} />;`,
+      errors: [
+        {
+          message:
+            "Raw fontSize override. Use a named size from the type scale instead — a size prop on the text primitive (`size='caption'`, `variant='heading-xs'`), or a semantic type class (`text-caption`). Setting `fontSize` to a scale token is still setting `fontSize`; the primitives layer is the one place that does it. If the size you want is not on the scale, add it to the scale rather than writing it here. See docs/architecture/design-system.md.",
+        },
+      ],
+    },
+    {
+      // The exemption is the PROFILE, so a feature's own `ui/` folder is not the primitives layer
+      // and does not inherit it. Without this the exemption below reads as a path suffix and every
+      // `ui/` directory in the tree turns the rule off.
+      name: "a feature's own ui folder is not the primitives layer",
+      filename: "/repo/src/features/billing/ui/text.tsx",
+      code: `export const T = () => <span style={{ fontSize: theme.typography.caption }} />;`,
+      errors: [{ messageId: "rawFontSize" }],
+    },
   ],
 
   legal: [
@@ -118,6 +144,15 @@ describeRule("style/no-inline-font-size", noInlineFontSizeRule, {
       name: "the token source has to write the numbers the named sizes resolve to",
       filename: "/repo/src/shared/ui/theme.ts",
       code: `export const scale = { fontSize: 13 };`,
+    },
+    {
+      // The primitive implementing `size='caption'` — the fix this rule's own message names.
+      // `fontSize` has to become a real declaration somewhere, and this is the layer that does it;
+      // reporting here forbids the remedy. `style/no-inline-style-prop` is silent on the same file
+      // for the same reason, which is what makes the pair jointly actionable.
+      name: "the primitive turning a token prop into a real declaration is the fix, not the defect",
+      filename: "/repo/src/shared/ui/text.tsx",
+      code: `export const Text = ({ size }: { size: SizeToken }) => (\n  <span style={{ fontSize: theme.typography[size] }} />\n);`,
     },
     {
       name: "a non-UI layer is exempt because it should carry no styling at all",

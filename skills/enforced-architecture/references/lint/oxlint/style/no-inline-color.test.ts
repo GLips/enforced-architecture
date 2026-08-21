@@ -57,6 +57,28 @@ describeRule("style/no-inline-color", noInlineColorRule, {
       errors: [{ messageId: "rawColor" }],
     },
     {
+      // One keyword between the prop and its literal, and a rule reading the container's
+      // expression directly is off. Its sibling `style/no-inline-style-prop` reads the same
+      // `lib/transparent-wrappers.ts` list, so leaving this open meant one cast turned the colour
+      // half of the style tier off while the style-prop half still reported.
+      name: "a cast, a satisfies and a non-null assertion each wedge a node between prop and literal",
+      filename: COMPONENT,
+      code: `export const Row = () => <><Text c={"#0a0c10" as Color} /><Box bg={"#fff" satisfies Color} /><Text c={"#abc"!} /></>;`,
+      errors: [
+        { messageId: "rawColor" },
+        { messageId: "rawColor" },
+        { messageId: "rawColor" },
+      ],
+    },
+    {
+      // The stray literal survives the cession below: only the CLASS is removed before matching,
+      // not the whole string, so a colour sitting outside a bracket is still this rule's.
+      name: "a bare colour beside an arbitrary-value class is still this rule's finding",
+      filename: COMPONENT,
+      code: `export const styles = { className: "text-[13px]", shadowColor: "#0a0c10" };`,
+      errors: [{ messageId: "rawColor" }],
+    },
+    {
       name: "a computed key hides nothing, because the value is what is off-system",
       filename: COMPONENT,
       code: `export const styles = (prop: string) => ({ [prop]: "#0a0c10" });`,
@@ -95,6 +117,16 @@ describeRule("style/no-inline-color", noInlineColorRule, {
       name: "a hash that carries non-hex characters is a fragment id",
       filename: COMPONENT,
       code: `export const styles = { target: "#main", key: "#zebra" };`,
+    },
+    {
+      // The cession, and it is the whole reason this rule strips class syntax before matching.
+      // `style/no-arbitrary-class-values` reports both of these, and its message names the token
+      // CLASS. Reporting here as well prescribes `var(--app-surface)`, which written into the
+      // bracket draws that rule's `arbitraryVar` — one defect, three diagnostics, no terminating
+      // fix.
+      name: "a colour literal inside a utility class belongs to the class rule, not this one",
+      filename: COMPONENT,
+      code: `export const s = { className: "bg-[#0a0c10]", hover: "hover:text-[rgb(10,12,16)]" };`,
     },
     {
       name: "the token source has to write the literals the tokens resolve to",
