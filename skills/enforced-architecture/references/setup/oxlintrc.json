@@ -72,12 +72,16 @@
   // indistinguishable from one nobody thought about.
   //
   // SCOPE, because the paragraph above is exactly the kind of claim this file asks
-  // to be checked. The head-to-head covered api, boundary, effect, health, naming,
-  // placement, react, style and testing. It did NOT cover `types/`, whose twelve
-  // rules want type information this tier cannot give them; their replacement check
-  // against tsgolint's type-aware set is ea-86's and HAS NOT RUN. So the twelve
-  // `arch/` keys under "types" in the overrides block below carry no line here, and
-  // that silence means "not yet searched", not "searched and kept".
+  // to be checked. The head-to-head covers every tag, `types/` included. The `types/`
+  // half ran second and differently: those rules want type information, so their
+  // candidates are the 59 rules tsgolint implements, and the probe had to enable
+  // `typeAware` and write a real `tsconfig.json` beside every fixture — without
+  // either, all 59 report zero and every verdict reads as "covers nothing".
+  //
+  // It ran against the whole `typescript/` set rather than a shortlist: all 109 keys
+  // oxlint accepts under that plugin, on each rule's own fixtures. That is a
+  // superset of the typed 59, and oxlint REFUSES to start on a rule name it does not
+  // know, so a config that parses is a config where every named rule loaded.
   //
   // The structural tier's subjects are covered too, in their own section at the end.
   // Those checks have no oxlint spec fixtures for a candidate to run against, so
@@ -212,6 +216,66 @@
   //   `Effect.void`, inside `arch/no-silent-error-swallow`'s void set. A project
   //   running the language service should expect both, and neither removes a rule
   //   here.
+  //
+  // ── types ──
+  // ONE FINDING RUNS THROUGH THIS WHOLE SECTION, so it is stated once. The typed
+  // built-ins keep prescribing `unknown` as the fix, and `unknown` in a declaration
+  // is what this tag bans. `no-explicit-any` says "Use `unknown` instead";
+  // `explicit-module-boundary-types` says "prefer `unknown` and narrow before use";
+  // `consistent-indexed-object-style` says "Use a record type such as
+  // `Record<string, unknown>`". Each of those sentences is a violation of
+  // `arch/no-broad-parameters`, `arch/no-unknown-returns` or
+  // `arch/no-opaque-record` respectively, written out in the help text. They are not
+  // weaker versions of these rules; they are the step before them, and following
+  // them lands exactly on the code this tag reports. That is an edit loop, and it is
+  // why the overlap is only ever on the `any` spelling.
+  //
+  // `typescript/no-unsafe-type-assertion`: the strongest candidate in the catalog and
+  //   the only one that covers a `types/` subject outright. It reports all four
+  //   canonical `arch/no-widen-then-assert` flows — through `unknown`, through `any`,
+  //   through `object`, through an open `Record` — on code that typechecks. It stays
+  //   off because it is a BAN on narrowing assertions with no hatch, and this catalog
+  //   deliberately took justify-over-ban there. It fires on `parsed as User` after a
+  //   `JSON.parse` — the parse boundary `arch/no-widen-then-assert`'s own legal
+  //   fixture blesses and `arch/require-safety-comment` exists to permit WITH a
+  //   stated invariant — and on `el as HTMLElement`. Adding the `// SAFETY:` comment
+  //   that `arch/require-safety-comment`'s message asks for does not silence it, so
+  //   the two are not jointly actionable: the only edit clearing both is deleting the
+  //   assertion, which makes the catalog's one justify rule dead. Measured reach, on
+  //   typechecking code: every narrowing assertion reports; widening, `as const` and
+  //   a same-type assertion are silent.
+  // `no-unsafe-return`, `no-unsafe-argument`, `no-unsafe-assignment`, `no-unsafe-call`,
+  //   `no-unsafe-member-access` — ON in this config already, and NOT candidates. They
+  //   judge a VALUE of type `any` flowing somewhere; the `types/` rules judge a
+  //   DECLARATION that names a broad type. The two never meet: passing an `any` into
+  //   `function handle(payload: unknown)` is safe, so `no-unsafe-argument` is silent
+  //   on exactly the parameter `arch/no-broad-parameters` reports. Both were run over
+  //   both rules' full fixture sets and scored 0 on every violation.
+  // `no-explicit-any`, `explicit-module-boundary-types`, `explicit-function-return-type`:
+  //   the `any` spelling only, on every rule in this tag — see the edit loop above.
+  //   The last two also report `arch/no-unknown-returns`' legal fixture, the inferred
+  //   return it leaves to TypeScript on purpose.
+  // `consistent-indexed-object-style`: reports one of `arch/no-opaque-record`'s two
+  //   spellings and prescribes the other, whichever way it is configured — at its
+  //   default it rewrites `{ [k: string]: unknown }` into `Record<string, unknown>`,
+  //   and with `"index-signature"` it rewrites it back. It has no opinion about the
+  //   VALUE, which is half the question.
+  // `no-redundant-type-constituents`: reports `type T = unknown | string` for
+  //   `arch/no-unknown-type-aliases`, and the fix is to drop the other members,
+  //   leaving `type T = unknown` — the alias that rule is named for. Silent on the
+  //   bare alias and on an alias chain.
+  // `consistent-type-definitions`: reports the named type `arch/no-opaque-record`'s
+  //   own message asks the author to write, because it prefers `interface`.
+  // `no-unnecessary-condition`: the near neighbour of `arch/no-runtime-typeof`, and
+  //   the one rule here reachable in config but absent from `oxlint --print-config
+  //   -D all`. It asks whether a condition is statically decided, so on a genuine
+  //   `typeof input === "string"` over `string | number` it is correctly SILENT —
+  //   which is the case ours exists to report. Control-verified loaded.
+  // NO CANDIDATE, and this is the load-bearing negative result: on a file holding the
+  //   canonical violations of `arch/no-runtime-typeof`, all 109 `typescript/` rules
+  //   together report NOTHING. `arch/no-opaque-record`'s headline
+  //   `Record<string, unknown>` also draws nothing from any of them, and neither does
+  //   `arch/no-known-value-widening`'s `const handlers: Record<string, Handler> = {…}`.
   //
   // ── the structural tier's subjects ──
   // `max-lines`: one threshold at one severity, and `overrides` REPLACES the entry
