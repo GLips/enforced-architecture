@@ -10,9 +10,13 @@
 // JSON.parse(s) }` returns `any` and is not reported: to catch that you need a
 // type checker, and that work belongs to `tsc`.
 //
-// A function that returns unparsed transport data is the one honest case. Give
-// those functions a directory and exempt the directory here. An exemption that
-// names a path stays greppable; scattered disable comments do not.
+// A function that returns unparsed transport data is the one honest case, and
+// no directory exempts it. This catalog has no per-rule path exemption, and the
+// one path-shaped silence a tree can name — `generatedDir`, read through
+// `isArchitectureExemptSourcePath` — takes EVERY rule off what it names, which
+// is not what a transport layer wants. Parse at that boundary and return a
+// named type, which is what the message asks for; where the payload really is
+// handed on unparsed, that one function takes one `oxlint-disable-next-line`.
 //
 // `Promise`, `PromiseLike`, arrays and `readonly` are unwrapped in
 // `../lib/type-annotations.ts`. A project with its own container

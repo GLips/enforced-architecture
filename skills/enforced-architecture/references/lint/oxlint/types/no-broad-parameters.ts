@@ -27,8 +27,13 @@
 //
 // The rule bans `unknown` on INPUTS, not the type itself. A parser
 // (`parseInvoice(input: unknown): Invoice`) is the signature the rest of this
-// tag asks for. Keep parsers in a known directory and exempt that directory
-// here by path, rather than a disable comment on each parser.
+// tag asks for, and its parameter still reports. Two spellings answer that.
+// Write the check as a guard or an assertion and the predicate exemption above
+// already covers it; a parser that must hand back a VALUE takes one
+// `oxlint-disable-next-line` at that function. There is no directory to point
+// at instead: this catalog has no per-rule path exemption, and the one
+// path-shaped silence a tree can name — `generatedDir`, read through
+// `isArchitectureExemptSourcePath` — takes EVERY rule off what it names.
 //
 // SCOPE, and it is the same for every TREE-SCOPED rule in this catalog — which
 // is every rule but `testing/no-module-mocking`, whose subject is a test file and

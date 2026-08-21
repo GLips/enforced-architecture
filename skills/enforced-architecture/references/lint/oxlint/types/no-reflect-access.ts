@@ -11,8 +11,12 @@
 // property writes.
 //
 // A `Proxy` handler legitimately calls `Reflect.get` — that is the documented
-// way to write a trap that forwards to the target. If the project has one,
-// exempt its directory here rather than a disable comment in each trap.
+// way to write a trap that forwards to the target. Each trap is one
+// `oxlint-disable-next-line`, the same answer the instantiated-namespace case
+// below gets. There is no directory to exempt instead: this catalog has no
+// per-rule path exemption, and the one path-shaped silence a tree can name —
+// `generatedDir`, read through `isArchitectureExemptSourcePath` — takes EVERY
+// rule off what it names.
 //
 // `Reflect` is resolved as a REFERENCE, not matched by name, so a local binding
 // called `Reflect` does not report. The spec pins that, and pins the other half

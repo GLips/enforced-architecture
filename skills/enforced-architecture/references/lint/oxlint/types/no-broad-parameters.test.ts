@@ -242,8 +242,8 @@ export function pick(a: unknown, b?: unknown): boolean { return a !== null && b 
     },
     {
       // The rule governs inputs, not the type. A parser taking `unknown` and returning a domain
-      // type is the fix every other message in this tag points at — but it is still an input, so
-      // the project exempts its parser directory by path rather than by weakening the match.
+      // type is the fix every other message in this tag points at — but it is still an input, and
+      // it reports. The header says what a parser does instead; no directory exempts one.
       name: "unknown as a RETURN is untouched by this rule",
       filename: SERVICE,
       code: `export function readRaw(): unknown { return null; }`,
