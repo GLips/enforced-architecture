@@ -19,6 +19,12 @@
 // asks for. Nothing here stops the bound value being handed to a style prop
 // afterwards; the object literal that receives it is where that is caught.
 //
+// A computed key IS read where it names the property for certain — `{ ["fontSize"]: 13 }`
+// reports, because the brackets are a spelling and not a different key. The line
+// is at whether the name is statically known: `{ [size]: 13 }` names nothing a
+// per-file rule can follow and is not covered. `lib/static-key-name.ts` owns
+// where that line falls, for this rule and the nine others that ask.
+//
 // A default inside that pattern — `({ fontSize = 13 }: Props)` — is not read
 // either, and that one costs real coverage: 13 is a raw size the file decides.
 // It is left out because reporting it would mean judging the value on one

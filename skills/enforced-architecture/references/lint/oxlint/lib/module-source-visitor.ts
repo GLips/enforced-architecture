@@ -69,15 +69,7 @@ export function visitModuleSources(
   };
 }
 
-/**
- * Reports the specifier of one dynamic form, whichever of the two static spellings it uses.
- *
- * A computed specifier (`import(path)`, `require(name)`) has nothing to fence on. A literal is
- * checkable, and so is a template with no substitutions — ``import(`@/shared/utils`)`` is the same
- * edge, and the backtick is exactly the spelling someone reaches for to make a fence stop matching.
- * Both forms go through here rather than each arm answering for itself, because the arm that
- * answered for itself is the one that carried the literal and forgot the template.
- */
+/** Adapts `staticModuleSpecifier` to the callback shape the visitor arms above use. */
 function onStaticSpecifier(
   source: ESTree.Node | undefined,
   onSource: (source: ModuleSourceNode, specifier: string) => void,
@@ -89,6 +81,12 @@ function onStaticSpecifier(
 /**
  * The one module a specifier expression names, with the node to blame for it — or `undefined` when
  * it names a family rather than a module.
+ *
+ * A computed specifier (`import(path)`, `require(name)`) has nothing to fence on. A literal is
+ * checkable, and so is a template with no substitutions — ``import(`@/shared/utils`)`` is the same
+ * edge, and the backtick is exactly the spelling someone reaches for to make a fence stop matching.
+ * Both forms are answered here rather than by each caller, because the caller that answered for
+ * itself is the one that carried the literal and forgot the template.
  *
  * THE ONE OWNER of "is this specifier statically known, and what is it". This was two private
  * copies, one here and one in `lib/imported-names.ts`, and they agreed on every input — which is
@@ -106,17 +104,16 @@ function onStaticSpecifier(
  * each call site. That guard was written in both copies too, in different places.
  *
  * NEGATIVE SPACE: a template WITH a substitution names a family of modules and gets `undefined`
- * rather than its literal prefix. A quasi whose `cooked` is null cannot be reached — an invalid
- * escape is a SyntaxError outside a tagged template, and a tagged template is not a
- * `TemplateLiteral` — and is refused rather than trusted.
+ * rather than its literal prefix. A non-string literal — `require(0)` — names no module. A quasi
+ * whose `cooked` is null cannot be reached: an invalid escape is a SyntaxError outside a tagged
+ * template, and a tagged template is not a `TemplateLiteral`. It is refused rather than trusted.
  *
- * The two REFUSALS a fixture can reach are pinned from both sides: `boundary/import-policy` for the
- * visitor half and `style/no-raw-primitives` for the `runtimeImportSpecifier` half. The non-string
- * literal check is not one of them — it narrows `Literal["value"]` to `string` and deleting it is a
- * type error, not a behaviour change, so it carries no fixture by the convention
- * `lib/imported-names.ts` states. `require(0)` coerces to the specifier `"0"`, which every rule in
- * the catalog already treats as an ordinary bare package name, so no fixture could tell the two
- * apart anyway.
+ * All three refusals are pinned, and from both sides — `boundary/import-policy` for the visitor half
+ * and `style/no-raw-primitives` for the `runtimeImportSpecifier` half. The non-string one is not
+ * merely a type narrow: force it through with a cast and `require(0)` hands every consumer a NUMBER
+ * as its specifier, which dies in the first rule to call `.split` on it. It decides what this
+ * module finds, so it is fixtured like the other two, per the convention `lib/imported-names.ts`
+ * states.
  */
 export function staticModuleSpecifier(
   source: ESTree.Node | undefined,

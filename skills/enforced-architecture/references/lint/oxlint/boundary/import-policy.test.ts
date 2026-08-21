@@ -237,10 +237,10 @@ describeRule("boundary/import-policy", importPolicyRule, {
       filename: SHARED_UI,
       code: `import { cn } from "@/shared/utils";\nimport { clientEnv } from "@/env.client";`,
     },
-    // The two below pin `staticModuleSpecifier`'s refusals from the visitModuleSources side. They
+    // The three below pin `staticModuleSpecifier`'s refusals from the visitModuleSources side. They
     // were asserted only through `runtimeImportSpecifier` before the two copies were merged, so
     // each of these guards could be deleted here with the suite green — which is how the two copies
-    // came to have the same fix and different coverage. Both are revert-probed from both sides now.
+    // came to have the same fix and different coverage. All three revert-probe from both sides now.
     {
       name: "a substituted template names a family of modules, so there is nothing to fence on",
       filename: SHARED_UI,
@@ -250,6 +250,13 @@ describeRule("boundary/import-policy", importPolicyRule, {
       name: "a require with no argument loads nothing and names nothing",
       filename: SHARED_UI,
       code: `export const nothing = () => require();`,
+    },
+    {
+      // Not merely a type narrow, though it reads as one: forced through with a cast, this hands
+      // every consumer the NUMBER 0 as a specifier and the first rule to call `.split` on it dies.
+      name: "a non-string literal names no module",
+      filename: SHARED_UI,
+      code: `export const odd = () => require(0);`,
     },
     {
       name: "a sibling primitive by alias, and the bare barrel that collects them",

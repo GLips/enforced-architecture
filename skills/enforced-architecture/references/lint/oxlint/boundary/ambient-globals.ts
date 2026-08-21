@@ -238,7 +238,8 @@ export const ambientGlobalsRule = defineTreeRule({
 
     // NO empty-path special case, though both callers do pass `""`: `reportAmbientRead` starts
     // every host read there (`window.fetch` arrives with the host's empty path), and
-    // `reportDestructuredMembers` gets one from the legal `const { "": x } = window`. It would
+    // `reportDestructuredMembers` gets one from code as ordinary as `const { "": x } = window`.
+    // It would
     // decide nothing. Every `globalPath` comes from `restrictedAmbientGlobals` below, whose four
     // values are string literals and none of them empty, so the lookup already answers `undefined`
     // for `""` — and a guard that cannot change an answer reads as one that can.

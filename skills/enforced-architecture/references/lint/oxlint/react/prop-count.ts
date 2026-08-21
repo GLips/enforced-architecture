@@ -178,9 +178,7 @@ function destructuredSurface(pattern: ESTree.ObjectPattern): PropSurface {
 
   for (const property of pattern.properties) {
     if (property.type !== "Property" || property.computed) continue;
-    // `computed` is false here: the loop above skips computed properties, so the owner is asked
-    // the same question the guard already answered.
-    const name = staticKeyName(property.key, false);
+    const name = staticKeyName(property.key, property.computed);
     if (name !== undefined && !NOT_A_PROP.has(name)) names.add(name);
   }
 
@@ -287,7 +285,7 @@ function absorbMembers(members: readonly ESTree.TSSignature[], surface: PropSurf
       continue;
     }
     if (member.computed) continue;
-    const name = staticKeyName(member.key, false);
+    const name = staticKeyName(member.key, member.computed);
     if (name !== undefined && !NOT_A_PROP.has(name)) surface.names.add(name);
   }
 }

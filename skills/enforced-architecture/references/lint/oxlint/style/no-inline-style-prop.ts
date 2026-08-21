@@ -49,11 +49,9 @@ const STYLE_PROPS = new Set(["style"]);
  */
 function shipsObjectLiteral(node: ESTree.Node): boolean {
   // The wrappers that change nothing about the value are `lib/transparent-wrappers.ts`'s to list,
-  // not this rule's. The private copy here named four of the five and was the only place in the
-  // catalog that carried `TSTypeAssertion` for a JSX attribute — a branch no input reaches, since
-  // `<never>{…}` does not parse in a .tsx file. The arms below are NOT that list: a ternary, a
-  // logical, and a style array each ship something different from what they contain, which is why
-  // this rule answers for them and the shared module refuses to.
+  // not this rule's. The arms below are NOT that list: a ternary, a logical, and a style array each
+  // ship something different from what they contain, which is why this rule answers for them and
+  // the shared module refuses to.
   if (isTransparentWrapper(node)) return shipsObjectLiteral(node.expression);
   switch (node.type) {
     case "ObjectExpression":
