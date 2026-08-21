@@ -855,6 +855,24 @@ describeSuite("a vocabulary cannot declare its own tree out of existence", () =>
     });
   });
 
+  // The caller freezing its OWN array first was the way past the freeze: a
+  // descent gated on `isFrozen` returned at the outer container and left every
+  // tree and vocabulary inside it writable — validated once, then edited, with
+  // the brand still sitting on the value.
+  testCase("a list the caller froze first is still frozen all the way down", () => {
+    const trees = declareTrees(
+      Object.freeze([{ root: "src", vocabulary: RECOMMENDED_VOCABULARY }]),
+    );
+    assert.throws(() => {
+      (trees as unknown as DeclaredTree[])[0]!.root = "../outside";
+    });
+    assert.throws(() => {
+      (trees[0]!.vocabulary.featureLayerDirs as Record<string, string>).ui = "scripts";
+    });
+    assert.equal(trees[0]?.root, "src");
+    assert.equal(trees[0]?.vocabulary.featureLayerDirs.ui, RECOMMENDED_VOCABULARY.featureLayerDirs.ui);
+  });
+
   testCase("declaring the recommended vocabulary is accepted by the factory too", () => {
     assert.doesNotThrow(() => declareTrees([{ root: "src", vocabulary: RECOMMENDED_VOCABULARY }]));
   });

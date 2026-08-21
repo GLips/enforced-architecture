@@ -190,8 +190,12 @@ export function declareTrees(trees: readonly DeclaredTree[]): ValidatedTrees {
  * already holds.
  */
 function deepFreeze<T>(value: T): T {
-  if (typeof value !== "object" || value === null || Object.isFrozen(value)) return value;
-  Object.freeze(value);
+  if (typeof value !== "object" || value === null) return value;
+  // `isFrozen` gates the FREEZE, never the descent. Gating the descent was a real
+  // hole: a caller that had already shallow-frozen its own array got an immediate
+  // return, and every tree and vocabulary inside it stayed writable — validated
+  // once, then edited, with the brand still on the value.
+  if (!Object.isFrozen(value)) Object.freeze(value);
   for (const nested of Object.values(value)) deepFreeze(nested);
   return value;
 }

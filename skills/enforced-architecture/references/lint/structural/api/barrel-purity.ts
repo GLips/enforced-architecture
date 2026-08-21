@@ -171,10 +171,11 @@ function crossesServerFnBoundary(
  * and TypeScript 7 ships its AST behind an `unstable/` entry point that a copied
  * template must not depend on. So scope is approximated, and the approximation is
  * deliberately one-sided: ANY local declaration or parameter of the name makes
- * the file not-a-boundary, which keeps the trace going. A review shadowed the
- * imported name with a function parameter — `function settleWith(createServerFn:
- * …)` — and the version without this accepted the shadowed call as a boundary and
- * suppressed a reachable `postgres` finding.
+ * the file not-a-boundary, which keeps the trace going. Two reviews shadowed the
+ * imported name and beat the version of the day: first a parenthesized parameter
+ * (`function settleWith(createServerFn: …)`), then the same shadow spelled with
+ * no parenthesis at all (`createServerFn => …`). Each accepted the shadowed call
+ * as a boundary and suppressed a reachable `postgres` finding.
  *
  * Being one-sided is what makes it sound without a parser: the cost of a false
  * positive here is a chain that gets traced and possibly reported, which is the
@@ -190,10 +191,40 @@ function rebindsName(body: string, local: string): boolean {
   // expression is never a declaration — only the namespace object could be
   // rebound, and it is checked as its own name.
   const [head] = local.split("\\.");
-  return new RegExp(
-    String.raw`\b(?:function|const|let|var|class)\s+${head}\b|[(,]\s*${head}\s*[:,)=]`,
-  ).test(body);
+  return BINDING_FORMS.some((form) => new RegExp(form(head)).test(body));
 }
+
+/**
+ * The spellings that BIND a name, as regex sources over a comment-blanked,
+ * import-stripped body.
+ *
+ * A list rather than one alternation because each entry earns its place
+ * separately: every entry here has a fixture that goes red when only that entry
+ * is deleted. Two were added after a review beat the previous version — an
+ * unparenthesized arrow parameter (`createServerFn => …`) matches no paren and
+ * no comma, and a destructured parameter matches neither.
+ *
+ * NEGATIVE SPACE: a rest binding (`...createServerFn`) is deliberately absent. A
+ * rest element is always an array or an object, so the shadow it creates can
+ * never be spelled `createServerFn(...)` — the call form this check looks for.
+ * An entry for it could not be revert-probed, and an unprobeable entry is the
+ * thing this catalog exists to keep out.
+ *
+ * Every entry is deliberately loose. A false match takes the file out of the
+ * boundary and the trace continues — the over-report this check names in its
+ * header — while a miss is a server-only package in the client bundle behind a
+ * green run.
+ */
+const BINDING_FORMS: ((name: string) => string)[] = [
+  // function f, const f, let f, var f, class f
+  (name) => String.raw`\b(?:function|const|let|var|class)\s+${name}\b`,
+  // (f), (f: T), (a, f), (f = x) — a parenthesized parameter
+  (name) => String.raw`[(,]\s*${name}\s*[:,)=]`,
+  // f => … — the arrow parameter with no parentheses at all
+  (name) => String.raw`\b${name}\s*=>`,
+  // { f }, { f: g }, [ f ] — a destructured binding position
+  (name) => String.raw`[{[]\s*${name}\s*[},:\]]`,
+];
 
 /**
  * Every local name in `source` that is bound to one of the boundary's calls by an

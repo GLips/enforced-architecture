@@ -40,6 +40,14 @@ export const barrelPurityFixtures: CheckFixtures = {
     // a boundary and stops. This tier has no parser, so scope is approximated
     // one-sidedly — see `rebindsName`.
     "FAIL src/features/shadow/index.ts",
+    // The same shadow with no parentheses around the parameter. A detector that
+    // looks for a parameter after `(` or `,` sees nothing — an arrow with one
+    // parameter needs neither.
+    "FAIL src/features/curtain/index.ts",
+    // The same shadow introduced by a destructuring pattern, where the character
+    // before the name is `{`. One spelling per feature so that deleting one
+    // binding form turns exactly one of these red.
+    "FAIL src/features/drape/index.ts",
   ],
 
   legal: [
