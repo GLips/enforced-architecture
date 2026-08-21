@@ -9,18 +9,23 @@
 // `any` sits beside `unknown` in the opaque-value set. A ban on `unknown` alone
 // teaches an agent to write `any` on the retry, which is the weaker type.
 //
-// WHICH open key domain it is, is not read. `Record<number, unknown>` and
-// `Record<PropertyKey, unknown>` hold the same values as the string-keyed one.
-// A test for `TSStringKeyword` looks more precise and creates a bypass. But
-// whether the domain is open at all IS read, in every arm — `lib/type-annotations.ts`
-// owns that answer. A closed domain names a shape: `{ [K in keyof T]: unknown }`
-// is a dirty-field tracker, and so is the `Record<keyof T, unknown>` spelling of
-// it, which reported here until the two arms were made to agree.
+// WHICH open key domain it is, is not read. `Record<number, unknown>`,
+// `Record<PropertyKey, unknown>` and `Record<any, unknown>` hold the same values
+// as the string-keyed one. A test for `TSStringKeyword` looks more precise and
+// creates a bypass. But whether the domain is open at all IS read, in every arm,
+// and `lib/type-annotations.ts` owns that answer for the three rules that ask it.
+// A closed domain names a shape: `{ [K in keyof T]: unknown }` is a dirty-field
+// tracker, and so is `Record<keyof T, unknown>`.
 //
-// NEGATIVE SPACE: `Record<'draft' | 'paid', unknown>` is therefore silent. Its
-// keys are closed, so a misspelling is already a compile error — but its reads
-// still need casts, and no rule in this catalog covers opaque values under a
-// closed key domain. That silence is not coverage.
+// NEGATIVE SPACE, three of them, and all three follow from that one gate:
+//   - `Record<'draft' | 'paid', unknown>` is silent. Its keys are closed, so a
+//     misspelling is already a compile error — but its reads still need casts,
+//     and NO rule in this catalog covers opaque values under a closed key domain.
+//   - `Record<keyof T & string, unknown>` is silent: an intersection is closed
+//     once any member is, and `keyof T` closes it.
+//   - `Record<Status, unknown>` reports when `Status` is IMPORTED, even if it is
+//     a literal union, because only local aliases are resolved here. That is the
+//     safe direction, and the fix is to spell the union or name the shape.
 //
 // A schema or serialization layer that needs the type gets a path test beside
 // `isArchitectureExemptSourcePath`, such as `/\/schemas?\//`. Do not loosen the type
@@ -83,9 +88,8 @@ export const noOpaqueRecordRule = defineTreeRule({
         const params = node.typeArguments?.params ?? [];
         const [key, value] = params;
         if (params.length !== 2 || key === undefined || value === undefined) return;
-        const shadowed = shadowedAt(node);
-        if (!isOpenKeyDomain(key, aliases, shadowed)) return;
-        if (isOpaqueDictionaryValue(value, aliases, shadowed)) {
+        if (!isOpenKeyDomain(key, aliases, shadowedAt(key))) return;
+        if (isOpaqueDictionaryValue(value, aliases, shadowedAt(value))) {
           context.report({ node, messageId: "opaqueRecord" });
         }
       },
@@ -97,16 +101,21 @@ export const noOpaqueRecordRule = defineTreeRule({
       // The key is not consulted here and that is not the inconsistency it looks like: TypeScript
       // rejects a literal index-signature key (TS1336), so every one that compiles is already open.
       TSIndexSignature(node) {
-        if (isOpaqueDictionaryValue(node.typeAnnotation.typeAnnotation, aliases, shadowedAt(node))) {
+        const value = node.typeAnnotation.typeAnnotation;
+        if (isOpaqueDictionaryValue(value, aliases, shadowedAt(value))) {
           context.report({ node, messageId: "opaqueIndexSignature" });
         }
       },
 
+      // Each half is asked at its OWN node, not at the mapped type. The key binder `K` is in scope
+      // in the value and not in the constraint (`[K in X]` cannot reference `K` in `X`), and
+      // `lexicalTypeParameterNames` only reports it when the walk arrives from the value — so
+      // reusing one set here reports `{ [Key in string]: Key }` against a module alias named `Key`.
       TSMappedType(node) {
-        if (!node.typeAnnotation) return;
-        const shadowed = shadowedAt(node);
-        if (!isOpenKeyDomain(node.constraint, aliases, shadowed)) return;
-        if (isOpaqueDictionaryValue(node.typeAnnotation, aliases, shadowed)) {
+        const value = node.typeAnnotation;
+        if (!value) return;
+        if (!isOpenKeyDomain(node.constraint, aliases, shadowedAt(node.constraint))) return;
+        if (isOpaqueDictionaryValue(value, aliases, shadowedAt(value))) {
           context.report({ node, messageId: "opaqueIndexSignature" });
         }
       },

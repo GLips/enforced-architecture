@@ -146,9 +146,8 @@ export const b: Record<string, Handler> = { start: startHandler };`,
       code: `export const parsed: unknown = JSON.parse(text);`,
     },
     {
-      // A closed key domain names exactly the keys the literal has, so nothing is deleted. This
-      // reported until the key question got one owner — the same reading that keeps a dirty-field
-      // tracker legal in `types/no-opaque-record`.
+      // A closed key domain names exactly the keys the literal has, so nothing is deleted — the
+      // same reading that keeps a dirty-field tracker legal in `types/no-opaque-record`.
       name: "a Record over a closed key domain deletes no keys",
       filename: SERVICE,
       code: `export const handlers: Record<"start" | "stop", Handler> = { start: startHandler, stop: stopHandler };`,

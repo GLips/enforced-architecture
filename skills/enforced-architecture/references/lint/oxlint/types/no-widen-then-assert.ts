@@ -18,12 +18,23 @@
 // Both steps must sit in the same function. Across a closure the two lines have
 // different authors, and a per-file rule cannot call the flow pointless.
 //
-// What counts as an open `Record` is `lib/type-annotations.ts`'s answer, not this
-// rule's, so it cannot drift from `types/no-opaque-record`. The two agree on
-// every spelling and on `object` as a value. `types/no-known-value-widening`
-// reads only the KEY half of that answer, which is why `Record<string, Handler>`
-// reports there and is silent here: a dictionary with a precise value type is
-// evidence of a known type, not a widening.
+// What counts as an open dictionary is `lib/type-annotations.ts`'s answer, not
+// this rule's, so it cannot drift from `types/no-opaque-record` on which
+// spellings are bags or on `object` as a value.
+//
+// The two are still not interchangeable, and the gap is this rule's. It reads a
+// whole annotation, so it sees a bag only where one is written out:
+// `Partial<Record<string, unknown>>`, `Readonly<Record<…>>` and an INTERFACE
+// carrying an index signature are all silent here. Nothing is lost, because
+// `types/no-opaque-record` reports the inner `Record` or index signature at its
+// declaration, so none of those types can exist inside a declared tree to be
+// widened through. That backstop is what makes the silence safe; it is not
+// coverage on its own.
+//
+// `types/no-known-value-widening` reads only the KEY half of that shared answer,
+// which is why `Record<string, Handler>` reports there and is silent here: a
+// dictionary with a precise value type is evidence of a known type, not a
+// widening.
 //
 // Do not add code to unwrap parentheses. oxlint 1.77.0 surfaces neither
 // ParenthesizedExpression nor TSParenthesizedType, so `(value) as (User)`
@@ -72,12 +83,6 @@ const SELF_EVIDENT_EXPRESSIONS = new Set([
   "ObjectExpression",
   "TemplateLiteral",
 ]);
-
-function typeReferenceName(type: ESTree.TSType): string | null {
-  return type.type === "TSTypeReference" && type.typeName.type === "Identifier"
-    ? type.typeName.name
-    : null;
-}
 
 function isTopType(type: ESTree.TSType): boolean {
   return type.type === "TSUnknownKeyword" || type.type === "TSAnyKeyword";
@@ -163,14 +168,14 @@ export const noWidenThenAssertRule = defineTreeRule({
       lexicalTypeParameterNames(node, sourceCode.visitorKeys);
 
     // `lib/type-annotations.ts` owns what an open dictionary is, so this rule and
-    // `types/no-opaque-record` cannot disagree about which spellings are bags. Both halves are
-    // shared: the key domain and the opaque value. `Record<string, object>` and
-    // `{ [K in string]: unknown }` were silent here while the sibling rule called both bags, so a
-    // round trip through either was unreported.
+    // `types/no-opaque-record` cannot disagree about which spellings are bags — both halves,
+    // the key domain and the opaque value.
+    //
+    // Each half is asked at its own node: a mapped type's key binder is in scope in the value and
+    // not in the constraint, so one shadow set for the whole type misreads `{ [Key in string]: Key }`.
     function isOpenOpaqueDictionary(type: ESTree.TSType): boolean {
-      const shadowed = shadowedAt(type);
-      const value = openDictionaryValueType(type, aliases, shadowed);
-      return value !== null && isOpaqueDictionaryValue(value, aliases, shadowed);
+      const value = openDictionaryValueType(type, aliases, shadowedAt(type));
+      return value !== null && isOpaqueDictionaryValue(value, aliases, shadowedAt(value));
     }
 
     function broadTypeKind(type: ESTree.TSType): BroadKind | null {
@@ -181,17 +186,18 @@ export const noWidenThenAssertRule = defineTreeRule({
 
     // Only reached once `broadTypeKind(type)` is null, so an open bag has already been ruled out
     // and what is left to ask is whether the assertion target says more than the widening did.
+    //
+    // Reads the dictionary through the same owner as the widening side. Matching `Record` by name
+    // here instead leaves the recovery half blind to the mapped-type and local-alias spellings —
+    // the same drift on the other end of one rule, and one keystroke from suppressing the report.
     function isDefinitelyNarrowerDictionary(type: ESTree.TSType): boolean {
-      if (type.type === "TSTypeLiteral") {
-        return type.members.some((member) => member.type !== "TSIndexSignature");
-      }
-      if (typeReferenceName(type) !== "Record") return false;
-      const params = type.type === "TSTypeReference" ? (type.typeArguments?.params ?? []) : [];
-      const value = params[1];
+      const value = openDictionaryValueType(type, aliases, shadowedAt(type));
+      if (value !== null) return !isOpaqueDictionaryValue(value, aliases, shadowedAt(value));
+      // Not a dictionary at all: a literal that names any member is a shape, which says strictly
+      // more than the bag the value was widened to.
       return (
-        params.length === 2 &&
-        value !== undefined &&
-        !isOpaqueDictionaryValue(value, aliases, shadowedAt(type))
+        type.type === "TSTypeLiteral" &&
+        type.members.some((member) => member.type !== "TSIndexSignature")
       );
     }
 

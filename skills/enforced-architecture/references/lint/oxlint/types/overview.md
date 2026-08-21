@@ -14,7 +14,7 @@ All three key on `as` and its angle-bracket twin, so all three are silent on the
 
 ## The open-dictionary trio
 
-Three rules key on the same type — `Record<string, unknown>` and its index-signature and mapped-type spellings — from three directions, and `lib/type-annotations.ts` owns the answer so they cannot drift apart. It once answered three ways: `no-widen-then-assert` was blind to two shapes `no-opaque-record` called a bag, and `no-opaque-record` read the key of a mapped type but not of a `Record`, which made `{ [K in number]: unknown }` silent while the identical `{ [k: number]: unknown }` reported.
+Three rules key on the same type — `Record<string, unknown>` and its index-signature and mapped-type spellings — from three directions, and `lib/type-annotations.ts` owns the answer so they cannot drift apart. Three private copies is the shape this particular defect takes, and it hides well: each rule stays green while going silent on a spelling its sibling reports, so the disagreement shows up as a bypass rather than a failure.
 
 - **[no-opaque-record](no-opaque-record.ts)** bans the type at the declaration.
 - **[no-widen-then-assert](no-widen-then-assert.ts)** catches a known value being routed through one and asserted back.

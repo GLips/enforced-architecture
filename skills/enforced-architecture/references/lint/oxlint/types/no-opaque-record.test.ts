@@ -61,8 +61,8 @@ describeRule("types/no-opaque-record", noOpaqueRecordRule, {
       errors: [{ messageId: "opaqueRecord" }],
     },
     {
-      // The rest of the open key domain, which the rule must keep reporting now that it reads the
-      // key at all. Narrowing the open set to `string` is how "read the key" becomes a bypass.
+      // The rest of the open key domain. Reading the key at all is what makes narrowing the open
+      // set to `string` a bypass, so each member of it is pinned separately.
       name: "a symbol key is the same bag",
       filename: SERVICE,
       code: `export type InvoicesBySymbol = Record<symbol, unknown>;`,
@@ -81,15 +81,64 @@ describeRule("types/no-opaque-record", noOpaqueRecordRule, {
       errors: [{ messageId: "opaqueRecord" }],
     },
     {
+      // The header predicts `any` as the retry for the VALUE; it is the same retry in the key, and
+      // one keystroke off `Record<string, unknown>`. A key predicate that enumerates the open
+      // spellings rather than the closed ones goes silent here and reads as precision.
+      name: "an any key domain is every key at once",
+      filename: SERVICE,
+      code: `export type AnythingAtAll = Record<any, unknown>;`,
+      errors: [{ messageId: "opaqueRecord" }],
+    },
+    {
+      // `string & {}` is the trick that stops a literal union widening, and reads as a narrowing
+      // while admitting exactly the keys `string` does.
+      name: "an intersection whose members are all open is open",
+      filename: SERVICE,
+      code: `export type InvoicePayload = Record<string & {}, unknown>;`,
+      errors: [{ messageId: "opaqueRecord" }],
+    },
+    {
+      // The autocomplete idiom: one literal beside an open domain. A union is closed only when
+      // EVERY member is, or one named key buys silence for the infinity beside it.
+      name: "a union mixing a literal with an open domain is open",
+      filename: SERVICE,
+      code: `export type InvoicePayload = Record<"draft" | string, unknown>;`,
+      errors: [{ messageId: "opaqueRecord" }],
+    },
+    {
+      // TS2456 rejects this, but the linter runs on parseable source, not compiling source. Without
+      // the cycle guard the key walk recurses until the stack goes — a crash, not a false negative,
+      // and the only fixture that can tell the difference is one that would not terminate.
+      name: "a cyclic alias chain in key position terminates and reports",
+      filename: SERVICE,
+      code: `type First = Second;
+type Second = First;
+export type InvoicePayload = Record<First, unknown>;`,
+      errors: [{ messageId: "opaqueRecord" }],
+    },
+    {
+      name: "a template-literal key domain is infinite",
+      filename: SERVICE,
+      code: `export type InvoicePayload = Record<\`user_\${string}\`, unknown>;`,
+      errors: [{ messageId: "opaqueRecord" }],
+    },
+    {
+      // A generic string utility is not resolved through, so nothing here is known to be closed —
+      // and the default has to be "open", or every unrecognised key spelling is a silent bypass.
+      name: "a string utility type over an open domain stays open",
+      filename: SERVICE,
+      code: `export type InvoicePayload = Record<Lowercase<string>, unknown>;`,
+      errors: [{ messageId: "opaqueRecord" }],
+    },
+    {
       name: "a union of open key domains is open",
       filename: SERVICE,
       code: `export type InvoicePayload = { [K in string | number]: unknown };`,
       errors: [{ messageId: "opaqueIndexSignature" }],
     },
     {
-      // The one-keystroke bypass the mapped-type arm existed to close and did not: this was silent
-      // while the identical `{ [k: number]: unknown }` reported, because the arm read the key
-      // against a set holding only `string`.
+      // One keystroke off `{ [k: number]: unknown }`, and identical to it. A key predicate that
+      // recognises only `string` calls this closed and goes quiet on the whole domain.
       name: "a mapped type over the number key domain",
       filename: SERVICE,
       code: `export type InvoicePayload = { [K in number]: unknown };`,
@@ -102,9 +151,9 @@ describeRule("types/no-opaque-record", noOpaqueRecordRule, {
       errors: [{ messageId: "opaqueIndexSignature" }],
     },
     {
-      // An alias BURIED IN A UNION. The two spellings are covered separately by the header and
-      // were never covered together: the union arm tested members against literal keywords and did
-      // not recurse, so two tidy-looking lines bypassed the whole rule.
+      // An alias BURIED IN A UNION — two spellings the header covers separately, combined. A union
+      // arm testing members against literal keywords without recursing hands back the whole bag for
+      // two tidy-looking lines.
       name: "a union member that is an alias to unknown",
       filename: SERVICE,
       code: `type Opaque = unknown;
@@ -120,8 +169,8 @@ export type InvoicePayload = Record<string, Opaque | string>;`,
       errors: [{ messageId: "opaqueRecord" }],
     },
     {
-      // The key domain hidden behind an alias. Now that a closed domain buys silence, the alias is
-      // the cheapest way to spell an open one that does not look open.
+      // The key domain hidden behind an alias. A closed domain buys silence, so an alias is the
+      // cheapest way to spell an open one that does not look open.
       name: "an open key domain spelled through a local alias",
       filename: SERVICE,
       code: `type AnyKey = string;
@@ -264,9 +313,8 @@ export type Meta = { [key: string]: any };`,
       code: `export type Touched<T> = { [K in keyof T]: unknown };`,
     },
     {
-      // The same dirty-field tracker in the OTHER spelling. It reported here while the mapped-type
-      // spelling above did not, which is the contradiction the shared key predicate resolves: the
-      // key is read in every arm now, so both are silent.
+      // The same dirty-field tracker in the OTHER spelling, and it must read the same way. An arm
+      // that reads the key and an arm that does not is one keystroke of disagreement.
       name: "the Record spelling of the same closed key domain",
       filename: SERVICE,
       code: `export type Touched<T> = Record<keyof T, unknown>;`,
@@ -296,6 +344,38 @@ export function box<Opaque>(bag: Record<string, Opaque>): Opaque | undefined { r
       filename: SERVICE,
       code: `type AnyKey = string;
 export type Bag<AnyKey> = { [K in AnyKey]: unknown };`,
+    },
+    {
+      // The mapped type's own key binder shadows the module alias inside the VALUE position, and
+      // only there — `[K in X]` cannot reference `K` in `X`. A rule computing one shadow set at the
+      // mapped type reports this, because the walk never arrives from the value and never sees the
+      // binder.
+      name: "a mapped key binder shadows an alias of the same name in the value",
+      filename: SERVICE,
+      code: `type Key = unknown;
+export type Slugs = { [Key in string]: Key };`,
+    },
+    {
+      name: "a type parameter that shadows an alias in an index signature's value",
+      filename: SERVICE,
+      code: `type Opaque = unknown;
+export function box<Opaque>(bag: { [k: string]: Opaque }): void {}`,
+    },
+    {
+      // A LOCAL alias to a literal union is resolved and found closed. The same union imported
+      // from another module reports — stated as negative space in the header, and the direction
+      // this failure has to run: a key spelling nobody recognises must report, not go quiet.
+      name: "a local alias to a literal union is a closed key domain",
+      filename: SERVICE,
+      code: `type Status = "draft" | "paid";
+export type StatusPayloads = Record<Status, unknown>;`,
+    },
+    {
+      // An intersection is closed as soon as ANY member closes it, and `keyof T` does. This is the
+      // ordinary spelling of "the string keys of T", not a bag.
+      name: "an intersection narrowed by keyof is closed",
+      filename: SERVICE,
+      code: `export type Touched<T> = Record<keyof T & string, unknown>;`,
     },
     {
       name: "a union with no unknown or any member is a real contract",

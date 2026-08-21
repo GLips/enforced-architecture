@@ -107,9 +107,8 @@ describeRule("types/no-widen-then-assert", noWidenThenAssertRule, {
       errors: [{ messageId: "widenThenAssert" }],
     },
     {
-      // `object` as a dictionary VALUE is the same bag, and bare `object` is already broad here —
-      // this spelling was the gap between the two. `types/no-opaque-record` called it a bag while
-      // this rule did not, so the round trip through it was unreported.
+      // `object` as a dictionary VALUE is the same bag, and bare `object` is broad here already —
+      // a rule that stops at top types leaves this one spelling of the same loss standing.
       name: "widened to a dictionary of objects, which erases every value's shape",
       filename: SERVICE,
       code: `export function load(): Invoice {
@@ -120,8 +119,8 @@ describeRule("types/no-widen-then-assert", noWidenThenAssertRule, {
       errors: [{ messageId: "widenThenAssert" }],
     },
     {
-      // The mapped-type spelling of the same bag. This rule never handled `TSMappedType` at all, so
-      // one keystroke off `{ [k: string]: unknown }` bought silence.
+      // The mapped-type spelling of the same bag, one keystroke off `{ [k: string]: unknown }`. A
+      // rule reading only `Record` and index signatures buys nothing but the keystroke.
       name: "widened to the mapped-type spelling of an open dictionary",
       filename: SERVICE,
       code: `export function load(): Invoice {
@@ -163,8 +162,8 @@ describeRule("types/no-widen-then-assert", noWidenThenAssertRule, {
     },
     {
       // One typed member beside the index signature does not close the key domain: the type still
-      // accepts every string key. Requiring the literal to hold exactly one member made this the
-      // cheapest way out of the rule.
+      // accepts every string key. Requiring the literal to hold nothing else is the cheapest way
+      // out of the rule.
       name: "one named field beside the index signature does not make it a shape",
       filename: SERVICE,
       code: `export function load(): Invoice {
@@ -185,6 +184,30 @@ describeRule("types/no-widen-then-assert", noWidenThenAssertRule, {
   return stored as Invoice;
 }
 type Bag = Record<string, unknown>;`,
+      errors: [{ messageId: "widenThenAssert" }],
+    },
+    {
+      // The RECOVERY half of the same question, where the drift is easiest to leave behind. A
+      // narrower dictionary matched by the name `Record` is blind to the mapped-type spelling of
+      // itself, and a recovery it cannot see is a report it silently drops.
+      name: "recovered into the mapped-type spelling of a narrower dictionary",
+      filename: SERVICE,
+      code: `export function load(): { [K in string]: Handler } {
+  const handlers: Record<string, Handler> = buildHandlers();
+  const stored: Record<string, unknown> = handlers;
+  return stored as { [K in string]: Handler };
+}`,
+      errors: [{ messageId: "widenThenAssert" }],
+    },
+    {
+      name: "recovered into a narrower dictionary named by a local alias",
+      filename: SERVICE,
+      code: `export function load(): Handlers {
+  const handlers: Record<string, Handler> = buildHandlers();
+  const stored: Record<string, unknown> = handlers;
+  return stored as Handlers;
+}
+type Handlers = Record<string, Handler>;`,
       errors: [{ messageId: "widenThenAssert" }],
     },
     {
@@ -335,8 +358,32 @@ export function second(): void {
 }`,
     },
     {
+      // The open-keyed twin of the case above, and the one that pins the recovery test asking the
+      // shared opaque-value question rather than only about top types.
+      name: "recovering into another open bag recovers nothing",
+      filename: SERVICE,
+      code: `export function load(): Record<string, object> {
+  const invoice: Invoice = buildInvoice();
+  const stored: Record<string, unknown> = invoice;
+  return stored as Record<string, object>;
+}`,
+    },
+    {
+      // The mapped type's key binder shadows the module alias in the VALUE position, and only
+      // there. Asking the value question with the shadow set computed at the mapped type never
+      // sees the binder, resolves `Key` to `unknown`, and invents a widening that was not written.
+      name: "a mapped key binder shadows an alias of the same name in the value",
+      filename: SERVICE,
+      code: `type Key = unknown;
+export function load(): Invoice {
+  const invoice: Invoice = buildInvoice();
+  const stored: { [Key in string]: Key } = invoice;
+  return stored as Invoice;
+}`,
+    },
+    {
       // `Bag` here is the function's own type parameter, so the annotation says nothing about
-      // `Record`. Now that aliases are resolved, a file that names a generic after one of them is
+      // `Record`. Because aliases ARE resolved, a file that names a generic after one of them is
       // exactly where this rule would invent a widening that was never written.
       name: "a type parameter that shadows an alias to the bag is not a widening",
       filename: SERVICE,
