@@ -68,7 +68,8 @@ function accessedMethodName(callee: ESTree.MemberExpression): string | null {
   return callee.property.type === "Identifier" ? callee.property.name : null;
 }
 
-// Whether the name resolves to a binding THIS FILE declares, rather than to the language builtin.
+// Whether the name resolves to a binding THIS FILE declares a VALUE for, rather than to the
+// language builtin.
 //
 // Two obvious ways to ask this are each right in exactly one of the two hosts the rule runs in,
 // and silently wrong in the other. Measured on oxlint 1.77.0, both hosts:
@@ -77,50 +78,59 @@ function accessedMethodName(callee: ESTree.MemberExpression): string | null {
 //   under RuleTester         no global scope is populated, and `isGlobalReference` is false
 //
 // So `isGlobalReference` cannot be read — it answers opposite things about the same identifier.
-// Neither can "does any enclosing scope bind the name": under the CLI the global scope binds it
-// for every use, so every use reads as shadowed and the rule reports nothing at all. A spec
-// cannot catch either, because a spec runs in the host each one happens to be right in.
+// Neither can a scope-chain walk that looks the NAME up: under the CLI the global scope binds it
+// for every use, so every use reads as shadowed and the rule reports nothing at all. A spec cannot
+// catch either, because a spec runs in the host each one happens to be right in.
 //
-// What agrees in both is whether the binding has a DEFINITION SITE that DECLARES something.
-// `boundary/ambient-globals` reads the same fact from the other end and says why: the
-// environment's globals are the global-scope variables with no definition at all, and one with a
-// definition is the file binding the name itself. A `const`, an import, a parameter, a `var` at a
-// script's top level each carry one, and each is a real shadow.
+// Asking the RESOLVED REFERENCE agrees in both, and that is not a smaller version of the name
+// lookup — it is a different question. A name lookup finds `type Reflect = never` and
+// `interface Reflect {}`, which bind nothing at run time; the resolver skips them, because a
+// VALUE reference does not resolve to a type-space binding. Getting that wrong is not a corner:
+// `type Reflect = never;` is one line, compiles under `--strict`, leaves `Reflect.get` returning
+// `any`, and would switch this rule off for the whole file. `lib/imported-names.ts` reaches for
+// the resolver over a name lookup for exactly these cases, spelled `require`.
 //
-// Two definitions that look like shadows and are not:
-//
-//   `declare const Reflect: …`  describes something that already exists rather than binding it.
-//       Counting it makes a one-line ambient declaration an off-switch an adopter can write —
-//       exactly the bypass `lib/imported-names.ts` climbs to the declaration to refuse, and for
-//       the same reason. NOT a shared helper: that one answers a question about `require`, and
-//       two rules sharing a policy is the defect this catalog most reliably produces.
-//   `Reflect = {…}`  with no declaration is an assignment, which produces no definition at all and
-//       so needs no arm here. It reports, and should: the binding is still the builtin's, so the
-//       `any` return this rule exists to stop is still what the call is typed as.
+// An unresolved reference is the builtin — nothing in the file declares it. Under the CLI it
+// resolves instead to a global-scope variable with no definitions, which says the same thing.
 function resolvesToLocalBinding(
   sourceCode: SourceCode,
   identifier: ESTree.IdentifierReference,
 ): boolean {
-  let scope: Scope | null = sourceCode.getScope(identifier);
-  while (scope !== null) {
-    // The innermost scope binding the name is the one this reference resolves to, so the walk
-    // answers at the first hit. Reaching `upper` at all is what a module-level `const Reflect`
-    // read from inside a function needs, and the spec pins that case.
-    const binding = scope.set.get(identifier.name);
-    if (binding !== undefined) return binding.defs.some(declaresSomething);
-    scope = scope.upper;
-  }
-  return false;
+  const scope = sourceCode.getScope(identifier);
+  const reference = scope.references.find(
+    (candidate) => candidate.identifier.range[0] === identifier.range[0],
+  );
+  const variable = reference?.resolved;
+  if (variable === null || variable === undefined) return false;
+  return variable.defs.some(bindsAValue);
 }
 
-// `declare` sits on the DECLARATION, and a `Variable` definition's node is the DECLARATOR inside
-// it — so reading the flag off `definition.node` finds nothing there and calls every ambient
-// declaration a real binding. `lib/imported-names.ts` carries the same climb and the longer
-// version of why.
-function declaresSomething(definition: { node: ESTree.Node; parent: ESTree.Node | null }): boolean {
+// The two definition kinds the resolver hands back that still bind no value.
+//
+//   `declare const Reflect: …`   describes something that already exists. Nothing carrying
+//       `declare` introduces a runtime binding — not a function, class, namespace or module —
+//       and an ambient `.d.ts` never reaches this rule at all, so the arm has no legitimate
+//       case to suppress.
+//   `import type { Reflect }`    and its inline spelling `import { type Reflect }`. The resolver
+//       does NOT skip these the way it skips a type alias, so both have to be read: `importKind`
+//       sits on the DECLARATION for the first and on the SPECIFIER for the second.
+//
+// Both are otherwise one-line off-switches an adopter can write, which is the thing this catalog
+// refuses. `lib/imported-names.ts` carries the same two reads for `require`; they are a fact
+// about the TypeScript AST rather than a policy, and the third caller is where extracting one
+// copy of it stops being premature — see ea-57.
+function bindsAValue(definition: { node: ESTree.Node; parent: ESTree.Node | null }): boolean {
+  if (isTypeOnlyImport(definition.node) || isTypeOnlyImport(definition.parent)) return false;
+  // `declare` sits on the DECLARATION, and a `Variable` definition's node is the DECLARATOR
+  // inside it, so reading the flag off `definition.node` finds nothing there and calls every
+  // ambient declaration a real binding.
   const declaration = definition.node.type === "VariableDeclarator" ? definition.parent : definition.node;
   if (declaration === null) return true;
   return !("declare" in declaration && declaration.declare === true);
+}
+
+function isTypeOnlyImport(node: ESTree.Node | null): boolean {
+  return node !== null && "importKind" in node && node.importKind === "type";
 }
 
 export const noReflectAccessRule = defineTreeRule({

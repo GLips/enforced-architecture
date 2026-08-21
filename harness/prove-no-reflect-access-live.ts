@@ -17,15 +17,19 @@
  *     bun run check:no-reflect-access-live
  *
  * So this materializes real files, runs the shipped `plugin.ts` over them through
- * the `oxlint` binary, and reads the diagnostics back. Two cases, and both are
- * load-bearing in opposite directions: without the reporting one, the inert rule
- * passes; without the silent one, a rule that dropped its shadow check passes.
+ * the `oxlint` binary, and reads the diagnostics back. Three cases pulling in
+ * different directions: without the reporting one, the inert rule passes; without
+ * the silent one, a rule that dropped its shadow check passes; without the
+ * type-space one, a rule that resolves the name by LOOKUP rather than by
+ * reference passes, and an adopter switches it off in one line.
  *
- * REVERT-PROBE after any change here, all three. Put back the old scope walk (`if
- * (scope.set.has(name)) return true`) and the reporting case must fail; delete
- * the `resolvesToLocalBinding` call from the rule and the silent case must fail;
- * set the shipped config's key to `"off"` and the enablement check must fail. A
- * run that stays green through any of them is testing nothing.
+ * REVERT-PROBE after any change here, all four. Put back the old scope walk (`if
+ * (scope.set.has(name)) return true`) and the reporting case must fail; look the
+ * name up in the scope chain instead of resolving the reference and the type-space
+ * case must fail; delete the `resolvesToLocalBinding` call from the rule and the
+ * silent case must fail; set the shipped config's key to `"off"` and the
+ * enablement check must fail. A run that stays green through any of them is
+ * testing nothing.
  *
  * NEGATIVE SPACE, and it is why this file is named after one rule rather than
  * after the technique:
@@ -108,6 +112,17 @@ const CASES: LiveCase[] = [
     code: `const Reflect = { get: (o: Record<string, unknown>, k: string) => o[k] };\nexport const value = Reflect.get(invoice, key);\n`,
     reports: null,
   },
+  {
+    // The off-switch case. A type alias binds no value, so the call is still the
+    // builtin returning `any` — and this is the arm an adopter reaching for a
+    // quiet exemption would attack first. It is pinned in the spec too, but the
+    // spec runs in the host with no global scope, which is the host that cannot
+    // tell "resolved to nothing" from "resolved to the builtin".
+    name: "a type-space binding named Reflect does not silence the rule",
+    file: "type-alias-reflect.ts",
+    code: `type Reflect = never;\nexport const value = Reflect.get(invoice, key);\n`,
+    reports: "`Reflect.get` returns `any` whatever the receiver was",
+  },
 ];
 
 type OxlintDiagnostic = { code: string; message: string; filename: string };
@@ -144,6 +159,11 @@ try {
  * tree-scoping guard asks which BLOCK an enabled rule sits in and deliberately
  * declines to ask whether a rule is enabled at all. So the key going missing
  * again — the exact state ea-48 fixed — would leave both files green.
+ *
+ * THIS FUNCTION IS DELETED BY ea-49, not carried alongside it. That pass runs the
+ * shipped config over every rule's fixtures, so a rule set to `"off"` fails there
+ * by not reporting — the enablement question falls out of the design, and a
+ * string match asking it a second time is the drifting copy.
  */
 async function assertShippedConfigEnablesTheRule(): Promise<void> {
   const shipped = await readFile(OXLINTRC_PATH, "utf8");

@@ -85,7 +85,7 @@ Every case carries its own `filename`, in the standard layout, because the rules
 
 Every one of these was revert-probed when the runner was built. Do it again after any change here: break a rule and expect its adversarial kind to fail, stub a spec and expect all three kinds to report as never run. A harness that stays green through both is not testing anything.
 
-What it still does not check is whether **oxlint** accepts the plugin, as opposed to Node loading it. That path was verified by hand — the whole rule set enabled against a probe tree through the real CLI — and JS plugins being alpha is the reason to re-verify it after an oxlint upgrade rather than trusting a green `check:rules`.
+What it still does not check is whether **oxlint** accepts the plugin, as opposed to Node loading it. That path was verified by hand when the plugin landed — the 32 rules that existed then, enabled against a probe tree through the real CLI. It has not been redone since, and JS plugins being alpha is the reason to redo it after an oxlint upgrade rather than trusting a green `check:rules`.
 
 ## The host gap, and the one rule that is proved through it
 

@@ -69,6 +69,36 @@ export const value = Reflect.get(invoice, key);`,
       errors: [{ messageId: "reflectGet" }],
     },
     {
+      // The CHEAPEST off-switch there is, and the one that reads as ordinary code
+      // rather than as a suppression. It compiles under `--strict`, and the call
+      // still returns `any`. Only resolving the reference sees this — a scope-chain
+      // lookup by name finds the alias and goes quiet for the whole file.
+      name: "a type alias named Reflect binds no value",
+      filename: SERVICE,
+      code: `type Reflect = never;
+export const value = Reflect.get(invoice, key);`,
+      errors: [{ messageId: "reflectGet" }],
+    },
+    {
+      // The second type-space mechanism. `importKind` sits on the DECLARATION here
+      // and on the SPECIFIER in the `import { type Reflect }` spelling, and the
+      // resolver skips neither — so both have to be read, and this pins the pair.
+      name: "a type-only import of Reflect binds no value",
+      filename: SERVICE,
+      code: `import type { Reflect } from "./shim.ts";
+export type Use = Reflect;
+export const value = Reflect.get(invoice, key);`,
+      errors: [{ messageId: "reflectGet" }],
+    },
+    {
+      name: "the inline type-only spelling of the same import",
+      filename: SERVICE,
+      code: `import { type Reflect } from "./shim.ts";
+export type Use = Reflect;
+export const value = Reflect.get(invoice, key);`,
+      errors: [{ messageId: "reflectGet" }],
+    },
+    {
       name: "both banned methods in one file are two findings",
       filename: SERVICE,
       code: `export const value = Reflect.get(invoice, key);
@@ -111,9 +141,10 @@ export const result = Reflect.apply(settle, invoice, args);`,
 export const value = Reflect.get(invoice, key);`,
     },
     {
-      // The binding is in an OUTER scope, which is the only case that makes the
-      // rule walk past the scope it starts in. Without this the walk is one line
-      // that can be deleted with every other case still green.
+      // The binding is in an OUTER scope. Resolution handles this with no walk to
+      // delete, so unlike the cases above this one pins BEHAVIOUR rather than a
+      // line — it is what fails if anyone replaces the resolver with a lookup in
+      // the starting scope alone.
       name: "a module-level Reflect covers a use inside a function",
       filename: SERVICE,
       code: `const Reflect = { get: (o, k) => o[k] };
@@ -131,6 +162,15 @@ export function read(key) {
       code: `export function read(Reflect, key) {
   return Reflect.get(invoice, key);
 }`,
+    },
+    {
+      // The counterpart to the two type-only cases above: a VALUE import really
+      // does bind the name, so the same syntax minus `type` must stay silent.
+      // Without this the type-only arm could widen to all imports unnoticed.
+      name: "a value import named Reflect is a real binding",
+      filename: SERVICE,
+      code: `import { Reflect } from "./shim.ts";
+export const value = Reflect.get(invoice, key);`,
     },
     {
       name: "a same-named method on some other object",

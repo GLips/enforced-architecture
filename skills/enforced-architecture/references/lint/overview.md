@@ -151,8 +151,8 @@ Each tier is its own tsconfig program, because they run under different runtimes
 
 Every rule here, both tiers, is runnable code proved in this repo's CI against three kinds of case:
 the **obvious** violation, the **adversarial** spelling that beats a naive implementation, and the
-**legal** neighbour that must stay silent. A template edit that breaks a rule fails the pull
-request. The two tiers are proved differently because they read differently:
+**legal** neighbour that must stay silent. The two tiers are proved differently because they read
+differently:
 
 - **oxlint** rules are per-file, so each is exercised through oxlint's `RuleTester` against inline
   sources. The specs ship *beside* the rules, so a project stealing a rule steals its tests in the
@@ -166,6 +166,16 @@ request. The two tiers are proved differently because they read differently:
   Findings are compared as a **multiset with severity** against declared expectations, and every
   registered check must have expectations, so a check that is deleted or stubbed fails rather than
   passing on zero findings. `bun run check:structural`.
+
+**What that does NOT prove, and it is the limit worth knowing before you trust a green run.**
+`RuleTester` is not the linter: it runs the same rule over the same source without building the
+same environment, and in particular it populates **no global scope**. So a rule that reasons about
+globals gets a different answer there than in production, and its specs are written in the host
+where the answer happens to be the expected one. `types/no-reflect-access` shipped that way —
+registered, documented, typechecked, fifteen green cases, and it reported nothing when oxlint ran
+it. One rule is additionally proved through a real `oxlint` run today; the rest are not. Run your
+adapted rule over a file that should fail before you trust it, and treat that as the check rather
+than a formality.
 
 The harness does not ship with the skill directory; it lives in `harness/` beside `skills/` in the
 skill's source repository. The rules and their config do ship, which is the point.
