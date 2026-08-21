@@ -34,7 +34,7 @@ The catalog is split by **tier** first, tag second, and your project gets the sa
 lint/
   policy/       tables both tiers read
   oxlint/       per-file rules — plugin.ts, lib/, and a folder per tag
-  structural/   whole-tree checks — the substrate, your arch.config.ts, and a folder per tag
+  structural/   whole-tree checks — the substrates and plumbing, your arch.config.ts, and a folder per tag
 ```
 
 So adopting a rule is copying a path, and the path says which tier you're in.

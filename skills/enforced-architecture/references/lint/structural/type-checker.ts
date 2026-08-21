@@ -4,21 +4,22 @@
 // Every check that asks a question about a TYPE rather than about a path or a
 // specifier reads its answers through here.
 //
-// This is the second substrate in this tier, beside `import-graph.ts`. The split
-// between them is the same one that puts a rule in a tier at all: the graph
-// answers where a specifier LANDS, and this answers what a declaration MEANS.
+// This is one of the tier's substrates — `module-scanning.ts`,
+// `module-resolution.ts`, `import-graph.ts` and this file, each answering one
+// question about code and none of them a check. The split between them is the
+// same one that puts a rule in a tier at all: the graph answers where a
+// specifier LANDS, and this answers what a declaration MEANS.
 // Neither can answer the other's question, and a check reaching for the wrong
 // one gets a confident wrong answer rather than an error.
 //
 // ── Why the async API ─────────────────────────────────────────────────
 //
 // TypeScript 7 ships two clients for the same server, and this takes the async
-// one. That used to be forced — `typescript/unstable/sync` reads
-// `child.stdout._handle.fd`, a Node internal Bun does not expose, and threw
-// inside the `API` constructor while this tier ran under Bun. The tier runs
-// under Node now and that door is open, so this is a choice.
+// one by choice: the tier runs under Node, where `typescript/unstable/sync`
+// works too — it reads `child.stdout._handle.fd` in the `API` constructor, so
+// it needs a runtime that exposes that Node internal.
 //
-// It stays async because `StructuralCheck.run` returns a promise for every
+// It is async because `StructuralCheck.run` returns a promise for every
 // check, including the ones that never await anything. One shape for every check is worth more than sixteen
 // signatures that each say whether their body happens to need a round trip: a
 // union return type is one forgotten `await` away from a check whose findings

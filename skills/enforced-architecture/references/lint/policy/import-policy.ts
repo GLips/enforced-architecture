@@ -332,9 +332,9 @@ export const IMPORT_POLICY: Record<SourceProfile, Record<TargetArea, ImportSurfa
  * Both tiers mark `typeOnly` per DECLARATION, so a module a domain imports both
  * as `import type` and at runtime is type-only on the first line and not on the
  * second, in either tier. That agreement is a property of both reading a parser
- * rather than a convention either one keeps: while the graph recovered type
- * edges by rewriting source text it could only answer per specifier STRING, and
- * one file's two spellings of one module collapsed into a single coarser
+ * rather than a convention either one keeps: only a parser can attribute
+ * type-ness to one occurrence, and anything answering per specifier STRING
+ * collapses one file's two spellings of one module into a single coarser
  * verdict.
  *
  * `package` is deliberately absent, which is stricter than the table's

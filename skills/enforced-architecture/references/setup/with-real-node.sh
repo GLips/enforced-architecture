@@ -3,9 +3,8 @@
 #   "check:rules"      = "lint/with-real-node.sh --test 'lint/oxlint/**/*.test.ts'"
 #   "check:structural" = "lint/with-real-node.sh lint/structural/check-structure.ts"
 #
-# It sits above both tier directories on purpose. It used to belong to the oxlint
-# tier, when only that tier's specs needed real Node; the structural tier needs it
-# for a different reason now, and a copy per tier is two copies of one workaround.
+# It sits above both tier directories on purpose: each tier needs it for its own
+# reason, spelled out below, and a copy per tier is two copies of one workaround.
 #
 # Runs its arguments under REAL Node. Two reasons, and the second is the quiet one.
 #

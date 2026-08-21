@@ -27,9 +27,9 @@
 // module crosses it is a question about SYNTAX — which name an import bound,
 // whether the call reaches that binding or a shadow — and this check answers it
 // by reading text. What follows is that approximation and its contract. The
-// approximation is now a CHOICE: `module-scanning.ts` parses, so the binding is
-// available and nobody has spent it yet. Read the contract as what holds until
-// someone does, not as a limit.
+// approximation is a CHOICE, not a limit: `module-scanning.ts` parses, so the
+// binding is there for a check willing to spend it. Read the contract as what
+// holds while none has.
 //
 // IN — recognised as a boundary. A named import of one of the boundary's calls
 // from the boundary's module, read as `imported as local` so the alias direction
@@ -261,9 +261,9 @@ function maskLiteralContents(source: string): string {
  * True when `body` declares `local` itself — so a call of that name might be the
  * file's own binding rather than the imported one.
  *
- * Scope is approximated here, and no longer because it has to be: the tier now
- * parses (`module-scanning.ts`), so `rebindsName` COULD be a scope walk and is
- * not one yet. Until it is, the approximation is deliberately one-sided: ANY local declaration or parameter of the name makes
+ * Scope is approximated here, and not because it has to be: the tier parses
+ * (`module-scanning.ts`), so `rebindsName` COULD be a scope walk and is not
+ * one. While it is not, the approximation is deliberately one-sided: ANY local declaration or parameter of the name makes
  * the file not-a-boundary, which keeps the trace going. Two reviews shadowed the
  * imported name and beat the version of the day: first a parenthesized parameter
  * (`function settleWith(createServerFn: …)`), then the same shadow spelled with

@@ -1,9 +1,8 @@
 // Copy to `lint/structural/tsconfig.json`. Its options are identical to
-// `oxlint.tsconfig.json`'s, and it is still a SEPARATE program: each tier is
-// copied into an adopting project as a directory that has to typecheck on its
-// own, and a single program spanning both would typecheck neither when only one
-// is present. The two used to differ on `types` as well — the structural tier
-// ran under Bun — and they no longer do; both tiers run under Node.
+// `oxlint.tsconfig.json`'s down to `types`, because both tiers run under Node,
+// and it is still a SEPARATE program: each tier is copied into an adopting
+// project as a directory that has to typecheck on its own, and a single program
+// spanning both would typecheck neither when only one is present.
 //
 // `allowImportingTsExtensions` is required, not stylistic: every check imports
 // its neighbours with the `.ts` extension because Node loads these files

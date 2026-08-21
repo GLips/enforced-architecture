@@ -11,15 +11,12 @@
 // no import from `../structural/` or `../oxlint/`. Plain strings, records,
 // discriminated unions, pure functions.
 //
-// That constraint is a CONVENTION and NOTHING enforces it — say that plainly,
-// because it used to be half-enforced and is not any more. Both tooling
-// tsconfigs include this directory, so it typechecks twice; while one of them
-// ran `types: ["bun"]` and the other `types: ["node"]`, the pair at least caught
-// a global belonging to one runtime and not the other. Both are `["node"]` now,
-// so the second program adds nothing on this axis. A `node:` import, an oxlint
-// type, a reach into `../oxlint/` — all compile clean and all are caught by
-// review or by nothing. Make the rule mechanical the first time one lands in a
-// diff, rather than trusting this paragraph a second time.
+// That constraint is a CONVENTION and NOTHING enforces it: both tooling
+// tsconfigs include this directory under the same `types`, so the second
+// program cannot catch what the first one lets through. A `node:` import, an
+// oxlint type, a reach into `../oxlint/` — all compile clean and all are caught
+// by review or by nothing. Make the rule mechanical the first time one lands in
+// a diff, rather than asking this paragraph to hold it.
 //
 // Everything here speaks ONE currency: a path from a tree's source root, with no
 // leading slash and no extension needed — `features/billing/repo/invoice-rows`.

@@ -172,10 +172,12 @@ structural finding, and `typecheck` as one `&&` chain of `tsc` runs lets an app 
 error in the check scripts. Run each independently and aggregate. Reserve `&&` for a step that
 genuinely cannot run after the one before it failed.
 
-### The substrate
+### The tier's non-check files
 
 Structural checks ship with the modules they share. Duplicated across scripts, those modules drift
-apart on exclusions and on what counts as an import, and neither copy reports that it has.
+apart on exclusions and on what counts as an import, and neither copy reports that it has. Four of
+these are the tier's **substrates** — `module-scanning.ts`, `module-resolution.ts`, `import-graph.ts`
+and `type-checker.ts`, each answering one question about code. The rest is plumbing.
 
 - **`config.ts`** — every per-repo value for every check, in one object: the project root, and
   per-check thresholds, manifests, trace limits and package lists. The shape of the tree
@@ -278,7 +280,7 @@ promises, which is what happened at three separate deployments before this tier 
 
 1. Copy `lint/policy/` first if it is not there, then
    `lint/structural/{config,check-substrate,module-scanning,module-resolution,import-graph,type-checker,registry,run-structural-checks}.ts`
-   and every `lint/structural/<tag>/<name>.ts`. All eight substrate files, or the tier does not
+   and every `lint/structural/<tag>/<name>.ts`. All eight non-check files, or the tier does not
    import-resolve.
 2. Register the checks in `lint/structural/registry.ts`. An unregistered check is a file that ships
    and never runs.
@@ -304,7 +306,7 @@ promises, which is what happened at three separate deployments before this tier 
    are two of those. A tree-scoped check reading a project path, or the reverse, is a check whose
    subject and scope disagree.
 3. Take imports from `context.importGraph()`, never from your own scan of file text; types from
-   `context.typeChecker()`; file sets from the substrate's collectors, with the source glob from
+   `context.typeChecker()`; file sets from `check-substrate.ts`'s collectors, with the source glob from
    `lint/policy/layout.ts`. Do not spell your own extension list: six checks each spelling their own
    glob is how four ended up wrong about `.mts`.
 4. Put every per-repo value in the config object, never as a constant in the check body. Names of

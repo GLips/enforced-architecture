@@ -59,9 +59,11 @@ adapter on each side. The tag says what a rule is *about*; the tier says what it
 `boundary/` is what code may import.
 
 `structural/module-scanning.ts`, `module-resolution.ts`, `import-graph.ts` and `type-checker.ts` are
-**not** rules and are in no tag. They are the substrates every check consumes — which specifiers a
-file names, where each one lands, the graph over both, and what a declaration means — and none of
-them is registered.
+**not** rules and are in no tag. They are the tier's **substrates** — the word means these four and
+nothing else — and each answers one question about code: which specifiers a file names, where each
+one lands, the graph over both, and what a declaration means. Every check consumes them; none of
+them is registered. The tier's other non-check files (config, context types, the registry, the
+orchestrator) are plumbing.
 
 ## What each rule's subject is
 

@@ -16,9 +16,9 @@
 # checks under one runtime and ships them to another is proving the wrong thing.
 #
 # Bun puts a `node`-named symlink to ITSELF on PATH (/tmp/bun-node-*/node) for any process it
-# spawns, ahead of the real binary. So in a Bun-spawned shell — which is where coding agents run,
-# and where `bun run check` puts every script — a bare `node` is Bun wearing node's name, and both
-# problems above come back silently. Drop those entries so `node` means node.
+# spawns, ahead of the real binary. So in a Bun-spawned shell — which is where coding agents run —
+# a bare `node` is Bun wearing node's name, and both problems above come back silently. Drop those
+# entries so `node` means node.
 set -euo pipefail
 
 PATH="$(printf '%s' "$PATH" | tr ':' '\n' | grep -v '/bun-node-' | paste -sd: -)"
