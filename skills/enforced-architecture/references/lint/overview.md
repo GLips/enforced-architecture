@@ -20,19 +20,20 @@ structural/   the whole-tree tier
 
 ## Why three directories
 
-**`policy/`** is runtime-neutral: no Node APIs, no Bun APIs, no oxlint or ESTree types, and no import
-from either tier. It sits below both, so one edge cannot reach two verdicts depending on how it was
+**`policy/`** is runtime-neutral: no Node APIs, no oxlint or ESTree types, and no import from either
+tier. Nothing enforces that — it is a convention held by review. It sits below both, so one edge cannot reach two verdicts depending on how it was
 spelled. It holds the layout vocabulary, the source × target import table, and the package ownership
 rows, each read by an adapter on each side. See [policy/overview.md](policy/overview.md).
 
 **`oxlint/`** is handed one file at a time and sees its syntax. It catches what is visible in a single
-source text: a specifier, a JSX prop, a hook call. Its specs run under real Node, because oxlint's
-`RuleTester` refuses Bun by name.
+source text: a specifier, a JSX prop, a hook call.
 
 **`structural/`** is handed the resolved import graph, the filesystem, and a TypeScript program. It
 catches what no single file can show: where a relative specifier lands, whether a feature cycles,
-whether a barrel exports what it claims, what an annotation actually resolves to. It runs under
-Bun.
+whether a barrel exports what it claims, what an annotation actually resolves to.
+
+Both run under Node 24 — see [setup/with-real-node.sh](../setup/with-real-node.sh) for why the
+launcher is not optional in either.
 
 The split is a fact about what each tier can *see*. A rule belongs to whichever tier can answer its
 question, and a rule whose question needs both is a rule whose policy belongs in `policy/`, read by an
@@ -57,9 +58,10 @@ adapter on each side. The tag says what a rule is *about*; the tier says what it
 `placement/` and `boundary/` are the pair most often confused. `placement/` is where code may live.
 `boundary/` is what code may import.
 
-`structural/import-graph.ts` and `structural/type-checker.ts` are **not** rules and are in no tag.
-They are the substrates the graph-reading and type-reading checks consume, and neither is
-registered.
+`structural/module-scanning.ts`, `module-resolution.ts`, `import-graph.ts` and `type-checker.ts` are
+**not** rules and are in no tag. They are the substrates every check consumes — which specifiers a
+file names, where each one lands, the graph over both, and what a declaration means — and none of
+them is registered.
 
 ## What each rule's subject is
 
@@ -150,7 +152,7 @@ what the runner checks around the specs, is *Rule Specs* in
 The two tiers are proved differently, because they read differently.
 
 - **oxlint rules** are per-file, so each runs through oxlint's `RuleTester` against inline sources.
-  The specs ship beside the rules. `bun run check:rules`.
+  The specs ship beside the rules. `npm run check:rules`.
 - **Structural checks** scan declared trees, so their cases are real files in one shared tree under
   `harness/structural-fixtures/tree/`, pointed at by one config object — which doubles as the worked
   example of adopting the tier. That tree carries a second, **undeclared** package. The harness
@@ -158,7 +160,7 @@ The two tiers are proved differently, because they read differently.
   read with its own vocabulary rather than the first tree's — with a positive control, so the silent
   half cannot pass vacuously. Findings are compared as a multiset with severity, and every registered
   check must have expectations, so a check that is deleted or stubbed fails rather than passing on
-  zero findings. `bun run check:structural`.
+  zero findings. `npm run check:structural`.
 
 **What that does not prove, and it is the limit worth knowing before you trust a green run.**
 `RuleTester` is not the linter. It runs the same rule over the same source without building the same

@@ -3,7 +3,7 @@
 //
 // In a monorepo this file belongs at the ROOT, with oxlint as a root dependency.
 // Without both there is no single oxlint to run from the root and nothing telling
-// it where the plugin module is, so `bunx oxlint` pulls a stray version and lints
+// it where the plugin module is, so `npx oxlint` pulls a stray version and lints
 // with none of the architecture rules loaded — a green run that checked nothing.
 // Nested `.oxlintrc.json` files load automatically for workspaces that need their
 // own rule set (`--disable-nested-config` turns that off).
@@ -473,7 +473,7 @@
       // NOT ENFORCED, either direction. `harness/run-rule-fixtures.ts` fails a rule
       // whose header carries neither label, and stops there — nothing reads the
       // severity column, so a header relabelled from `Shows:` to `Makes sure:`
-      // leaves the value here stale and `bun run check` green. Re-derive the column
+      // leaves the value here stale and `npm run check` green. Re-derive the column
       // by hand when a label moves, until ea-49 makes the harness read it. The
       // guard that DOES read this file reads only the `files` globs above.
       //

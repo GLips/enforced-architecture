@@ -7,17 +7,18 @@
 // adopted, and every classifier here takes the vocabulary of the tree the file
 // was resolved into.
 //
-// It is deliberately BELOW both tiers: no Bun APIs, no Node APIs, no oxlint
-// ESTree types, no import from `../structural/` or `../oxlint/`. Plain strings,
-// records, discriminated unions, pure functions.
+// It is deliberately BELOW both tiers: no runtime APIs, no oxlint ESTree types,
+// no import from `../structural/` or `../oxlint/`. Plain strings, records,
+// discriminated unions, pure functions.
 //
-// That constraint is a CONVENTION, and nothing enforces it. Both tooling
-// tsconfigs include this directory, so it typechecks twice — once under
-// `types: ["bun"]` and once under `types: ["node"]` — but a `node:` builtin
-// resolves under both, so `import { resolve } from "node:path"` here compiles
-// clean. The dual typecheck catches a Bun global or a Node global, and nothing
-// else — a `node:` import or a reach into `../oxlint/` is caught by review or by
-// nothing. Make the rule mechanical the first time either of those lands in a
+// That constraint is a CONVENTION and NOTHING enforces it — say that plainly,
+// because it used to be half-enforced and is not any more. Both tooling
+// tsconfigs include this directory, so it typechecks twice; while one of them
+// ran `types: ["bun"]` and the other `types: ["node"]`, the pair at least caught
+// a global belonging to one runtime and not the other. Both are `["node"]` now,
+// so the second program adds nothing on this axis. A `node:` import, an oxlint
+// type, a reach into `../oxlint/` — all compile clean and all are caught by
+// review or by nothing. Make the rule mechanical the first time one lands in a
 // diff, rather than trusting this paragraph a second time.
 //
 // Everything here speaks ONE currency: a path from a tree's source root, with no
@@ -436,8 +437,27 @@ export const TYPESCRIPT_SOURCE_EXTENSIONS = SOURCE_EXTENSIONS.filter((extension)
   /tsx?$/.test(extension),
 );
 
+/**
+ * One extension set, as the glob that matches it.
+ *
+ * A brace alternation with ONE alternative is not one — `*.{css}` matches
+ * nothing under `node:fs`'s glob, which expands `{a,b}` and leaves `{a}` as
+ * literal text. Every extension list here is derived from a project's
+ * vocabulary, so any of them is one entry long in some project: a repo with
+ * `stylesheetExtensions: ["css"]` walked `**\/*.{css}`, matched zero files, and
+ * `style/css-tokens` reported it clean. The list being short is not a reason for
+ * a check to stop applying.
+ *
+ * One owner for the join, rather than the four call sites that each spelled it,
+ * because this is the kind of defect that is invisible in the tree that has two
+ * extensions and total in the tree that has one.
+ */
+export function extensionGlob(extensions: string[]): string {
+  return extensions.length === 1 ? `*.${extensions[0]}` : `*.{${extensions.join(",")}}`;
+}
+
 /** Every type-carrying source file in a tree: `**\/*.{ts,tsx,mts,cts}`. */
-export const TYPESCRIPT_FILE_GLOB = `**/*.{${TYPESCRIPT_SOURCE_EXTENSIONS.join(",")}}`;
+export const TYPESCRIPT_FILE_GLOB = `**/${extensionGlob(TYPESCRIPT_SOURCE_EXTENSIONS)}`;
 
 /**
  * Every source file in ONE directory: `*.{ts,tsx,mts,cts,…}`.
@@ -449,7 +469,7 @@ export const TYPESCRIPT_FILE_GLOB = `**/*.{${TYPESCRIPT_SOURCE_EXTENSIONS.join("
  * extensions this tier walks, and an `index.mts` barrel is then a file the check
  * never opens rather than a barrel it clears.
  */
-export const SOURCE_EXTENSION_GLOB = `*.{${SOURCE_EXTENSIONS.join(",")}}`;
+export const SOURCE_EXTENSION_GLOB = extensionGlob(SOURCE_EXTENSIONS);
 
 /** The one glob every whole-tree source walk uses. `**\/*.{ts,tsx,mts,cts,…}`. */
 export const SOURCE_FILE_GLOB = `**/${SOURCE_EXTENSION_GLOB}`;
@@ -992,7 +1012,7 @@ export function sourceRootModules(vocabulary: TreeVocabulary): string[] {
 
 /** Every stylesheet in a tree, in one walk: `**\/*.{css,…}`. */
 export function stylesheetGlob(vocabulary: TreeVocabulary): string {
-  return `**/*.{${vocabulary.stylesheetExtensions.join(",")}}`;
+  return `**/${extensionGlob(vocabulary.stylesheetExtensions)}`;
 }
 
 export function barrelModules(vocabulary: TreeVocabulary): string[] {

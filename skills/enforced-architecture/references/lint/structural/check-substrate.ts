@@ -15,7 +15,7 @@
 //
 // ──────────────────────────────────────────────────────────────────────
 
-import { existsSync, readFileSync, readdirSync, realpathSync } from "node:fs";
+import { existsSync, globSync, readFileSync, readdirSync, realpathSync } from "node:fs";
 import { relative, resolve } from "node:path";
 import {
   type DeclaredTree,
@@ -40,8 +40,10 @@ export type Severity = "error" | "warning";
 /**
  * One diagnostic. `file` is required and project-relative: it is what lets the
  * orchestrator suppress warnings for files a commit never opened, and what the
- * fixture harness compares. `line` is 1-based and optional because the import
- * graph genuinely cannot always place an edge — see `specifierLines`.
+ * fixture harness compares. `line` is 1-based and optional because plenty of
+ * findings are about a FILE rather than a position in one: a barrel that does
+ * not exist, a directory with no occupant, a name that should be spelled
+ * differently.
  */
 export type Finding = {
   severity: Severity;
@@ -123,7 +125,7 @@ export type TreeContext = {
    * up disagreeing about what a feature is.
    *
    * A symlink to a directory is NOT one, and deliberately: `collectTreeFiles`
-   * runs `Bun.Glob.scanSync`, which does not traverse symlinks, so a symlinked
+   * globs the tree, which does not traverse symlinks, so a symlinked
    * directory could never satisfy the occupancy filter anyway and listing it
    * here would only make the two disagree. A check that has to treat an aliased
    * directory and its target as one boundary resolves the name itself — see
@@ -300,7 +302,7 @@ export async function assertTreeIsTypeChecked(
   // A SECOND pass through realpath, and only over what the first pass could not
   // find, because the two walkers spell a symlinked directory differently. TypeScript
   // enumerates THROUGH the link (`features/aliased-link/index.ts`) while
-  // `collectTreeFiles` runs `Bun.Glob.scanSync`, which does not traverse symlinks
+  // `collectTreeFiles` globs the tree, and a glob does not traverse symlinks
   // and therefore reports the target (`features/aliased-target/index.ts`). One
   // file, two names, and a set comparison calls it unchecked — this guard's own
   // false alarm, on a tree where every file really is in the program.
@@ -352,6 +354,41 @@ export function toSourcePath(context: TreeContext, absolute: string): string {
 }
 
 /**
+ * Absolute paths matching `pattern` under `root`, with everything reached
+ * THROUGH A SYMLINK dropped.
+ *
+ * The exclusion is this tier's claim and not the glob's behaviour, which is why
+ * it is spelled here. A symlinked directory keeps the name it is reached
+ * through in every rule that has an opinion about identity —
+ * `api/feature-visibility` canonicalises a link and its target to one boundary
+ * itself, and `module-resolution.ts` sets `symlinks: false` for the same reason
+ * — so a walker that enumerates through the link yields a SECOND name for every
+ * file behind it, and each of those names is a feature that does not exist.
+ *
+ * A dangling link resolves to nothing and is dropped by the same test, which is
+ * the answer this tier wants: nothing walks it, and no check reports on it.
+ * That is silence rather than coverage, and `api/feature-visibility` says so in
+ * its header.
+ *
+ * The test looks redundant under Node, whose glob does not traverse a symlinked
+ * directory, and is not: the same `globSync` call over this repo's own fixture
+ * tree returns 275 files under Node and 282 under Bun. The catalog ships as
+ * templates into projects that pick their own runtime, so the tier states the
+ * property rather than inheriting whichever answer the host gives.
+ *
+ * `root` is realpath'd first so a PROJECT checked out under a symlinked path is
+ * not a project where every file is reached through a link and nothing is
+ * collected at all.
+ */
+function globWithoutSymlinks(pattern: string, root: string): string[] {
+  const realRoot = realpathOrSelf(resolve(root));
+  return globSync(pattern, { cwd: realRoot }).flatMap((found) => {
+    const absolute = resolve(realRoot, found);
+    return realpathOrSelf(absolute) === absolute ? [absolute] : [];
+  });
+}
+
+/**
  * Absolute paths matching `pattern` inside one declared tree, minus the files no
  * rule in the catalog governs.
  *
@@ -376,7 +413,7 @@ export function collectTreeFiles(
   const under = options.under ?? "";
   const glob = under === "" ? pattern : `${under}/${pattern}`;
   const found: string[] = [];
-  for (const absolute of new Bun.Glob(glob).scanSync({ cwd: context.sourceRoot, absolute: true })) {
+  for (const absolute of globWithoutSymlinks(glob, context.sourceRoot)) {
     // `includeTests` is for the one check whose SUBJECT is an exempt file:
     // `naming/test-file-mirror` audits the names of tests, which every other
     // check skips. It waives THAT exemption and no other — a single "include
@@ -410,7 +447,7 @@ export function collectProjectFiles(
 ): string[] {
   const glob = root === "" ? pattern : `${root}/${pattern}`;
   const found: string[] = [];
-  for (const absolute of new Bun.Glob(glob).scanSync({ cwd: config.projectRoot, absolute: true })) {
+  for (const absolute of globWithoutSymlinks(glob, config.projectRoot)) {
     if (!isArchitectureExemptProjectPath(toProjectPath(config, absolute))) found.push(absolute);
   }
   return found.sort();

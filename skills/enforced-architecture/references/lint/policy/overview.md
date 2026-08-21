@@ -3,7 +3,6 @@
 Runtime-neutral. The contract binds what SHIPS into both runtimes — a `<name>.test.ts` beside a table ships into neither and is outside it, which is why the spec here imports `node:test`. Every other module may import nothing but other modules here, and may reference:
 
 - **no Node APIs** — no `node:fs`, no `node:path`, nothing that assumes a filesystem
-- **no Bun APIs** — no `Bun.Glob`, no `Bun.file`
 - **no oxlint or ESTree types** — no `definePlugin`, no AST node types, no `Rule` context
 - **no import from `../oxlint/` or `../structural/`** — the dependency runs the other way
 
@@ -24,8 +23,8 @@ side. Both adapters hand the same evaluator the same source-root-relative string
 answer and one place to change it.
 
 The neutrality is what makes that possible. A table that imports `node:path` cannot be read by a
-rule running inside oxlint's plugin host; a table that imports an ESTree type cannot be read by a
-Bun script walking the filesystem. The moment either happens, the shared answer stops being shared
+rule running inside oxlint's plugin host; a table that imports an ESTree type cannot be read by the
+script walking the filesystem. The moment either happens, the shared answer stops being shared
 and the directory has bought nothing.
 
 ## What lives here
@@ -76,6 +75,5 @@ A new check picks by that question, not by which import is closer to hand. `plac
 uses both in one function and is the seam to read first if this ever needs changing.
 
 The spec ships beside the tables for the same reason a rule's spec ships beside the rule — a project
-copying `policy/` gets the proof that it still means what it meant here. It runs under Node with the
-oxlint tier (`bun run check:rules`), because a table proved in one runtime and consumed in two is a
-table proved once.
+copying `policy/` gets the proof that it still means what it meant here. It runs with the oxlint
+tier (`npm run check:rules`): one spec run for a table both tiers read is a table proved once.

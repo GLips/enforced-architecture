@@ -23,10 +23,9 @@ export const featureVisibilityFixtures: CheckFixtures = {
     // listed inside the message.
     "FAIL src/features/beta/visibility.json",
     // renderer imports shapes with a TYPE-ONLY import, which emits no runtime
-    // code — both of Bun's scans drop it, so a graph built from the reader alone
-    // has no edge here and this check reports nothing while still catching every
-    // runtime crossing in the tree. The miss is invisible from the check's own
-    // output; only the graph's reveal pass puts the edge back.
+    // code — so a graph built by asking what the emitted module needs has no edge
+    // here, and this check reports nothing while still catching every runtime
+    // crossing in the tree. The miss is invisible from the check's own output.
     "FAIL src/features/shapes/visibility.json",
     // courier imports `hidden`, a feature made entirely of `.mts` — invisible to
     // the occupancy walker, which globs `**/*.{ts,tsx}`, and visible to the

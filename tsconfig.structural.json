@@ -1,8 +1,8 @@
-// The Bun-typed half of the catalog's own typecheck gate.
+// The structural half of the catalog's own typecheck gate.
 //
 // `extends` points at the template an adopting repo copies, for the reason given
-// in `tsconfig.oxlint.json`. `harness/` belongs to this program: it runs under
-// Bun, so it needs the same `types: ["bun"]` the structural tier does.
+// in `tsconfig.oxlint.json`. `harness/` belongs to this program because it
+// imports the structural tier directly and drives it over the fixture tree.
 {
   "extends": "./skills/enforced-architecture/references/setup/structural.tsconfig.json",
   "include": [

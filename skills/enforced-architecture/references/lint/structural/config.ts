@@ -22,9 +22,8 @@
 // clean. That was the state this file was in, and the config could express it.
 //
 // What remains here is what has no bearing on WHERE the architecture is: the
-// project root every relative path resolves against, the build fact of which
-// package injects JSX runtime imports, and per-check thresholds, manifests,
-// trace limits and package names. Every one of those is a number or a name that
+// project root every relative path resolves against, and per-check thresholds,
+// manifests, trace limits and package names. Every one of those is a number or a name that
 // says nothing about the shape of the tree.
 //
 // And every one of them is a number or a NAME. No field here is a regex, a glob,
@@ -48,7 +47,7 @@
 //   import { type ArchitectureConfig, defaultCheckConfigs } from "./config.ts";
 //
 //   export const architectureConfig: ArchitectureConfig = {
-//     projectRoot: resolve(import.meta.dir, "../.."),
+//     projectRoot: resolve(import.meta.dirname, "../.."),
 //     checks: {
 //       ...defaultCheckConfigs,
 //       "style/token-equality": {
@@ -140,7 +139,7 @@ export type FileSizeConfig = {
    * govern architecturally — so this check is project-scoped and says so.
    *
    * Each entry is a canonical path of plain segments, checked at startup, because
-   * every one is interpolated straight into a `Bun.Glob`. A review replaced the
+   * every one is interpolated straight into a glob. A review replaced the
    * `src` entry with a glob reaching only the service layer of each feature, and
    * kept 16/16 green with most of the tree no longer size-checked: a glob here is
    * the exclusion list this check's own header says it does not have, spelled

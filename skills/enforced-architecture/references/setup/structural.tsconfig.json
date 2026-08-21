@@ -1,10 +1,13 @@
-// Copy to `lint/structural/tsconfig.json`. The structural tier runs under Bun,
-// so it takes `types: ["bun"]` where the oxlint tier takes `["node"]` — that
-// difference is the whole reason the two tiers are separate programs.
+// Copy to `lint/structural/tsconfig.json`. Its options are identical to
+// `oxlint.tsconfig.json`'s, and it is still a SEPARATE program: each tier is
+// copied into an adopting project as a directory that has to typecheck on its
+// own, and a single program spanning both would typecheck neither when only one
+// is present. The two used to differ on `types` as well — the structural tier
+// ran under Bun — and they no longer do; both tiers run under Node.
 //
 // `allowImportingTsExtensions` is required, not stylistic: every check imports
-// its neighbours with the `.ts` extension because Bun loads these files
-// directly at runtime, with no build step to rewrite a specifier.
+// its neighbours with the `.ts` extension because Node loads these files
+// directly, with no build step to rewrite a specifier.
 //
 // Add it to the typecheck script explicitly — `tsc --noEmit -p lint/structural`
 // — because a program nothing runs is a program that goes stale silently.
@@ -15,7 +18,7 @@
     "module": "preserve",
     "moduleResolution": "bundler",
     "target": "ESNext",
-    "types": ["bun"],
+    "types": ["node"],
     "allowImportingTsExtensions": true,
     "noEmit": true,
     "skipLibCheck": true,

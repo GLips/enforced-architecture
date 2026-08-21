@@ -17,7 +17,7 @@ gotcha sits on the line it governs. Two are parsed as strict JSON and die on the
 | Doc word ceilings | [setup/doc-budgets.manifest.json](setup/doc-budgets.manifest.json) | `docs/doc-budgets.manifest.json` |
 | oxlint tier program | [setup/oxlint.tsconfig.json](setup/oxlint.tsconfig.json) | `lint/oxlint/tsconfig.json` |
 | Structural tier program | [setup/structural.tsconfig.json](setup/structural.tsconfig.json) | `lint/structural/tsconfig.json` |
-| Real-Node spec launcher | [setup/with-real-node.sh](setup/with-real-node.sh) | `lint/oxlint/with-real-node.sh` |
+| Real-Node launcher, both tiers | [setup/with-real-node.sh](setup/with-real-node.sh) | `lint/with-real-node.sh` |
 | Framework import protection | [server-client-boundaries.md](server-client-boundaries.md) | `vite.config.ts` |
 
 ---
@@ -26,8 +26,9 @@ gotcha sits on the line it governs. Two are parsed as strict JSON and die on the
 
 `lint/policy/` is neither tier. It holds the tables both tiers read: the layout vocabulary, the
 import policy, and the package ownership rows. It works under a neutrality contract — no Node APIs,
-no Bun APIs, no oxlint or ESTree types, and no import from either tier. See
-[lint/policy/overview.md](lint/policy/overview.md).
+no oxlint or ESTree types, and no import from either tier. Nothing enforces that contract — both
+tsconfigs include the directory under the same `types`, so neither program can catch a violation of
+it. See [lint/policy/overview.md](lint/policy/overview.md).
 
 Copy it before either tier. Both tiers import it and both tsconfigs include it. No oxlint rule is
 adapted in its own file — every one reads its layout from
@@ -176,8 +177,8 @@ genuinely cannot run after the one before it failed.
 Structural checks ship with the modules they share. Duplicated across scripts, those modules drift
 apart on exclusions and on what counts as an import, and neither copy reports that it has.
 
-- **`config.ts`** — every per-repo value for every check, in one object: the project root, the JSX
-  package, and per-check thresholds, manifests, trace limits and package lists. The shape of the tree
+- **`config.ts`** — every per-repo value for every check, in one object: the project root, and
+  per-check thresholds, manifests, trace limits and package lists. The shape of the tree
   is not among them and cannot be put there. Where the trees are and what their directories are
   called is [declared-trees.ts](lint/policy/declared-trees.ts), which both tiers read.
 - **`check-substrate.ts`** — the two shapes a check can be handed. A `TreeContext` is one declared
@@ -185,25 +186,29 @@ apart on exclusions and on what counts as an import, and neither copy reports th
   about that tree. A `ProjectContext` is the config and nothing about any tree. `StructuralCheck` is
   a union over the two, so a check cannot receive a context its scope never produces. File collection
   is a free function taking a context, not a member of one.
-- **`import-graph.ts`** — the resolved graph for one tree, plus `scanDeclaredImports` for the one
-  check needing raw specifiers. A check asking where an import *lands* consumes the graph, never the
-  specifier's spelling.
-- **`type-checker.ts`** — one TypeScript process per run, one program per declared tree, built
-  lazily so a project running no `types/` check never spawns it. The tier's dev dependencies are
-  `oxc-resolver` and `typescript` 7, whose `unstable/async` API this is the one file to import.
+- **`module-scanning.ts`** — which specifiers a file names, over `oxc-parser`. One entry per
+  occurrence, with the line and whether that occurrence is erased. A transpiler's import scan answers
+  a different question — what the emitted module needs — and its answer is missing every type-only
+  import and carrying JSX-runtime imports the file never wrote.
 - **`module-resolution.ts`** — where one specifier lands, over `oxc-resolver`. It sees what path
   arithmetic cannot: `./rows.js` naming `rows.ts`, a directory naming its barrel. No knob — it reads
   the tree's vocabulary.
+- **`import-graph.ts`** — the graph over those two for one tree, and no extraction of its own. A
+  check asking where an import *lands* consumes the graph, never the specifier's spelling.
+- **`type-checker.ts`** — one TypeScript process per run, one program per declared tree, built
+  lazily so a project running no `types/` check never spawns it. The tier's dev dependencies are
+  `oxc-parser`, `oxc-resolver` and `typescript` 7, whose `unstable/async` API this is the one file to
+  import.
 - **`registry.ts`** — the check list, copied whole. **`run-structural-checks.ts`** — the orchestrator.
 
 Centralising a *pattern* reduces duplication and fixes no correctness. Reach for the reader at the
 same time, or the shared module is only tidier.
 
-**`Bun.Transpiler` answers questions about imports and exports, and nothing else.** It exposes import
-paths and kinds, export names, and transformed JavaScript — not component boundaries, call
-expressions, parameter structure or TypeScript property signatures, and `transform()` erases the very
-annotations a props reader needs. Any question about syntax belongs to the plugin tier, which is
-handed a real AST.
+**The tier line is about what a check can SEE, not about what its tools can parse.** Both tiers hold
+a parser. What separates them is that the oxlint tier is handed one file and the structural tier
+walks a tree: *this* component's props belong to the first, and a question needing both ends of an
+edge — or every barrel in a directory — to the second. A check in the wrong tier gets a confident
+wrong answer rather than an error.
 
 ### Staged-scoped warnings
 
@@ -224,11 +229,14 @@ surface repo-wide. Two design constraints make that possible, and both bind any 
   codes. The single command that verifies every architectural constraint.
 - **`check:structural`** — the structural checks alone, for iterating on one without re-running lint.
 - **`check:rules`** — the rule specs, through the real-Node launcher
-  ([setup/with-real-node.sh](setup/with-real-node.sh), which explains itself). **`RuleTester` does not
-  run under Bun.** Under Bun the specs fail with an error naming the test framework rather than the
-  runtime, so a working gate reads as a broken suite and invites `--no-verify`. A project on Bun also
-  needs `bun test --path-ignore-patterns='**/oxlint/**'`, or `bun test` picks the specs up and throws
-  on every case. The `oxlint` CLI itself is fine under Bun; this binds only the rule-authoring path.
+  ([setup/with-real-node.sh](setup/with-real-node.sh), which explains itself). **Both tiers go through
+  it.** `RuleTester` cannot run under Bun at all: the specs fail with an error naming the test
+  framework rather than the runtime, so a working gate reads as a broken suite and invites
+  `--no-verify`. The structural tier runs there without complaining and walks a different set of
+  files — `node:fs`'s glob traverses symlinked directories under Bun and not under Node. A project on
+  Bun also needs `bun test --path-ignore-patterns='**/oxlint/**'`, or `bun test` picks the specs up
+  and throws on every case. The `oxlint` CLI itself is fine under Bun; running either tier's checks
+  there is not.
 - **`duplication`** — `jscpd --config .jscpd.json src scripts`. A separate binary with its own exit
   code, run in CI only because scanning the tree for clones does not fit the hook budget. It matches
   60 tokens over 6 lines on normalized tokens in `mild` mode, so renaming every variable does not
@@ -269,8 +277,9 @@ repo's CI. Reimplementing one from its doc is how a check ends up silently match
 promises, which is what happened at three separate deployments before this tier shipped as code.
 
 1. Copy `lint/policy/` first if it is not there, then
-   `lint/structural/{config,check-substrate,import-graph,registry,run-structural-checks}.ts` and
-   every `lint/structural/<tag>/<name>.ts`.
+   `lint/structural/{config,check-substrate,module-scanning,module-resolution,import-graph,type-checker,registry,run-structural-checks}.ts`
+   and every `lint/structural/<tag>/<name>.ts`. All eight substrate files, or the tier does not
+   import-resolve.
 2. Register the checks in `lint/structural/registry.ts`. An unregistered check is a file that ships
    and never runs.
 3. Declare the project's trees, then write `arch.config.ts`: spread `defaultCheckConfigs` and

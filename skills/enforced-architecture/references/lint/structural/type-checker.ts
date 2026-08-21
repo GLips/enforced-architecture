@@ -10,15 +10,16 @@
 // Neither can answer the other's question, and a check reaching for the wrong
 // one gets a confident wrong answer rather than an error.
 //
-// ── Why the async API, which is not a preference ──────────────────────
+// ── Why the async API ─────────────────────────────────────────────────
 //
-// TypeScript 7 ships two clients for the same server. `typescript/unstable/sync`
-// reads `child.stdout._handle.fd`, a Node internal Bun does not expose, and
-// throws inside the `API` constructor — this tier runs under Bun, so that door
-// is shut, not slower. `typescript/unstable/async` works under both runtimes.
+// TypeScript 7 ships two clients for the same server, and this takes the async
+// one. That used to be forced — `typescript/unstable/sync` reads
+// `child.stdout._handle.fd`, a Node internal Bun does not expose, and threw
+// inside the `API` constructor while this tier ran under Bun. The tier runs
+// under Node now and that door is open, so this is a choice.
 //
-// That is why `StructuralCheck.run` returns a promise even for the checks that
-// never await anything. One shape for every check is worth more than sixteen
+// It stays async because `StructuralCheck.run` returns a promise for every
+// check, including the ones that never await anything. One shape for every check is worth more than sixteen
 // signatures that each say whether their body happens to need a round trip: a
 // union return type is one forgotten `await` away from a check whose findings
 // arrive as a pending promise and count as none.
@@ -190,9 +191,9 @@ export function sharedTypeCheckerHost(): TypeCheckerHost {
 /**
  * Ends the run's TypeScript process, if there is one.
  *
- * Not optional cleanup. The API spawns a child, and Bun will not exit while it
- * is alive — a harness that forgets this hangs after its last assertion rather
- * than failing, which reads as a slow suite rather than a leak.
+ * Not optional cleanup. The API spawns a child, and a live child holds the
+ * process open — a harness that forgets this hangs after its last assertion
+ * rather than failing, which reads as a slow suite rather than a leak.
  */
 export function disposeTypeCheckerHost(): void {
   shared?.dispose();

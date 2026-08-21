@@ -149,7 +149,7 @@ written once and appended to by design; a ceiling on them is friction that buys 
 Set the first ceilings from what the docs already weigh:
 
 ```
-bun lint/structural/health/doc-budgets.ts --list docs/doc-budgets.manifest.json
+node lint/structural/health/doc-budgets.ts --list docs/doc-budgets.manifest.json
 ```
 
 That prints usage against ceiling and decides nothing — no findings, no verdict, exit 0 whatever it

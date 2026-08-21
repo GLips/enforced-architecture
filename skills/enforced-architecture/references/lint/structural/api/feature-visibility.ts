@@ -59,8 +59,8 @@
 // `orphan-module.ts`, and no `orphan-module.ts/visibility.json` can exist —
 // `placement/topology` reports the file itself, which is the half that can be
 // acted on. A link to a file outside the root is the same unaddressable name
-// with nobody holding the other half: `Bun.Glob.scanSync` does not list a
-// symlinked file, so the walkers never see it and topology does not report it
+// with nobody holding the other half: the tier's walk drops anything reached
+// through a symlink, so the walkers never see it and topology does not report it
 // either. That one is silence, not coverage.
 //
 // A grant naming a link is a grant naming nothing, in both directions and for a

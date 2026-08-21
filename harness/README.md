@@ -5,11 +5,11 @@ Runs every rule in `skills/enforced-architecture/references/lint/` against the c
 It proves the **chosen examples**, not the header claim in general. The cases and the rule come from the same author, so an unimagined violation spelling is unimagined in both. Treat a green run as "the contract I wrote down still holds", not as "this rule is correct."
 
 ```
-bun run check          # types then fixtures, both tiers
-bun run typecheck      # both tier programs, under the tsconfigs the skill hands out
-bun run check:rules    # oxlint rules, under real Node
-bun run check:no-reflect-access-live  # ONE rule, through the real oxlint CLI — see below
-bun run check:structural  # structural checks, under Bun
+npm run check          # types then fixtures, both tiers
+npm run typecheck      # both tier programs, under the tsconfigs the skill hands out
+npm run check:rules    # oxlint rules
+npm run check:no-reflect-access-live  # ONE rule, through the real oxlint CLI — see below
+npm run check:structural  # structural checks
 ```
 
 `typecheck` is not this harness's and does not overlap with it. A fixture run proves what a
@@ -103,11 +103,15 @@ Generalizing the live run across the tier was proposed and **dismissed**, so do 
 
 ## The runtime: real Node, not Bun
 
-`check:rules` goes through `harness/with-real-node.sh`, and that is not incidental.
+**Every** script goes through `harness/with-real-node.sh`, and that is not incidental. Two unrelated reasons put it there, and only the first is loud.
 
-`RuleTester` does not parse in JS. It parses in Rust and shares the AST through a zero-copy buffer ("raw transfer"): a 2 GiB view aligned to a 4 GiB boundary means allocating 6 GiB and carving the aligned slice out of the middle. JavaScriptCore cannot allocate an `ArrayBuffer` that large, so oxlint refuses Bun **by name**, with no slower path to opt into. The `oxlint` CLI itself is fine under Bun; this binds only the rule-authoring path.
+`RuleTester` does not parse in JS. It parses in Rust and shares the AST through a zero-copy buffer ("raw transfer"): a 2 GiB view aligned to a 4 GiB boundary means allocating 6 GiB and carving the aligned slice out of the middle. JavaScriptCore cannot allocate an `ArrayBuffer` that large, so oxlint refuses Bun **by name**, with no slower path to opt into.
 
-The trap is the error message. Bun puts a `node`-named symlink to *itself* on PATH (`/tmp/bun-node-*/node`) ahead of the real binary for every process it spawns, so `node --test` in a Bun-spawned shell — which is where coding agents run — is Bun wearing node's name. The specs then die with `Cannot use describe outside of the test runner`, which names the test framework and points nowhere near the cause. The launcher drops those PATH entries so `node` means node.
+The structural tier has no such refusal. It runs under Bun happily and **walks a different set of files**: `node:fs`'s `globSync` traverses symlinked directories under Bun and not under Node, so the same call over `structural-fixtures/tree/` returns 282 files under Bun and 275 under Node — every file behind a symlinked feature directory gets a second name, naming a feature that does not exist. `collectTreeFiles` drops anything reached through a link, so the shipped answer is the same either way; a suite that proves checks under one runtime and ships them to another still proves the wrong thing.
+
+That filter has no input under Node, so it is deletable with every check here green. The `<tree-walking>` block in `run-structural-fixtures.ts` says so out loud rather than implying it is pinned.
+
+The trap is the error message. Bun puts a `node`-named symlink to *itself* on PATH (`/tmp/bun-node-*/node`) ahead of the real binary for every process it spawns, so `node --test` in a Bun-spawned shell — which is where coding agents run, and where `bun run <script>` puts every script — is Bun wearing node's name. The specs then die with `Cannot use describe outside of the test runner`, which names the test framework and points nowhere near the cause. The launcher drops those PATH entries so `node` means node.
 
 Verified on oxlint 1.77.0 / bun 1.3.13 / Node 24.17.0. Re-check whether JavaScriptCore has gained large `ArrayBuffer` support before carrying the workaround forward.
 
@@ -115,7 +119,7 @@ Verified on oxlint 1.77.0 / bun 1.3.13 / Node 24.17.0. Re-check whether JavaScri
 
 Every rule in the catalog has cases: the oxlint rules through `check:rules`, the structural checks through `check:structural`. Nothing ships as an untested description any more.
 
-Having cases is not the same as being proved to FIRE, and the section above is the difference. One oxlint rule — `types/no-reflect-access` — is additionally run through the real linter on every `bun run check`. The other 48 are proved on every run only in `RuleTester`'s environment, which is not the one an adopting project runs. Each of them was linted through the real CLI once, by hand, when the full manifest landed; nothing re-checks that.
+Having cases is not the same as being proved to FIRE, and the section above is the difference. One oxlint rule — `types/no-reflect-access` — is additionally run through the real linter on every `npm run check`. The other 48 are proved on every run only in `RuleTester`'s environment, which is not the one an adopting project runs. Each of them was linted through the real CLI once, by hand, when the full manifest landed; nothing re-checks that.
 
 The structural tier used to be prose. Each consuming project hand-rolled an implementation from the algorithm in the `.md`, and three independent audits found the same result: the implementations drifted, and each one had silently stopped matching part of what its doc promised. One deployment's layer-occupancy check had three bypasses and hardcoded a path its own doc documented as configurable; another's barrel-purity discovered a third of the barrels it claimed to. Every one of those was green. That is the argument for shipping code and config rather than an algorithm — the adaptation step is where the silence was getting in, so the adaptation step is now writing config.
 
@@ -123,7 +127,7 @@ What is still not covered, for either tier: whether a rule survives **adaptation
 
 ## The catalog under its own doc ratchet
 
-`bun run check:doc-budgets` runs the shipped `health/doc-budgets` check against this repository, with ceilings in `docs/doc-budgets.manifest.json`. It imports the shipped check rather than counting words itself, so the ratchet the catalog ships and the ratchet the catalog lives under cannot disagree.
+`npm run check:doc-budgets` runs the shipped `health/doc-budgets` check against this repository, with ceilings in `docs/doc-budgets.manifest.json`. It imports the shipped check rather than counting words itself, so the ratchet the catalog ships and the ratchet the catalog lives under cannot disagree.
 
 It budgets the standing prose: `CLAUDE.md`, `README.md`, this file, `SKILL.md` and the eight files under `references/`. It deliberately budgets neither the per-tag `references/lint/**/overview.md` indexes, whose length is a function of the rule count rather than of prose, nor rule header comments, which are code and belong to `health/file-size`.
 

@@ -33,7 +33,7 @@
 // still reading as enabled.
 // ──────────────────────────────────────────────────────────────────────
 
-import { SOURCE_EXTENSIONS } from "../../policy/layout.ts";
+import { extensionGlob, SOURCE_EXTENSIONS } from "../../policy/layout.ts";
 import {
   blankComments,
   collectTreeFiles,
@@ -73,7 +73,7 @@ export const shadowSourceCheck: StructuralCheck = {
     const findings: Finding[] = [];
 
     const scanned = [...vocabulary.stylesheetExtensions, ...SOURCE_EXTENSIONS];
-    for (const absolute of collectTreeFiles(context, `**/*.{${scanned.join(",")}}`)) {
+    for (const absolute of collectTreeFiles(context, `**/${extensionGlob(scanned)}`)) {
       // The curated home is the one file permitted to hold a shadow. Without
       // this skip the rule fires on its own inventory and has nowhere left to
       // send people.

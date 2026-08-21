@@ -65,6 +65,11 @@ export const importPolicyFixtures: CheckFixtures = {
     "FAIL src/features/alpha/ui/type-brace-comment-crossing.ts",
     "FAIL src/features/alpha/ui/type-position-crossing.ts",
     "FAIL src/features/alpha/ui/typeof-import-crossing.ts",
+    // A re-export carrying a type name and a value name at once. Listed ONCE
+    // against a statement the export record reports as two entries: an
+    // occurrence is one written specifier, and a graph that counts names reports
+    // this line twice.
+    "FAIL src/features/alpha/ui/mixed-reexport-crossing.ts",
     // A dynamic import whose specifier is a template with nothing interpolated
     // into it — a static specifier in a spelling that is not a string literal.
     "FAIL src/features/alpha/ui/template-specifier-crossing.ts",

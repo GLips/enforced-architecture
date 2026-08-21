@@ -22,7 +22,7 @@ A catalog of dozens of ready-to-steal enforcement rules for TypeScript codebases
 
 The rules target a specific stack; the reasoning behind them doesn't. The catalog works as a menu of ideas as much as a set of files.
 
-**Option 2—install the skill and steal the rules.** Best fit if you're on Bun + TanStack Start + Drizzle + oxlint:
+**Option 2—install the skill and steal the rules.** Best fit if you're on TanStack Start + Drizzle + oxlint:
 
 ```bash
 npx skills add GLips/enforced-architecture
@@ -97,7 +97,7 @@ This is heavily inspired by OpenAI's [harness engineering](https://openai.com/in
 
 ## Will this fit my stack?
 
-The templates target Bun, TanStack Start, oxlint, Drizzle, Postgres, React, Zod, and lefthook, written against one standard layout (`src/features/<name>/{controllers,repo,service,ui}`, `src/domains`, `src/infrastructure`, `src/shared/ui`, and the `@/` alias).
+The enforcement tier needs Node 24, oxlint and TypeScript 7; the templates around it target TanStack Start, Drizzle, Postgres, React, Zod, and lefthook, written against one standard layout (`src/features/<name>/{controllers,repo,service,ui}`, `src/domains`, `src/infrastructure`, `src/shared/ui`, and the `@/` alias).
 
 **On that stack?** Most rules are drop-in. Nearly every **Adapt** section says *nothing here*: the rule reads `lint/policy/`, so declaring your source roots in `lint/policy/declared-trees.ts`—each with the vocabulary its directories are spelled in—is its whole adaptation. What a rule does hoist is enumerable: names, numbers, explicit rows. No rule takes a regex or a glob, and no rule's scope is repointed by hand.
 

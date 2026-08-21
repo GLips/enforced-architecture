@@ -207,14 +207,14 @@ function listRow({ path, ceiling, words, status }: DocBudgetRow): string {
 // enforce and someone has to pick the first numbers from what the docs already
 // weigh.
 //
-//     bun lint/structural/health/doc-budgets.ts --list docs/doc-budgets.manifest.json
+//     node lint/structural/health/doc-budgets.ts --list docs/doc-budgets.manifest.json
 //
 // Doc paths inside the manifest resolve against the working directory, so run it
 // from the project root.
 if (import.meta.main) {
   const [flag, manifestPath] = process.argv.slice(2);
   if (flag !== "--list" || manifestPath === undefined) {
-    console.error("usage: bun doc-budgets.ts --list <manifest-path>");
+    console.error("usage: node doc-budgets.ts --list <manifest-path>");
     process.exit(1);
   }
 

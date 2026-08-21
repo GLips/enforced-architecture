@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 // ─── The catalog's own doc-budget ratchet ─────────────────────────────
 //
 // Runs the SHIPPED `health/doc-budgets` check against this repository's docs,
@@ -31,7 +31,7 @@
 // Nothing here. Ceilings live in the manifest. To see current usage against
 // ceiling without a verdict:
 //
-//   bun skills/enforced-architecture/references/lint/structural/health/doc-budgets.ts \
+//   node skills/enforced-architecture/references/lint/structural/health/doc-budgets.ts \
 //     --list docs/doc-budgets.manifest.json
 //
 // ──────────────────────────────────────────────────────────────────────

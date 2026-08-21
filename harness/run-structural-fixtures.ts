@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 /**
  * Proves every structural check in the skill catches what its doc claims.
  *
@@ -20,7 +20,7 @@
  * it wholesale by `structural-fixtures/config.ts` — which is also the worked example
  * of adopting this tier by writing config and nothing else.
  *
- *     bun run check:structural
+ *     npm run check:structural
  *
  * Revert-probe after any change here. Break a check and expect its adversarial
  * kind to report MISSED; delete a check from the registry and expect the runner
@@ -28,7 +28,16 @@
  * through both is not testing anything.
  */
 
-import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  globSync,
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -42,12 +51,16 @@ import {
   PDF_TREE_MISREAD,
 } from "./structural-fixtures/config.ts";
 import type { CheckFixtures, GeneratedFixture } from "./structural-fixtures/expectations.ts";
-import { SOURCE_EXTENSIONS } from "../skills/enforced-architecture/references/lint/policy/layout.ts";
+import {
+  SOURCE_EXTENSIONS,
+  SOURCE_FILE_GLOB,
+} from "../skills/enforced-architecture/references/lint/policy/layout.ts";
 import { declareTrees } from "../skills/enforced-architecture/references/lint/policy/declared-trees.ts";
 import { createTreeModuleResolver } from "../skills/enforced-architecture/references/lint/structural/module-resolution.ts";
 import { scanDeclaredImports } from "../skills/enforced-architecture/references/lint/structural/module-scanning.ts";
 import type { ArchitectureConfig } from "../skills/enforced-architecture/references/lint/structural/config.ts";
 import {
+  collectTreeFiles,
   createTreeContexts,
   type Finding,
   type StructuralCheck,
@@ -73,7 +86,7 @@ const fail = (check: string, detail: string) => failures.push({ check, detail })
 // ── Load the expectations ────────────────────────────────────────────────────
 
 const expectationPaths = [
-  ...new Bun.Glob("**/*.ts").scanSync({ cwd: EXPECTATIONS_ROOT, absolute: true }),
+  ...globSync("**/*.ts", { cwd: EXPECTATIONS_ROOT }).map((found) => resolve(EXPECTATIONS_ROOT, found)),
 ].sort();
 
 const fixturesByCheck = new Map<string, CheckFixtures>();
@@ -356,6 +369,47 @@ assertEveryCheckRanOnEveryTree("misread", PDF_TREE_MISREAD);
       "<import-graph>",
       `${misplaced.length} edge(s) are reported on a line the import is not on:\n  ` +
         `${misplaced.sort().join("\n  ")}`,
+    );
+  }
+}
+
+// ── The walk does not go through a symlink ──────────────────────────────────
+//
+// Every rule with an opinion about identity assumes a symlinked directory keeps
+// the name it is reached THROUGH: `api/feature-visibility` canonicalises a link
+// and its target to one boundary itself, and `module-resolution.ts` sets
+// `symlinks: false`. A walk that enumerates through the link yields a second
+// name for every file behind it, and each of those names is a feature that does
+// not exist.
+//
+// That property used to be the glob library's and is now the tier's, because
+// the library does not have it reliably. ONE call — `globSync` from `node:fs`,
+// same pattern, same tree — returns 282 files under Bun and 275 under Node, and
+// the seven are exactly this tree's five symlinks. A tier that ships as
+// templates into projects it does not choose the runtime for cannot inherit
+// that answer.
+//
+// SAY WHAT THIS DOES NOT PIN. Under a glob that already declines to traverse,
+// the filter in `collectTreeFiles` has no input and is deletable with every
+// check here green — this assertion included. It is kept as validation on a
+// third-party behaviour that demonstrably differs by runtime, in the same
+// disposition as the resolved-escape guard in `module-resolution.ts`. What this
+// block does hold is the direction: if some future walk starts yielding a second
+// name for a file behind a link, it says so here rather than in a boundary rule
+// reporting on a feature nobody has.
+{
+  const throughLinks: string[] = [];
+  for (const context of createTreeContexts(fixtureConfig, DECLARED_FIXTURE_TREES)) {
+    for (const absolute of collectTreeFiles(context, SOURCE_FILE_GLOB, { includeTests: true })) {
+      if (realpathSync(absolute) !== absolute) throughLinks.push(absolute);
+    }
+  }
+  if (throughLinks.length > 0) {
+    fail(
+      "<tree-walking>",
+      `${throughLinks.length} collected file(s) are reached through a symlink, so every one of ` +
+        `them has a second name and a boundary that does not exist:\n  ` +
+        `${throughLinks.sort().join("\n  ")}`,
     );
   }
 }

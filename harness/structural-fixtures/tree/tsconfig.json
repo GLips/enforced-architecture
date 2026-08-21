@@ -10,7 +10,7 @@
   // the tree is deliberately broken input — dangling imports, misplaced layers,
   // a `capabilities/` directory that is a violation under one vocabulary and a
   // feature under another. Nothing here is expected to compile clean, and
-  // `bun run typecheck` would fail on it if it were included.
+  // `npm run typecheck` would fail on it if it were included.
   //
   // Type ERRORS inside a fixture are still fine for the checks that read this
   // program — a checker answers `getTypeAtLocation` for a file with errors in it

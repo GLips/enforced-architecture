@@ -37,7 +37,7 @@ import {
 } from "../../skills/enforced-architecture/references/lint/structural/config.ts";
 import { radius, spacing } from "./tree/src/shared/ui/theme.ts";
 
-export const FIXTURE_TREE = resolve(import.meta.dir, "tree");
+export const FIXTURE_TREE = resolve(import.meta.dirname, "tree");
 
 /** The tree every fixture in `tree/src` belongs to. */
 export const APP_TREE: DeclaredTree = { root: "src", vocabulary: RECOMMENDED_VOCABULARY, tsconfig: "tsconfig.json" };

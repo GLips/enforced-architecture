@@ -175,9 +175,10 @@ function walkForUnrecordedImports(node: unknown, found: ScannedImport[]): void {
     if (named !== undefined) found.push({ ...named, typeOnly: false });
   }
 
-  for (const key of Object.keys(record)) {
-    if (key !== "type") walkForUnrecordedImports(record[key], found);
-  }
+  // Every key, including `type` itself: it holds a string, which the guard at
+  // the top drops in one comparison. Skipping it by name would be an assumption
+  // about the AST's shape held in one place and checked in none.
+  for (const key of Object.keys(record)) walkForUnrecordedImports(record[key], found);
 }
 
 /** `require` or `require.resolve`, and no other callee. */
@@ -223,16 +224,25 @@ export function scanDeclaredImports(options: { path: string; source: string }): 
   // the two boundaries exactly as an import statement does. They live on the
   // EXPORT record because that is where the grammar puts them, which is the one
   // reason this loop is separate.
+  //
+  // GROUPED BY THE MODULE REQUEST, because the export record has one entry per
+  // NAME and an occurrence here is one written specifier. `export { type A, b }
+  // from "./x"` is two entries at one offset: ungrouped it is two edges on one
+  // line, so every rule reading the graph reports that line twice. The mark is
+  // the same rule the import record follows — erased only if every name on the
+  // statement is.
+  const byModuleRequest = new Map<number, { specifier: string; typeOnly: boolean }>();
   for (const statement of parsed.module.staticExports) {
     for (const entry of statement.entries) {
       if (entry.moduleRequest === null) continue;
-      found.push({
+      const seen = byModuleRequest.get(entry.moduleRequest.start);
+      byModuleRequest.set(entry.moduleRequest.start, {
         specifier: entry.moduleRequest.value,
-        offset: entry.moduleRequest.start,
-        typeOnly: entry.isType,
+        typeOnly: (seen?.typeOnly ?? true) && entry.isType,
       });
     }
   }
+  for (const [offset, entry] of byModuleRequest) found.push({ ...entry, offset });
 
   walkForUnrecordedImports(parsed.program, found);
 

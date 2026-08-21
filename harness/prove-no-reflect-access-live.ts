@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 /**
  * Proves `types/no-reflect-access` reports under the REAL oxlint CLI.
  *
@@ -14,7 +14,7 @@
  * rule is only as proved as its host is real, and RuleTester's host is not the
  * one an adopting project runs.
  *
- *     bun run check:no-reflect-access-live
+ *     npm run check:no-reflect-access-live
  *
  * So this materializes real files, runs the shipped `plugin.ts` over them through
  * the `oxlint` binary, and reads the diagnostics back. The cases pull in different

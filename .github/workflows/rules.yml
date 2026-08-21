@@ -13,14 +13,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-      - run: bun install --frozen-lockfile
+      # Node, and a version that strips types and globs without a flag. Both
+      # tiers run here — a suite proved under one runtime and shipped to another
+      # is proved against the wrong host, and `node:fs`'s glob really does answer
+      # differently under Bun. See `harness/with-real-node.sh`.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - run: npm ci
       # Types then fixtures, both tiers. `typecheck` is a separate proof, not a
       # duplicate of the fixtures: a template with a type error passes every
       # RuleTester case, and `context.options[0]?.threshold` reading `undefined`
       # compares against NaN and governs nothing while still running green.
-      # `check:rules` needs real Node — oxlint's RuleTester refuses Bun by name —
-      # and `harness/with-real-node.sh` arranges that; `check:structural` runs
-      # under Bun. Running only one tier leaves the other free to go green while
-      # matching nothing, which is the failure this job exists to catch.
-      - run: bun run check
+      # Running only one tier leaves the other free to go green while matching
+      # nothing, which is the failure this job exists to catch.
+      - run: npm run check

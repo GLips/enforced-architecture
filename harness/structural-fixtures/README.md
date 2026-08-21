@@ -1,7 +1,7 @@
 # The structural fixture tree
 
 One synthetic repo, under `tree/`, that every structural check runs over
-at once. `bun run check:structural` points the checks at it through `config.ts` and
+at once. `npm run check:structural` points the checks at it through `config.ts` and
 compares what they report against the expectations in `expectations/`.
 
 ## Why a tree at all, when the rule tier gave its up
@@ -106,7 +106,12 @@ as numbers in the `generated` field and materialised for the duration of the run
 
 ## The runtime
 
-`check:structural` runs under Bun, because the checks use `Bun.Glob` and
-`Bun.Transpiler`. That is the opposite of `check:rules`, which needs real Node —
-oxlint's `RuleTester` refuses Bun by name. The two harnesses do not share a
-runtime and are not meant to.
+`check:structural` runs under real Node, through `harness/with-real-node.sh`, and
+so does every other script here. The tier holds no runtime-specific API — it
+parses with `oxc-parser`, resolves with `oxc-resolver` and walks with `node:fs` —
+but the walk is not runtime-neutral by accident: `globSync` traverses symlinked
+directories under Bun and not under Node, a 282-vs-275 difference on this tree.
+`collectTreeFiles` drops anything reached through a link so the answer is the
+same either way, and the launcher makes sure these checks are PROVED on the
+runtime they ship to. See the `<tree-walking>` block in
+`../run-structural-fixtures.ts`.

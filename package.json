@@ -3,18 +3,17 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "sh -c 'w=0; for s in typecheck check:rules check:no-reflect-access-live check:structural check:doc-budgets; do bun run $s; c=$?; [ $c -gt $w ] && w=$c; done; exit $w'",
-    "typecheck": "sh -c 'bun run typecheck:oxlint; a=$?; bun run typecheck:structural; b=$?; [ $a -gt $b ] && exit $a; exit $b'",
+    "check": "sh -c 'w=0; for s in typecheck check:rules check:no-reflect-access-live check:structural check:doc-budgets; do npm run --silent $s; c=$?; [ $c -gt $w ] && w=$c; done; exit $w'",
+    "typecheck": "sh -c 'npm run --silent typecheck:oxlint; a=$?; npm run --silent typecheck:structural; b=$?; [ $a -gt $b ] && exit $a; exit $b'",
     "typecheck:oxlint": "tsc --noEmit -p tsconfig.oxlint.json",
     "typecheck:structural": "tsc --noEmit -p tsconfig.structural.json",
     "check:rules": "harness/with-real-node.sh harness/run-rule-fixtures.ts",
-    "check:no-reflect-access-live": "bun harness/prove-no-reflect-access-live.ts",
-    "check:structural": "bun harness/run-structural-fixtures.ts",
-    "check:doc-budgets": "bun harness/check-doc-budgets.ts"
+    "check:no-reflect-access-live": "harness/with-real-node.sh harness/prove-no-reflect-access-live.ts",
+    "check:structural": "harness/with-real-node.sh harness/run-structural-fixtures.ts",
+    "check:doc-budgets": "harness/with-real-node.sh harness/check-doc-budgets.ts"
   },
   "devDependencies": {
     "@oxlint/plugins": "^1.77.0",
-    "@types/bun": "^1.3.14",
     "@types/node": "^26.2.0",
     "oxc-parser": "^0.146.0",
     "oxc-resolver": "^11.24.2",

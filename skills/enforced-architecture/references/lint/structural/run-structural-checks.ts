@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 // ─── The structural-check orchestrator ────────────────────────────────
 //
 // Runs every registered check against one config and owns everything the checks
@@ -15,7 +15,7 @@
 //
 // Point it at the project's config and wire it into the pre-commit hook and CI.
 //
-// Run the two tiers so that BOTH run and the worst status wins. `oxlint && bun
+// Run the two tiers so that BOTH run and the worst status wins. `oxlint && node
 // check-structure.ts` is the same defect this file exists to avoid, one level
 // up: oxlint failing means the structural tier never runs, and a tier that never
 // ran is indistinguishable from a clean one in the output.
@@ -23,7 +23,7 @@
 //   // package.json
 //   {
 //     "scripts": {
-//       "check:arch": "sh -c 'oxlint; a=$?; bun lint/structural/check-structure.ts; b=$?; exit $((a > b ? a : b))'"
+//       "check:arch": "sh -c 'oxlint; a=$?; node lint/structural/check-structure.ts; b=$?; exit $((a > b ? a : b))'"
 //     }
 //   }
 //
@@ -159,8 +159,8 @@ export async function reportStructuralChecks(
   let errors = 0;
   let warnings = 0;
 
-  // The TypeScript server is a child process this run owns, and Bun will not
-  // exit while it is alive. Disposed in a `finally` rather than after the loop
+  // The TypeScript server is a child process this run owns, and a live child
+  // holds the process open. Disposed in a `finally` rather than after the loop
   // because a throw from `runStructuralChecks` — a config that switches a check
   // off, which is deliberately not a finding — would otherwise leave the compiler
   // running and the command hung instead of failed.

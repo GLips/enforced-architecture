@@ -86,7 +86,7 @@ keeps committing.
 **Every guard is revert-probed.** Delete the guard, confirm the matching fixture actually
 fails. A fixture that passes both before and after a change pins nothing. This is not
 optional diligence — across four tickets, five separate guards were found that could be
-deleted with `bun run check` fully green. Every one was caught by a fresh reader; none by
+deleted with `npm run check` fully green. Every one was caught by a fresh reader; none by
 the suite.
 
 Where a rule's *wording* carries meaning the verdict does not — a type-aware variant, a

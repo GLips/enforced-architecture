@@ -12,9 +12,10 @@ document that agents execute in later sessions.
 
 ## Stack Assumptions
 
-The skill assumes Bun, TanStack Start, oxlint, Drizzle, Postgres, React, Zod and lefthook. Examples
-and rule templates name these packages directly. On a different stack the invariants still hold —
-translate the patterns to that framework.
+The enforcement tier needs Node 24, oxlint and TypeScript 7 and nothing else. The examples and rule
+templates additionally assume TanStack Start, Drizzle, Postgres, React, Zod and lefthook, and name
+those packages directly. On a different stack the invariants still hold — translate the patterns to
+that framework.
 
 ## Reference Material
 
@@ -200,8 +201,10 @@ lint/
   policy/       declared-trees.ts layout.ts import-policy.ts package-owners.ts — the tree list and
                 the tables both tiers read
   oxlint/       plugin.ts, lib/, <tag>/ — rules and their specs
-  structural/   config.ts check-substrate.ts import-graph.ts type-checker.ts registry.ts
-                run-structural-checks.ts, arch.config.ts, <tag>/ — checks
+  structural/   config.ts check-substrate.ts registry.ts run-structural-checks.ts,
+                module-scanning.ts module-resolution.ts import-graph.ts type-checker.ts
+                — the substrate; arch.config.ts, <tag>/ — checks
+  with-real-node.sh  — both tiers run through it
 ```
 
 In a monorepo that `lint/` still sits once at the repo root, and `declared-trees.ts` holds one entry
@@ -225,16 +228,17 @@ own vocabulary. A single-package repo is the same shape with one entry.
    match `declared-trees.ts`. `arch/no-module-mocking` stays in the global `rules` block; scoping it
    to a tree switches it off for every test outside one. The dev dependencies are
    unversioned, so the project gets current releases:
-   `bun add -d oxlint oxlint-tsgolint @oxlint/plugins eslint-plugin-sonarjs jscpd`
-3. **`lint/structural/`** — the substrate (`config.ts`, `check-substrate.ts`, `import-graph.ts`,
-   `module-resolution.ts`, `type-checker.ts`, `registry.ts`, `run-structural-checks.ts`) and every
-   check, all taken unmodified, plus `bun add -d oxc-resolver typescript`. The `types/` checks need
-   TypeScript 7 — they read the program each tree's `tsconfig` builds. Write `arch.config.ts` on
-   `defaultCheckConfigs`.
+   `npm i -D oxlint oxlint-tsgolint @oxlint/plugins eslint-plugin-sonarjs jscpd`
+3. **`lint/structural/`** — the substrate (`config.ts`, `check-substrate.ts`, `module-scanning.ts`,
+   `module-resolution.ts`, `import-graph.ts`, `type-checker.ts`, `registry.ts`,
+   `run-structural-checks.ts`) and every check, all taken unmodified, plus
+   `npm i -D oxc-parser oxc-resolver typescript`. Every substrate file or none of them — scanning,
+   resolution and the graph over both are one chain. The `types/` checks need TypeScript 7: they read
+   the program each tree's `tsconfig` builds. Write `arch.config.ts` on `defaultCheckConfigs`.
 4. **One tsconfig per tier** — [references/setup/oxlint.tsconfig.json](references/setup/oxlint.tsconfig.json)
    and [references/setup/structural.tsconfig.json](references/setup/structural.tsconfig.json) — added
-   to the typecheck script by path. Separate programs, because the tiers run under different
-   runtimes.
+   to the typecheck script by path. Separate programs, because each tier is copied as a directory
+   that has to typecheck on its own.
 5. **Package.json scripts** — `check:arch`, plus `duplication` and `.jscpd.json` from
    [references/setup/jscpd.json](references/setup/jscpd.json) for the CI-only jscpd pass.
 6. **`lefthook.yml`** from [references/setup/lefthook.yml](references/setup/lefthook.yml).
@@ -245,7 +249,7 @@ own vocabulary. A single-package repo is the same shape with one entry.
    `docs/doc-budgets.manifest.json` from
    [references/setup/doc-budgets.manifest.json](references/setup/doc-budgets.manifest.json).
    Ceilings come from what the generated docs weigh, so this step follows them.
-10. **Verify.** Run `bun run check:arch`, and read every finding before you run `bun run dev`. Write
+10. **Verify.** Run `npm run check:arch`, and read every finding before you run `npm run dev`. Write
     the script so each check runs even when an earlier one fails: an `&&` chain stops at the first
     failure, and the checks it skipped report clean by never running.
 

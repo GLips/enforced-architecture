@@ -49,6 +49,11 @@ export const barrelPurityFixtures: CheckFixtures = {
     // table that maps `.js` to the TypeScript sources alone closes the second
     // half in silence. It is the only `.js` source in the tree.
     "FAIL src/features/nodenext/index.ts",
+    // A mixed re-export whose TYPE name is written last. `checkout` above has
+    // the same statement with the type name first, and the pair is the
+    // assertion: a mark taken from the last name read passes one and fails the
+    // other, in whichever direction the tree happens to be written.
+    "FAIL src/features/tailtype/index.ts",
     // A side-effect import of a server-only package. It binds no name, so
     // "every specifier in this statement is type-only" is VACUOUSLY true of it
     // — and reading that as erased drops the most unambiguously runtime import
@@ -71,8 +76,8 @@ export const barrelPurityFixtures: CheckFixtures = {
     // The boundary SHADOWED: the framework import is real and unused, and the
     // call that runs is a parameter of the same name. Reading the import clause
     // and then accepting any same-named call anywhere in the file treats this as
-    // a boundary and stops. This tier has no parser, so scope is approximated
-    // one-sidedly — see `rebindsName`.
+    // a boundary and stops. Scope is approximated one-sidedly here even though
+    // the tier parses — see `rebindsName`.
     "FAIL src/features/shadow/index.ts",
     // The same shadow with no parentheses around the parameter. A detector that
     // looks for a parameter after `(` or `,` sees nothing — an arrow with one
@@ -104,7 +109,7 @@ export const barrelPurityFixtures: CheckFixtures = {
     "FAIL src/features/facade/index.ts",
     // The same fabrication where masking cannot help: the import statement is
     // JSX TEXT, neither string nor comment. Masking one more container per review
-    // is the loop that ends at the transpiler gate — the real lexer already knows
+    // is the loop that ends at the scan gate — the parser already knows
     // which specifiers this file imports, and no spelling of one gets into that
     // answer without being one.
     "FAIL src/features/awning/index.ts",
@@ -125,8 +130,9 @@ export const barrelPurityFixtures: CheckFixtures = {
     // shadow test that read a `:` as one reported this barrel.
     "src/features/orders/index.ts",
     // The traced module's only `stripe` reference is `import type`. Erased at
-    // compile time, so it cannot break a client bundle — and a check reaching
-    // for the import graph's reveal pass reports it.
+    // compile time, so it cannot break a client bundle — and a check reading the
+    // scan without filtering `typeOnly` reports it. The import graph over that
+    // same scan keeps the edge, which is why the filter has to live here.
     "src/features/invoices/index.ts",
     // Two modules below the barrel re-export each other. Without a visited set
     // the trace runs to the depth cap and reports the cap against a barrel that

@@ -23,6 +23,6 @@
     "strict": true
   },
   // `../policy/` joins both programs: it is the tier-neutral half, so it has to
-  // typecheck under Node types and Bun types alike.
+  // typecheck inside either tier's program, whichever is copied.
   "include": ["**/*.ts", "../policy/**/*.ts"]
 }

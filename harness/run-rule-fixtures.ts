@@ -23,9 +23,9 @@
  *
  * It also runs the specs beside `lint/policy/`. That directory holds no rules —
  * it holds the tables both tiers read — so its specs get no three-kind
- * attribution and no plugin registration check. They run here rather than under
- * Bun because the tier that reads them from a Node process is this one, and a
- * table proved in one runtime and consumed in two is a table proved once.
+ * attribution and no plugin registration check. They run here because this is
+ * where the specs for a shared table belong: one run, one runtime, one answer
+ * for both tiers that read it.
  */
 
 import type { Rule } from "@oxlint/plugins";

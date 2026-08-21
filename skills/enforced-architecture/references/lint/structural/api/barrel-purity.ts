@@ -25,9 +25,11 @@
 // The trace stops at a module that crosses the framework's server-function
 // boundary, because the compiler cuts the chain there. Deciding whether a given
 // module crosses it is a question about SYNTAX — which name an import bound,
-// whether the call reaches that binding or a shadow — and this tier has no
-// parser for that. What follows is the approximation, its contract, and why it
-// is not going to be replaced by a better parser or a bigger regex.
+// whether the call reaches that binding or a shadow — and this check answers it
+// by reading text. What follows is that approximation and its contract. The
+// approximation is now a CHOICE: `module-scanning.ts` parses, so the binding is
+// available and nobody has spent it yet. Read the contract as what holds until
+// someone does, not as a limit.
 //
 // IN — recognised as a boundary. A named import of one of the boundary's calls
 // from the boundary's module, read as `imported as local` so the alias direction
@@ -46,9 +48,9 @@
 // NEVER — the direction that would be a false NEGATIVE, a server-only package in
 // the client bundle behind a green run. No spelling is accepted as a boundary
 // without an import of the boundary's own module, and that half is not
-// approximated at all: it is the transpiler's specifier scan, the same real lexer
-// the import graph runs on. Text that merely LOOKS like an import — in a string,
-// in JSX text, in a comment — is not in the lexer's answer and cannot fabricate a
+// approximated at all: it is `scanDeclaredImports`, the same parse the import
+// graph runs on. Text that merely LOOKS like an import — in a string, in JSX
+// text, in a comment — is not in the parser's answer and cannot fabricate a
 // boundary. `rebindsName` is one-sided for the same reason: any doubt about which
 // binding runs resolves to "not a boundary", never to "boundary".
 //
@@ -69,17 +71,16 @@
 // approximation this paragraph names, not as bugs to patch one spelling at a
 // time. What is NOT dispositioned that way is a NEVER-clause bypass, and the
 // split between the two halves is what makes them different kinds of finding:
-// the module half is a lexer and admits no spelling, the name half is text and
+// the module half is a parse and admits no spelling, the name half is text and
 // admits many. A bypass of the name half moves the file OUT — an over-report. A
 // bypass of the module half would be a false negative, and there is no longer a
 // hand-written reader there to bypass.
 //
-// The tier now HAS a parser — `module-scanning.ts` runs `oxc-parser`, and the
-// module half above reads its answer. Folding the name half in too is a real
-// option and is not taken here: `entries[].localName` would give the binding
-// exactly, and the change is a rewrite of the four regexes below rather than a
-// dependency question. Until someone does it, the contract stated above is what
-// holds, and the direction of its failure is the reason that is tolerable.
+// Folding the name half into the parse is the obvious next move and is not taken
+// here: `entries[].localName` gives the binding exactly, and what stands in the
+// way is a rewrite of the four regexes below rather than any dependency
+// question. Until someone does it, the contract above is what holds, and the
+// direction of its failure is why that is tolerable.
 //
 // ──────────────────────────────────────────────────────────────────────
 
@@ -181,7 +182,7 @@ function crossesServerFnBoundary(
   // string, then the same statement spelled as JSX TEXT inside a `<span>`, where
   // masking string literals does nothing because the fabrication is not in a
   // string. Masking the next container after that is the loop this gate ends:
-  // the lexer already knows which specifiers are real, and no spelling of an
+  // the parser already knows which specifiers are real, and no spelling of an
   // import gets into its answer without being one.
   //
   // What the text reading below still owns is the NAME — which local the clause
@@ -223,11 +224,11 @@ function crossesServerFnBoundary(
  * unmask the code after it.
  *
  * NEGATIVE SPACE: regex literals are not masked. Telling `/x/` from division
- * needs the parser this tier does not have, so it is not guessed. A regex CAN
- * hold an import statement — `/import \{ x \} from "y"/` — and this masker does
- * not stop it. What stops it is the transpiler gate in `crossesServerFnBoundary`,
- * which is upstream of every container question: text in a regex is not in the
- * lexer's specifier list, so there is no module for the clause to be read
+ * needs a parse, and this masker is text, so it is not guessed. A regex CAN hold
+ * an import statement — `/import \{ x \} from "y"/` — and this masker does not
+ * stop it. What stops it is the scan gate in `crossesServerFnBoundary`, which is
+ * upstream of every container question: text in a regex is not in
+ * `scanDeclaredImports`'s answer, so there is no module for the clause to be read
  * against. That is why this function no longer has to enumerate containers, and
  * why the next one found is not a new hole.
  */
@@ -260,10 +261,9 @@ function maskLiteralContents(source: string): string {
  * True when `body` declares `local` itself — so a call of that name might be the
  * file's own binding rather than the imported one.
  *
- * This tier has no parser. Bun's transpiler hands back specifiers, not an AST,
- * and TypeScript 7 ships its AST behind an `unstable/` entry point that a copied
- * template must not depend on. So scope is approximated, and the approximation is
- * deliberately one-sided: ANY local declaration or parameter of the name makes
+ * Scope is approximated here, and no longer because it has to be: the tier now
+ * parses (`module-scanning.ts`), so `rebindsName` COULD be a scope walk and is
+ * not one yet. Until it is, the approximation is deliberately one-sided: ANY local declaration or parameter of the name makes
  * the file not-a-boundary, which keeps the trace going. Two reviews shadowed the
  * imported name and beat the version of the day: first a parenthesized parameter
  * (`function settleWith(createServerFn: …)`), then the same shadow spelled with
