@@ -59,6 +59,16 @@ export const value = Reflect.get(invoice, key);`,
       errors: [{ messageId: "reflectGet" }],
     },
     {
+      // An ambient declaration describes what already exists rather than binding
+      // anything, so it is not a shadow — and a rule that counted it would hand
+      // every adopter a one-line off-switch for the whole file.
+      name: "an ambient declaration of Reflect is a description, not a shadow",
+      filename: SERVICE,
+      code: `declare const Reflect: { get(o: unknown, k: string): unknown };
+export const value = Reflect.get(invoice, key);`,
+      errors: [{ messageId: "reflectGet" }],
+    },
+    {
       name: "both banned methods in one file are two findings",
       filename: SERVICE,
       code: `export const value = Reflect.get(invoice, key);
@@ -99,6 +109,17 @@ export const result = Reflect.apply(settle, invoice, args);`,
       filename: SERVICE,
       code: `const Reflect = { get: (o, k) => o[k] };
 export const value = Reflect.get(invoice, key);`,
+    },
+    {
+      // The binding is in an OUTER scope, which is the only case that makes the
+      // rule walk past the scope it starts in. Without this the walk is one line
+      // that can be deleted with every other case still green.
+      name: "a module-level Reflect covers a use inside a function",
+      filename: SERVICE,
+      code: `const Reflect = { get: (o, k) => o[k] };
+export function read(key) {
+  return Reflect.get(invoice, key);
+}`,
     },
     {
       // A second DEFINITION KIND, because the branch that decides this reads the

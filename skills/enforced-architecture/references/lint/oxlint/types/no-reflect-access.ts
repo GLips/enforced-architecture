@@ -28,6 +28,15 @@
 // `harness/prove-no-reflect-access-live.ts`, and a project adapting this rule owes
 // itself the equivalent.
 //
+// NEGATIVE SPACE. The subject is the identifier `Reflect` and the member read off
+// it, so three spellings of the same access are deliberately not covered and no
+// amount of scope resolution reaches them: `globalThis.Reflect.get(…)`, an alias
+// (`const R = Reflect`), and a destructured method (`const { get } = Reflect`).
+// Each hands back the same `any`. They are out because covering them means either
+// tracking values, which one file's syntax cannot do honestly, or matching the
+// member name alone, which reports every `cache.get(key)` in the codebase — and a
+// rule that fires on correct code is one people learn to disable.
+//
 // SCOPE, and it is the same for every TREE-SCOPED rule in this catalog — which
 // is every rule but `testing/no-module-mocking`, whose subject is a test file and
 // which is therefore enabled globally. This rule is silent outside the declared
@@ -72,25 +81,46 @@ function accessedMethodName(callee: ESTree.MemberExpression): string | null {
 // for every use, so every use reads as shadowed and the rule reports nothing at all. A spec
 // cannot catch either, because a spec runs in the host each one happens to be right in.
 //
-// The DEFINITION SITE is what agrees in both. The environment's `Reflect` is a binding with no
-// `defs` — nothing in the file declares it. A `const`, an import, a parameter, a `var` at a
-// script's top level each carry one, and each is a real shadow. An assignment with no declaration
-// (`Reflect = {…}`) carries none and is not one: that is the global being overwritten, and a
-// `Reflect.get` after it is still the builtin.
+// What agrees in both is whether the binding has a DEFINITION SITE that DECLARES something.
+// `boundary/ambient-globals` reads the same fact from the other end and says why: the
+// environment's globals are the global-scope variables with no definition at all, and one with a
+// definition is the file binding the name itself. A `const`, an import, a parameter, a `var` at a
+// script's top level each carry one, and each is a real shadow.
+//
+// Two definitions that look like shadows and are not:
+//
+//   `declare const Reflect: …`  describes something that already exists rather than binding it.
+//       Counting it makes a one-line ambient declaration an off-switch an adopter can write —
+//       exactly the bypass `lib/imported-names.ts` climbs to the declaration to refuse, and for
+//       the same reason. NOT a shared helper: that one answers a question about `require`, and
+//       two rules sharing a policy is the defect this catalog most reliably produces.
+//   `Reflect = {…}`  with no declaration is an assignment, which produces no definition at all and
+//       so needs no arm here. It reports, and should: the binding is still the builtin's, so the
+//       `any` return this rule exists to stop is still what the call is typed as.
 function resolvesToLocalBinding(
   sourceCode: SourceCode,
   identifier: ESTree.IdentifierReference,
 ): boolean {
   let scope: Scope | null = sourceCode.getScope(identifier);
   while (scope !== null) {
-    // The INNERMOST scope binding the name is the one this reference resolves to. An outer scope
-    // binding it too is shadowed by this one and says nothing about this reference, so the walk
-    // answers at the first hit rather than continuing to the top.
+    // The innermost scope binding the name is the one this reference resolves to, so the walk
+    // answers at the first hit. Reaching `upper` at all is what a module-level `const Reflect`
+    // read from inside a function needs, and the spec pins that case.
     const binding = scope.set.get(identifier.name);
-    if (binding !== undefined) return binding.defs.length > 0;
+    if (binding !== undefined) return binding.defs.some(declaresSomething);
     scope = scope.upper;
   }
   return false;
+}
+
+// `declare` sits on the DECLARATION, and a `Variable` definition's node is the DECLARATOR inside
+// it — so reading the flag off `definition.node` finds nothing there and calls every ambient
+// declaration a real binding. `lib/imported-names.ts` carries the same climb and the longer
+// version of why.
+function declaresSomething(definition: { node: ESTree.Node; parent: ESTree.Node | null }): boolean {
+  const declaration = definition.node.type === "VariableDeclarator" ? definition.parent : definition.node;
+  if (declaration === null) return true;
+  return !("declare" in declaration && declaration.declare === true);
 }
 
 export const noReflectAccessRule = defineTreeRule({

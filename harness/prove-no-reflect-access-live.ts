@@ -21,10 +21,11 @@
  * load-bearing in opposite directions: without the reporting one, the inert rule
  * passes; without the silent one, a rule that dropped its shadow check passes.
  *
- * REVERT-PROBE after any change here. Put back the old scope walk (`if
+ * REVERT-PROBE after any change here, all three. Put back the old scope walk (`if
  * (scope.set.has(name)) return true`) and the reporting case must fail; delete
- * the `resolvesToLocalBinding` call from the rule and the silent case must fail.
- * A run that stays green through both is testing nothing.
+ * the `resolvesToLocalBinding` call from the rule and the silent case must fail;
+ * set the shipped config's key to `"off"` and the enablement check must fail. A
+ * run that stays green through any of them is testing nothing.
  *
  * NEGATIVE SPACE, and it is why this file is named after one rule rather than
  * after the technique:
@@ -146,14 +147,19 @@ try {
  */
 async function assertShippedConfigEnablesTheRule(): Promise<void> {
   const shipped = await readFile(OXLINTRC_PATH, "utf8");
+  // The SEVERITY, not just the key. `"off"` is the shape the held-back state
+  // would come back as if anyone reached for a softer version of it, and a key set
+  // to `"off"` is the worse half of what the hold was: it reads as coverage from
+  // every angle except a run.
+  //
   // A substring rather than a parse: the shipped file is JSONC and the only
   // stripper for it lives in the other runner, where it is one guard's private
-  // helper. A commented-out key is the case that matters and it does not survive
-  // this test either — `// "arch/no-reflect-access"` has no `":"` after the quote.
-  if (!new RegExp(String.raw`^\s*"${RULE_KEY}"\s*:`, "m").test(shipped)) {
+  // helper. A commented-out key does not survive this either — `// "arch/…"` has
+  // no `":"` after the closing quote.
+  if (!new RegExp(String.raw`^\s*"${RULE_KEY}"\s*:\s*"(error|warn)"`, "m").test(shipped)) {
     console.log(
-      `  FAIL  setup/oxlintrc.json never enables ${RULE_KEY}, so this file proves a rule ` +
-        `no adopting project runs`,
+      `  FAIL  setup/oxlintrc.json does not enable ${RULE_KEY} at error or warn, so this file ` +
+        `proves a rule no adopting project runs`,
     );
     process.exit(1);
   }
@@ -187,11 +193,21 @@ function lintMaterializedCases(root: string): OxlintDiagnostic[] {
     encoding: "utf8",
     maxBuffer: 64 * 1024 * 1024,
   });
+  // A config the CLI refuses, or a missing binary, exits with EMPTY stdout and the
+  // reason on stderr — so the parse has to be guarded rather than trusted. Reading
+  // an empty report as zero diagnostics would turn every one of those into "the
+  // rule stayed silent", which is the verdict this file exists to distinguish from
+  // a real one.
   const stdout = run.stdout ?? "";
-  const report = JSON.parse(stdout) as { diagnostics?: OxlintDiagnostic[] } | null;
-  const diagnostics = report?.diagnostics;
+  const diagnostics = stdout.trim() === "" ? undefined : (JSON.parse(stdout) as { diagnostics?: OxlintDiagnostic[] }).diagnostics;
   if (diagnostics === undefined) {
-    console.log(`  FAIL  the oxlint CLI printed no diagnostics report:\n${stdout}${run.stderr ?? ""}`);
+    // `run.error` and not just the streams: a missing binary never starts, so it
+    // leaves both of them empty and the reason only there.
+    const reason = `${stdout}${run.stderr ?? ""}${run.error?.message ?? ""}`.trim();
+    console.log(
+      `  FAIL  the oxlint CLI produced no diagnostics report, so nothing here ran:\n` +
+        `        ${reason.replace(/\n/g, "\n        ")}`,
+    );
     process.exit(1);
   }
   return diagnostics;
