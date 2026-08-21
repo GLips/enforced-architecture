@@ -164,9 +164,10 @@ export type TreeVocabulary = {
   /**
    * Env modules, and which exposure each one carries. The split is not cosmetic:
    * `directory-model.md`'s recommended setup puts secrets in `env.server.ts` and
-   * `VITE_PUBLIC_*` in `env.client.ts`, and `import-boundaries.md` answers the
-   * two columns differently in six of ten rows — a route may read the client env
-   * and may not read the server one.
+   * `VITE_PUBLIC_*` in `env.client.ts`, and the import table answers the two
+   * columns differently in four of its twelve rows — a route, a feature's `ui/`,
+   * `shared/` and `shared/ui/` may each read the client env and none of them may
+   * read the server one.
    *
    * A project on the SINGLE-env option (one `env.ts`) maps that file here. It is
    * listed as `env-server` because a combined module still carries the secrets,

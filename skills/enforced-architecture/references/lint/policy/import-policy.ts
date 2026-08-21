@@ -5,9 +5,11 @@
 // Blocking:  Yes, in both
 //
 // Prevents:  Every import direction and every exposure decision in the layout
-//            `import-boundaries.md` describes, declared once over an exhaustive
+//            `directory-model.md` describes, declared once over an exhaustive
 //            key instead of scattered across five rules that each carried a
-//            slice of it.
+//            slice of it. This table is the only statement of those decisions —
+//            a doc that renders it as a grid is a second copy, and the copy is
+//            what goes stale.
 //
 // Five rules held overlapping copies of this and the copies disagreed:
 // `shared-purity` banned every `@/` import from `src/shared/*.ts` while
