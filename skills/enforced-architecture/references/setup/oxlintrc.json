@@ -252,7 +252,6 @@
       // ── react: state is derived, effects clean up, data comes through the cache ──
       "arch/derived-state": "error",
       "arch/no-async-effect": "error",
-      "arch/no-direct-fetch": "error",
       // Counts, not properties. Each reports a number a reader uses to decide what
       // to split next, and a component that collects many hooks or many props by
       // design is not a defect.

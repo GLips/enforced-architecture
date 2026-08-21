@@ -23,10 +23,19 @@
 // capabilities with a real owner; a longer one teaches people the rule is
 // arbitrary, and that is what gets it disabled.
 //
-// Adopt this entry for `fetch` or `react/no-direct-fetch`, and not both. That
-// rule bans `fetch` in `.tsx` and leaves every `.ts` file alone, for a project
-// with no typed client. Both together report two diagnostics that say different
-// things about one violation.
+// This rule is the SOLE owner of `fetch`, in every file of every declared tree,
+// and the catalog holds no second fence for it. The `fetch` row's `why` is the
+// whole fix instruction, which is why it names the request concerns AND the
+// caching one: two components asking for the same data through the owner make
+// one request and share one cache entry, and that is the value a component-only
+// ban was there for.
+//
+// Do not add a `.tsx`-only companion beside it. The natural way to write one is
+// to match the callee NAME, which reports `const fetch = useFetcher()` and
+// `function Row({ fetch })` and goes silent on `globalThis["fetch"]` and
+// `(globalThis as never).fetch` — the four rows the reference walk below gets
+// right. Two fences on one global also report two diagnostics naming two
+// different destinations for one violation.
 //
 // Scope is the declared trees, so vite.config.ts and next.config.js are
 // unaffected — they sit outside every one of them. What the BUILD reads is a
@@ -165,7 +174,7 @@ function restrictedAmbientGlobals(vocabulary: TreeVocabulary): AmbientGlobalPoli
       globalPath: "fetch",
       allowedIn: [apiClientModule(vocabulary)],
       owner: alias(apiClientModule(vocabulary)),
-      why: "Base URL, auth headers, timeout and error decoding are decided once at the client; a bare fetch decides them again, differently, and usually omits the last one.",
+      why: "Base URL, auth headers, timeout and error decoding are decided once at the client; a bare fetch decides them again, differently, and usually omits the last one. Two callers that ask for the same data through the client also make one request and share one cache entry.",
     },
     {
       globalPath: "localStorage",

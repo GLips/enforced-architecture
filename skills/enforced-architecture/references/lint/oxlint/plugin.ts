@@ -10,7 +10,6 @@ import { hookCountRule } from "./react/hook-count.ts";
 import { noArbitraryClassValuesRule } from "./style/no-arbitrary-class-values.ts";
 import { noAsyncEffectRule } from "./react/no-async-effect.ts";
 import { noDeprecatedInputValidatorRule } from "./placement/no-deprecated-input-validator.ts";
-import { noDirectFetchRule } from "./react/no-direct-fetch.ts";
 import { propCountRule } from "./react/prop-count.ts";
 import { singleComponentExportRule } from "./react/single-component-export.ts";
 import { noDisableValidationRule } from "./effect/no-disable-validation.ts";
@@ -101,7 +100,6 @@ export default definePlugin({
     "derived-state": derivedStateRule,
     "hook-count": hookCountRule,
     "no-async-effect": noAsyncEffectRule,
-    "no-direct-fetch": noDirectFetchRule,
     "prop-count": propCountRule,
     "single-component-export": singleComponentExportRule,
     "no-disable-validation": noDisableValidationRule,

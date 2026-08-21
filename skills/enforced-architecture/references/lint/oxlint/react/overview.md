@@ -1,11 +1,13 @@
 # react — React code smell detection
 
-`no-direct-fetch` assumes somewhere better exists for a request to live. On a project without one it blocks the only option.
+Nothing here fences the network. A request written in a component is
+[boundary/ambient-globals](../boundary/ambient-globals.ts)' finding, in every file of the tree and
+not only in `.tsx` — it resolves references, so a local `fetch` binding is not a read, and the
+computed and cast host spellings are. This folder holds no second fetch rule and must not grow one.
 
 | Rule | Blocking | What it buys |
 |---|---|---|
 | [derived-state](derived-state.ts) | Yes | A computed value is right on the first render, and a prop change costs one render |
-| [no-direct-fetch](no-direct-fetch.ts) | Yes | Two components that ask for the same data make one request and share one cache entry |
 | [single-component-export](single-component-export.ts) | No | Which components a search by name finds only at their call sites |
 | [no-async-effect](no-async-effect.ts) | Yes | Every async effect has one place to cancel, and no useCallback is async |
 | [hook-count](hook-count.ts) | No | The number of hooks a test of the component must set up |

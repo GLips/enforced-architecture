@@ -207,6 +207,26 @@ describeRule("boundary/ambient-globals", ambientGlobalsRule, {
       ],
     },
     {
+      // The four spellings that decide who owns `fetch`. A fence matching the callee NAME gets
+      // these two backwards — silent here, and reporting on the two legal cases below — which is
+      // why the reference walk is the owner and there is no second fetch rule.
+      //
+      // A component file, because that is where a request is most often written and the header
+      // claims this rule covers it. The message is asserted rather than the id: it IS the fix
+      // instruction, it names the module this tree owns the capability in, and it carries the
+      // caching clause that a `.tsx`-only ban would otherwise be the only thing saying.
+      name: "the computed and cast host spellings, in a component file, which a callee-name match cannot reach",
+      filename: "/repo/src/features/billing/ui/panel.tsx",
+      code: `export const Panel = () => globalThis["fetch"]("/api/a");\nexport const Other = () => (globalThis as never).fetch("/api/b");`,
+      errors: [
+        {
+          message:
+            "Only @/infrastructure/api-client reads `fetch`. Base URL, auth headers, timeout and error decoding are decided once at the client; a bare fetch decides them again, differently, and usually omits the last one. Two callers that ask for the same data through the client also make one request and share one cache entry. Import it from there instead of reading the global here.",
+        },
+        { messageId: "ambientGlobalOutsideOwner" },
+      ],
+    },
+    {
       name: "destructuring a bare global off its host introduces a local binding that reads nothing new",
       filename: SERVICE,
       code: `const { localStorage } = window;\nexport const token = localStorage.getItem("session");`,
@@ -304,6 +324,19 @@ describeRule("boundary/ambient-globals", ambientGlobalsRule, {
       name: "a fetch method on somebody else's client is a different API",
       filename: SERVICE,
       code: `import { client } from "@/infrastructure/api-client";\nexport const load = () => client.fetch("/invoices");`,
+    },
+    {
+      // A CALL to a local binding spelled `fetch` — the ordinary way a hook's return value and a
+      // caller-supplied function arrive. A fence matching the callee NAME reports both and sends
+      // the reader to the API client for a function that is already not the global; this is the
+      // half of the fetch subject that decided which rule owns it.
+      //
+      // What this pins is not a guard but the CHOICE of primitive: swap
+      // `ambientGlobalReferences` for a walk over Identifier nodes — the natural way to write
+      // this rule — and both bindings here report.
+      name: "a local binding named fetch shadows the global rather than reading it",
+      filename: "/repo/src/features/billing/ui/panel.tsx",
+      code: `const fetch = createFetcher();\nexport const Panel = () => fetch("/api/invoices");\nexport function Row({ fetch }: { fetch: (path: string) => void }) {\n  return fetch("/api/rows");\n}`,
     },
     {
       name: "a property, a key and a type member are references to nothing",
