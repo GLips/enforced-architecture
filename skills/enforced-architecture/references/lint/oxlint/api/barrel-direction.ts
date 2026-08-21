@@ -70,19 +70,23 @@ export const barrelDirectionRule = defineTreeRule({
     const isDomain = role.place?.profile === "domain";
 
     return visitModuleSources((source, specifier) => {
-      if (namesServerBarrel(specifier, vocabulary.serverBarrelModule)) {
-        context.report({
-          node: source,
-          messageId: isDomain
-            ? "domainBarrelImportsServerBarrel"
-            : "clientBarrelImportsServerBarrel",
-          data: {
-            clientBarrel: vocabulary.clientBarrelModule,
-            serverBarrel: vocabulary.serverBarrelModule,
-            controllersLayer: vocabulary.featureLayerDirs.controllers,
-          },
-        });
+      if (!namesServerBarrel(specifier, vocabulary.serverBarrelModule)) return;
+      const barrels = {
+        clientBarrel: vocabulary.clientBarrelModule,
+        serverBarrel: vocabulary.serverBarrelModule,
+      };
+      // The layer name is passed only on the arm whose message names it. Handing it to the domain
+      // arm too would read as if that message had a layer to offer, which is the mistake the split
+      // exists to fix.
+      if (isDomain) {
+        context.report({ node: source, messageId: "domainBarrelImportsServerBarrel", data: barrels });
+        return;
       }
+      context.report({
+        node: source,
+        messageId: "clientBarrelImportsServerBarrel",
+        data: { ...barrels, controllersLayer: vocabulary.featureLayerDirs.controllers },
+      });
     });
   },
 });

@@ -146,6 +146,14 @@ describeRule("style/no-inline-font-size", noInlineFontSizeRule, {
       code: `export const scale = { fontSize: 13 };`,
     },
     {
+      // The blind spot the header names, not coverage. The exemption does not read the value, so
+      // a raw number inside the primitives layer is reported by nothing in the catalog. Pinned so
+      // that a later reader finds the hole stated rather than discovering it.
+      name: "a raw size inside the primitives layer is the exemption's cost, and nothing else catches it",
+      filename: "/repo/src/shared/ui/text.tsx",
+      code: `export const T = () => <span style={{ fontSize: 13 }} />;`,
+    },
+    {
       // The primitive implementing `size='caption'` — the fix this rule's own message names.
       // `fontSize` has to become a real declaration somewhere, and this is the layer that does it;
       // reporting here forbids the remedy. `style/no-inline-style-prop` is silent on the same file

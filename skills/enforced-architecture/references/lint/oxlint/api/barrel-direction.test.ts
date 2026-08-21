@@ -100,7 +100,11 @@ describeRule("api/barrel-direction", barrelDirectionRule, {
       code: `export { CHECKOUT_TIMEOUT_MS } from "./index.server-config";`,
     },
     {
-      name: "a non-barrel module inside the feature is governed by server-import-context, not this rule",
+      // Legal in BOTH rules, and not because either ceded it: `controllers/` is a server context,
+      // so reaching the server barrel from there is the arrangement the pair exists to permit.
+      // The name used to say `api/server-import-context` governs this file, which reads as
+      // coverage — that rule returns early here.
+      name: "a server-context module reaching the server barrel is what the pair is for, not a gap",
       filename: "/repo/src/features/billing/controllers/charge.ts",
       code: `import { chargeCard } from "../index.server";\nexport const charge = () => chargeCard();`,
     },

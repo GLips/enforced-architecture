@@ -71,11 +71,14 @@ describeRule("style/no-inline-color", noInlineColorRule, {
       ],
     },
     {
-      // The stray literal survives the cession below: only the CLASS is removed before matching,
-      // not the whole string, so a colour sitting outside a bracket is still this rule's.
-      name: "a bare colour beside an arbitrary-value class is still this rule's finding",
+      // ONE string value holding both, which is what pins the cession's scope. The class is
+      // removed from the text before matching; the string is not. Split these across two
+      // properties and the case passes against a strip that discards any string containing a
+      // bracket class — which loses every colour that shares a `cn()` argument or a `cva` row
+      // with one, and loses it to no rule at all.
+      name: "a bare colour beside an arbitrary-value class in the same string is still this rule's",
       filename: COMPONENT,
-      code: `export const styles = { className: "text-[13px]", shadowColor: "#0a0c10" };`,
+      code: `export const styles = { className: "text-[13px] #0a0c10" };`,
       errors: [{ messageId: "rawColor" }],
     },
     {

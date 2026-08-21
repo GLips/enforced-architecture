@@ -59,6 +59,17 @@
 // hole nothing earns. What separates this rule is that it bans the key, which
 // is exactly what the primitive must write.
 //
+// NEGATIVE SPACE, and it is the largest hole this rule has: the exemption is
+// unconditional on the VALUE, so `fontSize: 13` inside the primitives layer is
+// reported by NOTHING in the catalog. The siblings are silent there for their
+// own reasons — a number is not a colour and not a class — and
+// `style/token-equality` reads spacing and radius. This is the price of a
+// key-only ban, and it is deliberate for the same reason the `({ fontSize = 13 })`
+// default above is left out: reading the value inside the exemption while
+// reading only the key everywhere else is a rule that judges by two standards.
+// The primitives layer is small and hand-reviewed; if that stops being true,
+// the answer is a check that reads the token SOURCE, not a value arm here.
+//
 // SCOPE, and it is the same for every TREE-SCOPED rule in this catalog — which
 // is every rule but `testing/no-module-mocking`, whose subject is a test file and
 // which is therefore enabled globally. This rule is silent outside the declared

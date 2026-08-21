@@ -80,10 +80,11 @@ function carriesOwnedColorLiteral(text: string): boolean {
  * for the tier that can follow it.
  */
 function staticStringValue(wrapped: ESTree.Node): string | null {
-  // A cast, a `satisfies`, a `!` and a parenthesis change nothing about the string that ships, and
+  // A cast, a `satisfies` and a `!` change nothing about the string that ships, and
   // `lib/transparent-wrappers.ts` is the one list of them. Without this, `c={"#0a0c10" as Color}`
   // turns the rule off with one keyword, while `style/no-inline-style-prop` — which reads the same
-  // module — still sees it.
+  // module — still sees it. A parenthesis needs no arm: oxlint emits no node for one, which that
+  // module's own negative space says.
   const node = withoutTransparentWrappers(wrapped);
   if (node.type === "Literal" && typeof node.value === "string") return node.value;
   if (node.type === "TemplateLiteral" && node.expressions.length === 0) {
