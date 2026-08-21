@@ -211,6 +211,17 @@ describeRule("style/no-raw-primitives", noRawPrimitivesRule, {
       errors: [{ messageId: "platformPrimitive" }],
     },
     {
+      // The primitive is the OUTER key, and the only name the destructure binds sits a level below
+      // it. Reading the declarator's own pattern is what finds it; starting from the bound name and
+      // taking its own property finds `displayName`, which react-native does not export. The
+      // namespace spelling of this — `const RN = require(…); const { View: { displayName } } = RN`
+      // — has always reported, and the two disagreeing is what this pins.
+      name: "a nested destructure whose outer key is the primitive, binding only a name below it",
+      filename: COMPONENT,
+      code: `const { View: { displayName } } = require("react-native");\nexport const used = displayName;`,
+      errors: [{ messageId: "platformPrimitive" }],
+    },
+    {
       name: "a rest element beside a primitive, which names no key of its own",
       filename: COMPONENT,
       code: `import * as RN from "react-native";\nconst { View, ...rest } = RN;\nexport const used = [View, rest];`,
@@ -318,6 +329,9 @@ describeRule("style/no-raw-primitives", noRawPrimitivesRule, {
       code: `export function open(require: (id: string) => { View: unknown }) {\n  return function load() {\n    const { View } = require("react-native");\n    return View;\n  };\n}`,
     },
     {
+      // The pair of the adversarial nested-destructure case: the outer key IS what the module
+      // hands over, so `Animated` is what gets asked about, and `View` — a property of it rather
+      // than an export — is deliberately not reported as one.
       name: "a nested destructure reads the outer key, and the inner name is not an export",
       filename: COMPONENT,
       code: `const { Animated: { View } } = require("react-native");\nexport const used = View;`,

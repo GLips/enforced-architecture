@@ -15,9 +15,12 @@
 // (`process.env`) matches that prefix and everything under it.
 //
 // `alsoImportedFrom` covers a capability that a module also exports, where the
-// module spelling avoids every check that matches a global. The re-export is the
-// one to understand: `export { env } from "node:process"` gives the capability
-// to every importer of this module, and the file that writes it reads nothing.
+// module spelling avoids every check that matches a global. It is a LIST of
+// module names — `["node:process", "process"]`, matched exactly — and every
+// spelling of the module that a project actually writes is a row rather than a
+// pattern to be widened later. The re-export is the one to understand:
+// `export { env } from "node:process"` gives the capability to every importer of
+// this module, and the file that writes it reads nothing.
 //
 // A global that is not on the list is unrestricted. Keep the list to the
 // capabilities with a real owner; a longer one teaches people the rule is
@@ -54,14 +57,44 @@
 // `await import()`, bound, destructured, or read straight off the load
 // expression. A bare `globalPath` gets no `alsoImportedFrom` at all, and the
 // policy type refuses the pairing rather than half-honouring it: the module
-// object stands in for the segment above the capability, and a bare path has no
-// segment above it. What is NOT followed is the capability passed on as a
-// value (`f(process)`), a module bound by assignment rather than declaration,
-// and `import("node:process").then(({ env }) => …)`, where the name is a
-// callback parameter and following it means following the promise. The module
-// spellings share lib/imported-names.ts with the two style rules that fence on
-// names, so its blind spots — chiefly a specifier that is not a literal or a
-// substitution-free template — are this rule's too.
+// object stands in for the segments above the capability, and a bare path has no
+// segment above it.
+//
+// NONE of those spellings is walked here. `lib/imported-names.ts` owns every one
+// of them, for this rule and for the two style rules that fence on names, and
+// this rule asks it the same question they do — which names does this file take
+// from these modules — then matches the answer against the last segment of each
+// `globalPath`. So its blind spots are this rule's: a specifier that is not a
+// literal or a substitution-free template, a computed key that is not a string
+// literal, a module bound by assignment rather than declaration, a destructure
+// that binds no name at all, the INNER name of a nested destructure — for the
+// `process.env` row `const { env: { KEY } } = …` reports, because `env` is the
+// key the module hands over and the row's capability; a row whose capability sat
+// at the inner name instead would not — and
+// `import("node:process").then(({ env }) => …)`, where the name is a callback
+// parameter and following it means following the promise. The capability passed
+// on as a value (`f(process)`) is not followed either, by that file or this one.
+//
+// DEPTH is not a blind spot, and the arithmetic holds at any: the module object
+// stands in for every segment of the `globalPath` above the LAST, so a row
+// `a.b.c` makes `require("m").c` the read and `require("m").a` nothing. This is
+// the one place the module spellings and the global walk describe the path
+// differently — the global walk matches `a.b.c` whole — and they agree on which
+// read is the capability, which is what matters. Every arm answers through
+// `capabilityExport` so there is one answer rather than one per arm; the
+// previous regex-selected version had two arms disagreeing about it, and no row
+// deep enough to show it.
+//
+// Re-exports are the one module spelling this file still walks itself. That file
+// answers what a module hands to THIS file; a re-export hands it to code neither
+// of them sees, and both the blame node and the message differ.
+//
+// A module spelling not in the list is not covered, and there is no near-miss
+// matching: a wrapper package that re-exports `env` under its own name, a
+// subpath, or a bundler alias reaches the capability and reports nothing. That
+// is the price of the list being enumerable, and it is the right price — the
+// alternative is a pattern, which an adopter widens until the capability has no
+// owner. Add the spelling as a row.
 //
 // SCOPE, and it is the same for every TREE-SCOPED rule in this catalog — which
 // is every rule but `testing/no-module-mocking`, whose subject is a test file and
@@ -74,25 +107,13 @@
 
 import { apiClientModule, browserStorageModule } from "../../policy/layout.ts";
 import { defineTreeRule } from "../lib/define-tree-rule.ts";
-import {
-  defineRule,
-  type ESTree,
-  type Reference,
-  type SourceCode,
-} from "@oxlint/plugins";
+import type { ESTree, Reference, SourceCode } from "@oxlint/plugins";
 import { type FileRole, isModule } from "../../policy/declared-trees.ts";
 import type { TreeVocabulary } from "../../policy/layout.ts";
-import {
-  exportedName,
-  runtimeImportSpecifier,
-  visitUnboundModuleObjects,
-} from "../lib/imported-names.ts";
+import { exportedName, visitImportedNames } from "../lib/imported-names.ts";
 import { sourceOrderedReports } from "../lib/source-ordered-reports.ts";
 import { staticKeyName } from "../lib/static-key-name.ts";
-import {
-  isTransparentWrapper,
-  outermostTransparentWrapper,
-} from "../lib/transparent-wrappers.ts";
+import { isTransparentWrapper } from "../lib/transparent-wrappers.ts";
 
 type AmbientGlobalPolicyBase = {
   /**
@@ -113,11 +134,12 @@ type AmbientGlobalPolicyBase = {
 /**
  * `alsoImportedFrom` is available only on a DOTTED `globalPath`, and the type is what says so.
  *
- * The module object stands in for the segment above the capability — `require("node:process")` is
+ * The module object stands in for the segments above the capability — `require("node:process")` is
  * `process`, so `.env` off it is `process.env`. A bare path has no segment above it, so there is
- * nothing for the module to be, and every arm below would need a second answer for the case. Five
- * arms once carried a `segments.length >= 2` cut for it that no fixture could reach, and they did
- * not all agree. Making the pairing unwritable deletes the cut instead of repeating it.
+ * nothing for the module to be, and `capabilityExport` below would be the whole path: every read
+ * of a name equal to the global would report, from any listed module. Five arms once carried a
+ * `segments.length >= 2` cut for that case which no fixture could reach, and they did not all
+ * agree. Making the pairing unwritable deletes the cut instead of repeating it.
  */
 type AmbientGlobalPolicy = AmbientGlobalPolicyBase &
   (
@@ -133,8 +155,22 @@ type AmbientGlobalPolicy = AmbientGlobalPolicyBase &
     | {
         /** The read as it is spelled in source, host-free: `process.env`. */
         globalPath: `${string}.${string}`;
-        /** Modules that hand the same capability out as a binding. */
-        alsoImportedFrom: RegExp;
+        /**
+         * Modules that hand the same capability out as a binding, spelled out one by one.
+         *
+         * A LIST, never a pattern. `/^(?:node:)?process$/` said the same thing this row's two
+         * strings say, and cost the rule its share of `lib/imported-names.ts`: a module set
+         * matched by predicate cannot be handed to a helper that selects by name, so the rule
+         * carried a private copy of the module walk, and the copy is how a cast inside an `await`
+         * escaped it while the two style rules caught it. The knob was also an off-switch in a
+         * costume — a pattern is the one config shape an adopter can widen until the capability
+         * has no owner at all, which is the thing this catalog's posture rules out.
+         *
+         * Matched EXACTLY, so every spelling that reaches the module is a row: `process` and
+         * `node:process` are both here. A wrapper package that re-publishes the capability under
+         * its own name is not covered and is not meant to be — see the header.
+         */
+        alsoImportedFrom: readonly string[];
       }
   );
 
@@ -159,7 +195,7 @@ function restrictedAmbientGlobals(vocabulary: TreeVocabulary): AmbientGlobalPoli
       allowedIn: envModules,
       owner: alias(envOwner),
       why: envWhy,
-      alsoImportedFrom: /^(?:node:)?process$/,
+      alsoImportedFrom: ["node:process", "process"],
     },
     {
       // The same capability under the bundler's spelling. A project on Vite alone can drop the
@@ -188,6 +224,24 @@ function restrictedAmbientGlobals(vocabulary: TreeVocabulary): AmbientGlobalPoli
 /** True when `role` is one of the modules a policy names as an owner. */
 function isOwnerModule(role: FileRole, policy: AmbientGlobalPolicy): boolean {
   return policy.allowedIn.some((module) => isModule(role, module));
+}
+
+/**
+ * The export that IS the capability: the last segment of the `globalPath`.
+ *
+ * The module object stands in for every segment ABOVE it — `require("node:process")` is `process`,
+ * so `env` off it is `process.env`, and for a row `a.b.c` the module would be `a.b`. That is the
+ * arithmetic `lib/imported-names.ts` forces: it hands over ONE key read off a module binding,
+ * whatever the depth of the path that key completes. THE ONLY ANSWER in the file, deliberately —
+ * every arm that needs it calls this, because the regex-selected version it replaced computed the
+ * module's stand-in from the FIRST segment in its member walk and the export from the LAST in its
+ * specifier arm, and no row was deep enough for the two to be seen disagreeing. Answered for a
+ * bare `globalPath` too,
+ * where it is the whole path: harmless, because the policy type admits `alsoImportedFrom` only
+ * beside a dotted one, so no bare row is ever looked up by specifier.
+ */
+function capabilityExport(policy: AmbientGlobalPolicy): string {
+  return policy.globalPath.slice(policy.globalPath.lastIndexOf(".") + 1);
 }
 
 // A global is reachable as a property of the global object, which is a different node shape for the
@@ -236,6 +290,12 @@ export const ambientGlobalsRule = defineTreeRule({
     );
     if (enforced.length === 0) return {};
 
+    // Every module any enforced policy names — the one set `visitImportedNames` is asked about.
+    // NOT deduplicated, and a `new Set` here would be a guard that cannot change an answer dressed
+    // as one that can: the consumer asks `includes`, which is indifferent to a repeat. Nor is the
+    // empty case guarded — an empty list is the helper's own answer that no specifier matches.
+    const capabilityModules = enforced.flatMap((policy) => policy.alsoImportedFrom ?? []);
+
     // Roots are collected and walked at Program:exit rather than reported as they are found: the
     // scope analysis is a whole-file answer, and sorting by position keeps the diagnostics in
     // source order however the references were grouped.
@@ -269,66 +329,18 @@ export const ambientGlobalsRule = defineTreeRule({
       });
     };
 
-    /**
-     * The two ends of a dotted path whose `alsoImportedFrom` covers the specifier: the segment the
-     * MODULE stands in for (`process` for `require("node:process")`), and the export that IS the
-     * capability (`env`).
-     *
-     * Never empty. The policy type admits `alsoImportedFrom` only beside a dotted `globalPath`, so
-     * a matched policy always has a segment above its capability.
-     */
-    const importedCapability = (
-      policy: AmbientGlobalPolicy,
-      specifier: string,
-    ): { moduleStandsFor: string; capabilityExport: string } | undefined => {
-      if (policy.alsoImportedFrom === undefined || !policy.alsoImportedFrom.test(specifier)) {
-        return undefined;
-      }
-      // No fallback on either end. The type admits `alsoImportedFrom` only beside a dotted path,
-      // so both sides of the first `.` are non-empty, and a `?? ""` here would be a branch no
-      // input reaches dressed up as a decision.
-      return {
-        moduleStandsFor: policy.globalPath.slice(0, policy.globalPath.indexOf(".")),
-        capabilityExport: policy.globalPath.slice(policy.globalPath.lastIndexOf(".") + 1),
-      };
-    };
-
-    /**
-     * Rebinds a module binding that IS the path's first segment, so reads through it rejoin the
-     * ordinary member walk under the name the global would have had.
-     */
-    const rebindAsPathRoot = (declaration: ESTree.Node, localName: string, path: string) => {
-      for (const variable of context.sourceCode.getDeclaredVariables(declaration)) {
-        if (variable.name !== localName) continue;
-        for (const reference of variable.references) {
-          roots.push({ node: reference.identifier, path });
-        }
-      }
-    };
-
-    /**
-     * Records a read taken straight off a load expression, which binds no name for the reference
-     * walk to find: `(await import("node:process")).env`, `require("node:process").env`.
-     *
-     * `lib/imported-names.ts` owns the walk that finds `moduleObject`. It used to be a copy here,
-     * and the copy is how a cast inside the await escaped this rule while the two style rules
-     * caught it.
-     */
-    const pushUnboundLoadRoot = (specifier: string, moduleObject: ESTree.Node) => {
-      for (const policy of enforced) {
-        const capability = importedCapability(policy, specifier);
-        if (capability === undefined) continue;
-        roots.push({ node: moduleObject, path: capability.moduleStandsFor });
-      }
-    };
+    /** The enforced policies whose `alsoImportedFrom` names this module. */
+    const policiesImportedFrom = (specifier: string): AmbientGlobalPolicy[] =>
+      enforced.filter((policy) => policy.alsoImportedFrom?.includes(specifier) === true);
 
     /**
      * Reports the properties of a destructure whose keys complete a restricted path.
      *
-     * `basePath` is what the destructured object IS: the host's empty path for `const { fetch } =
-     * window`, and the segment the module stands in for — `process` — for
-     * `const { env } = require("node:process")`. Both callers pass one of those two; there is no
-     * third case, because a bare `globalPath` cannot carry `alsoImportedFrom`.
+     * `basePath` is what the destructured object IS, and it only ever comes from the GLOBAL walk:
+     * the host's empty path for `const { fetch } = window`, and the read so far for
+     * `const { env } = process`. The module spellings of the same destructure —
+     * `const { env } = require("node:process")` — are `lib/imported-names.ts`'s, which hands over
+     * the key rather than the pattern, so nothing here has a module case to answer.
      */
     const reportDestructuredMembers = (pattern: ESTree.Node, basePath: string) => {
       if (pattern.type !== "ObjectPattern") return;
@@ -393,49 +405,34 @@ export const ambientGlobalsRule = defineTreeRule({
         if (node.meta.name === "import") roots.push({ node, path: "import.meta" });
       },
 
-      // Importing the binding sidesteps every global-shaped check above.
-      ImportDeclaration(node) {
-        // A type-only import pulls in no runtime value, so it cannot read the capability.
-        if (node.importKind === "type") return;
-        for (const policy of enforced) {
-          const capability = importedCapability(policy, node.source.value);
-          if (capability === undefined) continue;
-
-          for (const specifier of node.specifiers) {
-            if (specifier.type === "ImportSpecifier" && specifier.importKind === "type") continue;
-            // A namespace or default binding IS the path's first segment under another name, so
-            // reads through it are ordinary member reads and rejoin the same walk. `{ default as
-            // proc }` is the default export wearing a named specifier's node shape, and comparing
-            // it against the capability's export name — which is what it is NOT — lets it through.
-            const rebinds =
-              specifier.type !== "ImportSpecifier" ||
-              exportedName(specifier.imported) === "default";
-            if (rebinds) {
-              rebindAsPathRoot(node, specifier.local.name, capability.moduleStandsFor);
-              continue;
-            }
-            if (exportedName(specifier.imported) === capability.capabilityExport) {
-              report(specifier, policy, "ambientGlobalOutsideOwner");
-            }
-          }
-        }
-      },
+      // Importing the binding sidesteps every global-shaped check above — and the module spellings
+      // that reach it are `lib/imported-names.ts`'s whole subject, so this rule asks it rather
+      // than walking them. `env` from `node:process` is `View` from `react-native` with a
+      // different consequence: one name, taken from a named module, under the exporting module's
+      // own spelling.
+      //
+      // ONE call, with every module any enforced policy names. A second call would give the
+      // spread a second `Program` key and silently drop the first one's whole scope sweep.
+      ...visitImportedNames(context.sourceCode, capabilityModules, (name, node, specifier) => {
+        const policy = policiesImportedFrom(specifier).find(
+          (candidate) => capabilityExport(candidate) === name,
+        );
+        if (policy !== undefined) report(node, policy, "ambientGlobalOutsideOwner");
+      }),
 
       // `export { env } from "node:process"` launders the capability for every downstream importer
       // while this file stays clean of it — the same reach, one keyword over, and the only spelling
-      // here that hands the global to code the rule will never see.
+      // here that hands the global to code the rule will never see — which is also why
+      // `lib/imported-names.ts` does not answer for it, and this arm walks the specifiers itself.
       ExportNamedDeclaration(node) {
         if (node.source === null || node.exportKind === "type") return;
-        for (const policy of enforced) {
-          const capability = importedCapability(policy, node.source.value);
-          if (capability === undefined) continue;
-
+        for (const policy of policiesImportedFrom(node.source.value)) {
           for (const specifier of node.specifiers) {
             if (specifier.exportKind === "type") continue;
             // `export { default as proc }` re-exports the module object, which IS the segment above
             // the capability — so it launders the capability exactly as the named export does.
             const source = exportedName(specifier.local);
-            if (source === capability.capabilityExport || source === "default") {
+            if (source === capabilityExport(policy) || source === "default") {
               report(specifier, policy, "ambientGlobalReExported");
             }
           }
@@ -444,52 +441,10 @@ export const ambientGlobalsRule = defineTreeRule({
 
       ExportAllDeclaration(node) {
         if (node.exportKind === "type") return;
-        for (const policy of enforced) {
-          if (importedCapability(policy, node.source.value) === undefined) continue;
+        for (const policy of policiesImportedFrom(node.source.value)) {
           // A star re-export republishes every export of the module under this file's name — the
           // one carrying the capability included — and names no specifier to blame.
           report(node.source, policy, "ambientGlobalReExported");
-        }
-      },
-
-      // `(await import("node:process")).env` and `require("node:process").env` load the module and
-      // read the capability in one expression, binding nothing — so no declaration and no
-      // reference names either, and only the AST has them. The shared walk is restricted to the
-      // member read: the spellings that DO bind a name belong to the VariableDeclarator arm below,
-      // and two arms reaching one read report it twice.
-      ...visitUnboundModuleObjects(context.sourceCode, pushUnboundLoadRoot),
-
-      // `import process = require("node:process")` binds the module and reaches no
-      // ImportDeclaration. Only the rebinding is needed — a type-only import-equals can be read
-      // only in type position, which is a TSQualifiedName the member walk never matches, so it
-      // falls out with no `importKind` guard.
-      TSImportEqualsDeclaration(node) {
-        if (node.moduleReference.type !== "TSExternalModuleReference") return;
-        const specifier = node.moduleReference.expression.value;
-        for (const policy of enforced) {
-          const capability = importedCapability(policy, specifier);
-          if (capability !== undefined) {
-            rebindAsPathRoot(node, node.id.name, capability.moduleStandsFor);
-          }
-        }
-      },
-
-      // `const process = require("node:process")` is the CommonJS spelling of the same reach, and
-      // `const { env } = await import("node:process")` is the ESM one. No import visitor sees
-      // either.
-      VariableDeclarator(node) {
-        const specifier = runtimeImportSpecifier(node.init, context.sourceCode);
-        if (specifier === undefined) return;
-        for (const policy of enforced) {
-          const capability = importedCapability(policy, specifier);
-          if (capability === undefined) continue;
-          if (node.id.type === "ObjectPattern") {
-            reportDestructuredMembers(node.id, capability.moduleStandsFor);
-            continue;
-          }
-          if (node.id.type === "Identifier") {
-            rebindAsPathRoot(node, node.id.name, capability.moduleStandsFor);
-          }
         }
       },
 

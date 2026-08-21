@@ -11,7 +11,13 @@
 //
 // VENDOR_MODULE matches one exact specifier. A library that also serves its
 // components from subpaths (`@mantine/core/Textarea`) keeps this rule green
-// while the call site holds the unwrapped original. Widen it to a RegExp there.
+// while the call site holds the unwrapped original. NOT a pattern to widen:
+// `lib/imported-names.ts` takes a list of exact module names and has no
+// overload that takes one, because a module set matched by predicate is the
+// off-switch this catalog's posture rules out. A subpath that matters is another
+// name on that list — and this constant is one string because it is also the
+// `{{vendor}}` the diagnostic prints, so plural-ising it is a design question
+// about which name the message says, not an edit.
 //
 // The `why` field is the text of the diagnostic. An agent fixes what the
 // message explains, so write the convention the wrapper carries in one

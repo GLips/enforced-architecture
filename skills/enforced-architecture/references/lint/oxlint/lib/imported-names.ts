@@ -7,9 +7,14 @@ import {
 } from "./transparent-wrappers.ts";
 
 // Every name a file takes from a NAMED SET of modules, under the exporting module's spelling. A
-// rule that fences on names — `View` from react-native, `Textarea` from @mantine/core — asks this
-// question and nothing else, so asking it in one place is what stops each rule answering it
-// differently.
+// rule that fences on names — `View` from react-native, `Textarea` from @mantine/core, `env` from
+// node:process — asks this question and nothing else, so asking it in one place is what stops each
+// rule answering it differently.
+//
+// The set is a LIST OF MODULE NAMES — exact spellings, never a pattern, and there is no overload
+// that takes one: a module set matched by predicate is the off-switch-in-a-costume the
+// catalog's posture rules out, and it is also what kept `boundary/ambient-globals` on a private
+// copy of this walk long enough for the two to disagree about a cast inside an await.
 //
 // This reads oxlint's scope analysis rather than walking ImportDeclarations. Not a refactor: an
 // ImportDeclaration visitor cannot see `import * as RN; RN.View` at all, because the name never
@@ -21,8 +26,7 @@ import {
 //
 // Scope analysis does not link `require()` or `await import()` to a module at all: those bindings
 // arrive as an ordinary `Variable` definition with no module attached, so their specifier is read
-// off the declarator's initializer. That half is unavoidable AST work, and `boundary/
-// ambient-globals` reads the same `runtimeImportSpecifier` for it.
+// off the declarator's initializer. That half is unavoidable AST work.
 //
 // NEGATIVE SPACE, and each of these is a spelling that reaches the module and reports nothing:
 //   - A computed key that is not a string literal (`RN[name]`) — see `staticKeyName`.
@@ -32,9 +36,15 @@ import {
 //     following it means following the promise, which is a whole-program question.
 //   - A module bound by assignment rather than by declaration (`let RN; RN = require("m")`): the
 //     binding's definition carries no initializer, so nothing links it to a module.
-//   - A name reached through a NESTED destructure (`const { Animated: { View } } = require("m")`).
-//     The export actually read is the outer key, which binds nothing and so has no Variable; the
-//     inner name is not an export of the module and is deliberately not reported as one.
+//   - The INNER name of a nested destructure (`const { Animated: { View } } = require("m")`). The
+//     export the module hands over is `Animated`, and that outer key IS reported; `View` is a
+//     property of it rather than an export, and reporting it would name one the module does not
+//     have.
+//   - A destructure that binds NO name at all (`const { View: {} } = require("m")`). Every answer
+//     here starts from a `Variable`, and a pattern with nothing in it creates none. Any bound name
+//     anywhere in the pattern brings the whole pattern back — `{ View: {}, Text }` reports both —
+//     and a pattern that binds nothing hands the file nothing a later line can read, which is why
+//     this is stated rather than closed with a second sweep from the AST side.
 //   - The CommonJS interop hop, `require("m").default.View` and `RN.default.View`. `default` is
 //     followed on the SPECIFIER side, where an ImportBinding says structurally that the name is the
 //     module object; a member read cannot be told apart from an export genuinely called `default`,
@@ -73,7 +83,7 @@ export function exportedName(name: ESTree.ModuleExportName): string {
  * module loader is the one that resolves to no declaration; a parameter or a local named `require`
  * has one, and calling it loads nothing.
  */
-export function runtimeImportSpecifier(
+function runtimeImportSpecifier(
   node: ESTree.Node | null | undefined,
   sourceCode: SourceCode,
 ): string | undefined {
@@ -128,17 +138,13 @@ function isRebound(identifier: ESTree.IdentifierReference, sourceCode: SourceCod
  * `require("m").View`, `(await import("m")).env`. The callback gets the module's specifier and the
  * node that IS the module object, whose parent is the member read.
  *
- * Separate from `visitImportedNames` because two rules need the same walk and want different
- * answers from it: a name fence wants the key, and `boundary/ambient-globals` wants the module
- * object to keep walking members from. It is a shared export rather than a second copy because two
- * copies of this exact walk is what let `(await (import("m") as never)).env` escape one rule while
- * the other caught it — the same cast, the same walk, two answers.
- *
- * `boundary/ambient-globals` cannot share `visitImportedNames` itself, and should not: it selects
- * modules by RegExp, and a module set that took a pattern would be the predicate-shaped knob the
- * catalog's posture rules out. It shares the walk and keeps its own selection.
+ * PRIVATE, and it must stay that way. It was exported once, for a second rule that wanted the
+ * module object rather than the key — and having the walk reachable from outside is what let that
+ * rule keep its own module selection beside this file's. Two copies of this exact walk had already
+ * let `(await (import("m") as never)).env` escape one rule while the other caught it: the same
+ * cast, the same walk, two answers. A rule that needs this needs `visitImportedNames`.
  */
-export function visitUnboundModuleObjects(
+function visitUnboundModuleObjects(
   sourceCode: SourceCode,
   onModuleObject: (specifier: string, moduleObject: ESTree.Node) => void,
 ): Visitor {
@@ -175,10 +181,11 @@ export function visitUnboundModuleObjects(
  * The name is always the EXPORTING module's: `import { View as Screen }` reports `View`, because
  * the fence is on what the module hands over, not on what this file decided to call it.
  *
- * A SET of modules rather than one, though every rule in the catalog fences a single module today.
- * The visitor this returns is spread into a rule's own visitor object, so a rule calling it twice
- * would have the second call's `Program` key silently overwrite the first's — one whole module
- * going unchecked with nothing to see. Taking the set is what makes that unwritable.
+ * A SET of modules rather than one: `boundary/ambient-globals` fences `process` and `node:process`,
+ * which are one module under two spellings. The visitor this returns is spread into a rule's own
+ * visitor object, so a rule calling it twice would have the second call's `Program` key silently
+ * overwrite the first's — one whole module going unchecked with nothing to see. Taking the set is
+ * what makes that unwritable.
  *
  * Callbacks fire in no particular order, and deliberately: the scope sweep runs at `Program` while
  * the two spellings that bind nothing are found mid-traversal, so nothing here can put a file's
@@ -312,34 +319,40 @@ export function visitImportedNames(
     take(name, specifier, from);
   };
 
+  /**
+   * Declarators whose pattern has already been read. Every name a destructure binds is its own
+   * Variable pointing at the SAME declarator, so without this the pattern is read once per name
+   * bound and every key draws that many diagnostics.
+   *
+   * Per FILE, not per rule: the visitor this closure belongs to is built inside `create`, which
+   * oxlint calls once per source file.
+   */
+  const patternsRead = new Set<ESTree.Node>();
+
   const takeFromRuntimeImportBinding = (variable: Variable, definition: Definition) => {
     const declarator = definition.node;
     if (declarator.type !== "VariableDeclarator") return;
     const specifier = runtimeImportSpecifier(declarator.init, sourceCode);
     if (specifier === undefined || !moduleSpecifiers.includes(specifier)) return;
 
-    // Each name in a destructure is its own Variable pointing at the SAME declarator, so the whole
-    // pattern must not be read here — it would report every key once per key bound. The binding's
-    // own property is the one this Variable is about, one node further out when the binding carries
-    // a default (`const { View = Fallback } = …`), which is an AssignmentPattern in between.
-    const bound: ESTree.Node = definition.name;
-    const holder: ESTree.Node | null | undefined = bound.parent;
-    const property: ESTree.Node | null | undefined =
-      holder !== null && holder !== undefined && holder.type === "AssignmentPattern"
-        ? holder.parent
-        : holder;
-    if (property !== null && property !== undefined && property.type === "Property") {
-      // Only a property of the declarator's OWN pattern reads an export. In
-      // `const { Animated: { View } } = require("m")` the export read is `Animated`; `View` is a
-      // property of it, and reporting `View` would name an export the module does not have.
-      if (property.parent !== declarator.id) return;
-      const key = staticKeyName(property.key, property.computed);
-      if (key !== undefined) take(key, property, specifier);
-      return;
-    }
     // Only a binding that IS the whole module object reads members off it. An array pattern
     // (`const [RN] = require("m")`) binds an element of it, which is not the module.
-    if (declarator.id === definition.name) takeNamespaceReads(variable, specifier);
+    if (declarator.id === definition.name) {
+      takeNamespaceReads(variable, specifier);
+      return;
+    }
+
+    // Otherwise the name sits somewhere inside a destructure, and the exports read are the keys of
+    // the declarator's OWN pattern — whatever depth the binding that led here was found at. Read
+    // from the pattern rather than climbing back up from the binding: `const { env: { KEY } } =
+    // require("m")` binds only `KEY`, whose own property belongs to the inner pattern, so a climb
+    // that stops at "not a direct child of `declarator.id`" reports nothing for a file that plainly
+    // takes `env` from the module. Reading the pattern is also what makes this agree with the
+    // namespace spelling — `const RN = require("m"); const { env: { KEY } } = RN` has always
+    // reported `env`, through `takeNamespaceReads` above.
+    if (patternsRead.has(declarator)) return;
+    patternsRead.add(declarator);
+    takePatternKeys(declarator.id, specifier);
   };
 
   return {

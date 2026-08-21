@@ -66,6 +66,24 @@ describeRule("boundary/ambient-globals", ambientGlobalsRule, {
       errors: [{ messageId: "ambientGlobalOutsideOwner" }],
     },
     {
+      // The SECOND row of `alsoImportedFrom`, and the reason it is a list rather than one name.
+      // Node resolves `process` and `node:process` to the same module, so a fence carrying only
+      // the prefixed spelling is off for the shorter one — which is the one older code writes.
+      name: "the unprefixed spelling of the same module, which resolves to it and is a separate row",
+      filename: SERVICE,
+      code: `import { env } from "process";\nexport const key = env.STRIPE_KEY;`,
+      errors: [{ messageId: "ambientGlobalOutsideOwner" }],
+    },
+    {
+      // The capability is the OUTER key. The binding the destructure introduces is a property of
+      // `env` rather than an export of the module, so a walk that starts from the bound name and
+      // asks for its own property finds one the module never handed over, and reports nothing.
+      name: "a nested destructure, where the only name bound is one level below the capability",
+      filename: SERVICE,
+      code: `const { env: { STRIPE_KEY } } = require("node:process");\nexport const key = STRIPE_KEY;`,
+      errors: [{ messageId: "ambientGlobalOutsideOwner" }],
+    },
+    {
       name: "a namespace import renames the global but not the read",
       filename: SERVICE,
       code: `import * as process from "node:process";\nexport const key = process.env.STRIPE_KEY;`,
@@ -403,6 +421,15 @@ describeRule("boundary/ambient-globals", ambientGlobalsRule, {
       name: "a type-only star re-export republishes no runtime capability",
       filename: SERVICE,
       code: `export type * from "node:process";`,
+    },
+    {
+      // NEGATIVE SPACE, stated as a case so it cannot be mistaken for coverage. `alsoImportedFrom`
+      // is an enumerable list matched exactly, so a wrapper package that re-publishes the same
+      // `env` under its own name reaches the capability and reports nothing. The alternative is a
+      // pattern, which is the knob this catalog's posture rules out — the fix is another row.
+      name: "a module not on the list, which reaches the same capability under its own name",
+      filename: SERVICE,
+      code: `import { env } from "std-env";\nexport const key = env.STRIPE_KEY;`,
     },
     {
       name: "a global nobody listed is a global this rule takes no stance on",
