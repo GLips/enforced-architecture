@@ -189,14 +189,16 @@ apart on exclusions and on what counts as an import, and neither copy reports th
   a union over the two, so a check cannot receive a context its scope never produces. File collection
   is a free function taking a context, not a member of one.
 - **`import-graph.ts`** — the resolved graph for one tree, plus `scanDeclaredImports` for the one
-  check that needs raw specifiers instead. Any check asking where an import *lands* consumes the
-  graph rather than matching how the specifier is spelled.
+  check needing raw specifiers. Any check asking where an import *lands* consumes the graph rather
+  than matching how the specifier is spelled.
+- **`module-resolution.ts`** — where one specifier lands, over `oxc-resolver` (`bun add -d
+  oxc-resolver`, the tier's one dependency). It sees what path arithmetic cannot: `./rows.js`
+  naming `rows.ts`, a directory naming its barrel. No knob — it reads the tree's vocabulary.
 - **`registry.ts`** — the check list, copied whole.
 - **`run-structural-checks.ts`** — the orchestrator.
 
 Centralising the same *pattern* into a shared file reduces duplication and fixes no correctness.
 Reach for the reader at the same time, or the shared module is only tidier, not better.
-
 **`Bun.Transpiler` answers questions about imports and exports, and nothing else.** It exposes import
 paths and kinds, export names, and transformed JavaScript. It does not expose component boundaries,
 call expressions, parameter structure, or TypeScript property signatures, and `transform()` erases

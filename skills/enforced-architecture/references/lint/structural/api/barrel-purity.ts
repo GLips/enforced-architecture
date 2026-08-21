@@ -9,7 +9,10 @@
 // This check does not use the resolved import graph. Graph resolution discards
 // bare package specifiers as "not a boundary question", and bare package names
 // are the subject of this check. It shares the extraction instead, through
-// scanDeclaredImports.
+// scanDeclaredImports, and the RESOLUTION through context.resolveModule — the
+// same resolver the graph runs on. It used to hand-roll a suffix list against
+// the disk, which is how `./target.js` naming `target.ts` ended a trace without
+// a word; every message here carried a paragraph apologising for that.
 //
 // Do not add the pass that recovers "import type" edges. Both Bun scans erase
 // those edges, and this check wants that erasure. A type-only import makes no
@@ -77,14 +80,8 @@
 //
 // ──────────────────────────────────────────────────────────────────────
 
-import { statSync } from "node:fs";
-import { dirname, extname, resolve } from "node:path";
-import {
-  packageNameOf,
-  SOURCE_EXTENSIONS,
-  subdividedDirs,
-  type TreeVocabulary,
-} from "../../policy/layout.ts";
+import { extname } from "node:path";
+import { packageNameOf, SOURCE_EXTENSIONS, subdividedDirs } from "../../policy/layout.ts";
 import { scanDeclaredImports } from "../import-graph.ts";
 import {
   blankComments,
@@ -119,58 +116,28 @@ function runtimeSpecifiers(absolute: string, source: string, jsxImportSource: st
 }
 
 /**
- * Tried in order, and the order is the approximation: an exact path wins, then
- * the extensions, then the directory barrel. This stands in for TypeScript's
- * module resolution without the compiler API, and its gaps are named in every
- * message this check emits — a specifier it cannot resolve ends a trace silently.
+ * The FILE the next hop of a trace is in, or undefined when there is no file to
+ * open — a package, an asset, a path out of the tree, or a specifier nothing on
+ * disk backs.
  *
- * The directory-barrel forms are spelled from the tree's own barrel module, so a
- * tree calling its barrel something other than `index` still resolves the hop.
- */
-function resolutionSuffixes(vocabulary: TreeVocabulary): string[] {
-  const barrel = vocabulary.clientBarrelModule;
-  return [
-    "",
-    ...SOURCE_EXTENSIONS.map((extension) => `.${extension}`),
-    ...SOURCE_EXTENSIONS.map((extension) => `/${barrel}.${extension}`),
-  ];
-}
-
-/**
- * Where an internal specifier lands, or undefined when it is not internal.
+ * The resolution itself is the tier's shared one, `context.resolveModule`. Only
+ * the collapse to "a file or nothing" is local, and it is what makes this check
+ * different from the import graph over the same resolver: the graph keeps an
+ * edge whose target no file backs, because a position is still a position, while
+ * a trace has nothing to read there and stops.
  *
  * Aliased specifiers are followed as well as relative ones. They are the same
  * edge written differently, and following only relative ones ends the trace at
  * the first `@/shared/…` hop and reports the barrel clean.
  */
-function resolveTracedImport(
+function traceableFile(
   context: TreeContext,
   fromFile: string,
   specifier: string,
 ): string | undefined {
-  const { aliasPrefix } = context.vocabulary;
-  const base = specifier.startsWith(aliasPrefix)
-    ? resolve(context.sourceRoot, specifier.slice(aliasPrefix.length))
-    : specifier.startsWith(".")
-      ? resolve(dirname(fromFile), specifier)
-      : undefined;
-
-  if (base === undefined) return undefined;
-
-  for (const suffix of resolutionSuffixes(context.vocabulary)) {
-    const candidate = `${base}${suffix}`;
-    // `isFile` matters for the empty suffix: a specifier naming a directory
-    // exists on disk and is not a module.
-    if (statSync(candidate, { throwIfNoEntry: false })?.isFile() === true) return candidate;
-  }
-  return undefined;
+  const target = context.resolveModule(fromFile, specifier);
+  return target?.resolved === true ? target.absolute : undefined;
 }
-
-const RESOLUTION_NOTE =
-  `Resolution here tries the exact path, then every source extension, then the\n` +
-  `directory barrel under each. It does not SUBSTITUTE extensions the way TypeScript\n` +
-  `does (./target.js → target.ts), so a hop spelled that way ends the trace without\n` +
-  `a word.`;
 
 /**
  * True when `specifier` reaches a package that cannot be in a client bundle.
@@ -523,13 +490,12 @@ export const barrelPurityCheck: StructuralCheck = {
                     `Every client component and route may import this barrel, so the whole chain\n` +
                     `lands in the client bundle and the build breaks. Move the server-only export\n` +
                     `to the sibling ${serverBarrel}, or put it behind a server function.\n` +
-                    `The package list is \`serverOnlyPackages\` in the project's architecture config.\n` +
-                    RESOLUTION_NOTE,
+                    `The package list is \`serverOnlyPackages\` in the project's architecture config.`,
                 );
                 continue;
               }
 
-              const target = resolveTracedImport(context, absolute, specifier);
+              const target = traceableFile(context, absolute, specifier);
               if (target === undefined || visited.has(target)) continue;
 
               if (depth + 1 > maxTraceDepth) {

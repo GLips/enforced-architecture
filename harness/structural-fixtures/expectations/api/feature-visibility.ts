@@ -40,6 +40,18 @@ export const featureVisibilityFixtures: CheckFixtures = {
     // here is end-to-end cover for a feature shape the walkers disagree about,
     // and it is cheap; `remote` is its cleared twin.
     "FAIL src/features/hidden/visibility.json",
+    // stalepath imports a module of `mislaid` that NO FILE ON DISK BACKS — the
+    // module was renamed away, and the specifier still names the position it
+    // used to hold. The crossing is real and ungranted whether or not the far
+    // end is currently there, so the graph has to keep the edge.
+    //
+    // This is the only fixture in the tree that reaches the resolver's
+    // unresolved arm: everything else resolves, so a graph that DROPPED what it
+    // cannot follow passes every other case here while quietly answering "not a
+    // boundary question" for an import that plainly crosses one. It is
+    // feature-visibility's entry only because this check is the one that reports
+    // it; what it holds down is the substrate underneath every check in the tier.
+    "FAIL src/features/mislaid/visibility.json",
     // bribed grants briber with an EMPTY justification, and briber imports
     // bribed. Honour the entry and the edge is granted and the check falls
     // silent — so the assertion is a FAIL that only exists because the file is

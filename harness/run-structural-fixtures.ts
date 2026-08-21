@@ -28,7 +28,7 @@
  * through both is not testing anything.
  */
 
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -41,7 +41,11 @@ import {
 } from "./structural-fixtures/config.ts";
 import type { CheckFixtures, GeneratedFixture } from "./structural-fixtures/expectations.ts";
 import type { ArchitectureConfig } from "../skills/enforced-architecture/references/lint/structural/config.ts";
-import type { Finding, StructuralCheck } from "../skills/enforced-architecture/references/lint/structural/check-substrate.ts";
+import {
+  createTreeContexts,
+  type Finding,
+  type StructuralCheck,
+} from "../skills/enforced-architecture/references/lint/structural/check-substrate.ts";
 import {
   runStructuralChecks,
   type CheckRun,
@@ -250,6 +254,45 @@ function assertEveryCheckRanOnEveryTree(
 assertEveryCheckRanOnEveryTree("declared", DECLARED_FIXTURE_TREES);
 assertEveryCheckRanOnEveryTree("both", BOTH_FIXTURE_TREES);
 assertEveryCheckRanOnEveryTree("misread", PDF_TREE_MISREAD);
+
+// ── The graph's targets are resolved, not spelled ────────────────────────────
+//
+// Every check in this tier reads `edge.target`, and every one of them compares
+// it with the extension stripped or on a prefix of its segments — so the whole
+// suite stays green when the graph stops resolving and goes back to arithmetic
+// on the specifier text. It was green through exactly that swap. No fixture can
+// catch it, because no fixture's VERDICT changes: what changes is whether the
+// answer names a module or a guess.
+//
+// So the assertion is about the substrate rather than about a finding. A target
+// either names a file that is there, or names a position nothing on disk backs —
+// and the second is a real answer, not a failure: an import of a module that is
+// mid-rename or declared only in a `.d.ts` still crosses whatever boundary it
+// crosses, and dropping it is how a boundary rule reports clean over an import
+// nobody checked.
+//
+// What a target may NOT be is a DIRECTORY. That is the signature of the
+// substrate this replaced: `@/features/leaf` came back as `features/leaf`, which
+// is where the barrel's directory is and not where any code is. Reverting
+// `import-graph` to path arithmetic puts five of those back in this tree, plus
+// one `./service/posting` naming a `.mts` file by a name it does not have.
+{
+  const stray: string[] = [];
+  for (const context of createTreeContexts(fixtureConfig, DECLARED_FIXTURE_TREES)) {
+    for (const edge of context.importGraph()) {
+      const absolute = join(context.sourceRoot, edge.target);
+      if (statSync(absolute, { throwIfNoEntry: false })?.isDirectory() !== true) continue;
+      stray.push(`${edge.file} imports "${edge.specifier}" and the graph says ${edge.target}`);
+    }
+  }
+  if (stray.length > 0) {
+    fail(
+      "<import-graph>",
+      `${stray.length} edge target(s) name a DIRECTORY rather than a module, so the graph is ` +
+        `spelling paths rather than resolving them:\n  ${stray.sort().join("\n  ")}`,
+    );
+  }
+}
 
 // ── The config cannot switch a check off ─────────────────────────────────────
 //

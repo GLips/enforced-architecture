@@ -226,8 +226,9 @@ with their own vocabulary. A single-package repo is the same shape with one entr
    unversioned, so the project gets current releases:
    `bun add -d oxlint oxlint-tsgolint @oxlint/plugins eslint-plugin-sonarjs jscpd`
 3. **`lint/structural/`** — the substrate (`config.ts`, `check-substrate.ts`, `import-graph.ts`,
-   `registry.ts`, `run-structural-checks.ts`) and every check, all taken unmodified. Write
-   `arch.config.ts` on top of `defaultCheckConfigs`.
+   `module-resolution.ts`, `registry.ts`, `run-structural-checks.ts`) and every check, all taken
+   unmodified, plus `bun add -d oxc-resolver`. Write `arch.config.ts` on top of
+   `defaultCheckConfigs`.
 4. **One tsconfig per tier** — [references/setup/oxlint.tsconfig.json](references/setup/oxlint.tsconfig.json)
    and [references/setup/structural.tsconfig.json](references/setup/structural.tsconfig.json) — and
    add both to the typecheck script by path. They are separate programs because the tiers run under

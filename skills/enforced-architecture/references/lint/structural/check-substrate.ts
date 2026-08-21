@@ -27,6 +27,7 @@ import {
 import { SOURCE_FILE_GLOB, type TreeVocabulary } from "../policy/layout.ts";
 import type { ArchitectureConfig } from "./config.ts";
 import { buildImportGraph, type ImportEdge } from "./import-graph.ts";
+import { createTreeModuleResolver, type TreeModuleResolver } from "./module-resolution.ts";
 
 export type Severity = "error" | "warning";
 
@@ -72,6 +73,19 @@ export type TreeContext = {
    * nothing here reports it — see the negative space in the tier's overview.
    */
   importGraph(): ImportEdge[];
+  /**
+   * Where a specifier written in THIS tree lands — see `module-resolution.ts`.
+   * Undefined means it is not this tier's question: an asset, a bare package, or
+   * a path leaving the source root.
+   *
+   * Built on first call and shared, because the resolver caches the filesystem
+   * and the graph build and `api/barrel-purity` walk overlapping chains. It is
+   * on the context rather than imported directly for the same reason
+   * `importGraph` is: a check constructing its own is a check with its own
+   * extension list and its own idea of where the alias points, which is the pair
+   * of hand-rolled resolvers this one replaced.
+   */
+  resolveModule: TreeModuleResolver;
   /**
    * Names of the immediate subdirectories of a source-root-relative directory,
    * whether or not they hold source this tier walks.
@@ -148,6 +162,7 @@ export function createTreeContexts(
 
 export function createTreeContext(config: ArchitectureConfig, tree: DeclaredTree): TreeContext {
   let graph: ImportEdge[] | undefined;
+  let resolver: TreeModuleResolver | undefined;
   const subdirectories = new Map<string, string[]>();
   const occupied = new Map<string, string[]>();
 
@@ -160,6 +175,13 @@ export function createTreeContext(config: ArchitectureConfig, tree: DeclaredTree
     importGraph() {
       graph ??= buildImportGraph(context);
       return graph;
+    },
+
+    // Built on first use, not at context creation, so a project adopting only
+    // the file-level checks never loads the resolver's native binding.
+    resolveModule(fromFile, specifier) {
+      resolver ??= createTreeModuleResolver(context.vocabulary, context.sourceRoot);
+      return resolver(fromFile, specifier);
     },
 
     subdirs(sourceRelativeDir) {

@@ -29,6 +29,13 @@ export const barrelPurityFixtures: CheckFixtures = {
     // stopped at the hop and the barrel read clean — a hole its own header
     // named and did not close.
     "FAIL src/features/ledger/index.ts",
+    // The same hop spelled with the extension TypeScript EMITS — `.js` naming a
+    // `.ts` file, which `moduleResolution: "nodenext"` requires rather than
+    // permits. The predecessor resolved by appending suffixes to the specifier,
+    // and no suffix turns `.js` into `.ts`: the trace ended there, the barrel
+    // read clean, and every message this check emitted carried a paragraph
+    // saying so. `ledger` above is the extensionless twin and passed throughout.
+    "FAIL src/features/nodenext/index.ts",
     // The boundary FAKED: a side-effect import of the framework module plus a
     // local function called `createServerFn`. Both halves of a two-question
     // boundary test are satisfied and no boundary is crossed — a review used

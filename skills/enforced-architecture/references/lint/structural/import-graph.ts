@@ -13,18 +13,15 @@
 //
 // api/barrel-purity is the one rule that reads imports and does not take the
 // graph. Resolution discards bare package names, and those names are that
-// rule's subject. It uses scanDeclaredImports instead.
+// rule's subject. It uses scanDeclaredImports instead. It DOES share the
+// resolver — see `module-resolution.ts`, which owns where a specifier lands for
+// both of them.
 //
 // ──────────────────────────────────────────────────────────────────────
 
 import { readFileSync } from "node:fs";
-import { dirname, relative, resolve } from "node:path";
-import {
-  featureLayerRole,
-  isAssetSpecifier,
-  SOURCE_FILE_GLOB,
-  type TreeVocabulary,
-} from "../policy/layout.ts";
+import { relative } from "node:path";
+import { featureLayerRole, SOURCE_FILE_GLOB, type TreeVocabulary } from "../policy/layout.ts";
 import {
   blankComments,
   collectTreeFiles,
@@ -101,6 +98,15 @@ export type ImportEdge = {
    * distinctions a consumer still needs — `layer-occupancy` has to tell
    * `infrastructure/db/schema` from `infrastructure/db/client`, and both
    * classify as `infrastructure`.
+   *
+   * It names the MODULE, extension and all, whenever a file on disk backs the
+   * specifier — `module-resolution.ts` decides that, and `@/features/orders`
+   * arrives here as `features/orders/index.ts`. When nothing backs it, this is
+   * the position the specifier named and the edge is still here: see that
+   * module's note on why resolution may not delete an edge. Compare it the way
+   * every consumer already does, on whole segments or with the extension
+   * stripped; a consumer testing `target === "features/orders"` is testing a
+   * spelling.
    */
   target: string;
   /** True only when the file has NO runtime import of the same specifier. */
@@ -357,37 +363,6 @@ export function classify(
 }
 
 /**
- * Resolves a specifier against the importing file, returning its path from the
- * source root. Undefined means it is not a boundary question: a bare package
- * name, an asset, or a relative path climbing out of the source root entirely.
- */
-function resolveWithinSource(
-  context: TreeContext,
-  fromFile: string,
-  specifier: string,
-): string | undefined {
-  const { vocabulary } = context;
-  // The asset test comes from `policy/layout.ts`, which is what the oxlint tier
-  // reads too. A private copy here drifted from that one silently: one
-  // configured edge, two verdicts, and the tier that resolved it reported
-  // findings the other never would.
-  //
-  if (isAssetSpecifier(vocabulary, specifier)) return undefined;
-
-  const { aliasPrefix } = vocabulary;
-  const aliased = specifier.startsWith(aliasPrefix);
-  if (!aliased && !specifier.startsWith(".")) return undefined;
-
-  const root = context.sourceRoot;
-  const absolute = aliased
-    ? resolve(root, specifier.slice(aliasPrefix.length))
-    : resolve(dirname(fromFile), specifier);
-
-  const target = relative(root, absolute);
-  return target.startsWith("..") ? undefined : target;
-}
-
-/**
  * Every resolved import edge inside ONE declared tree.
  *
  * Callers should reach this through `TreeContext.importGraph()`, which builds it
@@ -429,7 +404,11 @@ export function buildImportGraph(context: TreeContext): ImportEdge[] {
 
     const fileEdges: ImportEdge[] = [];
     for (const specifier of new Set([...revealed.keys(), ...runtime.keys()])) {
-      const target = resolveWithinSource(context, absolute, specifier);
+      // `sourcePath` off either arm, resolved or not. Which one it came from is
+      // `api/barrel-purity`'s question, because that check has to OPEN the far
+      // end; here both ends are compared as positions, and an import naming a
+      // position no file backs is still an import into that position.
+      const target = context.resolveModule(absolute, specifier)?.sourcePath;
       if (target === undefined) continue;
 
       const runtimeCount = runtime.get(specifier) ?? 0;
