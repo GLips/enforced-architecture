@@ -1,93 +1,115 @@
 # Migration Patterns
 
-How to migrate an existing codebase to the enforced architecture. Decomposition, sequencing, and verification strategies.
+How to move an existing codebase onto the enforced architecture: what to sequence, and what to
+verify.
 
 ---
 
-## Core Principle
+## What a Migration Sequences
 
-Every migration phase produces a clean repo that passes all rules applicable at that point. No phase leaves the codebase in a broken state. The repo is shippable after every phase.
+**It does not sequence which rules run.** The catalog arrives whole. `lint/oxlint/plugin.ts` and the
+`rules` block of [setup/oxlintrc.json](setup/oxlintrc.json) are one list wearing two hats, and a
+config key naming a rule the plugin does not export is fatal — oxlint refuses the whole config and
+lints nothing. So you cannot stage adoption by registering a subset.
+
+A migration sequences **which violations you clear**. Every rule is on from the first commit, and the
+first `check:arch` run prints the whole list. That list is the migration plan. Work it inside-out,
+and wire the commit gate last.
+
+Expect the first run on a legacy tree to be dominated by one finding: `boundary/import-policy`
+reports `unclassifiedSource` for every file inside a declared tree that sits in no area the layout
+knows. Moving files into areas is therefore the first work, not an afterthought.
+
+---
+
+## Setup Phase
+
+No violations are fixed here. The tools exist and print a list.
+
+1. Copy `lint/policy/` and declare this project's source roots in `lint/policy/declared-trees.ts`.
+2. Copy `lint/oxlint/` and `lint/structural/` whole, and copy `.oxlintrc.json` from the shipped
+   manifest.
+3. Add `check:arch` to `package.json`. Run `oxlint` and the structural checks as two independent
+   commands and aggregate their exit codes. Do not chain them with `&&`: the first failure would
+   hide every finding behind it.
+4. **Do not wire the commit gate yet.** `lefthook.yml` and the CI job land in the last phase, when
+   the tree can pass them.
+
+Run `check:arch`. Keep the output. It is the only artifact this phase produces.
 
 ---
 
 ## Change Classification
 
-For every proposed change in a migration, classify as:
+Classify every fix in the list as one of two kinds, and separate them in the plan.
 
-**Mechanical** -- File moves, import rewrites, barrel creation. Scriptable via search-and-replace or codemod. Low risk. Can be batched aggressively.
+**Mechanical** — file moves, import rewrites, barrel creation. A codemod or a search-and-replace does
+it. Batch these aggressively in one commit.
 
-**Judgment-required** -- Logic refactoring, API redesign, dependency inversion, ownership decisions (which feature owns this code?). Needs individual attention and understanding of the domain.
-
-Separate these in your migration plan. Mechanical changes are safe to batch in large commits. Judgment changes need focused commits with clear rationale.
-
----
-
-## Sequencing Strategy: Inside-Out
-
-Migration proceeds from foundational invariants outward to surface-level conventions:
-
-1. **Enforcement infrastructure** -- Set up the tools before activating any rules
-2. **DB isolation** -- Foundational boundary, fewest dependencies, highest value
-3. **Infrastructure containment** -- SDK wrapping, auth adapter isolation
-4. **Feature boundaries** -- Public API enforcement, barrel creation
-5. **Cross-boundary aliases** -- Mechanical rewrites of relative imports
-6. **Internal feature layers** -- Layer occupancy, intra-feature direction
-7. **Structural checks** -- File size, cycles, coupling, trampolines
-
-Why inside-out: each phase builds on the previous. DB isolation must exist before feature boundaries make sense -- a feature calling the DB directly violates both rules, and fixing the foundational one first prevents redundant work. Infrastructure containment must exist before feature boundaries can be meaningful -- wrapping SDKs creates the adapter layer that features will import through.
+**Judgment-required** — logic refactoring, API redesign, dependency inversion, and every question of
+the form "which feature owns this code?". Each needs its own commit and its own reason.
 
 ---
 
-## Test-Driven Migration
+## Sequencing: Inside-Out
 
-Activate enforcement rules **at the start** of each phase, not at the end. Run `check:arch` immediately — the violations are your migration TODO list. The rules tell the implementing agent exactly what needs to change and how (error messages are designed for agents). This is test-driven migration: the rules define the target state, the failures guide the work, and a clean run confirms completion.
+Clear violations from the foundation outward. Each group below assumes the one above it is done.
 
-Activation-time violations also exercise the rules — but only the rules that fire. Zero matches at activation is a prompt to suspect the rule, not to celebrate: a dead rule and a clean codebase produce the same green run, and the adversarial fixture is the only thing that tells them apart.
+| # | What this phase makes true | Findings it clears | The judgment inside it |
+|---|---|---|---|
+| 1 | Every file sits in an area the layout knows | `unclassifiedSource`, `unclassifiedTarget` | Which area each stray file belongs to. A file that fits none is a new area to decide, not a file to exempt |
+| 2 | Only designated modules reach the database | `boundary/db-isolation`, `placement/schema-placement` | Per query: move it into a repo module, into a controller, or behind a new server function |
+| 3 | External SDKs are reached through adapters | `boundary/sdk-containment`, `boundary/client-server-infra` | Which SDKs to wrap, and what each wrapper's API is |
+| 4 | Features expose public APIs through barrels | `boundary/import-policy` exposure findings, `api/barrel-direction`, `api/server-import-context` | What each feature's public API should hold |
+| 5 | Imports that leave a unit use `@/` | `crossingSpelledRelatively` | None. This one is mechanical end to end |
+| 6 | Files live in the right layer, and direction holds | `placement/layer-direction`, `placement/server-fn-placement`, `boundary/route-thinness`, `boundary/server-no-upward` | A `createServerFn` outside `controllers/` may have to be split before it can move. Domain logic with side effects has to land in a feature or in infrastructure |
+| 7 | Cross-file constraints hold | `graph/domain-cycles`, `graph/feature-deps`, `api/barrel-purity`, `boundary/layer-occupancy`, `health/file-size`, `health/trampolines` (warning) | Splitting oversized files, breaking cycles, routing an edge that skips an occupied layer back through it |
+| 8 | The gate blocks | none left | None. Copy `lefthook.yml`, add the CI job, and confirm both run red on a deliberate violation |
 
-## Phase Template
+Why inside-out: each group's fix changes the paths the next group matches. A file that moves in phase
+6 has a different import path, so fixing its alias spelling in phase 5 first would be work done
+twice. And a feature calling the database directly violates two rules at once; fixing the
+foundational one removes both findings.
 
-Each migration phase specifies:
+---
+
+## What Each Phase Records
 
 | Field | Content |
 |---|---|
-| **Goal** | One sentence: what invariant does this phase establish? |
-| **Rules activated** | Which enforcement rules become active at the START of this phase — write/enable the rule, then run `check:arch` to get the violation list |
-| **Changes** | Fix each violation reported by the newly active rules. Classify each fix as mechanical or judgment. |
-| **Verification** | `check:arch`, `typecheck`, `test`, `dev` — each run independently, all must pass before the next phase starts. Chained with `&&`, the first failure hides the rest. |
-| **No shims** | No temporary compatibility layers. Each phase is complete in itself. |
+| **Goal** | One sentence. What is true at the end that was not true at the start? |
+| **Findings cleared** | The diagnostic ids this phase drives to zero |
+| **Changes** | Every fix, marked mechanical or judgment |
+| **Verification** | `check:arch`, `typecheck`, `test` and `dev`, each run on its own. Chain them with `&&` and the first failure hides the rest |
+| **No shims** | No temporary compatibility layer, no re-export that exists only to avoid updating an import |
 
 ---
 
-## Example Migration Sequence
+## Read the Zero Carefully
 
-Every phase runs the same loop — activate its rules, run `check:arch`, work the violation list, verify — so only what differs between phases is listed. The last column is the work that cannot be batched.
+A finding count that drops to zero has two causes: you fixed the code, or the rule stopped matching.
+The two look identical.
 
-| # | Goal | Rules activated | Judgment inside it |
-|---|---|---|---|
-| 1 | The enforcement pipeline exists and passes trivially | none | — |
-| 2 | Only designated modules reach the database | `boundary/db-isolation`, plus import protection for `infrastructure/db/**` | Per violation: move the query into a repo module, into a controller, or behind a new server function |
-| 3 | External SDKs are reached only through infrastructure adapters | `boundary/sdk-containment`, `boundary/client-server-infra` | Which SDKs are security-sensitive or configuration-heavy enough to wrap, and each wrapper's API |
-| 4 | Features expose public APIs through barrels | `boundary/import-policy`, `api/barrel-direction`, `api/server-import-context` | What each feature's public API should expose |
-| 5 | Boundary-crossing imports use `@/` | `boundary/import-policy` | — |
-| 6 | Files live in the right layer and direction is enforced | `placement/layer-direction`, `placement/schema-placement`, `placement/server-fn-placement`, `boundary/import-policy`, `boundary/route-thinness`, `boundary/server-no-upward` | A `createServerFn` outside `controllers/` may need refactoring to move; domain logic with side effects has to land in a feature or in infrastructure |
-| 7 | Cross-file constraints are enforced | `graph/domain-cycles`, `graph/feature-deps`, `api/barrel-purity`, `boundary/layer-occupancy`, `health/file-size`, `health/trampolines` (warning) | Splitting oversized files, breaking cycles, routing edges that skip an occupied layer back through it |
-
-Phase 1 is the only one with no violation list to work, and it is all setup: `lint/oxlint/` with an empty `plugin.ts` named in `.oxlintrc.json`, `lint/structural/` with an empty registry, `check:arch` and `check:structural` in `package.json`, pre-commit hooks, and framework import protection with empty deny lists.
-
-Phase 5 carries an ordering constraint the others do not: build [graph/import-graph](lint/structural/import-graph.ts) first. `boundary/import-policy` is its first consumer and has nothing to run against until the graph exists.
+So treat the violation list as evidence about the rules as well. A rule that reported nothing on the
+legacy tree at the start is a rule to suspect, not a rule to celebrate — a legacy codebase that
+violates none of a rule's subject is rare. Check the rule's adversarial case before you accept the
+zero.
 
 ---
 
 ## Common Pitfalls
 
-**Activating too many rules at once.** Hard to debug which change caused which violation. Activate rules incrementally, verify after each.
+**Fixing violations in the wrong order.** A file with both an alias violation and a layer-direction
+violation gets its layer fixed first. Moving the file changes its import path, which changes the
+alias fix.
 
-**Not verifying after each phase.** Violations compound: a missed import rewrite in Phase 4 causes cascading errors in Phases 5 and 6.
+**Not verifying after each phase.** Findings compound. A missed import rewrite surfaces two phases
+later as something that looks unrelated.
 
-**Creating shim layers "temporarily."** They become permanent. No re-export wrappers, no compatibility adapters, no "we will clean this up later" modules. Each phase is complete in itself.
+**Creating a shim "temporarily."** It becomes permanent. Each phase is complete in itself.
 
-**Moving files without updating all imports.** After any file move, verify with typecheck. TypeScript will catch broken imports that grep might miss. Use the IDE's rename/move refactoring when available.
+**Moving files without updating every import.** Run `typecheck` after any move. It catches what grep
+misses.
 
-**Fixing violations in the wrong order.** If a file has both an import-policy alias violation and a layer direction violation, fix the layer direction first. Moving the file to the correct layer changes the import path, making the alias fix different.
-
----
+**Wiring the commit gate early.** A gate that fails on every commit for two weeks teaches everyone to
+pass `--no-verify`, and that habit outlives the migration.
