@@ -68,8 +68,9 @@
 // carries the exposure question with it so `deny` stays a DIRECTION message and a
 // surface mismatch stays an EXPOSURE message without either being separate data.
 //
-// Layer direction is deliberately NOT here. `layerOrder` in the structural tier
-// is the sole policy data and `placement/layer-direction` compares two indices
+// Layer direction is deliberately NOT here. `FEATURE_LAYER_ROLES` in `layout.ts`
+// is the sole policy data — its ORDER is the ranking, reached through
+// `orderedLayerDirs` — and `placement/layer-direction` compares two indices
 // against it; writing the derived result out again would create exactly the drift
 // this module removes and would need a warning telling readers not to "fix" it.
 //

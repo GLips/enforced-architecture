@@ -70,7 +70,9 @@ apply to it: there is no per-tree rule list, and adding one would turn the catal
 
 Two things stay outside every tree's reach, and they are worth writing in the project's own setup
 notes rather than assuming: **an edge from one declared tree into another is in neither tree's graph
-and nothing reports it**, and a file outside every declared tree is governed by nothing at all.
+and nothing reports it**, and a file outside every declared tree is silent for every tree-scoped
+rule — `testing/no-module-mocking`, `health/file-size` and `health/doc-budgets` are the three that
+still run there.
 
 ---
 
@@ -200,7 +202,7 @@ Three, and they are all the same shape: the rule does nothing, and nothing says 
 ## Adding a New Rule
 
 1. Read the template `lint/oxlint/<tag>/<name>.ts` and the spec beside it, `lint/oxlint/<tag>/<name>.test.ts`
-2. Copy both into the project's `lint/oxlint/<tag>/` and adapt the named constants at the top — the template's *Adapt* section names which. The constants are hoisted precisely so adaptation is an edit to a regex or a list, not a rewrite of the visitor. A template whose *Adapt* section says **nothing here** is one that reads `lint/policy/`: it needs no edit, and editing it instead of `lint/policy/layout.ts` gives that rule a private answer the other tier will not share
+2. Copy both into the project's `lint/oxlint/<tag>/` and adapt the named constants at the top — the template's *Adapt* section names which. Those constants are names, numbers and explicit rows; a constant that was a path pattern would be an off-switch, so none is. A template whose *Adapt* section says **nothing here** — which is nearly all of them — reads `lint/policy/`: it needs no edit, and editing it instead of the tree's vocabulary gives that rule a private answer the other tier will not share
 3. Register it in the plugin module under its file name
 4. Switch it on in `.oxlintrc.json`. Registered but unlisted is loaded and never run
 5. Extend the three-kind spec (below) — the adversarial cases decide whether the rule works

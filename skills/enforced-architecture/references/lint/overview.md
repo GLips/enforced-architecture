@@ -117,14 +117,19 @@ visible in the project as it is here.
    it, so a declaration that lands here reaches every rule that reads it at the same moment. Copy
    the spec too: it is what proves the tables still mean what they meant after the repoint.
 
-   **A tree left off that list is governed by nothing**, in either tier, with no diagnostic saying
-   so. Declaring the trees is the adoption decision; everything below is mechanics.
+   **A tree left off that list is governed by almost nothing**, with no diagnostic saying so:
+   every tree-scoped rule in both tiers is silent there. The three that still run are
+   `testing/no-module-mocking`, which is enabled globally because its subject is a test file, and
+   the project-scoped `health/file-size` and `health/doc-budgets`, which walk their own configured
+   roots. Declaring the trees is the adoption decision; everything below is mechanics.
 2. **oxlint rules** go into `lint/oxlint/<tag>/`, are registered in `lint/oxlint/plugin.ts`, and are
    switched on in `.oxlintrc.json`. Each rule's spec (`<name>.test.ts`) is copied beside it — it is
-   part of the rule, not an optional extra. Most are the tier that needs **adapting**: path
-   patterns are written against one standard layout and have to be repointed. The exceptions are
-   the rules whose *Adapt* section says "nothing here" — those read `lint/policy/`, and declaring
-   the trees is their adaptation. `.oxlintrc.json` scopes every `arch/` rule to the declared roots,
+   part of the rule, not an optional extra. **None of them is repointed at a path.** Every `arch/`
+   rule reads `lint/policy/` for where things live and what they are called, so declaring the trees
+   is its adaptation — which is why an *Adapt* section that says "nothing here" is the norm rather
+   than the exception. The named constants a rule does hoist are enumerable vocabulary: names,
+   numbers, explicit rows. A rule that took a path regex or a glob would be handing the adopter an
+   off-switch. `.oxlintrc.json` scopes every `arch/` rule to the declared roots,
    one `<root>/**` glob each, and the rule harness fails the build when that list and
    `declared-trees.ts` disagree.
 3. **Structural checks** go into `lint/structural/<tag>/`, along with the substrate that sits at
@@ -170,6 +175,9 @@ request. The two tiers are proved differently because they read differently:
 The harness does not ship with the skill directory; it lives in `harness/` beside `skills/` in the
 skill's source repository. The rules and their config do ship, which is the point.
 
-**What the harness does not cover for either tier: whether a rule survives adaptation.** Repointing
-a path pattern, extending a package list, or adding an exclusion is unverified work. Write the
-project's own specs at the same time as the adaptation, not after.
+**What the harness does not cover for either tier: whether a rule survives adaptation.** Renaming a
+directory, moving a source root, or moving a threshold is unverified work — the catalog's specs are
+written against the recommended vocabulary, not against yours. Write the project's own specs at the
+same time as the adaptation, not after. What is *not* on the table is repointing a rule at a
+different path or excluding a tree from one: no rule takes a pattern, and `.oxlintrc.json` is pinned
+against `declared-trees.ts`.

@@ -104,13 +104,13 @@ Read [lint/overview.md](references/lint/overview.md) for the tag map, and *Rule 
 
 Keep the plan's rule section lean — one table, not a copy of template content. The templates already carry mechanism, blocking status, messages, and implementation.
 
-- **Adaptation** — rule id (`tag/name`) and what this project repointed it at: paths, package lists, thresholds, or "Standard".
+- **Adaptation** — rule id (`tag/name`) and what this project changed for it: a vocabulary name, a threshold, an explicit row, or "Standard". Not a path and not a pattern — no rule takes one.
 
 A rule that looks unnecessary is usually a rule whose subject this tree does not have yet — it is silent until the tree grows one, which is the point of taking it now. When a rule's subject genuinely lives somewhere this project does not own, the answer is to say *where it lives* rather than to leave the rule out.
 
 **Every governed tree goes in `lint/policy/declared-trees.ts`, and a tree left off it is enforced by almost nothing** — every tree-scoped rule in both tiers is silent there: no findings, no diagnostic. Three checks are not tree-scoped and do still run over an undeclared package: `testing/no-module-mocking` (its subject is a test file, so it is enabled globally) and the two project-scoped structural checks, `health/file-size` and `health/doc-budgets`, which walk their own configured roots. Architecturally, an undeclared package is ungoverned. Record the list in the plan, and record what is deliberately outside it, because an undeclared package reads exactly like a clean one. Note too that nothing in either tier reports an import from one declared tree into another.
 
-**Done when:** Every catalog rule is registered and switched on, and every one that needed repointing records what it was repointed at.
+**Done when:** Every catalog rule is registered and switched on, and every one whose vocabulary or thresholds this project moved records what it moved.
 
 ### Phase 4: Plan implementation
 
@@ -163,7 +163,7 @@ Combine all phases into a single document:
 
 **Important:** The plan document lives in the project repo and will be read by agents in future sessions. Include this reference for rule implementation:
 
-> Rule templates are in the `enforced-architecture` skill (`~/.claude/skills/enforced-architecture/references/lint/`), split by tier: `lint/policy/`, `lint/oxlint/<tag>/` and `lint/structural/<tag>/`. Each rule in this plan references its template by that path, so the path names the tier. The project mirrors the tree — copy into its own `lint/`. **`lint/policy/` first, before either tier:** copy it whole, then declare this project's source roots in `lint/policy/declared-trees.ts`, each with the vocabulary its directories are spelled in. Both tiers import it, and a rule whose *Adapt* section says "nothing here" is a rule whose adaptation happens there. A tree that is not on that list is governed by nothing, in either tier, and nothing says so. **oxlint rules:** read the template, adapt paths and patterns to this project's structure, and write the result to `lint/oxlint/<tag>/` with its spec, registered in `lint/oxlint/plugin.ts`. **Structural checks:** copy the module and the `lint/structural/` substrate unmodified, register it in `lint/structural/registry.ts`, and put every project-specific value in `lint/structural/arch.config.ts` — the rule's *Adapt* section names the keys. Do not reimplement one from its doc.
+> Rule templates are in the `enforced-architecture` skill (`~/.claude/skills/enforced-architecture/references/lint/`), split by tier: `lint/policy/`, `lint/oxlint/<tag>/` and `lint/structural/<tag>/`. Each rule in this plan references its template by that path, so the path names the tier. The project mirrors the tree — copy into its own `lint/`. **`lint/policy/` first, before either tier:** copy it whole, then declare this project's source roots in `lint/policy/declared-trees.ts`, each with the vocabulary its directories are spelled in. Both tiers import it, and a rule whose *Adapt* section says "nothing here" — which is most of them — is a rule whose adaptation happens there. A tree that is not on that list is silent for every tree-scoped rule in both tiers, with nothing saying so; only `testing/no-module-mocking`, `health/file-size` and `health/doc-budgets` still run over it. **oxlint rules:** copy the template and its spec into `lint/oxlint/<tag>/`, registered in `lint/oxlint/plugin.ts` and switched on in `.oxlintrc.json`. Do not repoint one at a path — none of them holds a path pattern, and the tree scoping comes from `declared-trees.ts` through the `.oxlintrc.json` overrides. **Structural checks:** copy the module and the `lint/structural/` substrate unmodified, register it in `lint/structural/registry.ts`, and put every project-specific value in `lint/structural/arch.config.ts` — the rule's *Adapt* section names the keys. Do not reimplement one from its doc.
 
 ## Tone
 
