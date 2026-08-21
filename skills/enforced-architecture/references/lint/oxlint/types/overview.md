@@ -67,6 +67,6 @@ Neither appears in the hub's selection table. Both reject code that is often cor
 - **`no-runtime-typeof`** hits the SSR guard (`typeof window === "undefined"`) and any union the compiler already narrowed. This tier has no type information, so the ban is a tooling limit, not a position. The one carve-out is the direct body of a type guard, where the check leaves a named predicate behind; everywhere else, expect per-line disables.
 - **`no-conditional-empty-object-spread`** targets an idiom that is deliberate under `exactOptionalPropertyTypes`. A signal about density, not a defect.
 
-`no-broad-parameters`, `no-unknown-returns`, `no-unknown-type-aliases`, and `no-runtime-typeof` share [../lib/type-annotations.ts](../lib/type-annotations.ts) — copy it alongside any of the four. It owns what counts as a type-guard signature, which is why `no-broad-parameters` exempts the value a guard vouches for and `no-runtime-typeof` allows the `typeof` inside that guard from one reading.
+Seven rules share [../lib/type-annotations.ts](../lib/type-annotations.ts) — copy it alongside any of them. It owns what counts as a type-guard signature, which is why `no-broad-parameters` exempts the value a guard vouches for and `no-runtime-typeof` allows the `typeof` inside that guard from one reading; it owns what resolves to a broad type, for `no-unknown-returns` and `no-unknown-type-aliases`; and it owns the open-dictionary question for the trio above.
 
 Adoption mechanics, the spec contract, and cross-tag rule selection: [../../overview.md](../../overview.md).
