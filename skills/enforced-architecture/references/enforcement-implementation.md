@@ -29,9 +29,9 @@ import policy, and the package ownership rows. It works under a neutrality contr
 no Bun APIs, no oxlint or ESTree types, and no import from either tier. See
 [lint/policy/overview.md](lint/policy/overview.md).
 
-Copy it before either tier. Both tiers import it and both tsconfigs include it. A rule whose *Adapt*
-section says "nothing here" — which is nearly all of them — is a rule whose adaptation happens in
-[lint/policy/declared-trees.ts](lint/policy/declared-trees.ts).
+Copy it before either tier. Both tiers import it and both tsconfigs include it. No oxlint rule is
+adapted in its own file — every one of them reads its layout from
+[lint/policy/declared-trees.ts](lint/policy/declared-trees.ts), so that file is the adaptation.
 
 The contract exists so one edge cannot reach two verdicts depending on how it was spelled. Split a
 table into a per-tier copy and the two copies drift, with neither failing: each tier sees only its
@@ -242,11 +242,12 @@ surface repo-wide. Two design constraints make that possible, and both bind any 
 
 1. Read the template `lint/oxlint/<tag>/<name>.ts` and the spec beside it,
    `lint/oxlint/<tag>/<name>.test.ts`.
-2. Copy both into the project's `lint/oxlint/<tag>/`, and set the named constants the template's
-   *Adapt* section names. Those constants are names, numbers and explicit rows. A constant that was a
-   path pattern would be an off-switch, so none is. A template whose *Adapt* section says **nothing
-   here** reads `lint/policy/`: it needs no edit, and editing it instead of the tree's vocabulary
-   gives that rule a private answer the other tier will not share.
+2. Copy both into the project's `lint/oxlint/<tag>/`, unedited. A rule reads `lint/policy/` for
+   where things live and what they are called, so there is nothing in the file to set — editing one
+   instead of the tree's vocabulary gives that rule a private answer the other tier will not share.
+   Two rules name a list in their own source, and neither is a knob: `boundary/client-server-infra`
+   holds the client-safe module allowlist, deliberately out of config's reach, and
+   `placement/deprecated-paths` holds the paths this project moved away from, which is its subject.
 3. Register it in the plugin module under its file name.
 4. Switch it on in `.oxlintrc.json`. Registered but unlisted is loaded and never run.
 5. Extend the three-kind spec. The adversarial case is what decides whether the rule works.
@@ -271,9 +272,11 @@ promises, which is what happened at three separate deployments before this tier 
 2. Register the checks in `lint/structural/registry.ts`. An unregistered check is a file that ships
    and never runs.
 3. Declare the project's trees, then write `arch.config.ts`: spread `defaultCheckConfigs` and
-   override what differs. Each check's *Adapt* section names its keys. Directory names, the alias
-   prefix and the layer order are not among them — the config has no field for them, so the two tiers
-   cannot end up policing two different trees.
+   override what differs. The keys are declared per check in
+   [lint/structural/config.ts](lint/structural/config.ts), and only eight of the sixteen checks take
+   any — the other eight read the tree and nothing else. Directory names, the alias prefix and the
+   layer order are not keys anywhere: the config has no field for them, so the two tiers cannot end
+   up policing two different trees.
 4. Run once against the real tree and calibrate thresholds *just above* current values, so they
    signal growth rather than firing on day one. A check that fires on the state of the world the day
    it was installed gets switched off in the same week.
@@ -326,8 +329,9 @@ A violation that reaches Tier 3 means the loop above it already failed.
 
 ## Rule Design Principles
 
-**Every rule is blocking by default.** Two exceptions qualify and nothing else does — see
-[architecture-principles.md](architecture-principles.md#all-rules-blocking-from-day-one).
+**A rule blocks unless its subject is a judgment.** Which rules do not block, and the two-word
+header convention that says so, is
+[architecture-principles.md](architecture-principles.md#what-blocks-and-what-does-not).
 
 **Rules detect the narrowest possible violation.** A rule that catches too much trains agents to work
 around it. A rule that needs many exceptions is too broad.

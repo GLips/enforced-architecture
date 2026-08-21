@@ -7,10 +7,11 @@ verify.
 
 ## What a Migration Sequences
 
-**It does not sequence which rules run.** The catalog arrives whole. `lint/oxlint/plugin.ts` and the
-`rules` block of [setup/oxlintrc.json](setup/oxlintrc.json) are one list wearing two hats, and a
-config key naming a rule the plugin does not export is fatal — oxlint refuses the whole config and
-lints nothing. So you cannot stage adoption by registering a subset.
+**It does not sequence which rules run.** The catalog arrives whole. `lint/oxlint/plugin.ts` and
+[setup/oxlintrc.json](setup/oxlintrc.json) are one list wearing two hats — 48 rules in the config's
+`overrides[0].rules`, and `arch/no-module-mocking` in its top-level `rules` block — and a config key
+naming a rule the plugin does not export is fatal: oxlint refuses the whole config and lints nothing.
+So you cannot stage adoption by registering a subset.
 
 A migration sequences **which violations you clear**. Every rule is on from the first commit, and the
 first `check:arch` run prints the whole list. That list is the migration plan. Work it inside-out,

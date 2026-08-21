@@ -16,11 +16,9 @@ enforcement decision in this catalog:
 | A violation escapes and gets copied across 20 files | Days |
 | Structural decay becomes load-bearing: tests depend on it, features assume it | Weeks |
 
-When in doubt, enforce. Every judgment below resolves against this table.
-
-The same asymmetry decides which way to guess on any single boundary. Relaxing a restriction later is
-trivial. Tightening one after the violations have been copied as a pattern is a migration. So when a
-cell is genuinely undecided, the answer is deny.
+When in doubt, enforce. Every judgment below resolves against this table, and so does which way to
+guess on any single boundary: relaxing a restriction later is trivial, while tightening one after the
+violations have been copied as a pattern is a migration. When a cell is genuinely undecided, deny.
 
 ---
 
@@ -84,18 +82,15 @@ duplicates a constraint the types already hold is maintenance with no coverage.
 
 ### Predictable structure enables autonomous navigation
 
-An agent should answer "where does this code live?" from the directory structure alone.
+An agent should answer "where does this code live?" from the directory structure alone. A convention
+that holds *mostly* is worse than one that holds never, because it creates false confidence: an agent
+that finds a pattern in three files and misses it in a fourth either reproduces the inconsistency or
+"fixes" the fourth file.
 
-A convention that holds everywhere lets agents navigate on their own. A convention that holds
-*mostly* does not, and "mostly" is worse than "never" because it creates false confidence. An agent
-that finds a pattern in three files and misses it in a fourth will either reproduce the
-inconsistency or "fix" the fourth file. Both are wrong.
-
-Two consequences follow from taking the filesystem as the source of truth. Directory names *are* the
-naming convention: if a directory is called `controllers/`, the files in it are controllers, and no
-config file is needed to say so. And a layer's name is fixed project-wide: a codebase calling it
-`server/` here, `controllers/` there and `api/` in a third place is three architectures pretending to
-be one, and an agent will use whichever it saw last.
+So the filesystem is the source of truth. Directory names *are* the naming convention — if a
+directory is called `controllers/`, the files in it are controllers — and a layer's name is fixed
+project-wide. A codebase calling it `server/` here, `controllers/` there and `api/` in a third place
+is three architectures pretending to be one, and an agent uses whichever it saw last.
 
 ### Anti-ceremony
 
@@ -126,20 +121,25 @@ So the catalog has exactly two severities, and each rule's own header says which
 
 - **`Makes sure:` — the rule blocks.** The shape it reports is wrong, and the fix is mechanical.
 - **`Shows:` — the rule reports and does not block.** The shape it reports is *sometimes correct*,
-  and only the author knows which case this is. Four oxlint rules carry this label. One structural
-  check adds a warning tier in front of its own hard limit, which is the graduated-threshold form of
-  the same idea.
+  and only the author knows which case this is.
+
+Six rules carry `Shows:`. Four are oxlint rules — `react/hook-count`, `react/prop-count`,
+`react/single-component-export` and `types/no-conditional-empty-object-spread` — and they are exactly
+the four `warn` entries in the shipped config. Two are structural checks that emit warnings only:
+`health/trampolines` and `naming/test-file-mirror`. Neither of those two will ever fail a build, and
+a plan that counts on one to block is counting on nothing.
+
+Three further checks are mixed: `health/file-size`, `graph/feature-deps` and `api/feature-visibility`
+each warn on one finding and block on another. That is the graduated-threshold form of the same idea
+— a warning tier in front of a hard limit — and their tag overviews say which findings are which.
 
 A `Shows:` rule is not a rule someone is planning to enforce later. It is a rule whose subject is a
 judgment. If a shape is always wrong, it takes `Makes sure:` and blocks.
 
-Three reasons to soften a rule are invalid, and all three are the cost asymmetry misread:
-
-- *"We'll enforce it later."* Violations accumulate. By the time later arrives, enforcement needs a
-  migration.
-- *"It might have false positives."* A false positive costs minutes. A missed violation costs days.
-- *"It's just a best practice."* If it matters enough to check, it matters enough to block. If it
-  does not matter enough to block, do not check it.
+Three reasons to soften a rule are the cost asymmetry misread: *we'll enforce it later* (violations
+accumulate, and later needs a migration), *it might have false positives* (a false positive costs
+minutes, a missed violation costs days), and *it's just a best practice* (if it matters enough to
+check, it matters enough to block).
 
 ### Enforce on the import graph, not the runtime graph
 
@@ -330,11 +330,11 @@ because it might. Tiers and their triggers:
 [feature-patterns.md](feature-patterns.md#graduation-triggers).
 
 **Code moves outward when a pattern emerges, and the number is three.** Two occurrences is
-coincidence; three is a pattern. It applies uniformly: UI to `shared/ui/`, a utility to `shared/`,
-business logic to a domain, repeated controller orchestration down into a service. Nothing enforces
-the number, so it is the reviewer's to hold — and holding it is what prevents premature abstraction,
-which is the most expensive form of over-engineering. It constrains every future change to fit a
-shape designed before anyone knew enough.
+coincidence. It applies uniformly: UI to `shared/ui/`, a utility to `shared/`, business logic to a
+domain, repeated controller orchestration down into a service. Nothing enforces the number, so it is
+the reviewer's to hold, and holding it is what prevents premature abstraction — the most expensive
+form of over-engineering, because it constrains every future change to a shape designed before anyone
+knew enough.
 
 **Cross-feature UI is banned.** When feature A needs something in feature B's `ui/`, either
 **duplicate it** — cheaper than premature abstraction when the two features' needs will diverge — or

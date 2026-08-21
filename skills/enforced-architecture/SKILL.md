@@ -39,8 +39,13 @@ directory names. Read the table when you need a cell. Do not render a copy into 
 The catalog is split by **tier** first and **tag** second: `lint/oxlint/` is the per-file tier,
 `lint/structural/` the whole-tree tier, `lint/policy/` the runtime-neutral tables both read. It is
 three levels deep. [lint/overview.md](references/lint/overview.md) maps the tags, each
-`lint/<tier>/<tag>/overview.md` holds one tier's half of one tag, and each rule carries its own
-*Adapt* section.
+`lint/<tier>/<tag>/overview.md` holds one tier's half of one tag, and each rule's own header states
+what it buys and where its blind spots are.
+
+**No rule file has an adaptation section, because no rule is adapted in its own file.** An oxlint
+rule reads its whole layout from `lint/policy/declared-trees.ts`. A structural check takes its
+configuration as a typed key in `lint/structural/config.ts`, and only eight of the sixteen checks
+have one. Those two files are the adaptation surface, and there is no third.
 
 **This reference set is too large for one context.** When you implement from scratch, dispatch a
 subagent for each tag directory. Have it return adapted rules, not its reading.
@@ -104,22 +109,19 @@ Each choice moves a name or a number. None of them switches a rule off.
 3. **Dependency graph** — ASCII, showing the allowed directions. State each edge.
 4. **Public API conventions** — the two barrels, `index.ts` and `index.server.ts`, and what each one
    holds. See [feature-patterns.md](references/feature-patterns.md#public-api-barrels).
-5. **Feature directory patterns** — the scaling tiers from
-   [feature-patterns.md](references/feature-patterns.md).
-6. **Server and client naming** — the TanStack Start conventions from
-   [server-client-boundaries.md](references/server-client-boundaries.md).
-7. **Error architecture** — from the choice above.
-8. **SDK containment** — classify each third-party SDK as wrapped or unconstrained. A wrapped SDK
+5. **Feature directory patterns, server and client naming, error architecture** — the scaling tiers
+   from [feature-patterns.md](references/feature-patterns.md), the TanStack Start conventions from
+   [server-client-boundaries.md](references/server-client-boundaries.md), and the error choice above.
+6. **SDK containment** — classify each third-party SDK as wrapped or unconstrained. A wrapped SDK
    gets a row in `lint/policy/package-owners.ts` naming the module that owns it. A package with no
    row is unconstrained, and no rule holds it to a layer.
-9. **Test placement** — beside the code. Tests are exempt from boundary enforcement.
-10. **Design-system boundary** — where the primitives layer lives, and which module holds the tokens.
-    Both are vocabulary in `declared-trees.ts`: `sharedUiSubdir` names the primitives layer, and
-    `themeModuleName` names the token module inside it. Three `style/` rules exempt the primitives
-    layer, because a primitive is the one place that sets a raw value; two more exempt the token
-    module. The three structural `style/` checks compare against scales in `arch.config.ts`, and
-    `style/token-equality` ships with empty scales and stays silent until the project fills them in.
-    If there is no design system yet, say so: the tag becomes a later phase.
+7. **Test placement** — beside the code. Tests are exempt from boundary enforcement.
+8. **Design-system boundary** — where the primitives layer lives, and which module holds the tokens.
+   Both are vocabulary in `declared-trees.ts`: `sharedUiSubdir` and `themeModuleName`. Three `style/`
+   rules exempt the primitives layer, because a primitive is the one place that sets a raw value, and
+   two exempt the token module. What each structural `style/` check takes as config, and which takes
+   none, is [structural/style/overview.md](references/lint/structural/style/overview.md). If there is
+   no design system yet, say so: the tag becomes a later phase.
 
 **Calibration.** For each proposed layer, directory or abstraction, ask whether it earns its place. A
 service layer that forwards calls does not.
@@ -137,21 +139,26 @@ Read [lint/overview.md](references/lint/overview.md) for the tag map, and *Rule 
 [enforcement-implementation.md](references/enforcement-implementation.md) for what a rule must be.
 
 **The catalog comes in whole.** This phase decides where each rule points and what its numbers are.
-It never decides which rules run. `lint/oxlint/plugin.ts` and the `rules` block of
+It never decides which rules run. `lint/oxlint/plugin.ts` and
 [references/setup/oxlintrc.json](references/setup/oxlintrc.json) are one list in two files, and they
-are copied together. A config key that names a rule the plugin does not export is fatal, so
-registering a subset and then copying the shipped config takes the whole lint run down.
+are copied together. In the config that list spans two blocks: 48 tree-scoped rules in
+`overrides[0].rules` under the source-root globs, and `arch/no-module-mocking` in the top-level
+`rules` block. Check the plugin against both, or 48 rules read as missing. A config key naming a rule
+the plugin does not export is fatal, so registering a subset and then copying the shipped config
+takes the whole lint run down.
 
 **Process:**
 
 1. Read `lint/<tier>/<tag>/overview.md` for each tag. The table has one column per tier, so it also
    says which halves of a tag exist.
-2. Read each rule template. Its *Adapt* section names what this project must set. Nearly every
-   template says **nothing here**, because the rule reads `lint/policy/` — and declaring this
-   project's trees in `lint/policy/declared-trees.ts` is its whole adaptation.
-3. Set what those sections name: vocabulary, thresholds, explicit rows, and the few validated paths
-   the structural config declares. Never a *pattern*. No rule takes a regex or a glob, and no rule's
-   scope is repointed by hand: tree scoping comes from `declared-trees.ts`.
+2. Read each rule's header for what it buys and what it deliberately does not cover. Do not look
+   for an adaptation section in it: an oxlint rule has nothing to set, because it reads the layout
+   from `lint/policy/declared-trees.ts`.
+3. Set the two files that do take values. `lint/policy/declared-trees.ts` holds each tree's
+   vocabulary — directory names and the alias prefix. `lint/structural/config.ts` declares the eight
+   check configs, and the project's `arch.config.ts` overrides what differs: thresholds, explicit
+   rows, a manifest path, one filename. Never a *pattern*. No rule takes a regex or a glob, and no
+   rule's scope is repointed by hand.
 4. A rule's mechanism is its tier, and its tier is its directory. `lint/oxlint/` is per-file and runs
    in the editor; `lint/structural/` is cross-file and runs at pre-commit. Carry the path into the
    plan and the mechanism comes with it.
@@ -169,8 +176,9 @@ in a package this project does not own, say *where it lives* instead of leaving 
 **Every governed tree goes in `lint/policy/declared-trees.ts`.** A tree left off it is enforced by
 almost nothing: every tree-scoped rule in both tiers is silent there, with no finding and no
 diagnostic. Three checks are not tree-scoped and do run over an undeclared package —
-`testing/no-module-mocking`, which is global because its subject is a test file, and the
-project-scoped `health/file-size` and `health/doc-budgets`, which walk their own configured roots.
+`testing/no-module-mocking`, which is global because its subject is a test file, and the two
+project-scoped structural checks. `health/file-size` walks its own configured roots.
+`health/doc-budgets` walks nothing: it counts exactly the paths its manifest names.
 Architecturally an undeclared package is ungoverned. Record the list in the plan, and record what is
 deliberately outside it, because an undeclared package reads exactly like a clean one.
 
@@ -242,11 +250,11 @@ with their own vocabulary. A single-package repo is the same shape with one entr
 migration sequences which violations you clear, not which rules run, and the gate is wired last.
 
 **The two tiers adopt differently, and treating them alike is the mistake to avoid.** Structural
-checks are copied wholesale and configured on top of `defaultCheckConfigs`. Reimplementing one from
+checks are copied wholesale and configured on top of `defaultCheckConfigs`; reimplementing one from
 its doc is how a check ends up matching less than its doc promises. oxlint rules are copied wholesale
-too, and the constants they name are enumerable vocabulary: names, numbers, explicit rows. Only
-`placement/deprecated-paths` holds a list of specifier patterns, and that list is the rule's subject
-— the paths this project has moved away from — not a scope knob. Parallelize the copying with one
+and not configured at all. Two of them hold a hand-written list, and neither is a scope knob:
+`boundary/client-server-infra`'s two client-safe modules, and `placement/deprecated-paths`'s paths
+this project has moved away from, which is that rule's subject. Parallelize the copying with one
 subagent per tag directory, and have them register in `lint/oxlint/plugin.ts` in one later pass,
 rather than editing that file at the same time.
 
@@ -289,8 +297,8 @@ for rule implementation:
 >
 > **`lint/policy/` first, before either tier.** Copy it whole, then declare this project's source
 > roots in `lint/policy/declared-trees.ts`, each with the vocabulary its directories are spelled in.
-> Both tiers import it, so a rule whose *Adapt* section says "nothing here" — most of them — is a
-> rule whose adaptation happens there. A tree left off that list is silent for every tree-scoped rule
+> Both tiers import it, and an oxlint rule has no adaptation of its own — its layout comes from
+> that file. A tree left off that list is silent for every tree-scoped rule
 > in both tiers, with nothing saying so; only `testing/no-module-mocking`, `health/file-size` and
 > `health/doc-budgets` still run over it.
 >
@@ -300,8 +308,9 @@ for rule implementation:
 >
 > **Structural checks:** copy the module and the `lint/structural/` substrate unmodified, register it
 > in `lint/structural/registry.ts`, and put every project-specific value in
-> `lint/structural/arch.config.ts`. The check's *Adapt* section names the keys. Do not reimplement
-> one from its doc.
+> `lint/structural/arch.config.ts`. The keys and their defaults are in
+> `lint/structural/config.ts`, typed per check; eight of the sixteen checks have one. Do not
+> reimplement a check from its doc.
 
 ## Tone
 

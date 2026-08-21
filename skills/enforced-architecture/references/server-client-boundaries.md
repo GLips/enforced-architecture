@@ -222,7 +222,9 @@ Infrastructure is server-only by default. Exactly two modules are client-safe: a
 and a query client. Every other infrastructure import from a client context is a violation. —
 [boundary/client-server-infra](lint/oxlint/boundary/client-server-infra.ts)
 
-**That list is a hand-written constant in the rule, and it is the one such list in the catalog.**
+**That list is a hand-written constant in the rule.** It is one of two hand-written lists in the
+catalog, and the only one that is an allowlist — the other, `placement/deprecated-paths`, holds the
+paths a project has moved away from, which is that rule's subject rather than a permission.
 Every entry matches a specifier exactly, so no entry admits a subtree. Extending it is a source edit
 to the rule, not a config value — which is deliberate, because a config field here would be an
 adopter-extensible exemption. When a project genuinely gains a third client-safe module, add it in

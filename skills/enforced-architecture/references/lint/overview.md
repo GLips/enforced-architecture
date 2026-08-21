@@ -8,8 +8,10 @@ The per-tag counts below are derived from the tree. No total is stated in prose 
 total goes stale on the next add or delete and nothing checks it.
 
 Each rule carries its own documentation in the header of its own file, in both tiers. The header says
-what the rule buys, then guards the reader against a wrong edit. An oxlint rule carries its *Adapt*
-section there too. The keys a structural check reads are in [structural/config.ts](structural/config.ts).
+what the rule buys, then guards the reader against a wrong edit, then states what it deliberately
+does not cover. It does not carry an adaptation section, because no rule is adapted in its own file:
+an oxlint rule reads its layout from [policy/declared-trees.ts](policy/declared-trees.ts), and the
+keys a structural check takes are in [structural/config.ts](structural/config.ts).
 
 ```
 policy/       runtime-neutral tables both tiers read
@@ -116,20 +118,26 @@ meant after the repoint.
 
 **A tree left off that list is governed by almost nothing, with no diagnostic saying so.** Every
 tree-scoped rule in both tiers is silent there. Three checks still run: `testing/no-module-mocking`,
-enabled globally because its subject is a test file, and the project-scoped `health/file-size` and
-`health/doc-budgets`, which walk their own configured roots.
+enabled globally because its subject is a test file, and the two project-scoped structural checks.
+`health/file-size` walks its own configured roots; `health/doc-budgets` walks nothing and counts
+exactly the paths its manifest names.
 
 **No rule takes a path pattern as configuration.** Every `arch/` rule but one reads `lint/policy/`
-for where things live and what they are called, so declaring the trees is its adaptation — which is
-why an *Adapt* section saying "nothing here" is the norm. The exception is `testing/no-module-mocking`,
-which reads no layout at all. The constants a rule does name are enumerable vocabulary: names,
-numbers, explicit rows. One rule holds an in-source list of specifier patterns,
-`placement/deprecated-paths`, and that list is its subject rather than a scope knob.
+for where things live and what they are called, so declaring the trees is the whole adaptation of the
+oxlint tier — there is nothing to set in a rule file. The exception is `testing/no-module-mocking`,
+which reads no layout at all.
+
+Two rules hold a hand-written list in their own source, and neither is a knob:
+`boundary/client-server-infra`'s two client-safe modules — an allowlist a project widens by editing
+the rule, deliberately, so config cannot widen it — and `placement/deprecated-paths`'s moved-away-from
+patterns, which are that rule's whole subject. Nothing else in either tier holds a list of paths.
 
 Structural checks are **copied, not adapted**: adopting one means writing config, never
-reimplementing an algorithm. The keys are in [structural/config.ts](structural/config.ts). Six of
-them answer *where an import lands* rather than *how it is spelled*, so the import graph is built
-before its consumers.
+reimplementing an algorithm. Eight of the sixteen take config at all, and their typed shapes and
+defaults are in [structural/config.ts](structural/config.ts); the other eight read only the tree.
+Six checks answer *where an import lands* rather than *how it is spelled* — `api/feature-visibility`,
+`boundary/import-policy`, `boundary/layer-occupancy`, `graph/domain-cycles`, `graph/feature-deps` and
+`placement/layer-direction` — so the import graph is built before its consumers.
 
 ## What is verified before it reaches you
 
@@ -156,7 +164,7 @@ The two tiers are proved differently, because they read differently.
 environment, and in particular it populates **no global scope**. A rule that reasons about globals
 gets a different answer there than in production, and its specs are written in the host where that
 answer happens to be the expected one. `types/no-reflect-access` shipped that way: registered,
-documented, typechecked, fifteen green cases, and it reported nothing when oxlint ran it.
+documented, typechecked, every case green, and it reported nothing when oxlint ran it.
 
 One rule is proved through a real `oxlint` run on every check today. The rest were each linted
 through the real CLI once, by hand, when the full manifest landed, and nothing re-runs that. So run

@@ -71,8 +71,8 @@ carry it. Name the exports `serverEnv` and `clientEnv`, so the import site says 
 in. The public prefix belongs to the framework: `VITE_PUBLIC_` under Vite, `NEXT_PUBLIC_` under
 Next. The plan carries the exact config for this project.
 
-A project on the single-env option still maps that file as the server env, because a combined module
-carries the secrets.
+A project on the single-env option still maps that file as the server env: a combined module carries
+the secrets.
 
 ### Choice 4: Error architecture
 
@@ -81,13 +81,13 @@ carries the secrets.
 | **Single error class** | One `ServerError` class with typed codes, at the server boundary. Routes switch on the code. |
 | **Per-layer errors** | Each layer defines errors at its own abstraction level. Controllers catch and translate. |
 
-Choose a single class when the project has two layers or fewer, or when no error needs translating
-between layers. Choose per-layer errors when three or more layers translate error meaning — a parse
-failure is not a connection timeout, and the controller has to map one to the other.
+Choose a single class when the project has two layers or fewer. Choose per-layer errors when three
+or more layers translate error meaning — a parse failure is not a connection timeout, and the
+controller has to map one to the other.
 
-**Recommendation:** take per-layer errors with `domains/` plus layered features. Typed codes make the
-controller's translation exhaustive, so TypeScript catches an unhandled code. Take the single class
-for anything simpler.
+**Recommendation:** take per-layer errors with `domains/` plus layered features, the single class for
+anything simpler. Why typed codes rather than a hierarchy:
+[architecture-principles.md](architecture-principles.md#error-architecture).
 
 ---
 
@@ -123,6 +123,8 @@ src/
       client.ts           # Browser auth client (client-safe)
     integrations/         # External SDK wrappers
     telemetry/            # Observability
+    api-client.ts         # The ONLY module that calls fetch
+    browser-storage.ts    # The ONLY module that touches localStorage
     providers/
       query-client.ts     # Query client (client-safe)
   shared/
@@ -143,11 +145,18 @@ src/
   env.client.ts
 ```
 
-Three things in that tree are load-bearing in a way their names do not show.
+Four things in that tree are load-bearing in a way their names do not show.
 
 - **The files directly in the source root are a closed set:** the four entrypoint positions, the env
   modules, and the token stylesheet. `placement/topology` rejects any other file there. Their names
   are vocabulary, so a project that spells one differently renames it in one place.
+
+- **`api-client.ts` and `browser-storage.ts` are not optional, and a blocking rule already assumes
+  they exist.** `boundary/ambient-globals` allows `process.env` and `import.meta.env` only in the env
+  modules, `fetch` only in the API client, and `localStorage` only in the browser storage wrapper.
+  Every one of those four reads is denied everywhere else. Scaffold both modules with the tree: a
+  project that writes its first `fetch()` before creating `api-client.ts` gets an error naming a file
+  it does not have. Both names are vocabulary — `apiClientName` and `browserStorageName`.
 - **`auth/client.ts` and `providers/query-client.ts` are the only two infrastructure modules a client
   file may import.** That list lives in `boundary/client-server-infra` and it is the whole list.
   `db/client.ts` is an ordinary server-only module that happens to share the word.
@@ -191,6 +200,8 @@ Find the row for the work, and put the file in the directory it names.
 | An external SDK | `infrastructure/integrations/` |
 | Auth configuration | `infrastructure/auth/` |
 | The browser auth client | `infrastructure/auth/client.ts` |
+| An HTTP call to anything outside this app | `infrastructure/api-client.ts` — the one module that may call `fetch` |
+| Reading or writing `localStorage` | `infrastructure/browser-storage.ts` — the one module that may touch it |
 | Telemetry | `infrastructure/telemetry/` |
 | A React provider | `infrastructure/providers/` |
 | A secret or server-only config value | `env.server.ts` |
