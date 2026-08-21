@@ -37,6 +37,12 @@
  * case that separates them — a type-space binding hiding a real one outside it —
  * is a spec case rather than a live one.
  *
+ * And the reverse, which is this file's whole argument in one mutation: turning the
+ * rule's `defs.some(bindsAValue)` into `defs.every(…)` leaves all 37 spec cases
+ * green and fails two cases here. A binding that merges a type declaration with a
+ * value one is the shape that separates the quantifiers, and the host with no
+ * global scope resolves it before it gets that far.
+ *
  * NEGATIVE SPACE, and it is why this file is named after one rule rather than
  * after the technique:
  *

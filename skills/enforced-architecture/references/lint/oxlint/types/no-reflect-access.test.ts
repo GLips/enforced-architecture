@@ -162,6 +162,48 @@ export const value = Reflect.get(invoice, key);`,
       errors: [{ messageId: "reflectGet" }],
     },
     {
+      // The CALLEE side of the same wedge as the two cases above, and the cheaper
+      // half: this emits byte-identical JS to the plain form and costs nothing —
+      // no `SAFETY:` comment, no other rule in the catalog reporting on it.
+      name: "a non-null assertion on the callee is the same call",
+      filename: SERVICE,
+      code: `export const value = Reflect.get!(invoice, key);`,
+      errors: [{ messageId: "reflectGet" }],
+    },
+    {
+      name: "an assertion around the callee is the same call",
+      filename: SERVICE,
+      code: `export const value = (Reflect.get as (o: unknown, k: string) => unknown)(invoice, key);`,
+      errors: [{ messageId: "reflectGet" }],
+    },
+    {
+      // `declare` on the definition's OWN node, with no declarator to climb out of.
+      // A rule reading only the declarator's parent misses this, and it is another
+      // one-line file-wide off-switch: it compiles, erases, and the call is the
+      // builtin's.
+      name: "an ambient class declaration carries the flag on its own node",
+      filename: SERVICE,
+      code: `declare class Reflect {
+  static get(o: unknown, k: string): unknown;
+}
+export const value = Reflect.get(invoice, key);`,
+      errors: [{ messageId: "reflectGet" }],
+    },
+    {
+      // Documented cost, asserted for the same reason as the namespace above: an
+      // alias to an INSTANTIATED entity does bind a value, and this reports on it.
+      // Separating the two means answering whether the aliased entity is erased,
+      // which is the instantiation question again one indirection further out.
+      name: "an alias to an instantiated entity is a real binding and still reports",
+      filename: SERVICE,
+      code: `namespace ReflectShim {
+  export const get = (o, k) => o[k];
+}
+import Reflect = ReflectShim;
+export const value = Reflect.get(invoice, key);`,
+      errors: [{ messageId: "reflectGet" }],
+    },
+    {
       name: "both banned methods in one file are two findings",
       filename: SERVICE,
       code: `export const value = Reflect.get(invoice, key);

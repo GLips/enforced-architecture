@@ -39,10 +39,16 @@
 // A codebase that wants the whole family closed wants a type-aware check, which no
 // rule in this catalog is.
 //
-// REPORTS CORRECT CODE, once: a `namespace Reflect` with value members really does
-// bind the name, and this reports on it anyway. `bindsAValue` says why the erased
-// kind and the instantiated one are refused together, and the spec asserts the cost
-// rather than leaving it to this paragraph.
+// REPORTS CORRECT CODE, in one shape and its alias: a `namespace Reflect` with value
+// members really does bind the name, as does an `import Reflect = <that namespace>`,
+// and this reports on both. `bindsAValue` says why the erased kinds and the
+// instantiated ones are refused together, and the spec asserts the cost rather than
+// leaving it to this paragraph.
+//
+// Not reachable through an adopter's config, which is the obvious next attack and
+// worth stating: declaring `Reflect` in oxlint's `globals` or turning on an `env`
+// that carries it changes what the global SCOPE holds and not what any definition
+// says, and this reads definitions. Measured on 1.77.0.
 //
 // SCOPE, and it is the same for every TREE-SCOPED rule in this catalog — which
 // is every rule but `testing/no-module-mocking`, whose subject is a test file and
@@ -108,6 +114,11 @@ function resolvesToLocalBinding(sourceCode: SourceCode, identifier: ESTree.Node)
     }
     scope = scope.upper;
   }
+  // No scope records this reference. Not observed — every identifier oxlint hands a visitor is
+  // recorded somewhere — and `false` means "not a local binding", which reports. It is the same
+  // direction the resolver's own `null` takes two lines up, and the same one an unforeseen
+  // definition kind takes in `bindsAValue`: this rule's failure mode is silence, so no default
+  // here chooses it.
   return false;
 }
 
@@ -144,9 +155,9 @@ function resolvesToLocalBinding(sourceCode: SourceCode, identifier: ESTree.Node)
 // language builtin. A real instance is one `oxlint-disable-next-line`; the uninstantiated half
 // left open is a file-wide off-switch with no bound.
 //
-// `TSEnumName` is deliberately absent from the list. An `enum Reflect` shadow does not compile —
-// `Property 'get' does not exist on type 'typeof Reflect'` — so an arm for it could never be
-// fixtured, and an unreachable branch is indistinguishable from a broken one.
+// `TSEnumName` is deliberately absent from the list, and that is a verdict rather than an
+// omission: an enum emits a real object, so the name really is bound. The ambient spellings that
+// do erase — `declare enum` — carry the `declare` flag and are refused by the arm below.
 const TYPE_SPACE_DEFINITIONS: readonly string[] = ["Type", "TSModuleName"];
 
 function bindsAValue(definition: { type: string; node: ESTree.Node; parent: ESTree.Node | null }): boolean {
@@ -154,11 +165,15 @@ function bindsAValue(definition: { type: string; node: ESTree.Node; parent: ESTr
   if (isTypeOnlyImport(definition.node) || isTypeOnlyImport(definition.parent)) return false;
   if (isEntityAlias(definition.node)) return false;
   // `declare` sits on the DECLARATION, and a `Variable` definition's node is the DECLARATOR
-  // inside it, so reading the flag off `definition.node` finds nothing there and calls every
-  // ambient declaration a real binding. Unreachable in practice — every definition kind that
-  // reaches here carries a node — and `true` keeps an unforeseen one reporting rather than silent.
+  // inside it — so reading the flag off `definition.node` alone calls every ambient `const` a real
+  // binding. The other arm is not a fallback: a `declare class Reflect` and a `declare enum` carry
+  // the flag on the definition's OWN node, with no declarator to climb out of, and reading only
+  // `parent` there misses them.
   const declaration = definition.node.type === "VariableDeclarator" ? definition.parent : definition.node;
-  if (declaration === null) return true;
+  // Unreachable — every definition kind that reaches here carries a node. `false` is the direction
+  // an unforeseen one should take: it means "binds nothing", which REPORTS. Silence is the failure
+  // this rule shipped with, and a default that picks it is a default that hides.
+  if (declaration === null) return false;
   return !("declare" in declaration && declaration.declare === true);
 }
 
@@ -166,9 +181,14 @@ function isTypeOnlyImport(node: ESTree.Node | null): boolean {
   return node !== null && "importKind" in node && node.importKind === "type";
 }
 
-// `import X = A.B` names something that already exists and is erased at emit; `import X = require(…)`
-// loads a module and binds it. One syntax, and the moduleReference is the only thing that tells
-// them apart — the definition's `importKind` says `"value"` for both.
+// `import X = A.B` names something that already exists; `import X = require(…)` loads a module and
+// binds it. One syntax, and the moduleReference is the only thing that separates them — the
+// definition's `importKind` says `"value"` for both.
+//
+// It is not the same as separating "binds a value" from "does not": an alias to an INSTANTIATED
+// entity emits `var X = A.B` and does bind one, and this refuses it. That is the instantiation
+// question again, one indirection further out, and it takes the same verdict for the same reason —
+// see the note in `bindsAValue`.
 function isEntityAlias(node: ESTree.Node): boolean {
   return (
     node.type === "TSImportEqualsDeclaration" &&
@@ -190,11 +210,17 @@ export const noReflectAccessRule = defineTreeRule({
 
     return {
       CallExpression(node) {
-        if (node.callee.type !== "MemberExpression") return;
-        // `(Reflect as never).get(…)` and `Reflect!.get(…)` are the same read with a node wedged
-        // in, and a bypass a reader cannot see — the source still says `Reflect.get`.
-        // `lib/transparent-wrappers.ts` owns which nodes those are.
-        const owner = withoutTransparentWrappers(node.callee.object);
+        // TWO places a node can be wedged in, and both leave the source reading `Reflect.get`.
+        // `Reflect.get!(…)` and `(Reflect.get as Getter)(…)` wrap the CALLEE — the member
+        // expression itself — and beat a matcher reading `node.callee` directly.
+        // `(Reflect as never).get(…)` and `Reflect!.get(…)` wrap the callee's OBJECT. Neither is
+        // visible to a reader, and `Reflect.get!(…)` emits byte-identical JS to the plain form.
+        // `lib/transparent-wrappers.ts` owns which nodes those are, for the reason
+        // `types/no-type-argument-assertion` gives: a wrapped callee and a wrapped value are one
+        // question, and a rule holding its own list of the answer is how the two drift.
+        const callee = withoutTransparentWrappers(node.callee);
+        if (callee.type !== "MemberExpression") return;
+        const owner = withoutTransparentWrappers(callee.object);
         // Resolved as a global rather than matched by name, so a local `const Reflect = …` — or an
         // import that shadows it — is correctly left alone.
         if (
@@ -206,7 +232,7 @@ export const noReflectAccessRule = defineTreeRule({
         }
         // `lib/static-key-name.ts` owns both spellings of the member read, and owns the negative
         // space with them: a key no single file can follow is `undefined` rather than a guess.
-        const method = staticKeyName(node.callee.property, node.callee.computed);
+        const method = staticKeyName(callee.property, callee.computed);
         const messageId = method === undefined ? undefined : BANNED_REFLECT_METHODS.get(method);
         if (messageId !== undefined) context.report({ node, messageId });
       },
