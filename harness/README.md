@@ -73,7 +73,7 @@ Every case carries its own `filename`, in the standard layout, because the rules
 
 ## What the runner checks that a spec run does not
 
-`harness/run-rule-fixtures.ts` exists for the six things a spec cannot say about itself. Each one leaves a green run behind a rule nothing exercises:
+`harness/run-rule-fixtures.ts` exists for the seven things a spec cannot say about itself. Each one leaves a green run behind a rule nothing exercises:
 
 - **`oxlint/plugin.ts` does not load.** The runner imports the manifest rather than grepping it, because a plugin that fails to load takes *every* rule silent with it — the largest version of the failure everything here guards against.
 - **A rule missing from `oxlint/plugin.ts`, or bound to the wrong export.** The plugin module is the manifest a consuming project copies; a rule absent from it ships as a file nobody loads. Tested, and never run. A text search would pass a commented-out registration; an import does not.
@@ -83,7 +83,7 @@ Every case carries its own `filename`, in the standard layout, because the rules
 - **A kind that ran zero cases.** `RuleTester.run` on an empty scenario emits the suite line and nothing under it, so announcing a kind is not running one. The runner counts each kind's leaf cases as well as reading its name.
 - **`describeRule` no longer refusing an empty kind.** That refusal is what makes a stubbed spec a load error, and every shipped spec is populated, so deleting it changes no output anywhere. The runner calls `describeRule` with one kind emptied and demands a refusal that names it.
 
-The last two are independent holds on one invariant: the probe fails when the refusal goes, the count fails when a case list is emptied after it. Removing both together is what a stub needed to pass, and it did — PASS, 50/50, exit 0.
+The last two are independent holds on one invariant: the probe fails when the refusal goes, the count fails when a case list is emptied after it. Removing both together is what a stub needed to pass, and it did — PASS for that rule, 49/49, exit 0.
 
 Every one of these was revert-probed when it landed. Do it again after any change here: break a rule and expect its adversarial kind to fail; stub a case list and expect three kinds never run; delete the refusal and expect the probe to fail; do both and expect zero cases. A harness that stays green through any of those is not testing anything.
 

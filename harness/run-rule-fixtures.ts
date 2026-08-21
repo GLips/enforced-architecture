@@ -200,7 +200,7 @@ const tap = `${run.stdout ?? ""}${run.stderr ?? ""}`;
  * The CASE COUNT is read alongside the name, because announcing itself is not the same as asserting
  * anything. `RuleTester.run` on an empty scenario emits the suite line and nothing under it, so a
  * kind stubbed to `[]` reads as a plain `ok` with zero subtests — measured: with lib/rule-spec.ts's
- * refusal removed and one kind emptied, this runner reported PASS, 50/50, exit 0.
+ * refusal removed and one kind emptied, this runner reported PASS for that rule and 49/49, exit 0.
  *
  * Node's TAP reporter tags every leaf case `type: 'test'` and every grouping suite `type: 'suite'`,
  * so a kind's case count is the number of `type: 'test'` lines between its header and its result.
@@ -269,9 +269,17 @@ for (const detail of contractFailures) {
 
 if (run.status !== 0) console.log(`\n${tap}`);
 
+// The fraction counts RULES, and three of the failure classes above belong to no single rule — a
+// missing plugin registration, a stale glob, a deleted empty-kind refusal. Left unqualified the
+// tail reads `49/49 … proved` on a run that just reported the contract itself broken, which is the
+// green-that-means-nothing this whole file exists to refuse.
+const outsideAnyRule = orphans.length + configFailures.length + contractFailures.length;
 console.log(
   `\n${rulePaths.length - failedRules}/${rulePaths.length} oxlint rule templates proved against their obvious / adversarial / legal specs,` +
-    ` plus ${policySpecs.length} spec file(s) over the shared tables in lint/policy/.`,
+    ` plus ${policySpecs.length} spec file(s) over the shared tables in lint/policy/.` +
+    (outsideAnyRule === 0
+      ? ""
+      : ` ${outsideAnyRule} failure(s) above belong to no single rule, and that fraction says nothing about them.`),
 );
 process.exit(
   failedRules === 0 &&
@@ -297,8 +305,8 @@ process.exit(
  * together were what a stubbed `adversarial` list needed to defeat, and it defeated one.
  *
  * NEGATIVE SPACE: nothing here asserts that a POPULATED spec is accepted. Reaching that path builds
- * a `RuleTester` and registers three suites, and this process is not a test runner — the 50 specs
- * that do run are the standing proof of the accepting half.
+ * a `RuleTester` and registers three suites, and this process is not a test runner — the 49 rule
+ * specs that do run are the standing proof of the accepting half.
  */
 function checkEmptyKindRejection(): string[] {
   // Never linted: `describeRule` refuses before it touches `RuleTester`, so the rule and the cases
@@ -327,11 +335,21 @@ function checkEmptyKindRejection(): string[] {
           `the only thing making a stubbed kind a load error rather than a suite that reports ok ` +
           `on zero cases — restore it`,
       );
-    } else if (!refusal.message.includes(kind)) {
+      continue;
+    }
+
+    // Present AND absent, because the absent half is the one that carries the claim. A refusal
+    // reworded to "every kind (obvious, adversarial, legal) needs a case" names the emptied kind on
+    // every iteration and satisfies a bare `includes`, while telling the author of a stubbed spec
+    // nothing about which list is short — the exact defect the message below says it prevents.
+    const { message } = refusal;
+    const named = KINDS.filter((candidate) => message.includes(candidate));
+    if (named.length !== 1 || named[0] !== kind) {
       failures.push(
-        `oxlint/lib/rule-spec.ts refused an empty ${kind} case list with "${refusal.message}", ` +
-          `which never names the kind — the author of a stubbed spec cannot tell which of the ` +
-          `three lists to fill in`,
+        `oxlint/lib/rule-spec.ts refused an empty ${kind} case list with "${message}", which names ` +
+          `${named.length === 0 ? "no kind at all" : named.join(" and ")}. A refusal has to name ` +
+          `the empty kind and only that kind, or the author of a stubbed spec cannot tell which of ` +
+          `the three lists to fill in`,
       );
     }
   }
