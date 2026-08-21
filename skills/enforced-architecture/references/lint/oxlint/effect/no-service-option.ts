@@ -31,17 +31,10 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineTreeRule } from "../lib/define-tree-rule.ts";
+import { staticKeyName } from "../lib/static-key-name.ts";
 import { type ESTree } from "@oxlint/plugins";
 
 const OPTIONAL_SERVICE_ACCESSORS = new Set(["serviceOption"]);
-
-/** The property name when it is statically known — `x.name` or `x["name"]`, never `x[expr]`. */
-function staticPropertyName(node: ESTree.MemberExpression): string | null {
-  if (!node.computed) return node.property.type === "Identifier" ? node.property.name : null;
-  return node.property.type === "Literal" && typeof node.property.value === "string"
-    ? node.property.value
-    : null;
-}
 
 export const noServiceOptionRule = defineTreeRule({
   meta: {
@@ -57,8 +50,8 @@ export const noServiceOptionRule = defineTreeRule({
       // The member reference rather than the call, so a data-last use inside `.pipe(…)` — which
       // passes the function without calling it — is matched by the same branch.
       MemberExpression(node) {
-        const name = staticPropertyName(node);
-        if (name !== null && OPTIONAL_SERVICE_ACCESSORS.has(name)) {
+        const name = staticKeyName(node.property, node.computed);
+        if (name !== undefined && OPTIONAL_SERVICE_ACCESSORS.has(name)) {
           context.report({ node, messageId: "optionalService" });
         }
       },

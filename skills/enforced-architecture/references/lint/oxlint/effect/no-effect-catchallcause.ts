@@ -33,6 +33,7 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineTreeRule } from "../lib/define-tree-rule.ts";
+import { staticKeyName } from "../lib/static-key-name.ts";
 import { type ESTree } from "@oxlint/plugins";
 
 // Keyed by `string` on purpose: every lookup is a member name read off the AST, so a map narrowed
@@ -42,14 +43,6 @@ const CAUSE_CATCH_METHODS = new Map<string, "causeCaught" | "defectCaught">([
   ["catchAllCause", "causeCaught"],
   ["catchAllDefect", "defectCaught"],
 ]);
-
-/** The property name when it is statically known — `x.name` or `x["name"]`, never `x[expr]`. */
-function staticPropertyName(node: ESTree.MemberExpression): string | null {
-  if (!node.computed) return node.property.type === "Identifier" ? node.property.name : null;
-  return node.property.type === "Literal" && typeof node.property.value === "string"
-    ? node.property.value
-    : null;
-}
 
 export const noEffectCatchAllCauseRule = defineTreeRule({
   meta: {
@@ -67,8 +60,8 @@ export const noEffectCatchAllCauseRule = defineTreeRule({
       // The member reference, not the call: data-last usage inside a `.pipe(…)` passes the function
       // without calling it, so a CallExpression visitor sees nothing there.
       MemberExpression(node) {
-        const name = staticPropertyName(node);
-        const messageId = name === null ? undefined : CAUSE_CATCH_METHODS.get(name);
+        const name = staticKeyName(node.property, node.computed);
+        const messageId = name === undefined ? undefined : CAUSE_CATCH_METHODS.get(name);
         if (messageId !== undefined) context.report({ node, messageId });
       },
 

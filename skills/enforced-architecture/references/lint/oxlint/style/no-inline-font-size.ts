@@ -49,35 +49,11 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineTreeRule } from "../lib/define-tree-rule.ts";
+import { staticKeyName } from "../lib/static-key-name.ts";
 import { type ESTree } from "@oxlint/plugins";
 import { isStyleSubject } from "../../policy/layout.ts";
 
 const SCALE_PROPERTIES = new Set(["fontSize"]);
-
-/**
- * The static name of a non-computed property key.
- *
- * `{ "fontSize": 13 }` is the same property as `{ fontSize: 13 }` — the quotes are a spelling, not
- * a different key — so both spellings resolve here. A computed key (`{ [prop]: 13 }`) has no
- * static name at all, and returning null is how the rule says so rather than guessing.
- *
- * The parameter is the full `Property` visitor union, not just the object-literal member: oxlint
- * fires that visitor for destructuring and assignment-target properties too, and all four kinds
- * carry the same `key`/`computed` pair this reads. The ones that are not object literals are
- * dropped by the caller, on the parent, where the reason for dropping them can be written down.
- */
-function staticPropertyKeyName(
-  property:
-    | ESTree.ObjectProperty
-    | ESTree.AssignmentTargetProperty
-    | ESTree.BindingProperty,
-): string | null {
-  if (property.computed) return null;
-  const { key } = property;
-  if (key.type === "Identifier") return key.name;
-  if (key.type === "Literal" && typeof key.value === "string") return key.value;
-  return null;
-}
 
 export const noInlineFontSizeRule = defineTreeRule({
   meta: {
@@ -103,8 +79,11 @@ export const noInlineFontSizeRule = defineTreeRule({
         // names, so reporting it would send the reader in a circle.
         if (node.parent.type !== "ObjectExpression") return;
 
-        const name = staticPropertyKeyName(node);
-        if (name !== null && SCALE_PROPERTIES.has(name)) {
+        // oxlint fires this visitor for destructuring and assignment-target properties too, and all
+        // four kinds carry the same `key`/`computed` pair the owner reads. The ones that are not
+        // object literals are dropped on the parent above, where the reason is written down.
+        const name = staticKeyName(node.key, node.computed);
+        if (name !== undefined && SCALE_PROPERTIES.has(name)) {
           context.report({ node, messageId: "rawFontSize" });
         }
       },

@@ -39,6 +39,15 @@ describeRule("style/no-inline-font-size", noInlineFontSizeRule, {
       errors: [{ messageId: "rawFontSize" }],
     },
     {
+      // A computed key is not the same thing as an unknown one. `["fontSize"]` names the property
+      // as plainly as `fontSize` does, and it is the spelling a codebase drifts toward once the
+      // two shorter ones start reporting. The genuinely dynamic `[key]` stays legal below.
+      name: "a bracketed string key is the same property wearing the computed spelling",
+      filename: COMPONENT,
+      code: `export const styles = { ["fontSize"]: 13 };`,
+      errors: [{ messageId: "rawFontSize" }],
+    },
+    {
       name: "a second occurrence in one file reports separately",
       filename: COMPONENT,
       code: `export const a = { fontSize: 13 };\nexport const b = { fontSize: 14 };`,

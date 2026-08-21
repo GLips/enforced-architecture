@@ -29,17 +29,10 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineTreeRule } from "../lib/define-tree-rule.ts";
+import { staticKeyName } from "../lib/static-key-name.ts";
 import { type ESTree } from "@oxlint/plugins";
 
 const SQL_TAG_NAMES = new Set(["sql"]);
-
-/** The property name when it is statically known — `x.name` or `x["name"]`, never `x[expr]`. */
-function staticPropertyName(node: ESTree.MemberExpression): string | null {
-  if (!node.computed) return node.property.type === "Identifier" ? node.property.name : null;
-  return node.property.type === "Literal" && typeof node.property.value === "string"
-    ? node.property.value
-    : null;
-}
 
 /**
  * Both ends of the tag are tested because the client shows up at either: `db.sql` puts the name
@@ -50,8 +43,8 @@ function staticPropertyName(node: ESTree.MemberExpression): string | null {
 function isSqlTag(tag: ESTree.Expression): boolean {
   if (tag.type === "Identifier") return SQL_TAG_NAMES.has(tag.name);
   if (tag.type !== "MemberExpression") return false;
-  const member = staticPropertyName(tag);
-  if (member !== null && SQL_TAG_NAMES.has(member)) return true;
+  const member = staticKeyName(tag.property, tag.computed);
+  if (member !== undefined && SQL_TAG_NAMES.has(member)) return true;
   return isSqlTag(tag.object);
 }
 

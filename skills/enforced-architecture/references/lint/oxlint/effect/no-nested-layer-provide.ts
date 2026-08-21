@@ -31,24 +31,17 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineTreeRule } from "../lib/define-tree-rule.ts";
+import { staticKeyName } from "../lib/static-key-name.ts";
 import { type ESTree, type Range } from "@oxlint/plugins";
 
 const LAYER_NAMESPACES = new Set(["Layer"]);
 const PROVIDE_METHOD = "provide";
 
-/** The property name when it is statically known — `x.name` or `x["name"]`, never `x[expr]`. */
-function staticPropertyName(node: ESTree.MemberExpression): string | null {
-  if (!node.computed) return node.property.type === "Identifier" ? node.property.name : null;
-  return node.property.type === "Literal" && typeof node.property.value === "string"
-    ? node.property.value
-    : null;
-}
-
 function isLayerProvideCall(node: ESTree.CallExpression): boolean {
   const { callee } = node;
   if (callee.type !== "MemberExpression") return false;
   if (callee.object.type !== "Identifier" || !LAYER_NAMESPACES.has(callee.object.name)) return false;
-  return staticPropertyName(callee) === PROVIDE_METHOD;
+  return staticKeyName(callee.property, callee.computed) === PROVIDE_METHOD;
 }
 
 export const noNestedLayerProvideRule = defineTreeRule({

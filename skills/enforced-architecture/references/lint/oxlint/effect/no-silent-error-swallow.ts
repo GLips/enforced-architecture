@@ -33,24 +33,19 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineTreeRule } from "../lib/define-tree-rule.ts";
+import { staticKeyName } from "../lib/static-key-name.ts";
 import { type ESTree } from "@oxlint/plugins";
 
 const CATCH_METHODS = new Set(["catchAll", "catchTag", "catchTags"]);
 const VOID_EFFECT_MEMBERS = new Set(["void", "unit"]);
 const SUCCEED_METHOD = "succeed";
 
-/** The property name when it is statically known — `x.name` or `x["name"]`, never `x[expr]`. */
-function staticPropertyName(node: ESTree.MemberExpression): string | null {
-  if (!node.computed) return node.property.type === "Identifier" ? node.property.name : null;
-  return node.property.type === "Literal" && typeof node.property.value === "string"
-    ? node.property.value
-    : null;
-}
-
 /** The called name, whether `Effect.catchAll(…)`, `Effect["catchAll"](…)`, or a bare import. */
-function calledName(callee: ESTree.Expression): string | null {
+function calledName(callee: ESTree.Expression): string | undefined {
   if (callee.type === "Identifier") return callee.name;
-  return callee.type === "MemberExpression" ? staticPropertyName(callee) : null;
+  return callee.type === "MemberExpression"
+    ? staticKeyName(callee.property, callee.computed)
+    : undefined;
 }
 
 // Matched on the member name alone, so a namespace import (`import * as Eff`) resolves the same as
@@ -59,8 +54,8 @@ function calledName(callee: ESTree.Expression): string | null {
 function isEmptyEffect(node: ESTree.Node | null | undefined): boolean {
   if (node === null || node === undefined) return false;
   if (node.type === "MemberExpression") {
-    const member = staticPropertyName(node);
-    return member !== null && VOID_EFFECT_MEMBERS.has(member);
+    const member = staticKeyName(node.property, node.computed);
+    return member !== undefined && VOID_EFFECT_MEMBERS.has(member);
   }
   if (node.type === "CallExpression" && calledName(node.callee) === SUCCEED_METHOD) {
     const [value] = node.arguments;
@@ -107,7 +102,7 @@ export const noSilentErrorSwallowRule = defineTreeRule({
     return {
       CallExpression(node) {
         const method = calledName(node.callee);
-        if (method === null || !CATCH_METHODS.has(method)) return;
+        if (method === undefined || !CATCH_METHODS.has(method)) return;
 
         // Scanning every argument is what makes the data-first and data-last spellings one case
         // instead of three positional branches, each with its own off-by-one.

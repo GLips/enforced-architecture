@@ -29,6 +29,7 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineRule, type ESTree, type Scope, type SourceCode } from "@oxlint/plugins";
+import { staticKeyName } from "../lib/static-key-name.ts";
 
 const MOCK_METHODS = new Set(["doMock", "mock", "unstable_mockModule"]);
 
@@ -67,15 +68,6 @@ function isTestFrameworkObject(sourceCode: SourceCode, node: ESTree.Expression):
   return true;
 }
 
-function accessedMethodName(callee: ESTree.MemberExpression): string | null {
-  if (callee.computed) {
-    return callee.property.type === "Literal" && typeof callee.property.value === "string"
-      ? callee.property.value
-      : null;
-  }
-  return callee.property.type === "Identifier" ? callee.property.name : null;
-}
-
 export const noModuleMockingRule = defineRule({
   meta: {
     type: "problem",
@@ -91,8 +83,8 @@ export const noModuleMockingRule = defineRule({
       CallExpression(node) {
         if (node.callee.type !== "MemberExpression") return;
         if (!isTestFrameworkObject(context.sourceCode, node.callee.object)) return;
-        const method = accessedMethodName(node.callee);
-        if (method !== null && MOCK_METHODS.has(method)) {
+        const method = staticKeyName(node.callee.property, node.callee.computed);
+        if (method !== undefined && MOCK_METHODS.has(method)) {
           context.report({ node, messageId: "moduleMock" });
         }
       },

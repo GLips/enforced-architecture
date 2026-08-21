@@ -36,6 +36,7 @@ import { type ESTree } from "@oxlint/plugins";
 import { isComponentFile } from "../../policy/declared-trees.ts";
 import { exportedComponents, type ComponentFunction } from "../lib/component-declarations.ts";
 import { numericRuleOption } from "../lib/rule-options.ts";
+import { staticKeyName } from "../lib/static-key-name.ts";
 
 const DEFAULT_THRESHOLD = 8;
 
@@ -177,8 +178,10 @@ function destructuredSurface(pattern: ESTree.ObjectPattern): PropSurface {
 
   for (const property of pattern.properties) {
     if (property.type !== "Property" || property.computed) continue;
-    const name = propertyKeyName(property.key);
-    if (name !== null && !NOT_A_PROP.has(name)) names.add(name);
+    // `computed` is false here: the loop above skips computed properties, so the owner is asked
+    // the same question the guard already answered.
+    const name = staticKeyName(property.key, false);
+    if (name !== undefined && !NOT_A_PROP.has(name)) names.add(name);
   }
 
   return { names, complete: true, unresolved: [] };
@@ -284,13 +287,8 @@ function absorbMembers(members: readonly ESTree.TSSignature[], surface: PropSurf
       continue;
     }
     if (member.computed) continue;
-    const name = propertyKeyName(member.key);
-    if (name !== null && !NOT_A_PROP.has(name)) surface.names.add(name);
+    const name = staticKeyName(member.key, false);
+    if (name !== undefined && !NOT_A_PROP.has(name)) surface.names.add(name);
   }
 }
 
-function propertyKeyName(key: ESTree.PropertyKey): string | null {
-  if (key.type === "Identifier") return key.name;
-  if (key.type === "Literal" && typeof key.value === "string") return key.value;
-  return null;
-}
