@@ -3,7 +3,7 @@ import type { CheckFixtures } from "../../expectations.ts";
 export const noOpaqueRecordFixtures: CheckFixtures = {
   check: "types/no-opaque-record",
 
-  obvious: ["FAIL src/features/alpha/service/opaque-record-bag.ts"],
+  obvious: ["FAIL src/features/alpha/repo/opaque-record-bag.ts"],
 
   // Six findings on ONE path, and the multiplicity is the assertion: the file
   // holds seven bag-shaped declarations and the seventh is an alias to one
@@ -11,15 +11,23 @@ export const noOpaqueRecordFixtures: CheckFixtures = {
   // fails here; a check that stopped matching one spelling reports five and
   // fails here too. Neither is visible to a comparison of bare paths.
   adversarial: [
-    "FAIL src/features/alpha/service/opaque-record-spellings.ts",
-    "FAIL src/features/alpha/service/opaque-record-spellings.ts",
-    "FAIL src/features/alpha/service/opaque-record-spellings.ts",
-    "FAIL src/features/alpha/service/opaque-record-spellings.ts",
-    "FAIL src/features/alpha/service/opaque-record-spellings.ts",
-    "FAIL src/features/alpha/service/opaque-record-spellings.ts",
+    "FAIL src/features/alpha/repo/opaque-record-spellings.ts",
+    "FAIL src/features/alpha/repo/opaque-record-spellings.ts",
+    "FAIL src/features/alpha/repo/opaque-record-spellings.ts",
+    "FAIL src/features/alpha/repo/opaque-record-spellings.ts",
+    "FAIL src/features/alpha/repo/opaque-record-spellings.ts",
+    "FAIL src/features/alpha/repo/opaque-record-spellings.ts",
+
+    // The two bags in `bag-widening.ts`, which is `types/no-widen-then-assert`'s
+    // fixture as much as this one's: an open dictionary with an opaque value is
+    // a bag here and a widening target there. Both report, and the two messages
+    // are jointly actionable — stop widening, and name the fields — so this is
+    // an overlap the catalog allows rather than two owners of one policy.
+    "FAIL src/features/alpha/repo/bag-widening.ts",
+    "FAIL src/features/alpha/repo/bag-widening.ts",
   ],
 
-  legal: ["src/features/alpha/service/opaque-record-closed.ts"],
+  legal: ["src/features/alpha/repo/opaque-record-closed.ts"],
 
   // The two messages differ by which recovery they name first, and the split is
   // load-bearing: `Record<string, unknown>` and `{ [k: string]: unknown }` are
@@ -28,15 +36,15 @@ export const noOpaqueRecordFixtures: CheckFixtures = {
   // both branches report `FAIL` at the same path.
   messages: [
     {
-      path: "src/features/alpha/service/opaque-record-bag.ts",
+      path: "src/features/alpha/repo/opaque-record-bag.ts",
       contains: "Record<string, unknown> is an untyped bag",
     },
     {
-      path: "src/features/alpha/service/opaque-record-bag.ts",
+      path: "src/features/alpha/repo/opaque-record-bag.ts",
       absent: "spelled differently",
     },
     {
-      path: "src/features/alpha/service/opaque-record-spellings.ts",
+      path: "src/features/alpha/repo/opaque-record-spellings.ts",
       contains: "An index signature with an unknown/any value",
     },
   ],

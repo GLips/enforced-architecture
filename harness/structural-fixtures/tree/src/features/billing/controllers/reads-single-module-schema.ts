@@ -7,4 +7,4 @@
 // `run-structural-fixtures.ts` for the vocabulary that makes it the subject.
 import { invoiceTable } from "@/infrastructure/db/tables";
 
-export const listInvoices = (): unknown => invoiceTable;
+export const listInvoices = () => invoiceTable;

@@ -155,22 +155,48 @@ export async function typeResolvesToFlags(
 }
 
 /**
- * Whether `type` is an open dictionary whose values say nothing — the whole of
- * `types/no-opaque-record`'s question, and the reason this module exists.
+ * The value types of `type`'s index signatures, or `undefined` when its key
+ * domain is CLOSED.
  *
- * The `Object` flag gate is not an optimisation. A primitive has index infos
- * too (`string` is indexable by number), and without the gate every `string`
+ * The single owner of "is this key domain open", which is the question ea-66
+ * spent four review rounds and ~340 lines of syntax walking on. Here it is the
+ * presence of an index signature, and the two callers below split on what they
+ * do with the answer — which is exactly where the three ported checks are meant
+ * to diverge and nowhere else.
+ *
+ * The `Object` flag gate is not an optimisation. A primitive has index infos too
+ * (`string` is indexable by number), and without the gate every `string`
  * annotation in the tree is a bag.
+ */
+export async function openKeyDomainValueTypes(
+  treeChecker: TreeTypeChecker,
+  type: Type,
+): Promise<readonly Type[] | undefined> {
+  if (type.isErrorType()) return undefined;
+  if ((type.flags & TypeFlags.Object) === 0) return undefined;
+  const infos = await treeChecker.indexSignatures(type);
+  if (infos.length === 0) return undefined;
+  return infos.map((info) => info.valueType);
+}
+
+/**
+ * Whether `type` is an open dictionary whose values say nothing — the whole of
+ * `types/no-opaque-record`'s question.
+ *
+ * The KEY half comes from `openKeyDomainValueTypes` and the VALUE half is added
+ * here. `types/no-known-value-widening` deliberately stops at the key half, so
+ * `Record<string, Handler>` reports there and is silent here: a dictionary with
+ * a precise value type is evidence of a known type, not an untyped bag.
  */
 export async function isOpaqueDictionary(
   treeChecker: TreeTypeChecker,
   type: Type,
 ): Promise<boolean> {
-  if (type.isErrorType()) return false;
-  if ((type.flags & TypeFlags.Object) === 0) return false;
+  const values = await openKeyDomainValueTypes(treeChecker, type);
+  if (values === undefined) return false;
   const opaque = UNTYPED_TYPE_FLAGS | NON_PRIMITIVE_TYPE_FLAGS;
-  for (const info of await treeChecker.indexSignatures(type)) {
-    if (await typeResolvesToFlags(treeChecker, info.valueType, opaque)) return true;
+  for (const value of values) {
+    if (await typeResolvesToFlags(treeChecker, value, opaque)) return true;
   }
   return false;
 }
@@ -185,7 +211,7 @@ export async function isOpaqueDictionary(
  * a 2,000-file tree.
  *
  * The exclusion is here, and not in each check, because forgetting it does not
- * produce a wrong answer — it KILLS THE RUN. See `isConstAssertionMarker`.
+ * produce a wrong answer — it KILLS THE RUN. See `isTypeRequestUnsafe`.
  */
 export function typeCheckableNodesOfKind(
   file: SourceFile,
@@ -193,7 +219,7 @@ export function typeCheckableNodesOfKind(
 ): Node[] {
   const found: Node[] = [];
   const walk = (node: Node): void => {
-    if (kinds.has(node.kind) && !isConstAssertionMarker(node)) found.push(node);
+    if (kinds.has(node.kind) && !isTypeRequestUnsafe(node)) found.push(node);
     node.forEachChild(walk);
   };
   walk(file);
@@ -201,32 +227,49 @@ export function typeCheckableNodesOfKind(
 }
 
 /**
- * The `const` in `x as const`, which the parser records as a type reference to a
- * type named `const`.
+ * The nodes that must never be handed to `getTypeAtLocation`, because asking
+ * KILLS THE SERVER.
  *
- * Two reasons it is skipped, and the second is the urgent one:
+ * On TypeScript 7.0.2 the response encoder panics on the EMPTY TUPLE type —
+ * `interface conversion: checker.TypeData is *checker.TypeReference, not
+ * *checker.TupleType` — and the process takes every remaining check in the run
+ * with it. Probed to find the exact trigger rather than guessed at, because a
+ * blanket try/catch around every request would turn a crash into silence, which
+ * is the failure this catalog exists to prevent:
  *
- *   1. It denotes no type. `const` is a reserved word and cannot name one, so a
- *      type reference spelled `const` is ALWAYS this marker — a structural fact
- *      about the grammar rather than a name anyone could shadow.
- *   2. Asking the checker about it CRASHES THE SERVER. On TypeScript 7.0.2,
- *      `getTypeAtLocation` over `[] as const` panics inside the response encoder
- *      (`interface conversion: checker.TypeData is *checker.TypeReference, not
- *      *checker.TupleType`) and the process takes the whole run's remaining
- *      checks with it. The trigger is the EMPTY TUPLE type specifically:
- *      `[1] as const` and `{ a: 1 } as const` are fine, `[] as const` and
- *      `const x: [] = []` are not. Type nodes that merely RESOLVE to an empty
- *      tuple — a reference to `type Empty = []` — are also fine, so this one
- *      exclusion covers every type-position ask.
+ *   PANICS    `[]`                    (an empty array literal)
+ *             `[] as const`           (the assertion over one)
+ *             the `const` in it       (parsed as a type reference named `const`)
+ *   FINE      `[1] as const`, `{ a: 1 } as const`, `const x: [] = []`'s
+ *             ANNOTATION, a reference to `type Empty = []`, and an identifier
+ *             whose type is an empty tuple
  *
- * NEGATIVE SPACE: a check that asks about an EXPRESSION rather than a type node
- * can still hit the same panic through an empty array literal, and nothing here
- * protects it.
+ * So the unsafe set is closed and syntactic: the literal, the assertion wrapped
+ * directly around it, and the `const` marker. Nothing that merely RESOLVES to an
+ * empty tuple is affected, which is why one structural test covers every check
+ * in this tag rather than each one needing its own guard.
+ *
+ * The `const` marker is worth skipping on its own merits too: `const` is a
+ * reserved word and cannot name a type, so a type reference spelled `const` is
+ * always this marker and never a subject.
  */
-export function isConstAssertionMarker(node: Node): boolean {
-  if (node.kind !== SyntaxKind.TypeReference) return false;
-  const reference = node as Node & { typeName?: { kind: SyntaxKind; text?: string } };
-  return reference.typeName?.text === "const";
+export function isTypeRequestUnsafe(node: Node): boolean {
+  if (node.kind === SyntaxKind.TypeReference) {
+    const reference = node as Node & { typeName?: { text?: string } };
+    return reference.typeName?.text === "const";
+  }
+  if (isEmptyArrayLiteral(node)) return true;
+  if (node.kind === SyntaxKind.AsExpression || node.kind === SyntaxKind.TypeAssertionExpression) {
+    const assertion = node as Node & { expression?: Node };
+    return assertion.expression !== undefined && isEmptyArrayLiteral(assertion.expression);
+  }
+  return false;
+}
+
+function isEmptyArrayLiteral(node: Node): boolean {
+  if (node.kind !== SyntaxKind.ArrayLiteralExpression) return false;
+  const literal = node as Node & { elements?: readonly Node[] };
+  return (literal.elements?.length ?? 0) === 0;
 }
 
 /**
@@ -273,4 +316,85 @@ export function findingAtNode(
     line: line + 1,
     message,
   };
+}
+
+/**
+ * Every node that declares a call signature, which is what "a function" means
+ * once type positions count.
+ *
+ * Spelled once for the whole tag because the three checks that read signatures
+ * — parameters, return types, and the guard exemption both of them share — must
+ * agree on the set. The oxlint tier's predecessor kept the same list under
+ * `FUNCTION_SIGNATURE_NODES` for the same reason: a check that forgets
+ * `MethodSignature` is silent on every interface in the tree and reads as clean.
+ */
+export const FUNCTION_LIKE_KINDS: ReadonlySet<SyntaxKind> = new Set([
+  SyntaxKind.ArrowFunction,
+  SyntaxKind.CallSignature,
+  SyntaxKind.ConstructSignature,
+  SyntaxKind.Constructor,
+  SyntaxKind.ConstructorType,
+  SyntaxKind.FunctionDeclaration,
+  SyntaxKind.FunctionExpression,
+  SyntaxKind.FunctionType,
+  SyntaxKind.GetAccessor,
+  SyntaxKind.MethodDeclaration,
+  SyntaxKind.MethodSignature,
+  SyntaxKind.SetAccessor,
+]);
+
+/**
+ * The nearest enclosing function, or `undefined` at the top level.
+ *
+ * Stops at the FIRST one, and that is the contract two checks depend on: a
+ * callback nested inside a type guard has its own signature and its own (absent)
+ * predicate, so the outer guard's promise does not reach into it.
+ */
+export function enclosingFunctionLike(node: Node): Node | undefined {
+  let current: Node | undefined = node.parent;
+  while (current !== undefined && current.kind !== SyntaxKind.SourceFile) {
+    if (FUNCTION_LIKE_KINDS.has(current.kind)) return current;
+    current = current.parent;
+  }
+  return undefined;
+}
+
+/**
+ * The parameter names a function's own declarations vouch for with a type
+ * predicate — `value is InvoiceId`, `asserts value is InvoiceId`.
+ *
+ * Reads EVERY declaration of the function's symbol, not just this node's return
+ * type, because an overloaded guard declares its predicate on the overload
+ * signatures and widens the implementation's return type to `boolean`. Asking
+ * the checker which declarations belong together is the part the syntactic
+ * predecessor had to reconstruct by hand.
+ *
+ * A predicate over `this` vouches for the receiver, which is not a parameter, so
+ * it contributes no name and exempts nothing.
+ */
+export async function typePredicateSubjects(
+  treeChecker: TreeTypeChecker,
+  fn: Node,
+): Promise<ReadonlySet<string>> {
+  const subjects = new Set<string>();
+  const named = fn as Node & { name?: Node };
+
+  const declarations: Node[] = [fn];
+  if (named.name !== undefined) {
+    const symbol = await treeChecker.checker.getSymbolAtLocation(named.name);
+    for (const handle of symbol?.declarations ?? []) {
+      const other = await handle.resolve();
+      if (other !== undefined) declarations.push(other);
+    }
+  }
+
+  for (const declaration of declarations) {
+    const returnType = (declaration as Node & { type?: Node }).type;
+    if (returnType?.kind !== SyntaxKind.TypePredicate) continue;
+    const predicate = returnType as Node & { parameterName?: Node & { text?: string } };
+    const name = predicate.parameterName?.text;
+    if (name !== undefined && name !== "this") subjects.add(name);
+  }
+
+  return subjects;
 }

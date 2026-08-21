@@ -50,7 +50,7 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import type { Finding, StructuralCheck, TreeContext } from "../check-substrate.ts";
-import { SyntaxKind, type Node, type SourceFile, type Type } from "../type-checker.ts";
+import { SyntaxKind, type Node, type Type } from "../type-checker.ts";
 import { findingAtNode, isOpaqueDictionary, typeCheckableNodesOfKind, treeSourceFiles } from "./type-shapes.ts";
 
 const OPAQUE_RECORD_MESSAGE =

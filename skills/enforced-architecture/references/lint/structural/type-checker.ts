@@ -68,7 +68,7 @@ import type {
   Symbol as TypeCheckerSymbol,
   Type,
 } from "typescript/unstable/async";
-import { SyntaxKind } from "typescript/unstable/ast";
+import { NodeFlags, SyntaxKind } from "typescript/unstable/ast";
 import type { Node, SourceFile } from "typescript/unstable/ast";
 import type { DeclaredTree } from "../policy/declared-trees.ts";
 
@@ -85,7 +85,7 @@ import type { DeclaredTree } from "../policy/declared-trees.ts";
 // anticipated. The checker's API is already documented, already exhaustive, and
 // already the thing every reader knows; naming half of it again is the
 // two-answers-to-one-question defect wearing an abstraction.
-export { SyntaxKind, TypeFlags };
+export { NodeFlags, SyntaxKind, TypeFlags };
 export type { Checker, IndexInfo, Node, Program, SourceFile, Type, TypeCheckerSymbol };
 
 /**

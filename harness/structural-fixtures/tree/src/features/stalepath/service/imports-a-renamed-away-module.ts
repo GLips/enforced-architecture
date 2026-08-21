@@ -9,4 +9,4 @@
 // edge; it never deletes one.
 import { retiredMetric } from "@/features/mislaid/service/renamed-away.ts";
 
-export const readIt = (): unknown => retiredMetric;
+export const readIt = () => retiredMetric;

@@ -32,7 +32,13 @@ import { layerOccupancyCheck } from "./boundary/layer-occupancy.ts";
 import { shadowSourceCheck } from "./style/shadow-source.ts";
 import { testFileMirrorCheck } from "./naming/test-file-mirror.ts";
 import { tokenEqualityCheck } from "./style/token-equality.ts";
+import { noBroadParametersCheck } from "./types/no-broad-parameters.ts";
+import { noKnownValueWideningCheck } from "./types/no-known-value-widening.ts";
 import { noOpaqueRecordCheck } from "./types/no-opaque-record.ts";
+import { noRuntimeTypeofCheck } from "./types/no-runtime-typeof.ts";
+import { noUnknownReturnsCheck } from "./types/no-unknown-returns.ts";
+import { noUnknownTypeAliasesCheck } from "./types/no-unknown-type-aliases.ts";
+import { noWidenThenAssertCheck } from "./types/no-widen-then-assert.ts";
 import { topologyCheck } from "./placement/topology.ts";
 import { trampolinesCheck } from "./health/trampolines.ts";
 import type { StructuralCheck } from "./check-substrate.ts";
@@ -55,4 +61,10 @@ export const structuralChecks: StructuralCheck[] = [
   shadowSourceCheck,
   tokenEqualityCheck,
   noOpaqueRecordCheck,
+  noKnownValueWideningCheck,
+  noWidenThenAssertCheck,
+  noBroadParametersCheck,
+  noUnknownReturnsCheck,
+  noUnknownTypeAliasesCheck,
+  noRuntimeTypeofCheck,
 ];
