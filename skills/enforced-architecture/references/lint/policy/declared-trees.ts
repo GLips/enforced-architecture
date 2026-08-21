@@ -68,6 +68,7 @@ import {
   classifySourcePath,
   isSafeDirectorySegment,
   isServerModule,
+  JSX_SOURCE_EXTENSIONS,
   isUnderPath,
   RECOMMENDED_VOCABULARY,
   runsOnServer,
@@ -525,9 +526,16 @@ export function namesTestModule(specifierPath: string): boolean {
   return bare.endsWith(TEST_MODULE_SUFFIX) || hasTestDirectorySegment(specifierPath);
 }
 
-/** Rules that only make sense against rendered UI gate on this rather than on being in a tree. */
+/**
+ * Rules that only make sense against rendered UI gate on this rather than on being
+ * in a tree.
+ *
+ * `JSX_SOURCE_EXTENSIONS` is the owner of which extensions those are, so a project
+ * whose components are `.jsx` is governed by the same rules as one whose
+ * components are `.tsx` with no adaptation to make.
+ */
 export function isComponentFile(filename: string): boolean {
-  return filename.endsWith(".tsx");
+  return JSX_SOURCE_EXTENSIONS.some((extension) => filename.endsWith(`.${extension}`));
 }
 
 /** A file resolved into the tree that governs it. */
@@ -653,6 +661,28 @@ export function namesBarrel(role: FileRole): boolean {
   const bare = withoutSourceExtension(role.sourcePath);
   const filename = bare.slice(bare.lastIndexOf("/") + 1);
   return barrelModules(role.tree.vocabulary).includes(filename);
+}
+
+/**
+ * True when the file at `role` is a UNIT's public client barrel — `index.ts` sitting directly in a
+ * feature or a domain, and nowhere else.
+ *
+ * Distinct from `namesBarrel`, and the distinction is the whole reason this exists: `ui/index.ts`
+ * NAMES a barrel and is not a unit's surface, so a rule that cedes its subject to the client-barrel
+ * owner on the looser test cedes files that owner never looks at, and the edge goes unreported by
+ * both. The two `api/` rules split on exactly this line — `api/barrel-direction` owns what a unit's
+ * surface may name, `api/server-import-context` owns which contexts may reach past it — so the line
+ * is stated once here rather than spelled out at each end.
+ *
+ * The client barrel is tested by MODULE rather than by the `feature-barrel` profile, because a
+ * domain has no barrel profile of its own and would otherwise fall out, and because the server
+ * barrel shares the profile and is the one file allowed to name in both directions.
+ */
+export function isUnitClientBarrel(role: FileRole): boolean {
+  const unit = role.place?.unit;
+  if (unit === undefined) return false;
+  if (role.place?.profile !== "feature-barrel" && role.place?.profile !== "domain") return false;
+  return isModule(role, `${unit}/${role.tree.vocabulary.clientBarrelModule}`);
 }
 
 /**

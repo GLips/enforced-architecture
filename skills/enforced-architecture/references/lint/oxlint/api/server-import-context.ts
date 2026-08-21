@@ -19,6 +19,18 @@
 // tests that the file runs only on the server, so a renamed UI module is
 // exempt and reports nothing.
 //
+// That fix is also why a unit's own client barrel is NOT this rule's subject and
+// returns early: renaming `index.ts` to `index.server.ts` deletes the unit's
+// public surface, and "use the client-safe barrel `index` there" is an
+// instruction `index` cannot follow. `api/barrel-direction` owns that file and
+// names a fix that works. The two split on "what a unit's surface may NAME"
+// versus "which contexts may reach PAST it", and `isUnitClientBarrel` in
+// policy/declared-trees.ts holds the line so neither end can move it alone.
+//
+// A barrel that is not a unit's surface — `ui/index.ts` — stays here. It is an
+// ordinary client module that happens to be spelled `index`, and the barrel rule
+// never looks at it.
+//
 // Do not exempt type-only imports with `isTypeOnlyDeclaration`. A type is
 // erased at build time, thus the exemption looks free. A client file that
 // names a type from a server barrel still depends on that barrel's shape,
@@ -34,8 +46,8 @@
 // ─────────────────────────────────────────────────────────────────────
 
 import { defineTreeRule } from "../lib/define-tree-rule.ts";
-import { isServerContext } from "../../policy/declared-trees.ts";
-import { withoutSourceExtension } from "../../policy/layout.ts";
+import { isServerContext, isUnitClientBarrel } from "../../policy/declared-trees.ts";
+import { namesServerBarrel } from "../lib/server-barrel-specifier.ts";
 import { visitModuleSources } from "../lib/module-source-visitor.ts";
 
 export const serverImportContextRule = defineTreeRule({
@@ -48,16 +60,18 @@ export const serverImportContextRule = defineTreeRule({
   },
   create(context, role) {
     if (isServerContext(role)) return {};
+    // Ceded to `api/barrel-direction`, whose message names a fix a barrel can act on. The header
+    // says why this is the one client position that is not this rule's.
+    if (isUnitClientBarrel(role)) return {};
 
     const { vocabulary } = role.tree;
     const { serverBarrelModule } = vocabulary;
 
     return visitModuleSources((source, specifier) => {
-      // Requires a preceding `/`, matching the relative
-      // (`../billing/index.server`) and aliased spellings alike, and ends at the
-      // segment boundary so a neighbour named `index.server-config` is a
-      // different module.
-      if (withoutSourceExtension(specifier).endsWith(`/${serverBarrelModule}`)) {
+      // `lib/server-barrel-specifier.ts` owns which spellings name the barrel, for this rule and
+      // the barrel rule alike — the two held a copy each, and the copies disagreed about the bare
+      // form.
+      if (namesServerBarrel(specifier, serverBarrelModule)) {
         context.report({
           node: source,
           messageId: "serverBarrelInClientContext",

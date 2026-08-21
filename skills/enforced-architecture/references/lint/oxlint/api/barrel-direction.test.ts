@@ -18,10 +18,19 @@ describeRule("api/barrel-direction", barrelDirectionRule, {
       ],
     },
     {
-      name: "the rule governs the domains layer too, not only features",
+      // The message is asserted, and the layer name's ABSENCE is the assertion that matters: a
+      // domain is unlayered, so a message telling this file to re-export through `controllers/`
+      // names a directory the domain may not create. This rule is the only reporter on a client
+      // barrel, so whatever it says here is all an adopter gets.
+      name: "the rule governs the domains layer too, and a domain has no layer to re-export through",
       filename: DOMAIN_BARREL,
       code: `export { priceTable } from "./index.server";`,
-      errors: [{ messageId: "clientBarrelImportsServerBarrel" }],
+      errors: [
+        {
+          message:
+            "Barrel index must not import from index.server — this pulls server-only code into client bundles. A domain is unlayered, so there is no client-safe layer to re-export through: move the client-safe part into the domain's own modules, and leave the server-only part in index.server, which a server context imports directly.",
+        },
+      ],
     },
   ],
 
@@ -57,6 +66,16 @@ describeRule("api/barrel-direction", barrelDirectionRule, {
       errors: [{ messageId: "clientBarrelImportsServerBarrel" }],
     },
     {
+      // The bare form, which under a baseUrl-style resolution IS the source root's server barrel.
+      // It is the spelling the two rules disagreed about while each held its own matcher, and it
+      // is pinned here because `lib/server-barrel-specifier.ts` is now the one place either can
+      // change it.
+      name: "a bare specifier with no leading segment names the barrel too",
+      filename: FEATURE_BARREL,
+      code: `export * from "index.server";`,
+      errors: [{ messageId: "clientBarrelImportsServerBarrel" }],
+    },
+    {
       name: "a barrel spelled index.tsx is still the barrel",
       filename: "/repo/src/features/billing/index.tsx",
       code: `import type { Charge } from "./index.server";\nexport type Alias = Charge;`,
@@ -86,6 +105,10 @@ describeRule("api/barrel-direction", barrelDirectionRule, {
       code: `import { chargeCard } from "../index.server";\nexport const charge = () => chargeCard();`,
     },
     {
+      // Not this rule's subject, and it is `api/server-import-context`'s — a barrel by NAME is not
+      // a unit's public surface. The two rules split on exactly this file, so if the cession were
+      // written against "names a barrel" rather than "is a unit's barrel", nothing would report
+      // here at all.
       name: "a nested ui/index.ts is not the feature's public barrel",
       filename: "/repo/src/features/billing/ui/index.ts",
       code: `export { auditLog } from "../index.server";`,

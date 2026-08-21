@@ -58,6 +58,26 @@ describeRule("api/server-import-context", serverImportContextRule, {
       code: IMPORT_SERVER_BARREL,
       errors: [{ messageId: "serverBarrelInClientContext" }],
     },
+    {
+      // The near side of the cession below. A file that NAMES a barrel is not a unit's public
+      // surface, and `api/barrel-direction` never looks at it — so if the cession were written
+      // against `namesBarrel` rather than `isUnitClientBarrel`, this edge would be reported by
+      // neither rule and read as clean.
+      name: "a nested ui/index.ts names a barrel but is not a unit's surface, so it stays here",
+      filename: "/repo/src/features/billing/ui/index.ts",
+      code: `export { auditLog } from "@/features/audit/index.server";`,
+      errors: [{ messageId: "serverBarrelInClientContext" }],
+    },
+    {
+      // The bare specifier, which this rule could not see while it held its own matcher requiring
+      // a leading `/`. `lib/server-barrel-specifier.ts` is now the one place either api rule
+      // decides what names the barrel.
+      name: "a bare specifier with no leading segment names the barrel too",
+      filename: UI,
+      code: `import { chargeCard } from "index.server";
+export const charge = () => chargeCard();`,
+      errors: [{ messageId: "serverBarrelInClientContext" }],
+    },
   ],
 
   legal: [
@@ -105,6 +125,20 @@ describeRule("api/server-import-context", serverImportContextRule, {
       name: "a test may reach across every boundary",
       filename: "/repo/src/features/billing/ui/panel.test.tsx",
       code: IMPORT_SERVER_BARREL,
+    },
+    {
+      // Ceded to `api/barrel-direction`, which reports both of these. Not silence: this rule's
+      // message tells the reader to "use the client-safe barrel index there", and these files ARE
+      // index — while its stated fastest fix, renaming to `*.server`, deletes the unit's public
+      // surface. The barrel rule names a fix a barrel can act on.
+      name: "a unit's own client barrel is api/barrel-direction's subject, not this rule's",
+      filename: "/repo/src/features/billing/index.ts",
+      code: `export * from "./index.server";`,
+    },
+    {
+      name: "and a domain barrel likewise, where this rule would otherwise be the second reporter",
+      filename: "/repo/src/domains/pricing/index.ts",
+      code: `export { priceTable } from "./index.server";`,
     },
   ],
 });
