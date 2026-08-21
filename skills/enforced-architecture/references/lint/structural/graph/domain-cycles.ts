@@ -30,7 +30,7 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import type { ImportEdge } from "../import-graph.ts";
-import type { Finding, StructuralCheck } from "../check-substrate.ts";
+import type { Finding, StructuralCheck } from "../check-context.ts";
 
 /** One domain→domain dependency, and the earliest import that establishes it. */
 type DomainDependency = { from: string; to: string; witness: ImportEdge };

@@ -60,7 +60,7 @@
 // zero.
 // ──────────────────────────────────────────────────────────────────────
 
-import type { Finding, StructuralCheck, TreeContext } from "../check-substrate.ts";
+import type { Finding, StructuralCheck, TreeContext } from "../check-context.ts";
 import { programPathKeys, SyntaxKind, type Node, type Type } from "../type-checker.ts";
 import { findingAtNode, isOpaqueDictionary, typeCheckableNodesOfKind, treeSourceFiles } from "./type-shapes.ts";
 

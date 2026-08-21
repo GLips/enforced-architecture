@@ -32,7 +32,7 @@ import {
   lineStartOffsets,
   toProjectPath,
   type TreeContext,
-} from "./check-substrate.ts";
+} from "./check-context.ts";
 import { scanDeclaredImports } from "./module-scanning.ts";
 
 /**

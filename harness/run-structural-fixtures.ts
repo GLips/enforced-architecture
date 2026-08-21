@@ -28,6 +28,7 @@
  * through both is not testing anything.
  */
 
+import { spawnSync } from "node:child_process";
 import {
   existsSync,
   globSync,
@@ -60,7 +61,6 @@ import {
 } from "../skills/enforced-architecture/references/lint/policy/layout.ts";
 import { declareTrees } from "../skills/enforced-architecture/references/lint/policy/declared-trees.ts";
 import { createTreeModuleResolver } from "../skills/enforced-architecture/references/lint/structural/module-resolution.ts";
-import { scanDeclaredImports } from "../skills/enforced-architecture/references/lint/structural/module-scanning.ts";
 import type { ArchitectureConfig } from "../skills/enforced-architecture/references/lint/structural/config.ts";
 import {
   collectTreeFiles,
@@ -69,7 +69,7 @@ import {
   type StructuralCheck,
   toSourcePath,
   type TreeContext,
-} from "../skills/enforced-architecture/references/lint/structural/check-substrate.ts";
+} from "../skills/enforced-architecture/references/lint/structural/check-context.ts";
 import {
   runStructuralChecks,
   type CheckRun,
@@ -458,66 +458,34 @@ assertEveryCheckRanOnEveryTree("misread", PDF_TREE_MISREAD);
   }
 }
 
-// ── The scanner reports a real position, and refuses what it cannot read ─────
+// ── The tier's substrate specs ───────────────────────────────────────────────
 //
-// Three properties of `module-scanning.ts` that no fixture VERDICT can reach,
-// each deletable with the whole suite green:
+// The substrates answer questions about CODE, not about a tree, so their proofs
+// are unit specs rather than fixtures — and they ship beside the modules for the
+// same reason `policy/import-policy.test.ts` does: a project copies the module
+// and has to get the proof with it. Running them from here rather than from
+// `check:rules` keeps a tier's proofs in the tier's own command.
 //
-//   - the LINE comes from the parser's span. Expectations pin a file and a
-//     severity and deliberately never a line, so hard-coding every edge to line
-//     1 passes all 23 checks. The line is most of what a finding is worth to the
-//     person reading it.
-//   - a PARSE ERROR throws. No fixture is unparseable — one would take the whole
-//     run down, which is the correct behaviour and a terrible fixture — so the
-//     only way to state "a file whose imports cannot be read is not a file that
-//     reports clean" is to ask the scanner directly.
-//   - occurrences come back in SOURCE ORDER. The comparison is a multiset, so
-//     order is invisible to it; a reader going down a report is who it is for.
-//     Imports, re-exports and the AST forms are read from three separate
-//     structures, so nothing about the code makes the order fall out for free.
+// The refusal below is the load-bearing half. There is no per-module
+// requirement — one entry point can prove several — but a substrate directory
+// with no specs at all is a hole with nothing to name it.
 {
-  const complaints: string[] = [];
+  const specs = globSync("*.test.ts", { cwd: STRUCTURAL_ROOT })
+    .map((found) => join(STRUCTURAL_ROOT, found))
+    .sort();
 
-  // The leading comment is load-bearing: with a static import at offset 0, an
-  // offset hard-coded to zero still lands on line 1 and the assertion passes.
-  const source = [
-    `// four readers, four lines`,
-    `import { a } from "./first.ts";`,
-    `const b = require("./second.ts");`,
-    `export { c } from "./third.ts";`,
-    `type D = import("./fourth.ts").D;`,
-  ].join("\n");
-  const scanned = scanDeclaredImports({ path: "probe.ts", source });
-
-  const lines = scanned.map(
-    (entry) => source.slice(0, entry.offset).split("\n").length,
-  );
-  const expected = [2, 3, 4, 5];
-  if (lines.join(",") !== expected.join(",")) {
-    complaints.push(
-      `four imports on four consecutive lines, one per reader, came back on ` +
-        `lines [${lines.join(", ")}] — the scanner is not reporting the parser's span`,
-    );
+  if (specs.length === 0) {
+    fail("<substrate-specs>", `no *.test.ts under ${relative(REPO_ROOT, STRUCTURAL_ROOT)}`);
+  } else {
+    const run = spawnSync(process.execPath, ["--test", "--test-reporter=tap", ...specs], {
+      cwd: REPO_ROOT,
+      encoding: "utf8",
+      maxBuffer: 64 * 1024 * 1024,
+    });
+    if (run.status !== 0) {
+      fail("<substrate-specs>", `${run.stdout ?? ""}${run.stderr ?? ""}`.trimEnd());
+    }
   }
-  if (scanned.map((entry) => entry.specifier).join(",") !==
-      "./first.ts,./second.ts,./third.ts,./fourth.ts") {
-    complaints.push(
-      `the same four came back in the order ` +
-        `[${scanned.map((entry) => entry.specifier).join(", ")}] rather than source order`,
-    );
-  }
-
-  let threw = false;
-  try {
-    scanDeclaredImports({ path: "broken.ts", source: `import { from "./unclosed.ts";` });
-  } catch {
-    threw = true;
-  }
-  if (!threw) {
-    complaints.push("a file the parser cannot read was scanned without complaint");
-  }
-
-  if (complaints.length > 0) fail("<module-scanning>", complaints.join("\n  "));
 }
 
 // ── The resolver reads the tree's vocabulary, not oxc's defaults ─────────────

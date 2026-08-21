@@ -55,7 +55,7 @@
 //   it has is the quiet one — the wrong request shape is accepted, invalidates
 //   nothing, and every re-run answers from the stale program with better timings.
 // - A tree whose `tsconfig` misses files the tree contains is not detected here
-//   — `assertTreeIsTypeChecked` in `check-substrate.ts` owns that, because it is
+//   — `assertTreeIsTypeChecked` in `check-context.ts` owns that, because it is
 //   a question about the AGREEMENT between two declarations rather than about
 //   either one.
 // - There is no `.js` story. The program is whatever the tsconfig says, and a

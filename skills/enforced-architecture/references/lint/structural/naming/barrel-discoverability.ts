@@ -40,7 +40,7 @@ import {
   toSourcePath,
   type Finding,
   type StructuralCheck,
-} from "../check-substrate.ts";
+} from "../check-context.ts";
 
 /**
  * `export * from "…"` and `export * as ns from "…"`, plus the type-only

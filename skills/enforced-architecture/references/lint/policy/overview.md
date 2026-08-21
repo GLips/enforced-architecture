@@ -31,7 +31,7 @@ and the directory has bought nothing.
 
 | Module | What it holds | Read by |
 |---|---|---|
-| [declared-trees.ts](declared-trees.ts) | The one list of trees this project adopted the catalog for, each a source root plus its vocabulary — and `classifyFileRole`, which resolves an absolute filename into the tree that governs it. **This is the whole adaptation surface: edit this file, never a rule.** | Every oxlint rule, `structural/check-substrate.ts` |
+| [declared-trees.ts](declared-trees.ts) | The one list of trees this project adopted the catalog for, each a source root plus its vocabulary — and `classifyFileRole`, which resolves an absolute filename into the tree that governs it. **This is the whole adaptation surface: edit this file, never a rule.** | Every oxlint rule, `structural/check-context.ts` |
 | [layout.ts](layout.ts) | What a tree's vocabulary can say — directory names, feature layers, barrel and env module names, asset extensions — and the classifiers that turn a source-root-relative path into a `SourceProfile` or a `TargetArea`, given a vocabulary | Both `import-policy` adapters, `boundary/sdk-containment`, `placement/layer-direction` |
 | [import-policy.ts](import-policy.ts) | The `SourceProfile × TargetArea` table, the rationale each denial is rendered with, and `evaluateImportPolicy` | `oxlint/boundary/import-policy.ts`, `structural/boundary/import-policy.ts` |
 | [package-owners.ts](package-owners.ts) | One row per contained package: which modules may import it, and why | `oxlint/boundary/sdk-containment.ts` |

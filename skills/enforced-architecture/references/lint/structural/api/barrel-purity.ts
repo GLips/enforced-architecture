@@ -97,7 +97,7 @@ import {
   type Finding,
   type StructuralCheck,
   type TreeContext,
-} from "../check-substrate.ts";
+} from "../check-context.ts";
 
 /**
  * Every specifier the file imports AT RUNTIME.

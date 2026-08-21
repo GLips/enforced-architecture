@@ -25,7 +25,7 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { isUnitBarrel, orderedLayerDirs } from "../../policy/layout.ts";
-import type { Finding, StructuralCheck } from "../check-substrate.ts";
+import type { Finding, StructuralCheck } from "../check-context.ts";
 
 export const layerDirectionCheck: StructuralCheck = {
   id: "placement/layer-direction",

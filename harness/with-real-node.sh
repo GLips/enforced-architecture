@@ -12,7 +12,7 @@
 # The structural tier runs under Bun without complaining, and gives DIFFERENT ANSWERS. Bun's
 # `node:fs` `globSync` walks through symlinked directories and Node's does not: the same call over
 # this repo's fixture tree returns 282 files under Bun and 275 under Node. The tier defends itself
-# against that (see `globWithoutSymlinks` in `check-substrate.ts`), but a suite that proves the
+# against that (see `globWithoutSymlinks` in `check-context.ts`), but a suite that proves the
 # checks under one runtime and ships them to another is proving the wrong thing.
 #
 # Bun puts a `node`-named symlink to ITSELF on PATH (/tmp/bun-node-*/node) for any process it

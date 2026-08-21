@@ -183,7 +183,7 @@ and `type-checker.ts`, each answering one question about code. The rest is plumb
   per-check thresholds, manifests, trace limits and package lists. The shape of the tree
   is not among them and cannot be put there. Where the trees are and what their directories are
   called is [declared-trees.ts](lint/policy/declared-trees.ts), which both tiers read.
-- **`check-substrate.ts`** — the two shapes a check can be handed. A `TreeContext` is one declared
+- **`check-context.ts`** — the two shapes a check can be handed. A `TreeContext` is one declared
   tree: its vocabulary, its source root, its import graph, and the directory questions a check asks
   about that tree. A `ProjectContext` is the config and nothing about any tree. `StructuralCheck` is
   a union over the two, so a check cannot receive a context its scope never produces. File collection
@@ -279,7 +279,7 @@ repo's CI. Reimplementing one from its doc is how a check ends up silently match
 promises, which is what happened at three separate deployments before this tier shipped as code.
 
 1. Copy `lint/policy/` first if it is not there, then
-   `lint/structural/{config,check-substrate,module-scanning,module-resolution,import-graph,type-checker,registry,run-structural-checks}.ts`
+   `lint/structural/{config,check-context,module-scanning,module-resolution,import-graph,type-checker,registry,run-structural-checks}.ts`
    and every `lint/structural/<tag>/<name>.ts`. All eight non-check files, or the tier does not
    import-resolve.
 2. Register the checks in `lint/structural/registry.ts`. An unregistered check is a file that ships
@@ -306,7 +306,7 @@ promises, which is what happened at three separate deployments before this tier 
    are two of those. A tree-scoped check reading a project path, or the reverse, is a check whose
    subject and scope disagree.
 3. Take imports from `context.importGraph()`, never from your own scan of file text; types from
-   `context.typeChecker()`; file sets from `check-substrate.ts`'s collectors, with the source glob from
+   `context.typeChecker()`; file sets from `check-context.ts`'s collectors, with the source glob from
    `lint/policy/layout.ts`. Do not spell your own extension list: six checks each spelling their own
    glob is how four ended up wrong about `.mts`.
 4. Put every per-repo value in the config object, never as a constant in the check body. Names of

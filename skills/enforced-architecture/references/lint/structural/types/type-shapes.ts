@@ -55,7 +55,7 @@ import {
   type Finding,
   type Severity,
   type TreeContext,
-} from "../check-substrate.ts";
+} from "../check-context.ts";
 import {
   SyntaxKind,
   TypeFlags,

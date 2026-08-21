@@ -39,7 +39,7 @@
 
 import { evaluateImportPolicy, renderPolicyMessage } from "../../policy/import-policy.ts";
 import { classifySourcePath, classifyTargetPath } from "../../policy/layout.ts";
-import type { Finding, StructuralCheck } from "../check-substrate.ts";
+import type { Finding, StructuralCheck } from "../check-context.ts";
 
 export const importPolicyCheck: StructuralCheck = {
   id: "boundary/import-policy",

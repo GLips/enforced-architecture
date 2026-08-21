@@ -30,7 +30,7 @@
 
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { readFile, type Finding, type StructuralCheck } from "../check-substrate.ts";
+import { readFile, type Finding, type StructuralCheck } from "../check-context.ts";
 
 /**
  * How far a ceiling may sit above the doc it governs. Deliberately not a config

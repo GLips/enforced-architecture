@@ -34,7 +34,7 @@ import {
   toSourcePath,
   type Finding,
   type StructuralCheck,
-} from "../check-substrate.ts";
+} from "../check-context.ts";
 
 /**
  * One surface. Group 1 of `pattern` is the prop or key name; the px digits are

@@ -41,7 +41,7 @@ import { noUnknownTypeAliasesCheck } from "./types/no-unknown-type-aliases.ts";
 import { noWidenThenAssertCheck } from "./types/no-widen-then-assert.ts";
 import { topologyCheck } from "./placement/topology.ts";
 import { trampolinesCheck } from "./health/trampolines.ts";
-import type { StructuralCheck } from "./check-substrate.ts";
+import type { StructuralCheck } from "./check-context.ts";
 
 export const structuralChecks: StructuralCheck[] = [
   barrelPurityCheck,

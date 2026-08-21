@@ -41,7 +41,7 @@ import {
   toSourcePath,
   type Finding,
   type StructuralCheck,
-} from "../check-substrate.ts";
+} from "../check-context.ts";
 
 /**
  * The path grammar inside ONE subdivided directory. It is per-directory because

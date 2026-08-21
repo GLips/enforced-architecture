@@ -23,7 +23,7 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { dbSchemaPath, orderedLayerDirs, withoutSourceExtension } from "../../policy/layout.ts";
-import type { Finding, StructuralCheck } from "../check-substrate.ts";
+import type { Finding, StructuralCheck } from "../check-context.ts";
 import type { ImportEdge } from "../import-graph.ts";
 
 export const layerOccupancyCheck: StructuralCheck = {

@@ -52,7 +52,7 @@ import {
   createTreeContexts,
   type Finding,
   type StructuralCheck,
-} from "./check-substrate.ts";
+} from "./check-context.ts";
 import { disposeTypeCheckerHost } from "./type-checker.ts";
 
 export type CheckRun = {

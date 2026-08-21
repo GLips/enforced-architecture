@@ -34,7 +34,7 @@ import {
   toSourcePath,
   type Finding,
   type StructuralCheck,
-} from "../check-substrate.ts";
+} from "../check-context.ts";
 
 // A hex literal (#rgb / #rrggbb / #rrggbbaa) or a color function used as a
 // value. The function forms require a literal digit inside the parens, which is

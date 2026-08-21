@@ -39,7 +39,7 @@ import {
   toSourcePath,
   type Finding,
   type StructuralCheck,
-} from "../check-substrate.ts";
+} from "../check-context.ts";
 
 /**
  * The two spellings a test carries when it is NOT named after its module —

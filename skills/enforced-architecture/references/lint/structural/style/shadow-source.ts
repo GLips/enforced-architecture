@@ -42,7 +42,7 @@ import {
   toSourcePath,
   type Finding,
   type StructuralCheck,
-} from "../check-substrate.ts";
+} from "../check-context.ts";
 
 // Which of the two spellings to look for is decided by `SOURCE_EXTENSIONS`:
 // anything it names is a module and gets `boxShadow`, everything else scanned is

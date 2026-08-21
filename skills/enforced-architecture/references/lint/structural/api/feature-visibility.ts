@@ -70,8 +70,8 @@
 // even where the deny arm now treats it as one.
 // ──────────────────────────────────────────────────────────────────────
 
-import type { Finding, StructuralCheck } from "../check-substrate.ts";
-import { readFile } from "../check-substrate.ts";
+import type { Finding, StructuralCheck } from "../check-context.ts";
+import { readFile } from "../check-context.ts";
 import { existsSync, realpathSync, statSync } from "node:fs";
 import { join } from "node:path";
 

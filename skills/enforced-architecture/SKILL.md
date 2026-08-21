@@ -201,7 +201,7 @@ lint/
   policy/       declared-trees.ts layout.ts import-policy.ts package-owners.ts — the tree list and
                 the tables both tiers read
   oxlint/       plugin.ts, lib/, <tag>/ — rules and their specs
-  structural/   config.ts check-substrate.ts registry.ts run-structural-checks.ts — plumbing;
+  structural/   config.ts check-context.ts registry.ts run-structural-checks.ts — plumbing;
                 module-scanning.ts module-resolution.ts import-graph.ts type-checker.ts
                 — the substrates; arch.config.ts, <tag>/ — checks
   with-real-node.sh  — both tiers run through it
@@ -229,7 +229,7 @@ own vocabulary. A single-package repo is the same shape with one entry.
    to a tree switches it off for every test outside one. The dev dependencies are
    unversioned, so the project gets current releases:
    `npm i -D oxlint oxlint-tsgolint @oxlint/plugins eslint-plugin-sonarjs jscpd`
-3. **`lint/structural/`** — the tier's eight non-check files (`config.ts`, `check-substrate.ts`,
+3. **`lint/structural/`** — the tier's eight non-check files (`config.ts`, `check-context.ts`,
    `module-scanning.ts`, `module-resolution.ts`, `import-graph.ts`, `type-checker.ts`,
    `registry.ts`, `run-structural-checks.ts`) and every check, all taken unmodified, plus
    `npm i -D oxc-parser oxc-resolver typescript`. **All eight or none** — scanning, resolution and

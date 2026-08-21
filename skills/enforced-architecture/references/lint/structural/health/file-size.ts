@@ -34,7 +34,7 @@ import {
   toProjectPath,
   type Finding,
   type StructuralCheck,
-} from "../check-substrate.ts";
+} from "../check-context.ts";
 
 export const fileSizeCheck: StructuralCheck = {
   id: "health/file-size",

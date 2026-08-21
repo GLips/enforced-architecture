@@ -33,7 +33,7 @@
 // same graph.
 // ──────────────────────────────────────────────────────────────────────
 
-import type { Finding, StructuralCheck } from "../check-substrate.ts";
+import type { Finding, StructuralCheck } from "../check-context.ts";
 
 export const featureDepsCheck: StructuralCheck = {
   id: "graph/feature-deps",

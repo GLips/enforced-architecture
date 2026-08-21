@@ -28,7 +28,7 @@ import {
   toProjectPath,
   type Finding,
   type StructuralCheck,
-} from "../check-substrate.ts";
+} from "../check-context.ts";
 
 /**
  * The tokens that mean a body DOES something beyond forwarding: a binding, a

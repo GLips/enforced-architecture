@@ -1,6 +1,12 @@
-// ─── Shared substrate for the structural tier ──────────────────
+// ─── What a structural check is handed, and how it collects files ─────
 //
-// Four things put a check in this tier rather than in `rules/<tag>/*.ts` as an
+// Not a substrate. That word is reserved for the four modules answering one
+// question each about code — `module-scanning.ts`, `module-resolution.ts`,
+// `import-graph.ts`, `type-checker.ts`. This is the shape a check RECEIVES and
+// the collectors it walks a tree with, which is plumbing under every one of
+// them.
+//
+// Five things put a check in this tier rather than in `oxlint/<tag>/*.ts` as an
 // oxlint rule:
 //
 //   1. counting across a file set   — file size, hooks per component, props
