@@ -1,7 +1,7 @@
 // ─── api/feature-visibility ───────────────────────────────────────────
 //
-// Makes sure: Every import from one feature into another has an entry in the
-// importee's visibility.json, with a written reason. To find every feature that
+// Makes sure: Every import from one feature into another, WITHIN one declared
+// tree, has an entry in the importee's visibility.json, with a written reason. To find every feature that
 // depends on feature B, you read one file in B, not the whole repository. To add
 // a dependency on B, you must edit B, so the diff shows the decision.
 //
@@ -13,6 +13,12 @@
 // A grant names a feature, not a barrel and not a path. One entry covers the
 // client barrel and index.server. Grants are not transitive: "A grants B" plus
 // "B grants C" permits no edge between A and C.
+//
+// NEGATIVE SPACE: the graph this reads is ONE declared tree's. `buildImportGraph`
+// drops an edge whose other end resolves outside the tree it was built for, so a
+// feature in `apps/web/src` importing a feature in `packages/core/src` needs no
+// grant and gets no finding — in either tree's run. Cross-tree coupling is real
+// and nothing in this tier reports it.
 //
 // Stale grants are warnings, and the orchestrator hides warnings for files a
 // commit did not stage. The case this arm exists for — an importer that drops

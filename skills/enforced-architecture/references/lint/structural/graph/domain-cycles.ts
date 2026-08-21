@@ -1,9 +1,14 @@
 // ─── graph/domain-cycles ──────────────────────────────────────────────
 //
 // Makes sure: No domain depends on a domain that depends on it back, at any
-// depth. You can move one domain into its own package, or delete it, and
+// depth, within one declared tree. You can move one domain into its own package, or delete it, and
 // change only the code above it. You can test one domain with only the
 // domains below it.
+//
+// NEGATIVE SPACE: one declared tree's graph. `buildImportGraph` drops an edge
+// whose other end resolves outside the tree it was built for, so a domain cycle
+// that runs through a second declared tree appears in neither run. Nothing in
+// this tier reports cross-tree coupling.
 //
 // The check reads the two resolved ends of each edge, never the specifier.
 // Do not give it the alias prefix, and do not let it assume that

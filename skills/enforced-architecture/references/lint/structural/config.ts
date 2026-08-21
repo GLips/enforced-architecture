@@ -82,14 +82,19 @@ export type BarrelPurityConfig = {
   /** Bounds cost only — cycle detection is what stops infinite recursion. Report when hit. */
   maxTraceDepth: number;
   /**
-   * The framework calls that mark a module as a server-function boundary. The
-   * framework replaces those bodies with RPC stubs, so the trace stops there.
+   * The server-function boundary, as the framework MODULE that defines it and
+   * the calls it exports. The framework replaces those bodies with RPC stubs, so
+   * the trace stops at a module that crosses it.
    *
-   * A name per entry, checked at startup: an empty entry is a substring of every
-   * module, so one of them stops the trace at the first file and every
-   * transitive server-only import disappears while the check still runs.
+   * Both halves are required, and that is the point. The marker was once a bare
+   * list of words tested with `raw.includes`, and a review defeated it with the
+   * word `"the"`: a valid identifier, present in a comment in three unrelated
+   * modules, which stopped every trace and took barrel-purity from four findings
+   * to one with the check still registered. A word only counts here when the file
+   * imports it from the declared module and CALLS it, so an entry that names
+   * nothing the framework exports stops nothing.
    */
-  serverFnMarkers: string[];
+  serverFnBoundary: { module: string; calls: string[] };
 };
 
 export type FeatureVisibilityConfig = {
@@ -203,14 +208,65 @@ export type CheckConfigs = {
  * empty list where empty means "walk nothing".
  */
 export function assertGoverningConfig(config: ArchitectureConfig): void {
-  for (const marker of config.checks["api/barrel-purity"].serverFnMarkers) {
-    if (/^[A-Za-z_$][\w$]*$/.test(marker)) continue;
+  const { serverFnBoundary } = config.checks["api/barrel-purity"];
+  if (serverFnBoundary.module === "") {
     throw new Error(
-      `serverFnMarkers entry "${marker}" is not a call name. Each entry is matched as source ` +
-        `text, so an empty or partial one marks every module a server-function boundary and the ` +
-        `barrel trace stops at the first file it opens — with the check still registered and ` +
-        `still reporting nothing.`,
+      `api/barrel-purity has no serverFnBoundary.module, so no file can be shown to import the ` +
+        `boundary and the short-circuit never fires — or, if the check ever loosened, fires ` +
+        `everywhere. Name the framework module that exports the server-function call.`,
     );
+  }
+  if (serverFnBoundary.calls.length === 0) {
+    throw new Error(
+      `api/barrel-purity has no serverFnBoundary.calls. The short-circuit is what makes this ` +
+        `check usable on features, which re-export server-function references from controllers — ` +
+        `with no call named, every feature barrel reports its whole controller chain.`,
+    );
+  }
+  for (const call of serverFnBoundary.calls) {
+    if (/^[A-Za-z_$][\w$]*$/.test(call)) continue;
+    throw new Error(
+      `serverFnBoundary.calls entry "${call}" is not a call name. Each entry is matched as a ` +
+        `CALL in source text, so an empty or partial one marks every module a server-function ` +
+        `boundary and the barrel trace stops at the first file it opens — with the check still ` +
+        `registered and still reporting nothing.`,
+    );
+  }
+
+  const {
+    spacingProps,
+    radiusProps,
+    spacingKeys,
+    radiusKeys,
+  } = config.checks["style/token-equality"];
+  for (const [field, names] of Object.entries({
+    spacingProps,
+    radiusProps,
+    spacingKeys,
+    radiusKeys,
+  })) {
+    // These four lists are `join("|")`-ed into a matcher, so an entry is regex
+    // SOURCE unless something says otherwise. A review set all four to `["(?!)"]`
+    // — a valid-looking prop list, an always-failing lookahead — and took the
+    // check from four findings to zero with nothing in the config reading as off.
+    // An identifier cannot carry regex syntax, which is why this is an allowlist
+    // and not an escape.
+    if (names.length === 0) {
+      throw new Error(
+        `style/token-equality has an empty ${field}, so that surface is walked for nothing. Each ` +
+          `of the four surfaces has to be named — a check fixed on three of them reports three ` +
+          `violations in four and looks healthy doing it.`,
+      );
+    }
+    for (const name of names) {
+      if (/^[A-Za-z_$][\w$]*$/.test(name)) continue;
+      throw new Error(
+        `style/token-equality lists "${name}" in ${field}, which is not a prop or style-key ` +
+          `name. The four lists are joined into a matcher, so an entry carrying regex syntax is ` +
+          `a predicate rather than a name: "(?!)" matches nothing and reads as a prop the ` +
+          `project happens not to ship.`,
+      );
+    }
   }
 
   const { targetLayerRoles } = config.checks["health/trampolines"];
@@ -233,7 +289,7 @@ export const defaultCheckConfigs: CheckConfigs = {
   "api/barrel-purity": {
     serverOnlyPackages: ["drizzle-orm", "pg", "postgres", "better-auth", "stripe"],
     maxTraceDepth: 6,
-    serverFnMarkers: ["createServerFn"],
+    serverFnBoundary: { module: "@tanstack/react-start", calls: ["createServerFn", "createMiddleware"] },
   },
 
   "api/feature-visibility": {

@@ -263,9 +263,36 @@ assertEveryCheckRanOnEveryTree("misread", PDF_TREE_MISREAD);
 // than the validator so that "the runner calls it" is part of what is proved.
 const refusedConfigs: { detail: string; config: ArchitectureConfig }[] = [
   {
-    detail: "an empty serverFnMarkers entry marks every module a server-function boundary",
-    config: withCheckConfig(fixtureConfig, "api/barrel-purity", { serverFnMarkers: [""] }),
+    detail: "an empty serverFnBoundary call marks every module a server-function boundary",
+    config: withCheckConfig(fixtureConfig, "api/barrel-purity", {
+      serverFnBoundary: { module: "@tanstack/react-start", calls: [""] },
+    }),
   },
+  {
+    detail: "no serverFnBoundary calls short-circuits nothing, so every feature barrel reports",
+    config: withCheckConfig(fixtureConfig, "api/barrel-purity", {
+      serverFnBoundary: { module: "@tanstack/react-start", calls: [] },
+    }),
+  },
+  {
+    detail: "an empty serverFnBoundary module leaves the boundary unprovable",
+    config: withCheckConfig(fixtureConfig, "api/barrel-purity", {
+      serverFnBoundary: { module: "", calls: ["createServerFn"] },
+    }),
+  },
+  // The four token-equality lists are joined into a matcher, so an entry is
+  // regex source. `(?!)` is a valid-looking prop list and an always-failing
+  // lookahead: it took the check from four findings to zero.
+  ...(["spacingProps", "radiusProps", "spacingKeys", "radiusKeys"] as const).flatMap((field) => [
+    {
+      detail: `an always-failing lookahead in ${field} matches nothing and reads as a prop nobody ships`,
+      config: withCheckConfig(fixtureConfig, "style/token-equality", { [field]: ["(?!)"] }),
+    },
+    {
+      detail: `an empty ${field} walks that surface for nothing`,
+      config: withCheckConfig(fixtureConfig, "style/token-equality", { [field]: [] }),
+    },
+  ]),
   {
     detail: "no targetLayerRoles leaves health/trampolines walking nothing",
     config: withCheckConfig(fixtureConfig, "health/trampolines", { targetLayerRoles: [] }),
@@ -284,6 +311,43 @@ for (const { detail, config } of refusedConfigs) {
     threw = true;
   }
   if (!threw) fail("<config>", `accepted a config where ${detail}`);
+}
+
+// Refusing the malformed values is only half of it. `serverFnBoundary` also has
+// to be UNSATISFIABLE by a word that merely appears in a file: the predecessor
+// tested `raw.includes(marker)`, and a review passed the identifier "the" — which
+// no validator can reject — and cut this check from four findings to one because
+// three unrelated modules had it in a comment. So the assertion is behavioural:
+// a valid-looking boundary that names nothing the framework exports must change
+// no finding at all. It is ADDED to the real calls rather than replacing them,
+// so the comparison isolates the decoy: dropping the real boundary changes the
+// count on its own (4 → 5 here), which would mask the thing being tested.
+{
+  const decoy = withCheckConfig(fixtureConfig, "api/barrel-purity", {
+    serverFnBoundary: {
+      module: "@tanstack/react-start",
+      calls: [...fixtureConfig.checks["api/barrel-purity"].serverFnBoundary.calls, "the"],
+    },
+  });
+  const baseline = findingsOf(runs, "api/barrel-purity");
+  const withDecoy = findingsOf(
+    runStructuralChecks(structuralChecks, decoy, DECLARED_FIXTURE_TREES),
+    "api/barrel-purity",
+  );
+  if (baseline !== withDecoy) {
+    fail(
+      "<config>",
+      `a serverFnBoundary naming the word "the" changed api/barrel-purity from ${baseline} ` +
+        `findings to ${withDecoy} — the boundary is being recognised by the word appearing in ` +
+        `a file rather than by the module being imported and the call being made`,
+    );
+  }
+}
+
+function findingsOf(checkRuns: CheckRun[], id: string): number {
+  return checkRuns
+    .filter((run) => run.id === id)
+    .reduce((total, run) => total + run.findings.length, 0);
 }
 
 function withCheckConfig<Id extends keyof ArchitectureConfig["checks"]>(

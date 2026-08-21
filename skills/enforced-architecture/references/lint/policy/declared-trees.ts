@@ -419,14 +419,6 @@ export function isAtProfile(role: FileRole, ...profiles: SourcePlace["profile"][
 }
 
 /**
- * True when the file at `role` is the module named by `moduleName` — a path from
- * the tree's source root, without an extension.
- *
- * Compared as a whole path, never as a suffix: a sibling that merely ends in the
- * same word (`legacy-theme.ts`, `shared/ui-legacy/`) is a different module and
- * must not inherit the exemption.
- */
-/**
  * True when the file at `role` runs on the SERVER — by position, or by being a
  * server-only module.
  *
@@ -458,6 +450,14 @@ export function namesBarrel(role: FileRole): boolean {
   return barrelModules(role.tree.vocabulary).includes(filename);
 }
 
+/**
+ * True when the file at `role` is the module named by `moduleName` — a path from
+ * the tree's source root, without an extension.
+ *
+ * Compared as a whole path, never as a suffix: a sibling that merely ends in the
+ * same word (`legacy-theme.ts`, `shared/ui-legacy/`) is a different module and
+ * must not inherit the exemption.
+ */
 export function isModule(role: FileRole, moduleName: string): boolean {
   return withoutSourceExtension(role.sourcePath) === moduleName;
 }

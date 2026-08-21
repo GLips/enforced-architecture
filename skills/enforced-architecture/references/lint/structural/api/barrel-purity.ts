@@ -16,10 +16,11 @@
 // runtime code and cannot put a package in the client bundle. A mixed re-export
 // (export { type Foo, bar } from "…") stays, because bar is a runtime dependency.
 //
-// The serverFnMarkers test is a string match on the text of the file, so the
-// stop below a marker is an assumption. A comment, a string, or an unused import
-// with the marker name also stops the trace. This check under-reports, and it
-// does not over-report.
+// The server-function boundary is recognised by an IMPORT of the framework
+// module plus a CALL of one of the names it exports — not by the word appearing
+// in the file. A boundary reached through an alias or a re-export is not
+// recognised, so the trace continues past it. This check under-reports there,
+// and it does not over-report.
 //
 // ──────────────────────────────────────────────────────────────────────
 
@@ -132,13 +133,48 @@ function isServerOnlySpecifier(specifier: string, serverOnlyPackages: string[]):
   return serverOnlyPackages.includes(packageNameOf(specifier));
 }
 
+/**
+ * True when this module actually crosses the server-function boundary: it IMPORTS
+ * the framework module that defines the boundary, and it CALLS one of the names
+ * that module exports.
+ *
+ * Both halves, because either alone is a word test. The predecessor was
+ * `raw.includes(marker)` over a list of bare words, and a review defeated it with
+ * `"the"` — an entry that passed the identifier validator, appeared in a comment
+ * in three unrelated modules, and cut barrel-purity from four findings to one.
+ * The import test is the half that cannot be satisfied by prose; the call test is
+ * the half that cannot be satisfied by an unused import.
+ *
+ * `source` is comment-blanked and `raw` is not, deliberately: the call has to be
+ * live code, while the IMPORT is read by the same scanner the rest of the check
+ * uses, which does its own parsing and wants the file as written.
+ *
+ * NEGATIVE SPACE: a re-exported or aliased boundary call
+ * (`import { createServerFn as make }`) is not recognised. The check
+ * under-reports there — it keeps tracing and may report a chain the framework
+ * would have cut — and that direction is the safe one for a check whose findings
+ * are errors.
+ */
+function crossesServerFnBoundary(
+  absolute: string,
+  raw: string,
+  source: string,
+  boundary: { module: string; calls: string[] },
+  jsxImportSource: string,
+): boolean {
+  if (!runtimeSpecifiers(absolute, raw, jsxImportSource).includes(boundary.module)) return false;
+  // Validated as identifiers by `assertGoverningConfig`, which is what makes
+  // interpolating them into a matcher sound.
+  return boundary.calls.some((call) => new RegExp(String.raw`\b${call}\s*\(`).test(source));
+}
+
 export const barrelPurityCheck: StructuralCheck = {
   id: "api/barrel-purity",
   scope: "tree",
 
   run(context) {
     const { config, vocabulary } = context;
-    const { serverOnlyPackages, maxTraceDepth, serverFnMarkers } =
+    const { serverOnlyPackages, maxTraceDepth, serverFnBoundary } =
       config.checks["api/barrel-purity"];
     const { jsxImportSource } = config;
     const findings: Finding[] = [];
@@ -184,18 +220,19 @@ export const barrelPurityCheck: StructuralCheck = {
           ): void => {
             const raw = readFile(absolute);
 
-            if (
-              shortCircuitApplies &&
-              depth > 0 &&
-              serverFnMarkers.some((marker) => raw.includes(marker))
-            ) {
-              return;
-            }
-
             // Blanked, not stripped, so the offset of a specifier still maps to
             // its real line — and so a commented-out import cannot claim the line
             // of the live one below it.
             const source = blankComments(raw);
+
+            if (
+              shortCircuitApplies &&
+              depth > 0 &&
+              crossesServerFnBoundary(absolute, raw, source, serverFnBoundary, jsxImportSource)
+            ) {
+              return;
+            }
+
             const lineStarts = lineStartOffsets(source);
 
             for (const specifier of runtimeSpecifiers(absolute, raw, jsxImportSource)) {

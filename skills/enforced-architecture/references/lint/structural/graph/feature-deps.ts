@@ -1,9 +1,15 @@
 // ─── graph/feature-deps ───────────────────────────────────────────────
 //
-// Makes sure: No feature imports a feature that imports it back, at any depth.
+// Makes sure: No feature imports a feature that imports it back, at any depth,
+// within one declared tree.
 // You can delete one feature, or move it into its own package, and change only
 // the code that imports it. You do not have to edit two features together to
 // make one change.
+//
+// NEGATIVE SPACE: one declared tree's graph, and cycles that leave it are not in
+// it. `buildImportGraph` drops an edge whose other end resolves outside the tree,
+// so a cycle running through a second declared tree is invisible to both runs —
+// a clean report here is a claim about one tree, not about the repo.
 //
 // The check reads the two resolved ends of each edge, never the specifier text.
 // Do not match "@/features/<name>". People also write these imports as relative
