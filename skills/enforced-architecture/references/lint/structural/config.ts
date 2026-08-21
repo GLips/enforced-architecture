@@ -98,7 +98,16 @@ export type BarrelPurityConfig = {
 };
 
 export type FeatureVisibilityConfig = {
-  /** The grant file at each feature's root: importing feature name → justification. */
+  /**
+   * The grant file at each feature's root: importing feature name → justification.
+   *
+   * ONE filename segment, checked at startup. It is joined onto each feature's
+   * directory, so a traversing value points every feature at one shared file:
+   * `"../visibility.json"` sent both `alpha` and `billing` to
+   * `features/visibility.json`, and a single grant for importer `alpha` then
+   * authorized `alpha` against every importee in the tree — the per-feature
+   * ownership this check exists for, silently turned into a central allowlist.
+   */
   visibilityFilename: string;
 };
 
@@ -127,6 +136,13 @@ export type FileSizeConfig = {
    * declared tree. File size is a health signal about anything a human maintains
    * — a config package, a scripts directory, a workspace this catalog does not
    * govern architecturally — so this check is project-scoped and says so.
+   *
+   * Each entry is a canonical path of plain segments, checked at startup, because
+   * every one is interpolated straight into a `Bun.Glob`. A review replaced the
+   * `src` entry with a glob reaching only the service layer of each feature, and
+   * kept 16/16 green with most of the tree no longer size-checked: a glob here is
+   * the exclusion list this check's own header says it does not have, spelled
+   * from the other side.
    */
   roots: string[];
   warnThreshold: number;
@@ -269,6 +285,34 @@ export function assertGoverningConfig(config: ArchitectureConfig): void {
     }
   }
 
+  const { roots } = config.checks["health/file-size"];
+  if (roots.length === 0) {
+    throw new Error(
+      `health/file-size walks no roots, so it reads no file. This is the check with no exclusion ` +
+        `list by design — an empty root list is that list, complete, spelled from the other side.`,
+    );
+  }
+  for (const root of roots) {
+    if (isCanonicalProjectPath(root)) continue;
+    throw new Error(
+      `health/file-size lists "${root}" in roots, which is not a project-relative directory ` +
+        `path. Each entry is interpolated into a glob, so a value carrying glob syntax narrows ` +
+        `the walk to whatever it matches — the exclusion list this check does not have, arrived ` +
+        `at through the root list. Entries are plain segments: "src", "packages/core/src".`,
+    );
+  }
+
+  const { visibilityFilename } = config.checks["api/feature-visibility"];
+  if (!isPlainFilename(visibilityFilename)) {
+    throw new Error(
+      `api/feature-visibility's visibilityFilename is "${visibilityFilename}", which is not one ` +
+        `filename. It is joined onto each feature's directory, so a traversing or multi-segment ` +
+        `value points every feature at ONE file — and a single grant there authorizes its ` +
+        `importer against every importee, which is the central allowlist this check exists to ` +
+        `refuse.`,
+    );
+  }
+
   const { targetLayerRoles } = config.checks["health/trampolines"];
   if (targetLayerRoles.length === 0) {
     throw new Error(
@@ -283,6 +327,24 @@ export function assertGoverningConfig(config: ArchitectureConfig): void {
         `warning-level check switched off everywhere else too.`,
     );
   }
+}
+
+/**
+ * True when `value` is one filename: plain characters, no separator, no traversal.
+ *
+ * An ALLOWLIST for the same reason the vocabulary's is one — a ban list has to
+ * have thought of every separator and every traversal spelling, and this value is
+ * joined onto a directory path.
+ */
+function isPlainFilename(value: string): boolean {
+  if (value === "." || value === "..") return false;
+  return /^[A-Za-z0-9._-]+$/.test(value);
+}
+
+/** True when `value` is a project-relative directory path of plain segments. */
+function isCanonicalProjectPath(value: string): boolean {
+  if (value === "") return false;
+  return value.split("/").every(isPlainFilename);
 }
 
 export const defaultCheckConfigs: CheckConfigs = {

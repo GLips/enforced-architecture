@@ -591,6 +591,60 @@ export function topLevelDirsByField(vocabulary: TreeVocabulary): Record<string, 
 }
 
 /**
+ * How each field of the vocabulary is validated, and where its names live inside
+ * the value.
+ *
+ *   segment         one directory name
+ *   segment-record  a record whose VALUES are directory names
+ *   module          one module name, spelled the way an import spells it
+ *   module-list     a list of module names
+ *   module-keys     a record whose KEYS are module names
+ *   own             validated by a rule of its own further up — a prefix, a
+ *                   suffix, an extension list, a filename with an extension
+ *
+ * Typed as `Record<keyof TreeVocabulary, …>`, and that is the whole point of it
+ * existing. The two builders below used to repeat this classification by hand,
+ * and their own comment admitted the consequence: a module field added to the
+ * vocabulary and forgotten here was a name NEITHER loop checked, with nothing to
+ * say so. Now adding a field to `TreeVocabulary` is a compile error until it is
+ * classified, and the classification is read rather than restated.
+ */
+const VOCABULARY_FIELD_KINDS: Record<
+  keyof TreeVocabulary,
+  "segment" | "segment-record" | "module" | "module-list" | "module-keys" | "own"
+> = {
+  aliasPrefix: "own",
+  serverModuleSuffix: "own",
+  stylesheetExtensions: "own",
+  assetExtensions: "own",
+  // A filename WITH its extension, unlike every module name here — it names a
+  // stylesheet, and `stylesheetExtensions` is what says which extensions those
+  // are. Checked by the token-source rules that read it rather than by shape.
+  tokenStylesheetName: "own",
+
+  routesDir: "segment",
+  featuresDir: "segment",
+  domainsDir: "segment",
+  infrastructureDir: "segment",
+  sharedDir: "segment",
+  sharedUiSubdir: "segment",
+  dbSubdir: "segment",
+  dbSchemaSubdir: "segment",
+  generatedDir: "segment",
+  featureLayerDirs: "segment-record",
+
+  clientBarrelModule: "module",
+  serverBarrelModule: "module",
+  apiClientName: "module",
+  browserStorageName: "module",
+  themeModuleName: "module",
+  rootRouteName: "module",
+  extraFeatureRootModules: "module-list",
+  extraSourceRootModules: "module-list",
+  envModules: "module-keys",
+};
+
+/**
  * Every field whose value must be exactly one path segment, by field name.
  *
  * The module names are in here as well as in their own loop, because a module
@@ -598,47 +652,42 @@ export function topLevelDirsByField(vocabulary: TreeVocabulary): Record<string, 
  * is even a coherent question.
  */
 function namedSegments(vocabulary: TreeVocabulary): Record<string, string> {
-  return {
-    ...topLevelDirsByField(vocabulary),
-    ...vocabulary.featureLayerDirs,
-    sharedUiSubdir: vocabulary.sharedUiSubdir,
-    dbSubdir: vocabulary.dbSubdir,
-    dbSchemaSubdir: vocabulary.dbSchemaSubdir,
-    generatedDir: vocabulary.generatedDir,
-    ...moduleNames(vocabulary),
-  };
+  return { ...vocabularyNames(vocabulary, "segment"), ...moduleNames(vocabulary) };
 }
 
 /**
- * Every field that names a MODULE, by the field that spells it — the list fields
- * flattened as `field[i]` so a bad entry's error says which one.
+ * Every field that names a MODULE, by the field that spells it — the list and
+ * record fields flattened as `field[i]` so a bad entry's error says which one.
  *
  * Separate from the directory names because module names carry a second
- * obligation the directories do not: no source extension. Both loops in
- * `assertGoverningVocabulary` read this, so a module field added to the
- * vocabulary and not to this map is a name neither loop checks.
+ * obligation the directories do not: no source extension.
  */
 function moduleNames(vocabulary: TreeVocabulary): Record<string, string> {
-  const listed: Record<string, string> = {};
-  for (const [field, modules] of Object.entries({
-    extraFeatureRootModules: vocabulary.extraFeatureRootModules,
-    extraSourceRootModules: vocabulary.extraSourceRootModules,
-    envModules: Object.keys(vocabulary.envModules),
-  })) {
-    modules.forEach((module, index) => {
-      listed[`${field}[${index}]`] = module;
-    });
-  }
+  return vocabularyNames(vocabulary, "module");
+}
 
-  return {
-    apiClientName: vocabulary.apiClientName,
-    browserStorageName: vocabulary.browserStorageName,
-    themeModuleName: vocabulary.themeModuleName,
-    rootRouteName: vocabulary.rootRouteName,
-    clientBarrelModule: vocabulary.clientBarrelModule,
-    serverBarrelModule: vocabulary.serverBarrelModule,
-    ...listed,
-  };
+/** The names of every field classified as `subject`, flattened to field label → name. */
+function vocabularyNames(
+  vocabulary: TreeVocabulary,
+  subject: "segment" | "module",
+): Record<string, string> {
+  const names: Record<string, string> = {};
+  for (const [field, kind] of Object.entries(VOCABULARY_FIELD_KINDS)) {
+    const value = vocabulary[field as keyof TreeVocabulary];
+    if (kind === subject) {
+      names[field] = value as string;
+    } else if (subject === "segment" && kind === "segment-record") {
+      for (const [key, name] of Object.entries(value as Record<string, string>)) {
+        names[`${field}.${key}`] = name;
+      }
+    } else if (subject === "module" && (kind === "module-list" || kind === "module-keys")) {
+      const listed = kind === "module-list" ? (value as string[]) : Object.keys(value as object);
+      listed.forEach((name, index) => {
+        names[`${field}[${index}]`] = name;
+      });
+    }
+  }
+  return names;
 }
 
 /** Throws when two of `names` share a spelling, naming both fields and what the collision erases. */

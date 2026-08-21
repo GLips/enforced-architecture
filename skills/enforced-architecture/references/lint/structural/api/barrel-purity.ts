@@ -16,11 +16,14 @@
 // runtime code and cannot put a package in the client bundle. A mixed re-export
 // (export { type Foo, bar } from "…") stays, because bar is a runtime dependency.
 //
-// The server-function boundary is recognised by an IMPORT of the framework
-// module plus a CALL of one of the names it exports — not by the word appearing
-// in the file. A boundary reached through an alias or a re-export is not
-// recognised, so the trace continues past it. This check under-reports there,
-// and it does not over-report.
+// The server-function boundary is recognised by a BINDING: the file imports one
+// of the boundary's calls from the framework module, under whatever name it gives
+// it, and calls that name. Not by the word appearing in the file, and not by the
+// module and the word appearing independently.
+//
+// A boundary reached through a local re-export is not recognised, so the trace
+// continues past it and can report a chain the framework would have cut. That is
+// a false blocking error, and it is the one place this check OVER-reports.
 //
 // ──────────────────────────────────────────────────────────────────────
 
@@ -134,39 +137,78 @@ function isServerOnlySpecifier(specifier: string, serverOnlyPackages: string[]):
 }
 
 /**
- * True when this module actually crosses the server-function boundary: it IMPORTS
- * the framework module that defines the boundary, and it CALLS one of the names
- * that module exports.
+ * True when this module actually crosses the server-function boundary: it binds
+ * one of the boundary's calls by importing it FROM the boundary module, and it
+ * calls that binding.
  *
- * Both halves, because either alone is a word test. The predecessor was
- * `raw.includes(marker)` over a list of bare words, and a review defeated it with
- * `"the"` — an entry that passed the identifier validator, appeared in a comment
- * in three unrelated modules, and cut barrel-purity from four findings to one.
- * The import test is the half that cannot be satisfied by prose; the call test is
- * the half that cannot be satisfied by an unused import.
+ * One question about one binding, not two questions about a file. Two separate
+ * questions — "is the module imported anywhere" and "does the call name appear"
+ * — is a word test with an extra step, and a review proved it: two bare words
+ * defeated it in turn. See `boundaryBindingsIn`.
  *
- * `source` is comment-blanked and `raw` is not, deliberately: the call has to be
- * live code, while the IMPORT is read by the same scanner the rest of the check
- * uses, which does its own parsing and wants the file as written.
- *
- * NEGATIVE SPACE: a re-exported or aliased boundary call
- * (`import { createServerFn as make }`) is not recognised. The check
- * under-reports there — it keeps tracing and may report a chain the framework
- * would have cut — and that direction is the safe one for a check whose findings
- * are errors.
+ * `source` is comment-blanked, so neither half can be satisfied by prose.
  */
 function crossesServerFnBoundary(
-  absolute: string,
-  raw: string,
   source: string,
   boundary: { module: string; calls: string[] },
-  jsxImportSource: string,
 ): boolean {
-  if (!runtimeSpecifiers(absolute, raw, jsxImportSource).includes(boundary.module)) return false;
   // Validated as identifiers by `assertGoverningConfig`, which is what makes
-  // interpolating them into a matcher sound.
-  return boundary.calls.some((call) => new RegExp(String.raw`\b${call}\s*\(`).test(source));
+  // interpolating a call name into a matcher sound. The MODULE is compared as a
+  // plain string rather than matched, so it needs no escaping and no validation
+  // beyond being nonempty.
+  return boundaryBindingsIn(source, boundary).some((local) =>
+    new RegExp(String.raw`\b${local}\s*\(`).test(source),
+  );
 }
+
+/**
+ * Every local name in `source` that is bound to one of the boundary's calls by an
+ * import FROM the boundary module — under the name the file gave it.
+ *
+ * The import and the call have to be the same binding, and asking the two
+ * questions separately is not the same claim. A review proved that: it replaced
+ * the named import with a bare `import "@tanstack/react-start"` and defined an
+ * unrelated local `createServerFn`, and the old two-question version accepted it
+ * and suppressed a reachable `postgres` finding. A side-effect import binds
+ * nothing, so it contributes no name here.
+ *
+ * A namespace import is read too — `import * as RS` makes the boundary
+ * `RS.createServerFn` — because a file that imports the module that way and calls
+ * through it has crossed exactly the same boundary.
+ *
+ * NEGATIVE SPACE: a binding that arrives through a LOCAL re-export
+ * (`export { createServerFn } from "@tanstack/react-start"` in a sibling, then
+ * imported from there) is not recognised. The trace continues past that module,
+ * so the check can report a chain the framework would have cut — a false blocking
+ * error, which is the cost of the narrow reading and the reason to widen this
+ * before widening anything else here.
+ */
+function boundaryBindingsIn(
+  source: string,
+  boundary: { module: string; calls: string[] },
+): string[] {
+  const locals: string[] = [];
+  for (const match of source.matchAll(IMPORT_CLAUSE)) {
+    const clause = match[1] ?? "";
+    if (match[2] !== boundary.module) continue;
+
+    const namespace = /\*\s+as\s+([A-Za-z_$][\w$]*)/.exec(clause);
+    for (const call of boundary.calls) {
+      if (namespace !== null) locals.push(`${namespace[1]}\\.${call}`);
+      const named = new RegExp(String.raw`\b${call}\b(?:\s+as\s+([A-Za-z_$][\w$]*))?`).exec(clause);
+      if (named !== null) locals.push(named[1] ?? call);
+    }
+  }
+  return locals;
+}
+
+/**
+ * One import declaration: group 1 is the clause, group 2 is the specifier.
+ *
+ * A side-effect import (`import "x"`) has no `from` and deliberately does not
+ * match — it binds no name, so there is nothing for the call test to be about.
+ */
+const IMPORT_CLAUSE = /import\s+([^;]*?)\s+from\s+["']([^"']+)["']/g;
 
 export const barrelPurityCheck: StructuralCheck = {
   id: "api/barrel-purity",
@@ -228,7 +270,7 @@ export const barrelPurityCheck: StructuralCheck = {
             if (
               shortCircuitApplies &&
               depth > 0 &&
-              crossesServerFnBoundary(absolute, raw, source, serverFnBoundary, jsxImportSource)
+              crossesServerFnBoundary(source, serverFnBoundary)
             ) {
               return;
             }

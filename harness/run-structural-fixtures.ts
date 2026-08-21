@@ -293,6 +293,33 @@ const refusedConfigs: { detail: string; config: ArchitectureConfig }[] = [
       config: withCheckConfig(fixtureConfig, "style/token-equality", { [field]: [] }),
     },
   ]),
+  // A glob in a ROOT is the exclusion list file-size says it does not have,
+  // spelled from the other side: this exact pair kept 16/16 green with most of
+  // the tree no longer size-checked.
+  {
+    detail: "a glob in health/file-size roots narrows the walk to whatever it matches",
+    config: withCheckConfig(fixtureConfig, "health/file-size", {
+      roots: ["src/features/*/service", "packages/core/src"],
+    }),
+  },
+  {
+    detail: "no health/file-size roots is the exclusion list, complete",
+    config: withCheckConfig(fixtureConfig, "health/file-size", { roots: [] }),
+  },
+  // Joined onto each feature's directory, so a traversing value points every
+  // feature at one shared file and one grant authorizes its importer everywhere.
+  {
+    detail: "a traversing visibilityFilename turns per-feature grants into a central allowlist",
+    config: withCheckConfig(fixtureConfig, "api/feature-visibility", {
+      visibilityFilename: "../visibility.json",
+    }),
+  },
+  {
+    detail: "a multi-segment visibilityFilename does the same one directory down",
+    config: withCheckConfig(fixtureConfig, "api/feature-visibility", {
+      visibilityFilename: "grants/visibility.json",
+    }),
+  },
   {
     detail: "no targetLayerRoles leaves health/trampolines walking nothing",
     config: withCheckConfig(fixtureConfig, "health/trampolines", { targetLayerRoles: [] }),

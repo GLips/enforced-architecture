@@ -29,6 +29,11 @@ export const barrelPurityFixtures: CheckFixtures = {
     // stopped at the hop and the barrel read clean — a hole its own header
     // named and did not close.
     "FAIL src/features/ledger/index.ts",
+    // The boundary FAKED: a side-effect import of the framework module plus a
+    // local function called `createServerFn`. Both halves of a two-question
+    // boundary test are satisfied and no boundary is crossed — a review used
+    // exactly this to suppress the reachable `postgres` finding with a green run.
+    "FAIL src/features/impostor/index.ts",
   ],
 
   legal: [
