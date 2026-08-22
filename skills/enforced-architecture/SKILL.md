@@ -215,9 +215,9 @@ own vocabulary. A single-package repo is the same shape with one entry.
 1. **`lint/policy/`** — copied whole, then adapted. `declared-trees.ts` is where this project's
    source roots are declared — each with the vocabulary its directories are spelled in and the
    `tsconfig` whose program contains it — and it is the only file under `lint/policy/` that needs an
-   edit. Both tiers read it, so it lands before either. The oxlint specs are adapted in step 2,
-   and each spells its fixture filenames by hand — deliberately, so a wrong vocabulary cannot produce
-   a matching wrong filename and pass.
+   edit. Both tiers read it, so it lands before either. The oxlint specs are adapted in step 2:
+   respell each spec's fixture filenames in the declared roots and vocabulary — `describeRule`
+   catches a missed root, not a vocabulary miss.
 2. **`lint/oxlint/`** — the rules and their specs under `<tag>/`, plus `lib/`, all registered in
    `lint/oxlint/plugin.ts`. Then `.oxlintrc.json` at the root, from
    [references/setup/oxlintrc.json](references/setup/oxlintrc.json). That file is the whole manifest, not a

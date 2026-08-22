@@ -33,7 +33,10 @@ import { spawnSync } from "node:child_process";
 import { readFile, readdir } from "node:fs/promises";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { isTreeScopedRule } from "../skills/enforced-architecture/references/lint/oxlint/lib/define-tree-rule.ts";
+import {
+  defineTreeRule,
+  isTreeScopedRule,
+} from "../skills/enforced-architecture/references/lint/oxlint/lib/define-tree-rule.ts";
 import {
   describeRule,
   type Legal,
@@ -177,7 +180,7 @@ async function checkRule(rulePath: string): Promise<RuleFailure[]> {
 
 const structural = await Promise.all(rulePaths.map(checkRule));
 const configFailures = [...(await checkTreeScoping()), ...(await checkCommitGateExtensions())];
-const contractFailures = checkEmptyKindRejection();
+const contractFailures = [...checkEmptyKindRejection(), ...checkUnresolvedFixtureRejection()];
 
 // Run every spec in one Node process — `node --test` gives each file its own subprocess.
 const specList = [
@@ -351,6 +354,74 @@ function checkEmptyKindRejection(): string[] {
           `${named.length === 0 ? "no kind at all" : named.join(" and ")}. A refusal has to name ` +
           `the empty kind and only that kind, or the author of a stubbed spec cannot tell which of ` +
           `the three lists to fill in`,
+      );
+    }
+  }
+  return failures;
+}
+
+/**
+ * The fixture-resolution refusal in lib/rule-spec.ts, probed rather than trusted — the empty-kind
+ * probe's sibling, for the refusal one level up.
+ *
+ * `describeRule` throwing when a tree-scoped rule's kind holds no filename that reaches the rule is
+ * what turns a spec spelled against the wrong tree into a load error with a diagnosis, instead of
+ * legal cases passing on zero coverage and violation cases failing as bare count mismatches. It is
+ * invisible to every run in this repository for the same reason the empty-kind refusal is: every
+ * shipped spec is spelled against the declared roots, so deleting the throw changes no output
+ * anywhere. This calls `describeRule` with one kind's filenames rebased out of every declared tree
+ * at a time and demands a refusal that names that kind.
+ *
+ * NEGATIVE SPACE, twice. Nothing here asserts that a resolving spec is accepted — reaching that
+ * path builds a `RuleTester`, and this process is not a test runner; the shipped tree-scoped specs
+ * are the standing proof. And nothing asserts that a NON-tree-scoped rule escapes the refusal by
+ * probe, because a shipped spec already pins it: `testing/no-module-mocking`'s obvious and
+ * adversarial fixtures are all test files, which `classifyFileRole` reports as no subject, so
+ * that spec loading at all is the refusal staying scoped to rules that carry the tree gate.
+ */
+function checkUnresolvedFixtureRejection(): string[] {
+  // Carries the tree gate, which is what the refusal is scoped to. Never linted: `describeRule`
+  // refuses before it touches `RuleTester`, so the empty visitor is never asked for anything.
+  const gatedNeverLinted = defineTreeRule({ meta: {}, create: () => ({}) });
+  // Resolves into the declared `src` tree; the probe rebases one kind at a time onto a root
+  // nothing declares, which is the exact shape of a spec left unadapted in an installing repo.
+  const inTree = "/repo/src/features/alpha/service/module.ts";
+  const rebased = "/repo/apps/mobile/src/features/alpha/service/module.ts";
+  const violation = (filename: string): Violation[] => [{ filename, code: "", errors: 1 }];
+  const legalCase = (filename: string): Legal[] => [{ filename, code: "" }];
+
+  const failures: string[] = [];
+  for (const kind of KINDS) {
+    let refusal: Error | null = null;
+    try {
+      describeRule("<harness probe>", gatedNeverLinted, {
+        obvious: violation(kind === "obvious" ? rebased : inTree),
+        adversarial: violation(kind === "adversarial" ? rebased : inTree),
+        legal: legalCase(kind === "legal" ? rebased : inTree),
+      });
+    } catch (error) {
+      refusal = error as Error;
+    }
+
+    if (refusal === null) {
+      failures.push(
+        `oxlint/lib/rule-spec.ts accepted a spec whose every ${kind} case filename resolves into ` +
+          `no declared tree. That refusal is the only thing making an unrebased spec a load error ` +
+          `with a diagnosis rather than a kind that runs against nothing — restore it`,
+      );
+      continue;
+    }
+
+    // Present AND absent, for the same reason as the empty-kind probe: a refusal that names every
+    // kind satisfies a bare `includes` while telling the author nothing about which list to fix.
+    const { message } = refusal;
+    const named = KINDS.filter((candidate) => message.includes(candidate));
+    if (named.length !== 1 || named[0] !== kind) {
+      failures.push(
+        `oxlint/lib/rule-spec.ts refused a ${kind} list with no in-tree filename with ` +
+          `"${message}", which names ${named.length === 0 ? "no kind at all" : named.join(" and ")}. ` +
+          `A refusal has to name the unresolved kind and only that kind, or the author cannot ` +
+          `tell which of the three lists to rebase`,
       );
     }
   }

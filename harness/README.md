@@ -81,9 +81,9 @@ Every case carries its own `filename`, in the standard layout, because the rules
 - **A spec pointed at the wrong rule** — it must call `describeRule("<its own id>", …)` and import the rule file beside it.
 - **A kind that never ran.** The runner reads TAP result *names* rather than file results, because `describeRule` makes every kind announce itself as `<rule id> (<kind>)`. A spec that throws while loading reports no name at all, so its three kinds are simply absent.
 - **A kind that ran zero cases.** `RuleTester.run` on an empty scenario emits the suite line and nothing under it, so announcing a kind is not running one. The runner counts each kind's leaf cases as well as reading its name.
-- **`describeRule` no longer refusing an empty kind.** That refusal is what makes a stubbed spec a load error, and every shipped spec is populated, so deleting it changes no output anywhere. The runner calls `describeRule` with one kind emptied and demands a refusal that names it.
+- **`describeRule` no longer refusing an empty kind — or one whose filenames reach a tree-scoped rule nowhere.** Every shipped spec is populated and spelled against the declared roots, so deleting either changes nothing. The runner probes both, kind by kind, demanding a refusal naming that kind.
 
-The last two are independent holds on one invariant: the probe fails when the refusal goes, the count fails when a case list is emptied after it. Removing both together is what a stubbed spec needs to pass — and with both gone it passes as PASS for that rule, 49/49, exit 0.
+The empty-kind refusal has a second hold — the case count — but the fixture one does not: unresolved cases run and count; its probe stands alone. Removing both together is what a stubbed spec needs to pass — and with both gone it passes as PASS for that rule, 49/49, exit 0.
 
 Every one of these was revert-probed when it landed. Do it again after any change here: break a rule and expect its adversarial kind to fail; stub a case list and expect three kinds never run; delete the refusal and expect the probe to fail; do both and expect zero cases. A harness that stays green through any of those is not testing anything.
 
