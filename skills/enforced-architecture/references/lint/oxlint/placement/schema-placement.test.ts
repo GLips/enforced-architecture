@@ -75,7 +75,11 @@ describeRule("placement/schema-placement", schemaPlacementRule, {
       code: TABLE,
     },
     {
-      name: "generated migrations legitimately restate the tables",
+      // Silent because of the PATH, not because of anything this rule knows about migrations: the
+      // directory sits beside the source root and therefore outside every declared tree. Read as
+      // an exemption for generated output, it promises a coverage that does not exist — put the
+      // same file under `src/` and it reports.
+      name: "generated migrations sit outside every declared tree, which no arm of this rule reads",
       filename: "/repo/drizzle/0001_init.ts",
       code: TABLE,
     },

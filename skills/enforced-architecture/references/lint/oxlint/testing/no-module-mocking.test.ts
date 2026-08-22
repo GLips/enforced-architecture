@@ -58,6 +58,15 @@ jest.mock("./user-store");`,
       errors: [{ messageId: "moduleMock" }],
     },
     {
+      // The registry slot filled by hand rather than through a factory. Jest's own docs point
+      // people at `jest.mock` instead, which makes this the name an author lands on once the
+      // common one reports — the same replacement, one entry over in the API.
+      name: "the registry-slot variant, which a set built from the common names misses",
+      filename: SPEC,
+      code: `jest.setMock("./user-store", { load: () => null });`,
+      errors: [{ messageId: "moduleMock" }],
+    },
+    {
       name: "the computed spelling of the method",
       filename: SPEC,
       code: `vi["mock"]("./user-store");`,

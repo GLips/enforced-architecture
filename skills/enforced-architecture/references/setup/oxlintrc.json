@@ -563,14 +563,22 @@
       "arch/server-no-upward": "error",
 
       // ── effect: failures stay typed, services stay in the requirements ──
-      // Four of these are silent in a project that does not use Effect: they test
-      // for the `Effect.` or `Layer.` namespace before matching. Two do not, and
-      // reach further than the tag name suggests — `no-sql-type-parameter` matches
-      // any tag named `sql`, which is postgres.js and Kysely as much as
-      // `@effect/sql`, and `no-disable-validation` matches any `.make(props, opts)`
-      // carrying a `disableValidation` property. Both are still the right verdict
-      // on those call sites; they are just not dormant, so read them as rules this
-      // project takes rather than as ones awaiting an Effect adoption.
+      // ONE of these is dormant in a project that does not use Effect.
+      // `no-nested-layer-provide` tests for the `Layer.` namespace before
+      // matching, and is the only rule here that tests a namespace at all. The
+      // other five match on a member or tag NAME alone — each says so in its own
+      // header — so all five report on non-Effect code today:
+      //   `no-effect-catchallcause` on any `x.catchAllCause(…)`
+      //   `no-service-option` on any `x.serviceOption(…)`
+      //   `no-silent-error-swallow` on any `x.catchAll(() => y.void)`
+      //   `no-sql-type-parameter` on any tag named `sql`, which is postgres.js
+      //     and Kysely as much as `@effect/sql`
+      //   `no-disable-validation` on any `.make(props, opts)` carrying a
+      //     `disableValidation` property
+      // Each is still the right verdict on those call sites. Read the five as
+      // rules this project takes now, not as ones awaiting an Effect adoption —
+      // adopting the tag on the reading that it is mostly dormant is adopting
+      // five live rules by accident.
       "arch/no-disable-validation": "error",
       "arch/no-effect-catchallcause": "error",
       "arch/no-nested-layer-provide": "error",

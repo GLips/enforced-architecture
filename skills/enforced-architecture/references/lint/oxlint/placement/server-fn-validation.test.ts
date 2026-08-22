@@ -94,6 +94,23 @@ describeRule("placement/server-fn-validation", serverFnValidationRule, {
       code: `export const fake = createServerFnMock({ method: "POST" }).handler(async ({ data }) => data);`,
     },
     {
+      // NEGATIVE SPACE, asserted rather than described: a computed link ends `readBuilderChain`'s
+      // walk with no factory found, so this UNVALIDATED chain is silent here. It reports at
+      // `placement/no-deprecated-input-validator` only when the method is the deprecated one —
+      // spelled `.validator`, nothing in the catalog reads it.
+      name: "a computed link in the chain ends the walk before the factory, validator or not",
+      filename: CONTROLLERS,
+      code: `export const charge = createServerFn()["middleware"]([auth]).handler(async ({ data }) => data);`,
+    },
+    {
+      // Middleware takes no `data` the way a server fn does, and the handler parameter is this
+      // rule's entire signal — so `createMiddleware` is out of SERVER_FN_FACTORIES by decision.
+      // Its deprecated-method spelling is the sibling rule's, and that rule does cover it.
+      name: "createMiddleware is not a server-fn factory, so its chain is not this rule's subject",
+      filename: CONTROLLERS,
+      code: `export const audit = createMiddleware({ type: "function" }).handler(async ({ data }) => data);`,
+    },
+    {
       name: "a test file may exercise an unvalidated chain deliberately",
       filename: "/repo/src/features/billing/controllers/charge.test.ts",
       code: `const charge = createServerFn().handler(async ({ data }) => data);`,

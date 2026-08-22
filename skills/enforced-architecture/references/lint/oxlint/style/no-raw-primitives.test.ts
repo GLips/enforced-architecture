@@ -237,7 +237,16 @@ describeRule("style/no-raw-primitives", noRawPrimitivesRule, {
       name: "a star re-export names no binding to notice",
       filename: COMPONENT,
       code: `export * from "react-native";`,
-      errors: [{ messageId: "platformStarReExport" }],
+      errors: [{ messageId: "platformModuleReExport" }],
+    },
+    {
+      // The name table cannot see this one: `default` is in no primitive set, so the specifier arm
+      // walks past it. What it republishes is the module OBJECT, and the importer writes `RN.View`
+      // against a local module this rule opens with no react-native import in it to find.
+      name: "a default re-export republishes the module object, under a name the primitive set lacks",
+      filename: COMPONENT,
+      code: `export { default as RN } from "react-native";`,
+      errors: [{ messageId: "platformModuleReExport" }],
     },
     {
       name: "a directory that merely starts like the primitives layer is not exempt",

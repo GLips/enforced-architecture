@@ -23,6 +23,18 @@
 // Keep COLOR_PROPS small and exact. A rule that reads every attribute reports
 // `href="#anchor"` and every fragment id.
 //
+// NEGATIVE SPACE, and it is the widest one here: the rule reads exactly two
+// POSITIONS — an object property value, and a JSX attribute whose name is in
+// COLOR_PROPS. A hex anywhere else in the JS is covered by NOTHING in this
+// catalog. `export const brand = "#0a0c10"`, an element of a palette array, a
+// returned literal, and every JSX prop outside `{c, bg, color}` are all silent,
+// and none of them is another rule's finding — the only rule that reads a colour
+// elsewhere is `style/no-arbitrary-class-values`, and it reads bracket syntax
+// inside a class string. Reading every string instead is what the COLOR_PROPS
+// paragraph above refuses, so treat this silence as the price of a rule that
+// reports nothing an author cannot act on — and never as coverage held
+// somewhere else.
+//
 // The tree's `themeModule` also holds the documented raster boundaries — a
 // canvas theme or a Skia paint takes a literal by contract. Derive it from the
 // token there.

@@ -14,6 +14,21 @@
 // a handler written inline and does not follow `.handler(saveHandler)` to its
 // declaration.
 //
+// NEGATIVE SPACE on the chain reader, and it is wider than the sibling rule's.
+// `readBuilderChain` walks plain dotted calls and stops at the first link that
+// is not one, so a computed member (`createServerFn()["validator"]`) and a cast
+// wedged into the chain both end the walk with no factory found and no report.
+// `createMiddleware` is absent from SERVER_FN_FACTORIES outright: middleware
+// takes no `data` the way a server fn does, and this rule's whole signal is that
+// parameter.
+//
+// Nothing else covers those three. `placement/no-deprecated-input-validator`
+// reads the receiver's source range rather than a chain, so it reaches all three
+// shapes — but only when the method is the DEPRECATED one. A chain already
+// spelled `.validator` is not its subject, and a `createMiddleware` chain that
+// validates nothing is nobody's. Read a clean run as "no server-fn chain of the
+// plain dotted shape is missing a validator", never as "input is checked".
+//
 // Ban the validator's no-op forms in the same change. This rule mandates a call
 // to `.validator()` and cannot see whether the schema checks anything. Every
 // validation library has a spelling that checks nothing: `z.any()`,

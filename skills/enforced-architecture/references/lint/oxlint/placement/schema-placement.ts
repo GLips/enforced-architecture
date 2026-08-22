@@ -6,9 +6,13 @@
 // from the database. You read the whole data model, foreign keys and relations
 // included, at one address.
 //
-// Generated migrations restate the schema, and /drizzle/ is exempt for that
-// reason. Remove the exemption and every generated file reports. A report
-// against generated output is what makes a person turn the rule off.
+// Generated migrations restate the schema and report nothing — because they sit
+// outside every declared tree, not because this rule exempts them. There is no
+// exemption for generated output of any kind; the one path this rule reads is
+// the schema DESTINATION itself. A project that puts its migration output INSIDE
+// a declared tree gets a report on every generated file, which is the shape that
+// makes a person turn the rule off; move the output or name its directory as
+// generated, and do not add a second path arm here.
 //
 // SCHEMA_DECLARATIONS is a closed set of names. A dialect outside it —
 // `mysqlTable` in a project that also uses postgres — gets no check, and its

@@ -69,6 +69,30 @@ describeRule("naming/no-vacant-symbol-names", noVacantSymbolNamesRule, {
       errors: [{ messageId: "vacantName" }],
     },
     {
+      // The exclusion beside this one is two CONSTRUCTS, not the `declare` keyword — and matched on
+      // the keyword alone this case joins them silently. `App` is the project's namespace, so both
+      // the name and the fix are its own.
+      name: "an ambient namespace the project owns, which the module and global exclusion does not reach",
+      filename: SERVICE,
+      code: `declare namespace App {
+  const data: string;
+}`,
+      errors: [{ messageId: "vacantName" }],
+    },
+    {
+      // A namespace body is transparent to the position test, because `Billing.data` is an address
+      // in exactly the sense the header means. Both halves are in one fixture on purpose: the type
+      // arms ask no position question at all, so treating the namespace as a boundary makes the
+      // rule give two answers about one block — and only a fixture holding both can see that.
+      name: "a namespace member, reachable as N.name and named by the same test as the type beside it",
+      filename: SERVICE,
+      code: `export namespace Billing {
+  export const data = 1;
+  export type Info = { id: string };
+}`,
+      errors: [{ messageId: "vacantName" }, { messageId: "vacantName" }],
+    },
+    {
       name: "two vacant declarations are two findings",
       filename: SERVICE,
       code: `export type InvoiceShape = { id: string };
@@ -108,6 +132,25 @@ export const grid = DataGrid;`,
       name: "a reference to a vacant name declared elsewhere is not a declaration",
       filename: SERVICE,
       code: `export function render(): void { draw(chartData); }`,
+    },
+    {
+      // The type arm asks no position question, so it reaches an ambient block on its own terms —
+      // and a type in `declare module "@vendor/x"` is as unrenamable as the const beside it. Both
+      // halves are here because one exclusion covers both, and a fixture naming one would let the
+      // other silently diverge.
+      name: "a module augmentation describes a package's names, which are not the project's to rename",
+      filename: SERVICE,
+      code: `declare module "@vendor/tables" {
+  export const data: string;
+  export type Info = { id: string };
+}`,
+    },
+    {
+      name: "a declare global block names the host's globals, not this project's",
+      filename: SERVICE,
+      code: `declare global {
+  const data: string;
+}`,
     },
     {
       name: "a local binding inside a function body is not an address",

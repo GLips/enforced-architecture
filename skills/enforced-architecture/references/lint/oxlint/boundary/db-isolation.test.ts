@@ -72,6 +72,16 @@ describeRule("boundary/db-isolation", dbIsolationRule, {
       filename: "/repo/src/infrastructure/db/client.ts",
       code: `import { drizzle } from "drizzle-orm/node-postgres";`,
     },
+    {
+      // The one case that reads the `infrastructure` entry in `DATA_ACCESS_PROFILES`. The file
+      // above passes on its specifier alone — a raw ORM package is `boundary/sdk-containment`'s
+      // subject, not this rule's — so it stays green whatever the profile gate answers. This one
+      // names the db ALIAS from an infrastructure file that is not the db directory, which only
+      // the profile can permit. `placement/no-raw-result` reads the same list from the other side.
+      name: "an infrastructure module outside db/ may still name the db alias",
+      filename: "/repo/src/infrastructure/jobs/nightly.ts",
+      code: IMPORT_DB,
+    },
     { name: "the ORM config file", filename: "/repo/drizzle.config.ts", code: IMPORT_DB },
     {
       name: "a test may reach across every boundary",

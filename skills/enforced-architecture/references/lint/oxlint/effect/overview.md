@@ -2,6 +2,8 @@
 
 Rules for projects built on Effect. They are the smaller half of the enforcement story: read the next section before adopting any of them, because the tier that catches the *interesting* Effect defects is not a linter at all.
 
+Only one of the six is dormant without Effect. `no-nested-layer-provide` tests for the `Layer.` namespace before matching; the other five match a member or tag NAME alone and report on plain TypeScript today — `bus.catchAllCause(…)`, `registry.serviceOption(…)`, `task.catchAll(() => Codec.void)`, any tag named `sql`, any `.make(props, { disableValidation })`. Each verdict is right on those call sites, so this is not a defect to fix; it is what a project adopting the tag is actually turning on.
+
 ## @effect/language-service is step zero
 
 Almost every Effect mistake worth catching is a question about types. Is this expression an un-awaited Effect that nobody ran? Does this `catch` handle an error the effect cannot produce? Does this `Effect.gen` contain a `try/catch` that will never see an Effect failure? No syntactic rule — oxlint, ESLint, or anything else in this catalog — can answer those, because the answer is in the checker, not the tree.

@@ -19,9 +19,14 @@
 // spec harness derives that placement from this file and fails the build if the
 // config disagrees, in either direction.
 //
-// Keep all three method names in `MOCK_METHODS`. `doMock` defers the same
-// replacement, and `unstable_mockModule` is the ESM spelling of it. A rule that
-// matches `mock` alone leaves two ways to write the same finding.
+// `MOCK_METHODS` holds all four member spellings of the same replacement that
+// jest and vitest ship. `mock` is the common one; `doMock` defers it,
+// `setMock` fills the registry slot by hand, and `unstable_mockModule` is the
+// ESM spelling. Match `mock` alone and the other three are each a way to write
+// the same finding and get no report — which is the shape an author lands on
+// once the common name starts reporting. The list is enumerated rather than
+// derived, so a name a runner adds later is a name this list is missing; check
+// it against the jest object API when a runner majors.
 //
 // Do not add `vi.fn`, `vi.spyOn`, the fake timers or an MSW handler. Each of
 // those replaces a boundary, and each is what the message asks the author to
@@ -48,7 +53,7 @@
 import { defineRule, type ESTree, type Scope, type SourceCode } from "@oxlint/plugins";
 import { staticKeyName } from "../lib/static-key-name.ts";
 
-const MOCK_METHODS = new Set(["doMock", "mock", "unstable_mockModule"]);
+const MOCK_METHODS = new Set(["doMock", "mock", "setMock", "unstable_mockModule"]);
 
 const TEST_GLOBALS = new Map([
   ["vi", "vitest"],

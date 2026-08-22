@@ -22,6 +22,14 @@
 // `enum` and `namespace` are absent from TYPE_ONLY_DECLARATIONS on purpose:
 // both emit a runtime object, so both reach the browser.
 //
+// A module matching the tree's `serverModuleSuffix` is exempt, and it is the one
+// exemption here. That suffix is the destination this rule's own message names:
+// the compiler never processes such a module and no bundler puts it in the
+// browser, so a runtime export beside a bridge there leaks nothing. This is why
+// the rule can be strict about every other file — the fix it prescribes lands
+// somewhere it is silent. Give the suffix a name a source file can also have and
+// the exemption becomes a bypass anyone can type.
+//
 // The rule reads one file. It does not prove that the client reaches this
 // module; the boundary/ graph checks answer that. The compiler behaviour is in
 // @tanstack/start-plugin-core/src/start-compiler/handleCreateServerFn.ts.

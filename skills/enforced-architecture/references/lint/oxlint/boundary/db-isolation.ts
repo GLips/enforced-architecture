@@ -31,22 +31,10 @@ import { isAtProfile } from "../../policy/declared-trees.ts";
 import {
   aliasSpecifierFor,
   isUnderPath,
-  type SourceProfile,
+  DATA_ACCESS_PROFILES,
   dbDir,
 } from "../../policy/layout.ts";
 import { visitModuleSources } from "../lib/module-source-visitor.ts";
-
-/**
- * The positions the database may be named from. Profiles rather than path
- * regexes, so a sibling directory that merely ends in the same word —
- * `features/x/legacy-repo/`, a package called `infrastructure-utils` — cannot
- * inherit the exemption, and a tree that renames a layer keeps it.
- */
-const DATA_ACCESS_PROFILES: SourceProfile[] = [
-  "infrastructure",
-  "feature-repo",
-  "feature-controllers",
-];
 
 export const dbIsolationRule = defineTreeRule({
   meta: {

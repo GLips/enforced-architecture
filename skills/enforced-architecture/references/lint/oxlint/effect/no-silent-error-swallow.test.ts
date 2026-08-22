@@ -62,6 +62,39 @@ describeRule("effect/no-silent-error-swallow", noSilentErrorSwallowRule, {
       errors: [{ messageId: "silentErrorSwallow" }],
     },
     {
+      // The narrowed swallow: the handler answers ONE tag with the empty effect and re-fails the
+      // rest, so it reads as a considered decision. It is the same defect — that failure leaves the
+      // type and the caller reads a success — and a scan of the block's top-level statements alone
+      // sees a `return Effect.fail(e)` and nothing else.
+      name: "a conditional return, where only one path answers with the empty effect",
+      filename: SERVICE,
+      code: `${IMPORTS}\nexport const charge = (id: string) =>\n  chargeCard(id).pipe(\n    Effect.catchAll((error) => {\n      if (error._tag === "CardDeclined") return Effect.void;\n      return Effect.fail(error);\n    }),\n  );`,
+      errors: [{ messageId: "silentErrorSwallow" }],
+    },
+    {
+      // The same narrowing one keyword over, and in the CONCISE body where there is no `return` to
+      // read at all. Testing the conditional as a whole sees `Effect.fail(error)` in the other arm
+      // and reads it as a fix of the swallow beside it.
+      name: "the ternary spelling of the narrowing, in a concise body with no return to find",
+      filename: SERVICE,
+      code: `${IMPORTS}\nexport const charge = (id: string) =>\n  chargeCard(id).pipe(\n    Effect.catchAll((error) =>\n      error._tag === "CardDeclined" ? Effect.void : Effect.fail(error),\n    ),\n  );`,
+      errors: [{ messageId: "silentErrorSwallow" }],
+    },
+    {
+      name: "the ternary returned from a block body, where the return arm has to recurse too",
+      filename: SERVICE,
+      code: `${IMPORTS}\nexport const charge = (id: string) =>\n  chargeCard(id).pipe(\n    Effect.catchAll((error) => {\n      console.error(error);\n      return error._tag === "CardDeclined" ? Effect.fail(error) : Effect.unit;\n    }),\n  );`,
+      errors: [{ messageId: "silentErrorSwallow" }],
+    },
+    {
+      // Two swallowing returns are ONE handler and one edit. A per-return report would leave the
+      // second diagnostic standing after the fix that removes both.
+      name: "two swallowing paths in one handler are one finding",
+      filename: SERVICE,
+      code: `${IMPORTS}\nexport const charge = (id: string) =>\n  chargeCard(id).pipe(\n    Effect.catchAll((error) => {\n      switch (error._tag) {\n        case "CardDeclined":\n          return Effect.void;\n        default:\n          return Effect.unit;\n      }\n    }),\n  );`,
+      errors: [{ messageId: "silentErrorSwallow" }],
+    },
+    {
       name: "the pre-3.x name for the same empty effect",
       filename: SERVICE,
       code: `${IMPORTS}\nexport const charge = (id: string) =>\n  chargeCard(id).pipe(Effect.catchAll(() => Effect.unit));`,
@@ -131,6 +164,22 @@ describeRule("effect/no-silent-error-swallow", noSilentErrorSwallowRule, {
       name: "a handler passed by reference is not followed",
       filename: SERVICE,
       code: `${IMPORTS}\nconst recover = () => Effect.void;\nexport const charge = (id: string) => chargeCard(id).pipe(Effect.catchAll(recover));`,
+    },
+    {
+      // NEGATIVE SPACE, asserted: a LOGICAL operator is the one branching form not read. This ships
+      // the empty effect when `fallback` is nullish and `fallback` otherwise, so it is not a
+      // handler the compiler accepts — the type error lands before this rule would.
+      name: "a logical operator is not a ternary, and the compiler reports the shape first",
+      filename: SERVICE,
+      code: `${IMPORTS}\nconst fallback = null;\nexport const charge = (id: string) =>\n  chargeCard(id).pipe(Effect.catchAll(() => fallback ?? Effect.void));`,
+    },
+    {
+      // NEGATIVE SPACE, asserted: the walk from a `return` stops at the first function it meets, so
+      // a return inside a nested callback belongs to that callback. `Effect.void` from the mapper
+      // here is that callback's value and not the handler's, and the handler re-fails.
+      name: "a return inside a nested callback is that callback's, not the handler's",
+      filename: SERVICE,
+      code: `${IMPORTS}\nexport const charge = (id: string) =>\n  chargeCard(id).pipe(\n    Effect.catchAll((error) => {\n      const quiet = [error].map(() => {\n        return Effect.void;\n      });\n      return Effect.fail(quiet);\n    }),\n  );`,
     },
     {
       name: "the empty effect as a normal branch of a program, nowhere near a catch",

@@ -3,6 +3,7 @@ import { noRawResultRule } from "./no-raw-result.ts";
 
 const REPO = "/repo/src/features/billing/repo/queries.ts";
 const CONTROLLERS = "/repo/src/features/billing/controllers/write.ts";
+const INFRASTRUCTURE = "/repo/src/infrastructure/db/writes.ts";
 
 describeRule("placement/no-raw-result", noRawResultRule, {
   obvious: [
@@ -25,6 +26,15 @@ describeRule("placement/no-raw-result", noRawResultRule, {
       name: "the insert path, which a delete-only pattern misses entirely",
       filename: CONTROLLERS,
       code: `export async function upsertInvoice(id: string) {\n  return db.insert(invoices).values({ id }).onConflictDoNothing();\n}`,
+      errors: [{ messageId: "rawWriteReturned" }],
+    },
+    {
+      // The position that only a SHARED profile list covers. `boundary/db-isolation` allows the db
+      // here, so this is where a raw write is legal to build — and a rule holding its own shorter
+      // list is silent on the way out, with nothing between the write and the serializer.
+      name: "the infrastructure layer, where the db is legal and the write result still cannot ship",
+      filename: INFRASTRUCTURE,
+      code: `export function purge(id: string) {\n  return db.delete(invoices).where(eq(invoices.id, id));\n}`,
       errors: [{ messageId: "rawWriteReturned" }],
     },
     {
@@ -98,7 +108,7 @@ describeRule("placement/no-raw-result", noRawResultRule, {
       code: `export function evict(id: string) {\n  return invoiceCache.delete(id);\n}`,
     },
     {
-      name: "service/ is outside this rule's layer scope — a stray call there is another rule's finding",
+      name: "service/ is outside DATA_ACCESS_PROFILES, so the db reaching it is boundary/db-isolation's finding",
       filename: "/repo/src/features/billing/service/charge.ts",
       code: `export function deleteInvoice() {\n  return db.delete(invoices);\n}`,
     },

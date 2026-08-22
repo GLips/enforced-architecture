@@ -28,6 +28,15 @@
 // chiefly a computed key, an interpolated specifier, and a namespace passed on
 // as a value.
 //
+// The two RE-EXPORT spellings that hand the module on WHOLE — `export *` and
+// `export { default as RN }` — report on the module rather than on a name,
+// because neither names one. They are the only spellings that reach code this
+// rule will never open: the importer writes `RN.View` against a local module,
+// and nothing in that file names react-native. `default` needs an arm of its own
+// because the specifier walk compares against the primitive NAME set and
+// `default` is in no such set — the same reason
+// `boundary/ambient-globals` spells it out for `export { default as proc }`.
+//
 // SCOPE, and it is the same for every TREE-SCOPED rule in this catalog — which
 // is every rule but `testing/no-module-mocking`, whose subject is a test file and
 // which is therefore enabled globally. This rule is silent outside the declared
@@ -65,8 +74,8 @@ export const noRawPrimitivesRule = defineTreeRule({
         "Raw HTML element (highlighted) — compose from the UI primitives instead (Box/Stack/Group for layout, Text/Title for type, Button, Anchor, Image), or `<Box as='...'>` with the tag name when you need the semantic element. A raw element has no token-aware defaults, so every value on it has to be invented. See docs/architecture/design-system.md.",
       platformPrimitive:
         "Core react-native rendering primitive (highlighted) — import the app equivalent from {{sharedUi}} instead (Box/Stack for View, Text for Text, a Button/Pressable wrapper for touchables). Those take token props, so an off-system value cannot be passed. Utility APIs from react-native (Platform, StyleSheet, useWindowDimensions) are fine in feature code; only the rendering primitives are the design system's to own. See docs/architecture/design-system.md.",
-      platformStarReExport:
-        "A star re-export of react-native republishes every rendering primitive under this module's name, so any importer gets View/Text/Pressable without ever naming react-native. Re-export the named utility APIs you actually need instead. See docs/architecture/design-system.md.",
+      platformModuleReExport:
+        "This republishes the whole react-native module under this module's name, so any importer gets View/Text/Pressable without ever naming react-native. Re-export the named utility APIs you actually need instead. See docs/architecture/design-system.md.",
     },
   },
   create(context, role) {
@@ -113,7 +122,16 @@ export const noRawPrimitivesRule = defineTreeRule({
 
         for (const specifier of node.specifiers) {
           if (specifier.exportKind === "type") continue;
-          if (PLATFORM_RENDERING_PRIMITIVES.has(exportedName(specifier.local))) {
+          const source = exportedName(specifier.local);
+          // `export { default as RN }` republishes the module OBJECT, which is the segment above
+          // every primitive — `RN.View` on the importer's side, and this rule never reads that
+          // file's react-native imports because it has none. The same laundering as `export *`,
+          // and the name table cannot see it: `default` is in no primitive set.
+          if (source === "default") {
+            ordered.report({ node: specifier, messageId: "platformModuleReExport" });
+            continue;
+          }
+          if (PLATFORM_RENDERING_PRIMITIVES.has(source)) {
             ordered.report({ node: specifier, messageId: "platformPrimitive", data: sharedUi });
           }
         }
@@ -122,7 +140,7 @@ export const noRawPrimitivesRule = defineTreeRule({
       ExportAllDeclaration(node) {
         if (node.source.value !== PLATFORM_MODULE) return;
         if (node.exportKind === "type") return;
-        ordered.report({ node: node.source, messageId: "platformStarReExport" });
+        ordered.report({ node: node.source, messageId: "platformModuleReExport" });
       },
 
       // This rule owns `Program:exit` outright — see lib/source-ordered-reports.ts for why a

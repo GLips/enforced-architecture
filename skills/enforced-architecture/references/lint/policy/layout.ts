@@ -521,6 +521,34 @@ export function carriesPresentation(profile: SourceProfile): boolean {
 }
 
 /**
+ * The positions that may run a query, so a rule about queries has a subject
+ * exactly where the database is legal.
+ *
+ * ONE owner for a question two rules ask from opposite sides.
+ * `boundary/db-isolation` reads it as the list of positions the db alias may be
+ * imported from; `placement/no-raw-result` reads it as the list of positions
+ * where a raw write result can be built and returned. Split them and the
+ * difference is a position where the database is legal and what comes back from
+ * it is read by nothing: a helper there returns a raw Drizzle write, no rule
+ * says a word, and the RPC serializer throws at run time far from the query. A
+ * shorter list on either side does not narrow that rule's scope, it opens a hole
+ * in the other one.
+ *
+ * Profiles rather than path regexes, so a sibling that merely ends in the same
+ * word — `features/x/legacy-repo/`, a package called `infrastructure-utils` —
+ * cannot inherit the reach, and a tree that renames a layer keeps it.
+ *
+ * NEGATIVE SPACE: this says which positions may query, never which TABLES or
+ * which client. A raw ORM or driver package is `boundary/sdk-containment`'s
+ * question, and its owner rows answer it.
+ */
+export const DATA_ACCESS_PROFILES: SourceProfile[] = [
+  "infrastructure",
+  "feature-repo",
+  "feature-controllers",
+];
+
+/**
  * Rejects a vocabulary whose names would silence the tree it belongs to. Throws,
  * and throwing is the point: every case here is a value that reads like an unset
  * field and behaves like a rule deleted, so a run that reported nothing would be

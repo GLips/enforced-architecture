@@ -1,7 +1,8 @@
 // ─── placement/no-raw-result ─────────────────────────────────────────────
 //
-// Makes sure: A repo or controller function never returns a Drizzle write
-// result without `.returning()`. That result holds functions and driver state,
+// Makes sure: No function in the layers that may query — infrastructure/, repo/
+// and controllers/ — returns a Drizzle write result without `.returning()`.
+// That result holds functions and driver state,
 // and the RPC serializer throws SerovalUnsupportedTypeError on it at run time,
 // far from the query that made it. You return a repo function's value from a
 // server function, and you do not first run the delete path in a browser to
@@ -22,8 +23,12 @@
 // reports `return () => db.delete(t)`, which returns a function, and it reads a
 // `.returning()` on an unrelated subquery as a fix of the outer chain.
 //
-// The scope is the layers that run queries, repo/ and controllers/. A db call
-// in another layer is boundary/db-isolation's finding.
+// The scope is `DATA_ACCESS_PROFILES` in lint/policy/layout.ts — the same list
+// boundary/db-isolation reads as the positions the db alias may be imported
+// from. One list, read from both sides: a db call outside it is that rule's
+// finding, and a raw write returned from inside it is this one's. Give this
+// rule a private, shorter list and the gap between them is a position where the
+// database is legal and the result nothing reads.
 //
 // SCOPE, and it is the same for every TREE-SCOPED rule in this catalog — which
 // is every rule but `testing/no-module-mocking`, whose subject is a test file and
@@ -37,10 +42,7 @@
 import { defineTreeRule } from "../lib/define-tree-rule.ts";
 import { type ESTree } from "@oxlint/plugins";
 import { isAtProfile } from "../../policy/declared-trees.ts";
-import type { SourceProfile } from "../../policy/layout.ts";
-
-/** The layers that run queries. Profiles, so a renamed layer keeps its scope. */
-const DATA_ACCESS_PROFILES: SourceProfile[] = ["feature-repo", "feature-controllers"];
+import { DATA_ACCESS_PROFILES } from "../../policy/layout.ts";
 
 const DB_CLIENT = "db";
 const UNSERIALIZABLE_WRITE_METHODS = new Set(["delete", "insert", "update"]);

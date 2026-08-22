@@ -9,6 +9,6 @@ its way out is a whole-tree question:
 
 | Rule | Blocking | What it buys |
 |---|---|---|
-| [no-vacant-symbol-names](no-vacant-symbol-names.ts) | Yes | Every name another file can reach — a type, and a function, class or constant at module level — says what the thing is for |
+| [no-vacant-symbol-names](no-vacant-symbol-names.ts) | Yes | Every name another file can reach — a type, and a function, class or constant at module level or in a namespace — says what the thing is for |
 
 Adoption mechanics, the spec contract, and what part of the tree owns each rule's subject: [../../overview.md](../../overview.md).

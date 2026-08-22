@@ -169,7 +169,10 @@ describeRule("style/no-arbitrary-class-values", noArbitraryClassValuesRule, {
       code: "export const cls = (size: string) => `text-${size}`;",
     },
     {
-      name: "a raw hex outside bracket syntax is another rule's business",
+      // Silent here because there is no bracket, and silent EVERYWHERE: `style/no-inline-color`
+      // reads an object property value and three JSX prop names, and a bare const is neither. The
+      // catalog covers no colour in this position, which its header states as negative space.
+      name: "a raw hex outside bracket syntax, which no rule in the catalog covers",
       filename: COMPONENT,
       code: `export const brand = "#0a0c10";`,
     },

@@ -30,9 +30,16 @@ Two of these rules can see the same characters, and the split between them is de
 literal inside a utility class — `bg-[#0a0c10]` — is `no-arbitrary-class-values`', not
 `no-inline-color`'s, because the only fix that terminates inside a class string is the mapped token
 class. `no-inline-color`'s message names `var(--app-surface)`, and that written into a bracket is a
-third diagnostic. A colour anywhere else in the JS is `no-inline-color`'s. Both match a colour with
-the one pattern in [../lib/color-literals.ts](../lib/color-literals.ts), so they cannot drift into
-disagreeing about what a colour is.
+third diagnostic. Both match a colour with the one pattern in
+[../lib/color-literals.ts](../lib/color-literals.ts), so they cannot drift into disagreeing about
+what a colour is.
+
+What the split does NOT cover is the rest of the JS. `no-inline-color` reads two positions — an
+object property value, and a JSX attribute named `c`, `bg` or `color` — so `export const brand =
+"#0a0c10"`, a palette array element, a returned literal and every other JSX prop are silent in both
+rules and in the catalog. That is deliberate: a rule reading every string would report `href="#anchor"`
+and every fragment id, and its header says so. It is coverage adopters do not have, not coverage
+somewhere else.
 
 The primitives layer is exempt from `no-raw-primitives`, `no-inline-style-prop` and
 `no-inline-font-size`, and from nothing else here. Those three ban something a primitive must do to

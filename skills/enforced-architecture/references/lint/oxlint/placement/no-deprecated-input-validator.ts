@@ -14,9 +14,19 @@
 // object with an `.inputValidator()` method of its own gets a report it cannot
 // act on.
 //
-// A chain still on `.inputValidator()` also reports at
+// A chain still on `.inputValidator()` OFTEN also reports at
 // placement/server-fn-validation, which reads the name `.validator()` and no
-// other. The two rules agree by design.
+// other. The two say different things — rename the method here, add a check at
+// all there — and either fix satisfies both, so there is no edit loop between
+// them. What there is NOT is agreement about which chains they see. This rule
+// reads the receiver's whole source range for a factory mention;
+// server-fn-validation walks a chain of plain dotted calls and stops at the
+// first thing that is not one. So on the computed spelling
+// (`createServerFn()["inputValidator"](s)`), on a cast wedged into the chain,
+// and on `createMiddleware` — which is not in that rule's factory set at all —
+// this rule reports alone. Do not read a finding here as evidence that the
+// handler is validated; that is the other rule's question and it may never have
+// been asked.
 //
 // The deprecation is in @tanstack/start-plugin-core/src/start-compiler/,
 // handleCreateServerFn.ts and handleCreateMiddleware.ts.
