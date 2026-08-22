@@ -1,0 +1,23 @@
+{
+  // ─── The SOLUTION-STYLE positive control for `assertTreeIsTypeChecked` ─
+  //
+  // A valid tsconfig whose own program compiles nothing: `files` is empty and
+  // `references` points at the config that actually holds the tree — here the
+  // fixture tree's real `tsconfig.json`. This is the natural thing for an
+  // adopter to declare, because in a solution-style repo the file CALLED
+  // `tsconfig.json` has exactly this shape, and nothing about the declaration
+  // looks wrong. The reference target is not `composite: true`, which a real
+  // solution root's would be; TypeScript loads the project here regardless,
+  // and the shape being modelled — an own program with zero files — is the
+  // same either way.
+  //
+  // The reference is deliberately the config that DOES contain `src`. That is
+  // what pins the claim: TypeScript loads a project from this file (so the
+  // "loaded no project" refusal in `forTree` never fires) and does not follow
+  // the reference into the program (so the program holds zero of the tree's
+  // files). If either of those ever changes, the assertion in
+  // `run-structural-fixtures.ts` that declaring this config crashes the types
+  // checks with the wrong-program message is what says so.
+  "files": [],
+  "references": [{ "path": "./tsconfig.json" }]
+}

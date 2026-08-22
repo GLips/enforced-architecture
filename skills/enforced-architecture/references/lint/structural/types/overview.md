@@ -26,9 +26,15 @@ Each declared tree names the `tsconfig` whose program contains it. That is a pat
 options — the project already has a tsconfig, and a second set of options in a lint config is a
 second answer to what the code compiles as.
 
+"Whose program contains it" is the adaptation to get right. In a solution-style repo the tree's own
+`tsconfig.json` is a `files: []` plus `references` root: a valid config whose program compiles
+nothing, because TypeScript does not follow the references into it. Declaring it is refused with
+its own message, because the fix is not widening that file — it is naming the referenced config
+that actually holds the tree's files, `tsconfig.app.json` rather than the root that points at it.
+
 A tree whose tsconfig does not compile every `.ts`/`.tsx`/`.mts`/`.cts` file in it — minus the tests,
-scripts, generated and ambient files every check already exempts — fails the run with the paths
-named. It is not a warning, because the alternative is worse: a check whose program holds none of
+scripts, generated and ambient files every check already exempts — fails the run with the missing
+paths named, or, when the program holds none of them, with the config to declare instead. It is not a warning, because the alternative is worse: a check whose program holds none of
 the tree's files reports nothing, and nothing is what a clean tree reports too.
 
 ## The open-dictionary trio

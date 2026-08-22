@@ -98,14 +98,22 @@ export type DeclaredTree = {
    * a tree without one has no type information and every one of them is silent
    * on it.
    *
+   * "Whose program contains" is load-bearing, not a synonym for "the tree's
+   * `tsconfig.json`". In a solution-style repo that file is a `files: []` plus
+   * `references` root — a valid tsconfig whose own program compiles nothing,
+   * because TypeScript does not follow the references into it. Name the
+   * referenced config that actually holds the tree's files
+   * (`apps/web/tsconfig.app.json`), not the root that points at it.
+   *
    * A path rather than a set of compiler options, and that is the whole point:
    * the project already has a tsconfig, and stating its own would be a second
    * answer to what `strict` means. It is vocabulary in the same sense `root`
    * is — where a thing lives, not whether a rule applies.
    *
    * The two declarations here can disagree: a tsconfig may `exclude` half the
-   * tree, or reach files outside it. `assertTreeIsTypeChecked` in the structural
-   * tier compares them and fails loudly, because a tree the program does not
+   * tree, reach files outside it, or name a program holding none of it, as the
+   * solution root does. `assertTreeIsTypeChecked` in the structural tier
+   * compares them and fails loudly, because a tree the program does not
    * contain produces no findings and reads exactly like a clean one — the same
    * silence this file's own negative space is written about, one level down.
    */

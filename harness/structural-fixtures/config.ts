@@ -95,6 +95,31 @@ export const APP_TREE_TYPE_UNCHECKED: ValidatedTrees = declareTrees([
   { ...APP_TREE, tsconfig: "tsconfig.type-unchecked.json" },
 ]);
 
+/**
+ * The app tree declared against a SOLUTION-STYLE root: `files: []` plus a
+ * reference to the config that really does compile `src`.
+ *
+ * The declaration an adopter actually writes when they hit this — the file is
+ * CALLED `tsconfig.json` and it is valid — so the guard's wrong-program branch
+ * has to refuse it by name and prescribe the referenced config, not "widen the
+ * include" of a file whose include is correctly empty. The assertion in
+ * `run-structural-fixtures.ts` pins that message, and the message is the whole
+ * point: the crash alone is indistinguishable from the partial-miss one.
+ */
+export const APP_TREE_SOLUTION_TSCONFIG: ValidatedTrees = declareTrees([
+  { ...APP_TREE, tsconfig: "tsconfig.solution.json" },
+]);
+
+/**
+ * The app tree declared against a config that compiles it MINUS one directory —
+ * the other of the guard's two failure shapes. It needs a control of its own
+ * because the wrong-program lists above produce the other message, so nothing
+ * else pins the partial-miss one.
+ */
+export const APP_TREE_TYPE_PARTIAL: ValidatedTrees = declareTrees([
+  { ...APP_TREE, tsconfig: "tsconfig.type-partial.json" },
+]);
+
 export const fixtureConfig: ArchitectureConfig = {
   projectRoot: FIXTURE_TREE,
   checks: {

@@ -51,6 +51,8 @@ import {
   FIXTURE_TREE,
   fixtureConfig,
   PDF_TREE,
+  APP_TREE_SOLUTION_TSCONFIG,
+  APP_TREE_TYPE_PARTIAL,
   APP_TREE_TYPE_UNCHECKED,
   PDF_TREE_MISREAD,
 } from "./structural-fixtures/config.ts";
@@ -673,12 +675,16 @@ for (const { detail, config } of refusedConfigs) {
   }
 }
 
-// A tree the type checker's program does not contain has to be LOUD, and this is
-// the only assertion in the suite that can say so. Every `types/` expectation
-// already fails when the program is empty — but it fails because this tree has
-// fixtures, and the adopting project this guard protects has none: it would get
-// zero findings, a green run, and no way to tell that from a clean tree. So the
-// claim here is about the CRASH, not about the findings.
+// A tree the type checker's program does not contain has to be LOUD, and these
+// are the only assertions in the suite that can say so. Every `types/`
+// expectation already fails when the program is empty — but it fails because
+// this tree has fixtures, and the adopting project this guard protects has
+// none: it would get zero findings, a green run, and no way to tell that from a
+// clean tree. So the claim here is about the CRASH, and about its WORDING: the
+// guard has two branches with two different repairs, the verdict cannot tell
+// them apart, and each control asserts the other branch's phrase ABSENT —
+// which is the only way to state that a branch is narrow. Both phrases at once
+// would mean one message is prescribing the other's fix.
 {
   const typeCheckedIds = structuralChecks
     .filter((check) => check.id.startsWith("types/"))
@@ -687,25 +693,49 @@ for (const { detail, config } of refusedConfigs) {
     fail("<type-checker>", "no types/ check is registered, so nothing exercises the type checker");
   }
 
-  const unchecked = runStructuralChecks(structuralChecks, fixtureConfig, APP_TREE_TYPE_UNCHECKED);
-  for (const id of typeCheckedIds) {
-    const run = unchecked.find((candidate) => candidate.id === id);
-    const crashed = run?.crashed;
-    if (crashed === undefined) {
-      fail(
-        id,
-        `ran against a tsconfig that compiles none of the tree and reported ` +
-          `${run?.findings.length ?? 0} finding(s) without complaint — a tree the program does ` +
-          `not contain must fail loudly, because zero findings there is indistinguishable ` +
-          `from a clean tree`,
-      );
-      continue;
-    }
-    // The wording is asserted because the verdict cannot distinguish this crash
-    // from any other. A check that threw for an unrelated reason satisfies
-    // "crashed" and proves nothing about the guard.
-    if (!crashed.message.includes("not in the program that config builds")) {
-      fail(id, `crashed on a type-unchecked tree, but not from the guard: ${crashed.message}`);
+  const WRONG_PROGRAM_PHRASE = "holds none of the tree's";
+  const PARTIAL_MISS_PHRASE = "not in the program that config builds";
+  const typeGuardControls = [
+    {
+      detail: "a tsconfig that compiles a different package",
+      trees: APP_TREE_TYPE_UNCHECKED,
+      present: WRONG_PROGRAM_PHRASE,
+      absent: PARTIAL_MISS_PHRASE,
+    },
+    {
+      detail: "a solution-style tsconfig (files: [] plus references)",
+      trees: APP_TREE_SOLUTION_TSCONFIG,
+      present: WRONG_PROGRAM_PHRASE,
+      absent: PARTIAL_MISS_PHRASE,
+    },
+    {
+      detail: "a tsconfig that excludes one directory of the tree",
+      trees: APP_TREE_TYPE_PARTIAL,
+      present: PARTIAL_MISS_PHRASE,
+      absent: WRONG_PROGRAM_PHRASE,
+    },
+  ];
+
+  for (const { detail, trees, present, absent } of typeGuardControls) {
+    const controlRuns = runStructuralChecks(structuralChecks, fixtureConfig, trees);
+    for (const id of typeCheckedIds) {
+      const run = controlRuns.find((candidate) => candidate.id === id);
+      const crashed = run?.crashed;
+      if (crashed === undefined) {
+        fail(
+          id,
+          `ran against ${detail} and reported ${run?.findings.length ?? 0} finding(s) without ` +
+            `complaint — a tree the program does not contain must fail loudly, because zero ` +
+            `findings there is indistinguishable from a clean tree`,
+        );
+        continue;
+      }
+      if (!crashed.message.includes(present)) {
+        fail(id, `crashed on ${detail}, but not with "${present}": ${crashed.message}`);
+      }
+      if (crashed.message.includes(absent)) {
+        fail(id, `crashed on ${detail} with the other branch's phrase "${absent}" in the message`);
+      }
     }
   }
 }

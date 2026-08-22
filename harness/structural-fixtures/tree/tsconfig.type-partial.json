@@ -1,0 +1,18 @@
+{
+  // ─── The PARTIAL-MISS positive control for `assertTreeIsTypeChecked` ──
+  //
+  // A program that holds the tree except for one directory — the narrow
+  // `include` / hungry `exclude` accident, as distinct from the wrong-program
+  // one. The guard gives the two different messages because they have
+  // different fixes ("widen this config" versus "declare a different config"),
+  // and this control is what keeps the partial branch's message pinned: the
+  // wrong-program controls (`tsconfig.type-unchecked.json`,
+  // `tsconfig.solution.json`) produce the other message.
+  //
+  // `extends` rather than a copy of the compiler options, so the fixture
+  // tree's real config stays the one answer to what its code compiles as; a
+  // child's `include`/`exclude` replace the base's wholesale.
+  "extends": "./tsconfig.json",
+  "include": ["src/**/*"],
+  "exclude": ["src/domains/**"]
+}

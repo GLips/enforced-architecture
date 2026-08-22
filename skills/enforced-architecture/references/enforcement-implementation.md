@@ -56,9 +56,10 @@ export const DECLARED_TREES: ValidatedTrees = declareTrees([
 A single-package repo declares one entry. That is the only difference.
 
 `tsconfig` is a project-relative PATH, not compiler options: the seven `types/` checks read a real
-TypeScript program, and the project already says what its code compiles as. A tree whose tsconfig
-misses a `.ts` file the tree holds fails the run with that path named — a program holding none of
-them reports nothing, which is what a clean tree reports too.
+TypeScript program, and the project already says what its code compiles as. Name the config whose
+program actually HOLDS the tree's files — a solution-style `tsconfig.json`, `files: []` plus
+`references`, compiles nothing itself, so declare the referenced `tsconfig.app.json`. Either
+mismatch fails the run with its fix named.
 
 **A tree you did not declare is a tree you did not adopt for.** Every tree-scoped rule in the
 catalog, in both tiers, is silent outside every declared tree. No findings, no warnings, no

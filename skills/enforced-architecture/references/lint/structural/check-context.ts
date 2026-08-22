@@ -311,12 +311,21 @@ function bootTypeChecker(context: TreeContext): { checker: TreeTypeChecker } | {
  * The direction is one-way on purpose. A program REACHING past the tree is
  * fine — a tsconfig at the repo root legitimately compiles four packages — and
  * failing on it would make the correct monorepo config unusable.
+ *
+ * The failure has TWO shapes, and they get different messages because they have
+ * different fixes. A program missing SOME of the tree is a narrow `include` or
+ * a hungry `exclude`, and widening the config is the repair. A program holding
+ * NONE of the tree is usually the wrong program: the natural thing to declare
+ * for a tree is its `tsconfig.json`, and in a solution-style repo that file is
+ * a `files: []` plus `references` root — a valid tsconfig that compiles nothing
+ * itself. "Widen the include" is precisely the wrong advice there; the fix is
+ * to name the referenced config that actually holds the tree's files, and the
+ * message has to say so or the adopter is sent to edit a file that is correct.
  */
 export function assertTreeIsTypeChecked(context: TreeContext, checker: TreeTypeChecker): void {
+  const treeFiles = collectTreeFiles(context, TYPESCRIPT_FILE_GLOB);
   const inProgram = new Set(checker.program.getSourceFileNames());
-  const absent = collectTreeFiles(context, TYPESCRIPT_FILE_GLOB).filter(
-    (absolute) => !inProgram.has(absolute),
-  );
+  const absent = treeFiles.filter((absolute) => !inProgram.has(absolute));
   if (absent.length === 0) return;
 
   // A SECOND pass through realpath, and only over what the first pass could not
@@ -333,6 +342,19 @@ export function assertTreeIsTypeChecked(context: TreeContext, checker: TreeTypeC
   const realInProgram = new Set([...inProgram].map(realpathOrSelf));
   const missing = absent.filter((absolute) => !realInProgram.has(realpathOrSelf(absolute)));
   if (missing.length === 0) return;
+
+  if (missing.length === treeFiles.length) {
+    throw new Error(
+      `The tree at '${context.tree.root}' declares tsconfig '${context.tree.tsconfig}', and the ` +
+        `program that config builds holds none of the tree's ${treeFiles.length} source file(s). ` +
+        `The usual spelling of this is a solution-style root — 'files' is [] and 'references' ` +
+        `name the configs that do the compiling — and a config that compiles a neighbouring ` +
+        `package is the same mistake. Every types check on this tree would read that program and ` +
+        `report zero findings, which is what a clean tree looks like. Declare the tsconfig whose ` +
+        `program actually holds this tree's files — in a solution-style repo, the referenced ` +
+        `config ('tsconfig.app.json'), not the root that points at it.`,
+    );
+  }
 
   const shown = missing.slice(0, 5).map((absolute) => `  ${toProjectPath(context.config, absolute)}`);
   const rest = missing.length > shown.length ? `\n  …and ${missing.length - shown.length} more` : "";
