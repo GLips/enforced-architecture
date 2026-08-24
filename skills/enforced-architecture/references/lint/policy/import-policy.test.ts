@@ -97,7 +97,7 @@ function testCase(name: string, body: () => void): void {
 
 // ─── The materialised grid ────────────────────────────────────────────
 //
-// All 120 resolved cells, written out. This is what the source table traded a
+// All 130 resolved cells, written out. This is what the source table traded a
 // readable row for: `IMPORT_POLICY` declares only where a profile DEVIATES from
 // `DEFAULT_SURFACE`, and the row you can read whole lives here instead.
 //
@@ -113,6 +113,19 @@ function testCase(name: string, body: () => void): void {
 // change that introduced this file — shows up as nothing at all.
 const MATERIALISED_POLICY: Record<SourceProfile, Record<TargetArea, ImportSurface>> = {
   route: {
+    route: "any",
+    feature: "barrel-or-ui-subtree",
+    domain: "deny",
+    infrastructure: "deny",
+    shared: "any",
+    "shared-ui": "any",
+    "env-server": "deny",
+    "env-client": "deny",
+    "source-root": "deny",
+    package: "any",
+  },
+
+  "root-route": {
     route: "any",
     feature: "barrel-or-ui-subtree",
     domain: "deny",
@@ -295,8 +308,8 @@ describeSuite("the materialised grid: every cell resolves to the value it always
   // Adding a profile or an area re-baselines this number, and that is the right
   // reason to re-baseline: the new row or column had to be written out above
   // first, or nothing here compiles.
-  testCase("all 120 cells were compared, not a subset", () => {
-    assert.equal(compared, 120);
+  testCase("all 130 cells were compared, not a subset", () => {
+    assert.equal(compared, 130);
   });
 });
 
@@ -335,6 +348,40 @@ const CLASSIFICATION: Row[] = [
     profile: "route",
     area: "feature",
     surface: "barrel-or-ui-subtree",
+  },
+  {
+    name: "the root route is the one route that may name an adapter",
+    from: "routes/__root.tsx",
+    specifier: "@/infrastructure/analytics",
+    profile: "root-route",
+    area: "infrastructure",
+    surface: "any",
+  },
+  {
+    name: "every other route is denied the same adapter, however shallow it sits",
+    from: "routes/index.tsx",
+    specifier: "@/infrastructure/analytics",
+    profile: "route",
+    area: "infrastructure",
+    surface: "deny",
+  },
+  {
+    name: "the client env moved with it — the root route reads it and a route does not",
+    from: "routes/__root.tsx",
+    specifier: "@/env.client",
+    profile: "root-route",
+    area: "env-client",
+    surface: "any",
+  },
+  {
+    // A nested layout is a route. Every framework with layouts spells them all
+    // the same way, so the profile has to be keyed on the whole path.
+    name: "a nested layout shares the root route's filename and none of its licence",
+    from: "routes/_authed/__root.tsx",
+    specifier: "@/infrastructure/analytics",
+    profile: "route",
+    area: "infrastructure",
+    surface: "deny",
   },
   {
     name: "a feature barrel re-exporting its own controller",
@@ -790,6 +837,64 @@ describeSuite("the adapter contract: the one flag, and the loud defaults", () =>
 
   testCase("an unpoliced source is loud rather than skipped", () => {
     assert.equal(messageId(verdict("lib/format-date.ts", "@/shared/utils")), "unclassifiedSource");
+  });
+});
+
+// ─── The composition root ─────────────────────────────────────────────
+//
+// `root-route` is the one profile whose subject is a single FILE, so it is the
+// one place a "the rule fires" assertion proves nothing on its own. Both
+// directions are pinned here, because either half passing alone is a green run
+// behind a fence that is not there: a rule that fires on every route has not
+// fenced anything, and a rule that fires on none of them has not either.
+describeSuite("the composition root: one file may mount the providers, and one only", () => {
+  testCase("the root route mounts the query client", () => {
+    assert.equal(verdict("routes/__root.tsx", "@/infrastructure/query-client").kind, "allow-crossing");
+  });
+
+  testCase("any other route building its own is denied", () => {
+    assert.equal(
+      messageId(verdict("routes/invoices.tsx", "@/infrastructure/query-client")),
+      "deniedDirection",
+    );
+    assert.equal(
+      messageId(verdict("routes/_authed/settings/billing.tsx", "@/infrastructure/query-client")),
+      "deniedDirection",
+    );
+  });
+
+  testCase("the denial names the root route, so the reader knows where the licence went", () => {
+    const result = verdict("routes/invoices.tsx", "@/infrastructure/query-client");
+    assert.equal(result.kind, "deny");
+    assert.match(
+      result.kind === "deny" ? (result.data.rationale ?? "") : "",
+      /@\/routes\/__root/,
+    );
+  });
+
+  testCase("a nested layout is a route, whatever it is called", () => {
+    assert.equal(
+      messageId(verdict("routes/_authed/__root.tsx", "@/infrastructure/query-client")),
+      "deniedDirection",
+    );
+  });
+
+  testCase("the two positions are one unit, so mounting a screen crosses nothing", () => {
+    // Not cosmetic. A unit of its own would send `__root.tsx` importing the
+    // route it renders through the table as a crossing — a real edge, reported
+    // as one to be spelled differently, in the one file that must name them.
+    assert.equal(verdict("routes/__root.tsx", "@/routes/invoices").kind, "internal");
+    assert.equal(verdict("routes/invoices.tsx", "@/routes/__root").kind, "internal");
+  });
+
+  testCase("the root route is still a route: no domain, no server env, no source root", () => {
+    assert.equal(messageId(verdict("routes/__root.tsx", "@/domains/pricing")), "deniedDirection");
+    assert.equal(messageId(verdict("routes/__root.tsx", "@/env.server")), "deniedDirection");
+    assert.equal(messageId(verdict("routes/__root.tsx", "@/routeTree.gen")), "deniedDirection");
+  });
+
+  testCase("it is a POSITION, not a filename — a root route outside the routes tree is neither", () => {
+    assert.equal(classifySourcePath(VOCABULARY, "shared/__root.tsx")?.profile, "shared");
   });
 });
 

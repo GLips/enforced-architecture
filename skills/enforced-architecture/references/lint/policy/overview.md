@@ -35,13 +35,13 @@ and the directory has bought nothing.
 | [layout.ts](layout.ts) | What a tree's vocabulary can say — directory names, feature layers, barrel and env module names, asset extensions — and the classifiers that turn a source-root-relative path into a `SourceProfile` or a `TargetArea`, given a vocabulary | Both `import-policy` adapters, `boundary/sdk-containment`, `placement/layer-direction` |
 | [import-policy.ts](import-policy.ts) | The `SourceProfile × TargetArea` table — a `deny` default plus each profile's deviations from it — the rationale each denial is rendered with, and `evaluateImportPolicy` | `oxlint/boundary/import-policy.ts`, `structural/boundary/import-policy.ts` |
 | [package-owners.ts](package-owners.ts) | One row per contained package: which modules may import it, and why | `oxlint/boundary/sdk-containment.ts` |
-| [import-policy.test.ts](import-policy.test.ts) | The engine's own specs — the materialised grid of all 120 resolved cells, that each path reaches the cell its author intended, and that one edge spelled two ways reaches one verdict | The rule harness, under Node |
+| [import-policy.test.ts](import-policy.test.ts) | The engine's own specs — the materialised grid of all 130 resolved cells, that each path reaches the cell its author intended, and that one edge spelled two ways reaches one verdict | The rule harness, under Node |
 
 **A cell nobody wrote is denied, not missing.** A row in the table declares only where its profile
 deviates from `DEFAULT_SURFACE`, which is `deny` in all ten areas, and `importSurfaceFor` is the one
 way to read a cell — the table itself is private, because a direct lookup returns `undefined` for
 every undeclared cell and `undefined` is not a verdict. So `feature-barrel` is `{}`, which says
-"reaches nothing" better than ten identical `deny`s did, and 54 declarations state what 120
+"reaches nothing" better than ten identical `deny`s did, and 59 declarations state what 130
 written-out cells used to.
 
 Both halves of the exhaustiveness survive, each in one place. Adding a `TargetArea` is a compile
@@ -51,7 +51,7 @@ tree may RENAME `service/` in its vocabulary, which is one string, but adding a 
 role to `FEATURE_LAYER_ROLES`, and the table then fails to compile until the new profiles have rows.
 
 What the sparse table gives up is a row you can read whole, and `MATERIALISED_POLICY` in
-`import-policy.test.ts` is that row for every profile — all 120 resolved cells, written by hand,
+`import-policy.test.ts` is that row for every profile — all 130 resolved cells, written by hand,
 exhaustive by type the same way. It is the better artifact: a literal table can only assert itself,
 and this one additionally proves that resolution produces the grid.
 

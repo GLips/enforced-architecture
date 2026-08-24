@@ -87,6 +87,7 @@ import {
   isUnderPath,
   isUnitBarrel,
   orderedLayerDirs,
+  rootRouteModule,
   type SourceProfile,
   type TargetArea,
   type TreeVocabulary,
@@ -165,17 +166,22 @@ const DEFAULT_SURFACE: Record<TargetArea, ImportSurface> = {
  * Where a denial needs an argument — the `route` row's, below — the argument is
  * a comment on the row, because what it explains is an ABSENCE.
  *
- * NEGATIVE SPACE: there is no `extends`, and it was tried. Exactly one pair of
- * rows agrees today — `feature-root` with `feature-service` — so inheritance
- * would save four declarations of the fifty-four, at the price of a false claim
- * (a feature root is not a kind of service layer) and of an edit to one row
- * silently moving another. The default map is the sharing that is true: every
- * row deviates from the same stated baseline, and from nothing else.
+ * NEGATIVE SPACE: there is no `extends`, and it was tried. Two pairs of rows
+ * relate today. `feature-root` and `feature-service` are IDENTICAL, and
+ * inheriting one from the other buys four declarations at the price of a false
+ * claim — a feature root is not a kind of service layer. `root-route` is a
+ * genuine SUPERSET of `route`, and it is the harder case precisely because the
+ * claim would be true: a root route IS a route. It still restates the five
+ * cells, because the five are what makes the row readable whole, and because
+ * `extends` turns a change to `route` into a silent change to a position whose
+ * whole reason for existing is that its licence is different. The default map
+ * is the sharing that is true: every row deviates from the same stated
+ * baseline, and from nothing else.
  */
 type ProfileRow = Partial<Record<TargetArea, ImportSurface>>;
 
 /**
- * The whole policy, as 54 declarations over a `deny` baseline rather than 120
+ * The whole policy, as 59 declarations over a `deny` baseline rather than 130
  * written-out cells.
  *
  * Exhaustive over `SourceProfile`, so a new profile is a compile error until
@@ -189,7 +195,7 @@ type ProfileRow = Partial<Record<TargetArea, ImportSurface>>;
  * runtime — a hand-written list of the areas is a second copy that cannot see
  * the eleventh.
  *
- * What a literal 120-cell table gave that this does not is a row you can read
+ * What a literal 130-cell table gave that this does not is a row you can read
  * whole. `MATERIALISED_POLICY` in the spec beside this file is that row for
  * every profile, and it is the better artifact: it is exhaustive by type the
  * same way, and it additionally proves that RESOLUTION produces the grid, which
@@ -206,9 +212,17 @@ const IMPORT_POLICY: Record<SourceProfile, ProfileRow> = {
   // not name the source root. Every member of that area a route could reach is
   // an entrypoint or the generated route tree, and each of them reaches back
   // down to the routes — so the edge is a cycle through the file that mounts the
-  // app. The env modules are their own areas, granted and withheld separately in
-  // this row — `env-client` is in it and `env-server` is not; a stylesheet is not
-  // a module edge and never reaches the table.
+  // app. Neither env module is in it either, and a stylesheet is not a module
+  // edge and never reaches the table.
+  //
+  // NOR the adapter layer, NOR the client env, and those two absences are the
+  // `root-route` row's whole subject — see it below. Both were in this row and
+  // were moved, not deleted: an ordinary route reaching `infrastructure/` used
+  // to be narrowed to the client-safe modules by
+  // `boundary/client-server-infra` and never to one FILE, so every route could
+  // build a second query client or mount a second analytics provider. A route
+  // that needs a client-safe adapter now reaches it through the feature that
+  // owns it, and a route that needs the client env reads it the same way.
   //
   // NEGATIVE SPACE: that denial covers a TYPE import too, so
   // `import type { FileRouteTypes } from "@/routeTree.gen"` is denied from a
@@ -221,6 +235,33 @@ const IMPORT_POLICY: Record<SourceProfile, ProfileRow> = {
   // generated tree directly. A project that needs the escape adds a second
   // route profile or lifts the type into `shared/`, and does it once.
   route: {
+    route: "any",
+    feature: "barrel-or-ui-subtree",
+    shared: "any",
+    "shared-ui": "any",
+    package: "any",
+  },
+
+  // The `route` row plus two cells, written out rather than inherited, because
+  // there is no `extends` here and the reason is the same one the type gives:
+  // a row states what a position may reach, in full, so the grid can be read
+  // off one row. The five it restates are not duplication to be factored out —
+  // they are the claim that the root route is still a route.
+  //
+  // The two it adds are the app's composition root. A provider is CONSTRUCTED
+  // here and nowhere else: a second `createQueryClient()` is a second cache
+  // that silently diverges from the first, and a second analytics provider
+  // double-counts every event. Neither fails, which is why the fence is a
+  // position rather than a convention — and why it is this file rather than the
+  // routes directory, which the `route` row above no longer grants either cell
+  // to.
+  //
+  // `infrastructure` is `any` here and is narrowed to the client-safe modules
+  // by `boundary/client-server-infra`, the same way it is narrowed for every
+  // other client position. This row does not restate that list: which adapters
+  // the browser may take is that rule's question, and which POSITION may take
+  // one is this one's.
+  "root-route": {
     route: "any",
     feature: "barrel-or-ui-subtree",
     infrastructure: "any",
@@ -378,6 +419,8 @@ export function profileLabel(vocabulary: TreeVocabulary, profile: SourceProfile)
   switch (profile) {
     case "route":
       return `a route in ${alias(vocabulary.routesDir)}`;
+    case "root-route":
+      return `the root route, ${alias(rootRouteModule(vocabulary))}`;
     case "feature-barrel":
       return "a feature barrel";
     case "feature-root":
@@ -456,7 +499,10 @@ export function profileRationale(vocabulary: TreeVocabulary, profile: SourceProf
 
   switch (profile) {
     case "route":
-      return `A route is a thin transport adapter: it composes feature UI and calls the feature's client-safe barrel. It is ISOMORPHIC — the same file runs on the server and ships to the browser — so a route that names the database, the server env or a domain has put server-only code, or business logic, in the one place that has to be safe in both. Reach it through the feature that owns it.`;
+      return `A route is a thin transport adapter: it composes feature UI and calls the feature's client-safe barrel. It is ISOMORPHIC — the same file runs on the server and ships to the browser — so a route that names the database, the server env or a domain has put server-only code, or business logic, in the one place that has to be safe in both. Reach it through the feature that owns it. It reaches no adapter and no env module of either kind, including the client one: those are ${alias(rootRouteModule(vocabulary))}'s, because a provider constructed in a second route is a second provider — a second cache, a second telemetry client — and nothing about that fails. A route that needs what an adapter offers takes it from the feature that owns the adapter, and a route that needs a configuration value takes it the same way.`;
+
+    case "root-route":
+      return `${alias(rootRouteModule(vocabulary))} is the app's composition root: the one route that constructs the providers every other route runs inside, which is why it — alone among the routes — may name ${infrastructure} and the client env. That licence is for MOUNTING. It is not a licence to hold screen logic, to fetch, or to reach a domain, and every other route's limits still apply to it, because it is still a route. If a second route needs what this one built, it should be READING it through context, not building its own.`;
 
     case "feature-barrel":
       return `A barrel is a feature's public surface and nothing else: a short list of what the feature offers, re-exported from its own modules. An import here of anything OUTSIDE the feature makes the barrel a place code lives rather than a place it is announced, and every consumer of the feature silently takes the dependency on. Whatever this needs belongs in the layer that uses it — and if a consumer needs another unit's export, it should name that unit rather than receive it laundered through this one.`;

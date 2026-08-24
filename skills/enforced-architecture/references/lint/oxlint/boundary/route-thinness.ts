@@ -25,13 +25,25 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { defineTreeRule } from "../lib/define-tree-rule.ts";
+import { isAtProfile } from "../../policy/declared-trees.ts";
 import {
   aliasSpecifierFor,
   isUnderPath,
+  type SourceProfile,
   type TreeVocabulary,
   dbDir,
 } from "../../policy/layout.ts";
 import { visitModuleSources } from "../lib/module-source-visitor.ts";
+
+/**
+ * BOTH route positions, and the second one is why this is a list rather than an
+ * equality test. `root-route` is a separate profile because its IMPORT licence is
+ * wider — it mounts the providers — and nothing about that makes it less
+ * isomorphic. Left as `profile === "route"` this rule would go silent on exactly
+ * one file, the one every other route runs inside, and the silence would look
+ * like a passing check.
+ */
+const ROUTE_PROFILES: SourceProfile[] = ["route", "root-route"];
 
 // The two areas a route may not name, spelled from the tree's vocabulary. Two
 // arms, and deliberately not three — see `Not here:` in the header for why a
@@ -58,7 +70,7 @@ export const routeThinnessRule = defineTreeRule({
     },
   },
   create(context, role) {
-    if (role.place?.profile !== "route") return {};
+    if (!isAtProfile(role, ...ROUTE_PROFILES)) return {};
     const { vocabulary } = role.tree;
     const banned = bannedSpecifiers(vocabulary);
     const featureBarrel = `${aliasSpecifierFor(vocabulary, vocabulary.featuresDir)}/<feature>`;

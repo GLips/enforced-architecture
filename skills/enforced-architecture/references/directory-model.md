@@ -133,7 +133,7 @@ src/
       <Component>.tsx
     utils.ts
   routes/                 # Thin transport adapters
-    __root.tsx
+    __root.tsx            # The composition root — a position of its own
   gen/                    # Generated output — every rule is silent inside it
   test/                   # Shared test infrastructure
   client.tsx              # Browser entrypoint
@@ -145,7 +145,7 @@ src/
   env.client.ts
 ```
 
-Four things in that tree are load-bearing in a way their names do not show.
+Five things in that tree are load-bearing in a way their names do not show.
 
 - **The files directly in the source root are a closed set:** the four entrypoint positions, the env
   modules, and the token stylesheet. `placement/topology` rejects any other file there. Their names
@@ -160,6 +160,11 @@ Four things in that tree are load-bearing in a way their names do not show.
 - **`auth/client.ts` and `providers/query-client.ts` are the only two infrastructure modules a client
   file may import.** That list lives in `boundary/client-server-infra` and it is the whole list.
   `db/client.ts` is an ordinary server-only module that happens to share the word.
+- **`__root.tsx` is its own position, `root-route`, and the only route that may name infrastructure
+  or the client env.** Providers are CONSTRUCTED there; built twice, a query cache or a telemetry
+  client silently disagrees with itself. Every other route reads what the root mounted. The name is
+  vocabulary (`rootRouteName`) and the fence is the whole path, so a nested layout shares the
+  filename and gets none of the licence.
 - **`errors.ts` is the only non-barrel file permitted at a feature's root.** `placement/topology`
   rejects any other. Everything else in a feature belongs to a layer.
 
@@ -203,7 +208,7 @@ Find the row for the work, and put the file in the directory it names.
 | An HTTP call to anything outside this app | `infrastructure/api-client.ts` — the one module that may call `fetch` |
 | Reading or writing `localStorage` | `infrastructure/browser-storage.ts` — the one module that may touch it |
 | Telemetry | `infrastructure/telemetry/` |
-| A React provider | `infrastructure/providers/` |
+| A React provider | `infrastructure/providers/` — mounted from `routes/__root.tsx`, the one position that may |
 | A secret or server-only config value | `env.server.ts` |
 | A public config value | `env.client.ts` |
 | A page or route handler | `routes/` |
@@ -223,11 +228,11 @@ a judgment the reviewer makes.
 
 ## Layer Hierarchy
 
-The tree has twelve positions. A file's position decides what it may import.
+The tree has thirteen positions. A file's position decides what it may import.
 
 Eight of them form the ladder, from the top (user-facing) to the bottom (foundational):
 
-1. `routes/` — transport adapters
+1. `routes/` — transport adapters, and `routes/__root.tsx`, which shares this rung with a wider licence
 2. `features/<name>/ui/`
 3. `features/<name>/controllers/`
 4. `features/<name>/service/` (optional)
@@ -246,17 +251,17 @@ Four statements describe the model. Each one is exact.
   It is a necessary condition, not a sufficient one: plenty of downward edges are denied too. A
   feature's `ui/` may not name a domain, a `service/` may not name infrastructure, and a domain may
   not name infrastructure. Read the cell; do not infer it from the ladder.
-- **Eleven of the twelve positions may import `shared/`.** The exception is a feature's `index.ts`
+- **Twelve of the thirteen positions may import `shared/`.** The exception is a feature's `index.ts`
   barrel, which imports nothing outside its own feature.
-- **Four of the twelve may import `shared/ui/`:** `routes/`, a feature's `ui/`, `shared/ui/` itself,
-  and the source root. `shared/` and `shared/ui/` are two positions, not one.
+- **Five of the thirteen may import `shared/ui/`:** both route positions, a feature's `ui/`,
+  `shared/ui/` itself, and the source root. `shared/` and `shared/ui/` are two positions, not one.
 - **Two areas are reached through a barrel: features and domains.** Everywhere else a permitted
   import may name any module in the area. One import reaches past a barrel and no other does: a route
   may import `@/features/<name>/ui/*`.
 
-The table behind those statements is [import-policy.ts](lint/policy/import-policy.ts): twelve
+The table behind those statements is [import-policy.ts](lint/policy/import-policy.ts): thirteen
 source positions by ten target areas, each row declaring only where it deviates from a default of
-`deny`. Read a cell there rather than a restatement here, and read an absent one as refused. All 120
+`deny`. Read a cell there rather than a restatement here, and read an absent one as refused. All 130
 resolved cells are written out in the spec beside it. When a rule denies an import it names the file's position, the area the import
 lands in, and a paragraph on why that position works this way — written with this project's own
 directory names in it.

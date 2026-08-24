@@ -21,6 +21,7 @@ const SHARED_UI = `${SRC}/shared/ui/Button.tsx`;
 const FEATURE_UI = `${SRC}/features/billing/ui/InvoiceTable.tsx`;
 const DOMAIN = `${SRC}/domains/pricing/rate-card.ts`;
 const ROUTE = `${SRC}/routes/_authed/invoices.tsx`;
+const ROOT_ROUTE = `${SRC}/routes/__root.tsx`;
 
 describeRule("boundary/import-policy", importPolicyRule, {
   obvious: [
@@ -64,6 +65,25 @@ describeRule("boundary/import-policy", importPolicyRule, {
       name: "a route reading the server env, which is not isomorphic",
       filename: ROUTE,
       code: `import { serverEnv } from "@/env.server";`,
+      errors: [{ messageId: "deniedDirection" }],
+    },
+    {
+      // The half of the composition-root fence that fires. The other half — the
+      // root route doing the same thing and passing — is in `legal` below, and
+      // neither half proves the fence alone: a rule that denied both would pass
+      // this case, and a rule that denied neither would pass that one.
+      name: "an ordinary route constructing a provider, which is a second one of whatever it built",
+      filename: ROUTE,
+      code: `import { createQueryClient } from "@/infrastructure/query-client";`,
+      errors: [{ messageId: "deniedDirection" }],
+    },
+    {
+      // A layout at any other depth is an ordinary route. Frameworks with nested
+      // layouts spell every one of them with the same filename, so a fence keyed
+      // on the basename would grant the licence to all of them.
+      name: "a nested layout sharing the root route's filename and none of its licence",
+      filename: `${SRC}/routes/_authed/__root.tsx`,
+      code: `import { createQueryClient } from "@/infrastructure/query-client";`,
       errors: [{ messageId: "deniedDirection" }],
     },
     {
@@ -272,6 +292,21 @@ describeRule("boundary/import-policy", importPolicyRule, {
       name: "a route composing a feature's ui, which is the exception the barrel rule grants",
       filename: ROUTE,
       code: `import { useInvoices } from "@/features/billing";\nimport { InvoiceTable } from "@/features/billing/ui/InvoiceTable";`,
+    },
+    {
+      // The root route mounting the app: the adapter layer and the client env,
+      // both denied to every other route by the two `obvious` cases above.
+      // WHICH adapters the browser may take is boundary/client-server-infra's
+      // question and not this rule's — this one answers which POSITION may take
+      // one at all.
+      name: "the root route mounting the providers, which is the one position that may",
+      filename: ROOT_ROUTE,
+      code: `import { createQueryClient } from "@/infrastructure/query-client";\nimport { AnalyticsProvider } from "@/infrastructure/analytics";\nimport { clientEnv } from "@/env.client";`,
+    },
+    {
+      name: "the root route is still a route, so the routes it mounts are its own unit",
+      filename: ROOT_ROUTE,
+      code: `import { InvoicesScreen } from "@/routes/_authed/invoices";\nimport { InvoiceTable } from "@/features/billing/ui/InvoiceTable";`,
     },
     {
       name: "a controller taking the widest licence in the feature: adapter, server env, both barrels",

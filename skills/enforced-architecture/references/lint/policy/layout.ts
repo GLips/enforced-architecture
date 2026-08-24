@@ -481,9 +481,18 @@ export const SOURCE_FILE_GLOB = `**/${SOURCE_EXTENSION_GLOB}`;
  * The `feature-*` arms name ROLES, not directories: a tree that spells its
  * service layer `usecases/` still produces `feature-service`, because what the
  * table decides is what that position may import and not what it is called.
+ *
+ * `root-route` is ONE FILE — `rootRouteModule()`, the module a router-based
+ * framework mounts the app from. It is a position rather than a route that
+ * happens to be special: it is the second composition root, the only place a
+ * provider may be constructed, and every other route is a leaf that consumes
+ * what it mounted. Split out because a licence granted to `route` is granted to
+ * every file under the routes directory, and "the query client is created once"
+ * is not a claim a directory-wide row can make.
  */
 export type SourceProfile =
   | "route"
+  | "root-route"
   | "feature-barrel"
   | "feature-root"
   | "feature-ui"
@@ -1240,6 +1249,19 @@ export function classifySourcePath(
   // and one unit — `placement/topology` is what decides WHICH files may sit here.
   if (second === undefined) return { profile: "source-root", unit: SOURCE_ROOT_UNIT };
 
+  // The root route is matched EXACTLY, and before the routes arm below it. A
+  // framework with nested layouts spells every one of them with the same
+  // filename — `app/(tabs)/_layout.tsx` is a layout and is not the composition
+  // root — so a suffix or basename comparison would hand each of them the
+  // provider licence and leave the fence naming nothing in particular.
+  //
+  // Same UNIT as every other route, deliberately: the root route importing the
+  // screen it mounts crosses no boundary, and giving it a unit of its own would
+  // send that edge through the table and report it as a crossing to be spelled
+  // differently.
+  if (path === rootRouteModule(vocabulary)) {
+    return { profile: "root-route", unit: vocabulary.routesDir };
+  }
   if (top === vocabulary.routesDir) return { profile: "route", unit: vocabulary.routesDir };
 
   if (top === vocabulary.featuresDir) {
