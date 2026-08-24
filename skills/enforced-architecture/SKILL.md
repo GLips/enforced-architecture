@@ -35,7 +35,8 @@ Read these references before and during the process.
 **The import table is not a document.** Which source may import which target is
 [lint/policy/import-policy.ts](references/lint/policy/import-policy.ts), and that table is the only
 statement of it. Each denial prints the reasoning for the position it denied, in the project's own
-directory names. Read the table when you need a cell. Do not render a copy into the plan.
+directory names. Read the table when you need a cell, and an absent one as `deny`. Do not render a
+copy into the plan.
 
 The catalog is split by **tier** first and **tag** second: `lint/oxlint/` is the per-file tier,
 `lint/structural/` the whole-tree tier, `lint/policy/` the runtime-neutral tables both read. It is

@@ -2,24 +2,34 @@
 //
 // `lint/oxlint/boundary/import-policy.test.ts` proves the oxlint RULE, and the
 // structural fixture tree proves the structural check. This proves the ENGINE
-// both of them read, and it is deliberately not a case per cell.
+// both of them read, in three halves.
 //
-// Generating one case per cell from the table the evaluator reads asserts
-// `table === table`: it passes for any table, including a wrong one, and it goes
-// red on every deliberate policy change while catching none of the bugs this
-// module was built after. Every one of those was a CLASSIFICATION or MATCHING
-// bug — `shared` and `shared-ui` disagreeing about a module, a rule banning a
-// spelling rather than a dependency, a deep-import pattern needing a segment past
-// the feature name so bare barrels escaped, regexes over-matching `ui-kit` and
+// The first is the MATERIALISED grid — all 120 resolved cells, written by hand.
+// It is the one place a case per cell earns its keep, and the reason is that the
+// source table no longer holds one: a row declares only where it deviates from
+// `DEFAULT_SURFACE`, so what the evaluator reads is a resolution rather than a
+// literal. Asserting a literal grid against that resolution is not
+// `table === table` — a row deleted, a cell dropped, a default flipped from
+// `deny` to `any` each change a value here, and none of them changes a lookup
+// into itself. It is also the row a reader can read whole, which is the only
+// thing the sparse table gave up.
+//
+// Generating one case per cell from the table the evaluator reads would be the
+// tautology: it passes for any table, including a wrong one, and it goes red on
+// every deliberate policy change while catching none of the bugs this module was
+// built after. Every one of those was a CLASSIFICATION or MATCHING bug —
+// `shared` and `shared-ui` disagreeing about a module, a rule banning a spelling
+// rather than a dependency, a deep-import pattern needing a segment past the
+// feature name so bare barrels escaped, regexes over-matching `ui-kit` and
 // `features-legacy`. None was a lookup bug.
 //
-// So the generated coverage sits on classification: real repo paths and real
-// specifiers, each stating which profile, which area, and therefore WHICH CELL it
-// reaches. The cell's contents are the table's business; that a path arrives at
-// the intended cell is this suite's.
+// So the second half, the generated coverage, sits on classification: real repo
+// paths and real specifiers, each stating which profile, which area, and
+// therefore WHICH CELL it reaches. The cell's contents are the grid's business;
+// that a path arrives at the intended cell is that suite's.
 //
-// The hand-written half below it is the adapter contract — what stops the
-// two-caller design from being a proof in prose.
+// The hand-written third is the adapter contract — what stops the two-caller
+// design from being a proof in prose.
 //
 // This file runs under real Node, with the oxlint tier's specs, because that is
 // the harness that already has a Node runner. It imports `node:test`, which the
@@ -33,7 +43,7 @@ import { describe, it } from "node:test";
 import {
   describeKnownAreas,
   evaluateImportPolicy,
-  IMPORT_POLICY,
+  importSurfaceFor,
   type PolicyVerdict,
   type ImportSurface,
 } from "./import-policy.ts";
@@ -85,14 +95,220 @@ function testCase(name: string, body: () => void): void {
   void it(name, body);
 }
 
+// ─── The materialised grid ────────────────────────────────────────────
+//
+// All 120 resolved cells, written out. This is what the source table traded a
+// readable row for: `IMPORT_POLICY` declares only where a profile DEVIATES from
+// `DEFAULT_SURFACE`, and the row you can read whole lives here instead.
+//
+// It is exhaustive by TYPE, and that is the half no comparison can give. The
+// annotation is the full `Record<SourceProfile, Record<TargetArea, …>>` the
+// source used to carry, so adding a profile or an area fails to compile HERE
+// until every new cell is written out — which is also why this is the only
+// place left that enumerates either at runtime, and why the loop below can
+// take its keys from the fixture rather than from a hand-kept list.
+//
+// WHEN A VERDICT IS MEANT TO CHANGE, this changes with it, in the same commit,
+// one line per cell. That is the cost and it is the point: a policy change that
+// moves one cell shows up as one line, and a refactor that moves none — the
+// change that introduced this file — shows up as nothing at all.
+const MATERIALISED_POLICY: Record<SourceProfile, Record<TargetArea, ImportSurface>> = {
+  route: {
+    route: "any",
+    feature: "barrel-or-ui-subtree",
+    domain: "deny",
+    infrastructure: "any",
+    shared: "any",
+    "shared-ui": "any",
+    "env-server": "deny",
+    "env-client": "any",
+    "source-root": "deny",
+    package: "any",
+  },
+
+  "feature-barrel": {
+    route: "deny",
+    feature: "deny",
+    domain: "deny",
+    infrastructure: "deny",
+    shared: "deny",
+    "shared-ui": "deny",
+    "env-server": "deny",
+    "env-client": "deny",
+    "source-root": "deny",
+    package: "deny",
+  },
+
+  "feature-root": {
+    route: "deny",
+    feature: "barrel",
+    domain: "barrel",
+    infrastructure: "deny",
+    shared: "any",
+    "shared-ui": "deny",
+    "env-server": "deny",
+    "env-client": "deny",
+    "source-root": "deny",
+    package: "any",
+  },
+
+  "feature-ui": {
+    route: "deny",
+    feature: "barrel",
+    domain: "deny",
+    infrastructure: "any",
+    shared: "any",
+    "shared-ui": "any",
+    "env-server": "deny",
+    "env-client": "any",
+    "source-root": "deny",
+    package: "any",
+  },
+
+  "feature-controllers": {
+    route: "deny",
+    feature: "barrel",
+    domain: "barrel",
+    infrastructure: "any",
+    shared: "any",
+    "shared-ui": "deny",
+    "env-server": "any",
+    "env-client": "any",
+    "source-root": "deny",
+    package: "any",
+  },
+
+  "feature-service": {
+    route: "deny",
+    feature: "barrel",
+    domain: "barrel",
+    infrastructure: "deny",
+    shared: "any",
+    "shared-ui": "deny",
+    "env-server": "deny",
+    "env-client": "deny",
+    "source-root": "deny",
+    package: "any",
+  },
+
+  "feature-repo": {
+    route: "deny",
+    feature: "deny",
+    domain: "deny",
+    infrastructure: "any",
+    shared: "any",
+    "shared-ui": "deny",
+    "env-server": "deny",
+    "env-client": "deny",
+    "source-root": "deny",
+    package: "any",
+  },
+
+  domain: {
+    route: "deny",
+    feature: "deny",
+    domain: "barrel",
+    infrastructure: "deny",
+    shared: "any",
+    "shared-ui": "deny",
+    "env-server": "deny",
+    "env-client": "deny",
+    "source-root": "deny",
+    package: "any",
+  },
+
+  infrastructure: {
+    route: "deny",
+    feature: "deny",
+    domain: "deny",
+    infrastructure: "any",
+    shared: "any",
+    "shared-ui": "deny",
+    "env-server": "any",
+    "env-client": "any",
+    "source-root": "deny",
+    package: "any",
+  },
+
+  shared: {
+    route: "deny",
+    feature: "deny",
+    domain: "deny",
+    infrastructure: "deny",
+    shared: "any",
+    "shared-ui": "deny",
+    "env-server": "deny",
+    "env-client": "any",
+    "source-root": "deny",
+    package: "any",
+  },
+
+  "shared-ui": {
+    route: "deny",
+    feature: "deny",
+    domain: "deny",
+    infrastructure: "deny",
+    shared: "any",
+    "shared-ui": "any",
+    "env-server": "deny",
+    "env-client": "any",
+    "source-root": "deny",
+    package: "any",
+  },
+
+  "source-root": {
+    route: "any",
+    feature: "deny",
+    domain: "deny",
+    infrastructure: "any",
+    shared: "any",
+    "shared-ui": "any",
+    "env-server": "any",
+    "env-client": "any",
+    "source-root": "any",
+    package: "any",
+  },
+};
+
+const MATERIALISED_ROWS = Object.entries(MATERIALISED_POLICY) as [
+  SourceProfile,
+  Record<TargetArea, ImportSurface>,
+][];
+
+describeSuite("the materialised grid: every cell resolves to the value it always had", () => {
+  let compared = 0;
+
+  for (const [profile, row] of MATERIALISED_ROWS) {
+    testCase(`${profile} resolves its whole row`, () => {
+      for (const [area, surface] of Object.entries(row) as [TargetArea, ImportSurface][]) {
+        assert.deepEqual(importSurfaceFor(profile, area), surface, `${profile} → ${area}`);
+        compared += 1;
+      }
+    });
+  }
+
+  // The count is not the product of two lengths restated — it is the guard on
+  // the loop above, which reads its keys off an object and reports nothing at
+  // all if that object arrives empty. Twelve passing cases that each compared
+  // zero cells is a green run behind a fixture nothing exercises, and it is the
+  // failure this whole file exists to make impossible somewhere else.
+  //
+  // Adding a profile or an area re-baselines this number, and that is the right
+  // reason to re-baseline: the new row or column had to be written out above
+  // first, or nothing here compiles.
+  testCase("all 120 cells were compared, not a subset", () => {
+    assert.equal(compared, 120);
+  });
+});
+
 /**
  * One row per (position, destination) pair worth pinning. `from` and `specifier`
  * are spelled the way `directory-model.md` spells them; `profile`, `area` and
  * `surface` are what the author intends them to reach.
  *
- * `surface` is compared against `IMPORT_POLICY[profile][area]`, so a row failing
- * means classification landed on a different cell than intended — never that the
- * cell holds something other than the table says.
+ * `surface` is compared against the cell `importSurfaceFor` resolves, so a row
+ * failing means classification landed on a different cell than intended — never
+ * that the cell holds something other than the grid above says.
  */
 type Row = {
   name: string;
@@ -328,7 +544,7 @@ describeSuite("classification: every path lands on the cell its author intended"
           : classifyTargetPath(VOCABULARY, read?.path ?? "")?.area;
       assert.equal(area, row.area);
 
-      assert.deepEqual(IMPORT_POLICY[row.profile][row.area], row.surface);
+      assert.deepEqual(importSurfaceFor(row.profile, row.area), row.surface);
     });
   }
 });

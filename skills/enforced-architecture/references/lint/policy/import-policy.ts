@@ -19,8 +19,9 @@
 // rules is whatever the union of their path regexes happens to be, and the holes
 // are INVISIBLE: `infrastructure → routes`, `service → infrastructure` and
 // `route → domains` were each guarded by nothing and nothing said so. Declared
-// over `SourceProfile × TargetArea`, an unfilled cell is a compile error and an
-// unguarded edge cannot exist.
+// over `SourceProfile × TargetArea` against a default of `deny`, an unguarded
+// edge cannot exist: a cell nobody wrote is REFUSED rather than missing, and
+// adding a profile or an area is a compile error before it can be either.
 //
 // ── Who reads this ───────────────────────────────────────────────────────────
 //
@@ -123,9 +124,64 @@ export type ImportSurface =
   | { readonly modules: readonly string[]; readonly why: string };
 
 /**
- * The whole policy. Exhaustive over both keys, so an unfilled cell is a compile
- * error — the property that turns an unguarded edge from an invisible hole into
- * something the typechecker refuses.
+ * What a cell holds when its profile's row does not mention it.
+ *
+ * LOOKS WRONG: every entry is the same value, and a bare `"deny"` constant would
+ * read the same at every call site. Written out as a `Record<TargetArea, …>` it
+ * carries two things that constant cannot:
+ *
+ *   - Adding a `TargetArea` is a compile error HERE, once, rather than in twelve
+ *     rows. That is the whole of what the exhaustive table bought, kept.
+ *   - The default becomes a DECISION with somewhere to argue it. `shared` is
+ *     `any` in eleven of the twelve rows below and `package` in eleven of twelve,
+ *     so opening either column here is one edit — and it lands as a visible
+ *     policy change rather than as twelve rows quietly agreeing.
+ *
+ * It stays `deny` in all ten because those two pull apart the moment it does not.
+ * A profile added with an unconsidered row would silently receive whatever the
+ * open columns grant, and "an unconsidered edge is refused, not permitted" is the
+ * one claim this table makes that a reader cannot verify by reading it.
+ */
+const DEFAULT_SURFACE: Record<TargetArea, ImportSurface> = {
+  route: "deny",
+  feature: "deny",
+  domain: "deny",
+  infrastructure: "deny",
+  shared: "deny",
+  "shared-ui": "deny",
+  "env-server": "deny",
+  "env-client": "deny",
+  "source-root": "deny",
+  package: "deny",
+};
+
+/**
+ * One profile's DEVIATIONS from `DEFAULT_SURFACE`, and nothing else. An area a
+ * row does not name is denied, so a row states what that position may REACH and
+ * stays silent about the rest — which is why `feature-barrel` below is `{}` and
+ * says more that way than ten identical `deny`s did.
+ *
+ * A cell restating `deny` is therefore noise, and no shipped row carries one.
+ * Where a denial needs an argument — the `route` row's, below — the argument is
+ * a comment on the row, because what it explains is an ABSENCE.
+ *
+ * NEGATIVE SPACE: there is no `extends`, and it was tried. Exactly one pair of
+ * rows agrees today — `feature-root` with `feature-service` — so inheritance
+ * would save four declarations of the fifty-four, at the price of a false claim
+ * (a feature root is not a kind of service layer) and of an edit to one row
+ * silently moving another. The default map is the sharing that is true: every
+ * row deviates from the same stated baseline, and from nothing else.
+ */
+type ProfileRow = Partial<Record<TargetArea, ImportSurface>>;
+
+/**
+ * The whole policy, as 54 declarations over a `deny` baseline rather than 120
+ * written-out cells.
+ *
+ * Exhaustive over `SourceProfile`, so a new profile is a compile error until
+ * someone gives it a row — and `{}` is a legal row meaning "reaches nothing",
+ * which is a decision rather than an omission because the baseline it inherits
+ * is stated above it.
  *
  * `npm run typecheck` is what makes that promise observable in this repo rather
  * than only in an adopting one: both tsconfigs compile this file, so adding an
@@ -133,183 +189,128 @@ export type ImportSurface =
  * runtime — a hand-written list of the areas is a second copy that cannot see
  * the eleventh.
  *
+ * What a literal 120-cell table gave that this does not is a row you can read
+ * whole. `MATERIALISED_POLICY` in the spec beside this file is that row for
+ * every profile, and it is the better artifact: it is exhaustive by type the
+ * same way, and it additionally proves that RESOLUTION produces the grid, which
+ * a table cannot prove about itself.
+ *
  * SAME-UNIT EDGES NEVER REACH THIS TABLE. The evaluator recognises unit identity
  * first and returns `internal`: a feature barrel reaching its own layers, a
  * domain barrel re-exporting its own modules, one layer importing a sibling file.
- * That is why the `feature-barrel` row is `deny` across the board rather than
- * needing an "own only" value, and why there is no public relation enum.
+ * That is why `feature-barrel` can declare nothing at all rather than needing an
+ * "own only" value, and why there is no public relation enum.
  */
-export const IMPORT_POLICY: Record<SourceProfile, Record<TargetArea, ImportSurface>> = {
+const IMPORT_POLICY: Record<SourceProfile, ProfileRow> = {
+  // What this row does NOT grant, and why the absence is deliberate: a route may
+  // not name the source root. Every member of that area a route could reach is
+  // an entrypoint or the generated route tree, and each of them reaches back
+  // down to the routes — so the edge is a cycle through the file that mounts the
+  // app. The env modules are their own areas, granted and withheld separately in
+  // this row — `env-client` is in it and `env-server` is not; a stylesheet is not
+  // a module edge and never reaches the table.
+  //
+  // NEGATIVE SPACE: that denial covers a TYPE import too, so
+  // `import type { FileRouteTypes } from "@/routeTree.gen"` is denied from a
+  // route. There is no type-only escape anywhere outside the `domain` row, and
+  // that is the design rather than an oversight — a forbidden direction is
+  // forbidden for a type because the coupling it creates is what the cell is
+  // about, and the domain row is the one place where the runtime/type
+  // distinction changes an ANSWER instead of just a build artifact. The cost
+  // here is low: routes are written against typed `Link` and rarely name the
+  // generated tree directly. A project that needs the escape adds a second
+  // route profile or lifts the type into `shared/`, and does it once.
   route: {
     route: "any",
     feature: "barrel-or-ui-subtree",
-    domain: "deny",
     infrastructure: "any",
     shared: "any",
     "shared-ui": "any",
-    "env-server": "deny",
     "env-client": "any",
-    // Every member of this area a route could name is an entrypoint or the
-    // generated route tree, and each of them reaches back down to the routes —
-    // so the edge is a cycle through the file that mounts the app. The env
-    // modules are their own areas and are decided two rows up; a stylesheet is
-    // not a module edge and never reaches the table.
-    //
-    // NEGATIVE SPACE: this denies a TYPE import too, so
-    // `import type { FileRouteTypes } from "@/routeTree.gen"` is denied from a
-    // route. There is no type-only escape anywhere outside the `domain` row, and
-    // that is the design rather than an oversight — a forbidden direction is
-    // forbidden for a type because the coupling it creates is what the cell is
-    // about, and the domain row is the one place where the runtime/type
-    // distinction changes an ANSWER instead of just a build artifact. The cost
-    // here is low: routes are written against typed `Link` and rarely name the
-    // generated tree directly. A project that needs the escape adds a second
-    // route profile or lifts the type into `shared/`, and does it once.
-    "source-root": "deny",
     package: "any",
   },
 
-  "feature-barrel": {
-    route: "deny",
-    feature: "deny",
-    domain: "deny",
-    infrastructure: "deny",
-    shared: "deny",
-    "shared-ui": "deny",
-    "env-server": "deny",
-    "env-client": "deny",
-    "source-root": "deny",
-    package: "deny",
-  },
+  // A barrel announces its own feature and reaches nothing else — not the shared
+  // tree, not a package. The empty row IS that statement.
+  "feature-barrel": {},
 
   "feature-root": {
-    route: "deny",
     feature: "barrel",
     domain: "barrel",
-    infrastructure: "deny",
     shared: "any",
-    "shared-ui": "deny",
-    "env-server": "deny",
-    "env-client": "deny",
-    "source-root": "deny",
     package: "any",
   },
 
   "feature-ui": {
-    route: "deny",
     feature: "barrel",
-    domain: "deny",
     infrastructure: "any",
     shared: "any",
     "shared-ui": "any",
-    "env-server": "deny",
     "env-client": "any",
-    "source-root": "deny",
     package: "any",
   },
 
   "feature-controllers": {
-    route: "deny",
     feature: "barrel",
     domain: "barrel",
     infrastructure: "any",
     shared: "any",
-    "shared-ui": "deny",
     "env-server": "any",
     "env-client": "any",
-    "source-root": "deny",
     package: "any",
   },
 
   "feature-service": {
-    route: "deny",
     feature: "barrel",
     domain: "barrel",
-    infrastructure: "deny",
     shared: "any",
-    "shared-ui": "deny",
-    "env-server": "deny",
-    "env-client": "deny",
-    "source-root": "deny",
     package: "any",
   },
 
   "feature-repo": {
-    route: "deny",
-    feature: "deny",
-    domain: "deny",
     infrastructure: "any",
     shared: "any",
-    "shared-ui": "deny",
-    "env-server": "deny",
-    "env-client": "deny",
-    "source-root": "deny",
     package: "any",
   },
 
   domain: {
-    route: "deny",
-    feature: "deny",
     domain: "barrel",
-    infrastructure: "deny",
     shared: "any",
-    "shared-ui": "deny",
-    "env-server": "deny",
-    "env-client": "deny",
-    "source-root": "deny",
     package: "any",
   },
 
   infrastructure: {
-    route: "deny",
-    feature: "deny",
-    domain: "deny",
     infrastructure: "any",
     shared: "any",
-    "shared-ui": "deny",
     "env-server": "any",
     "env-client": "any",
-    "source-root": "deny",
     package: "any",
   },
 
   shared: {
-    route: "deny",
-    feature: "deny",
-    domain: "deny",
-    infrastructure: "deny",
     shared: "any",
-    "shared-ui": "deny",
-    "env-server": "deny",
     "env-client": "any",
-    "source-root": "deny",
     package: "any",
   },
 
   "shared-ui": {
-    route: "deny",
-    feature: "deny",
-    domain: "deny",
-    infrastructure: "deny",
     shared: "any",
     "shared-ui": "any",
-    "env-server": "deny",
     "env-client": "any",
-    "source-root": "deny",
     package: "any",
   },
 
   // NEGATIVE SPACE: one profile covers `client.tsx` and `server.ts` alike, so the
-  // `env-server` cell below permits the BROWSER entrypoint to import server env
-  // and the bundler is the only thing that stops it. That is a real gap and a
-  // deliberate one: splitting this into a client-entry and a server-entry profile
-  // needs a rule for telling them apart that is not "the filename", and a wrong
-  // guess denies the server entrypoint its own config. A project that wants the
-  // fence rather than the bundler adds the two profiles and decides both rows.
+  // `env-server` grant below reaches the BROWSER entrypoint too and the bundler
+  // is the only thing that stops it. That is a real gap and a deliberate one:
+  // splitting this into a client-entry and a server-entry profile needs a rule
+  // for telling them apart that is not "the filename", and a wrong guess denies
+  // the server entrypoint its own config. A project that wants the fence rather
+  // than the bundler adds the two profiles — and each of them declares only what
+  // it changes, which is what makes the split two short rows instead of twenty
+  // cells.
   "source-root": {
     route: "any",
-    feature: "deny",
-    domain: "deny",
     infrastructure: "any",
     shared: "any",
     "shared-ui": "any",
@@ -319,6 +320,19 @@ export const IMPORT_POLICY: Record<SourceProfile, Record<TargetArea, ImportSurfa
     package: "any",
   },
 };
+
+/**
+ * The one way to read a cell, and the reason the table above is private.
+ *
+ * `IMPORT_POLICY[profile][area]` is `undefined` for every cell nobody declared —
+ * which is most of them — and `undefined` is not a verdict. A caller that reached
+ * the table directly would read a missing declaration as a missing RULE, which is
+ * the exact failure the exhaustive table existed to prevent, reintroduced one
+ * call site at a time.
+ */
+export function importSurfaceFor(profile: SourceProfile, area: TargetArea): ImportSurface {
+  return IMPORT_POLICY[profile][area] ?? DEFAULT_SURFACE[area];
+}
 
 /**
  * The one flag on the whole engine, and it governs one row.
@@ -621,7 +635,7 @@ export function evaluateImportPolicy(input: PolicyInput): PolicyVerdict {
     return { kind: "deny", messageId: "impureDomainRuntimeImport", data: shared };
   }
 
-  const surface = IMPORT_POLICY[from.profile][to.area];
+  const surface = importSurfaceFor(from.profile, to.area);
   if (surface === "deny") {
     return { kind: "deny", messageId: "deniedDirection", data: shared };
   }

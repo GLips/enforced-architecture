@@ -255,8 +255,9 @@ Four statements describe the model. Each one is exact.
   may import `@/features/<name>/ui/*`.
 
 The table behind those statements is [import-policy.ts](lint/policy/import-policy.ts): twelve
-source positions by ten target areas, 120 cells, every one decided. Read a cell there rather than a
-restatement here. When a rule denies an import it names the file's position, the area the import
+source positions by ten target areas, each row declaring only where it deviates from a default of
+`deny`. Read a cell there rather than a restatement here, and read an absent one as refused. All 120
+resolved cells are written out in the spec beside it. When a rule denies an import it names the file's position, the area the import
 lands in, and a paragraph on why that position works this way — written with this project's own
 directory names in it.
 
