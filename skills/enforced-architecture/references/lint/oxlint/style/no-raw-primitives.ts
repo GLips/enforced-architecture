@@ -46,9 +46,9 @@
 // body checks either one.
 // ──────────────────────────────────────────────────────────────────────
 
-import { aliasSpecifierFor, rootRouteModule, sharedUiDir } from "../../policy/layout.ts";
+import { aliasSpecifierFor, sharedUiDir } from "../../policy/layout.ts";
 import { defineTreeRule } from "../lib/define-tree-rule.ts";
-import { isAtProfile, isModule } from "../../policy/declared-trees.ts";
+import { isAtProfile } from "../../policy/declared-trees.ts";
 import { exportedName, visitImportedNames } from "../lib/imported-names.ts";
 import { sourceOrderedReports } from "../lib/source-ordered-reports.ts";
 
@@ -79,13 +79,17 @@ export const noRawPrimitivesRule = defineTreeRule({
     },
   },
   create(context, role) {
-    // The primitives layer as a PROFILE, so a feature's own `shared/ui/` folder,
-    // or a `shared/ui-legacy/`, does not inherit its exemption. The render
-    // boundary is a named module in the tree's vocabulary for the same reason:
-    // it is one file, and a suffix match would hand the exemption to any
-    // `__root.tsx` anywhere.
-    if (isAtProfile(role, "shared-ui")) return {};
-    if (isModule(role, rootRouteModule(role.tree.vocabulary))) return {};
+    // Both exemptions as PROFILES, which is one owner for "where am I" rather
+    // than two spellings of it. A feature's own `shared/ui/` folder, or a
+    // `shared/ui-legacy/`, does not inherit the primitives-layer exemption; and
+    // the render boundary is `root-route`, which `classifySourcePath` already
+    // resolves by exact path, so a nested `_layout.tsx` cannot collect it.
+    //
+    // Asking by profile rather than by module name is also what keeps this arm
+    // silent in a tree that declares it has no root route: there is no such
+    // position there, so nothing matches. A module comparison would need its own
+    // opinion about what an absent name compares equal to.
+    if (isAtProfile(role, "shared-ui", "root-route")) return {};
 
     // Both arms report, and the React Native one only finds its names once the whole file is
     // walked — so without a single ordering owner a file's diagnostics come out with every

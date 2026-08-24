@@ -44,6 +44,7 @@ import {
   describeKnownAreas,
   evaluateImportPolicy,
   importSurfaceFor,
+  profileRationale,
   type PolicyVerdict,
   type ImportSurface,
 } from "./import-policy.ts";
@@ -848,17 +849,17 @@ describeSuite("the adapter contract: the one flag, and the loud defaults", () =>
 // behind a fence that is not there: a rule that fires on every route has not
 // fenced anything, and a rule that fires on none of them has not either.
 describeSuite("the composition root: one file may mount the providers, and one only", () => {
-  testCase("the root route mounts the query client", () => {
-    assert.equal(verdict("routes/__root.tsx", "@/infrastructure/query-client").kind, "allow-crossing");
-  });
-
-  testCase("any other route building its own is denied", () => {
+  // The CLASSIFICATION rows above already pin which cell each of these paths
+  // reaches. What is left for this suite is what a table of cells cannot say:
+  // that the evaluator's verdict differs between the two positions, that the
+  // denial is legible, and that unit identity survives the split.
+  testCase("the same import, two verdicts, one directory apart", () => {
     assert.equal(
-      messageId(verdict("routes/invoices.tsx", "@/infrastructure/query-client")),
-      "deniedDirection",
+      verdict("routes/__root.tsx", "@/infrastructure/query-client").kind,
+      "allow-crossing",
     );
     assert.equal(
-      messageId(verdict("routes/_authed/settings/billing.tsx", "@/infrastructure/query-client")),
+      messageId(verdict("routes/invoices.tsx", "@/infrastructure/query-client")),
       "deniedDirection",
     );
   });
@@ -866,17 +867,7 @@ describeSuite("the composition root: one file may mount the providers, and one o
   testCase("the denial names the root route, so the reader knows where the licence went", () => {
     const result = verdict("routes/invoices.tsx", "@/infrastructure/query-client");
     assert.equal(result.kind, "deny");
-    assert.match(
-      result.kind === "deny" ? (result.data.rationale ?? "") : "",
-      /@\/routes\/__root/,
-    );
-  });
-
-  testCase("a nested layout is a route, whatever it is called", () => {
-    assert.equal(
-      messageId(verdict("routes/_authed/__root.tsx", "@/infrastructure/query-client")),
-      "deniedDirection",
-    );
+    assert.match(result.kind === "deny" ? (result.data.rationale ?? "") : "", /@\/routes\/__root/);
   });
 
   testCase("the two positions are one unit, so mounting a screen crosses nothing", () => {
@@ -895,6 +886,45 @@ describeSuite("the composition root: one file may mount the providers, and one o
 
   testCase("it is a POSITION, not a filename — a root route outside the routes tree is neither", () => {
     assert.equal(classifySourcePath(VOCABULARY, "shared/__root.tsx")?.profile, "shared");
+  });
+});
+
+// A server tree or a library has no composition root, and before `rootRouteName`
+// governed an import licence, inheriting the recommended `__root` was harmless —
+// it named a file that would never exist. It is not harmless now: the licence
+// would sit in the routes directory of every tree that never considered it,
+// collectable by anyone who creates a file with that name. These cases are the
+// whole of what `null` buys.
+const NO_ROOT_ROUTE: TreeVocabulary = { ...RECOMMENDED_VOCABULARY, rootRouteName: null };
+
+describeSuite("a tree can say it has no composition root, and then it has none", () => {
+  testCase("the recommended spelling classifies as an ordinary route there", () => {
+    assert.equal(classifySourcePath(VOCABULARY, "routes/__root.tsx")?.profile, "root-route");
+    assert.equal(classifySourcePath(NO_ROOT_ROUTE, "routes/__root.tsx")?.profile, "route");
+  });
+
+  testCase("so the licence is not lying there for whoever creates that file", () => {
+    const denied = evaluateImportPolicy({
+      vocabulary: NO_ROOT_ROUTE,
+      sourcePath: "routes/__root.tsx",
+      target: { kind: "module", path: "infrastructure/query-client" },
+      specifier: "@/infrastructure/query-client",
+      typeOnly: false,
+    });
+    assert.equal(messageId(denied), "deniedDirection");
+  });
+
+  testCase("the composite is undefined rather than a plausible path", () => {
+    // `routes/null` would be a path that compares equal to nothing — the
+    // classifier would look right while naming a position nothing can occupy.
+    assert.equal(rootRouteModule(NO_ROOT_ROUTE), undefined);
+    assert.equal(rootRouteModule(RECOMMENDED_VOCABULARY), "routes/__root");
+  });
+
+  testCase("the route rationale says so, instead of naming a file that cannot exist", () => {
+    assert.match(profileRationale(NO_ROOT_ROUTE, "route"), /declares no root route/);
+    assert.doesNotMatch(profileRationale(NO_ROOT_ROUTE, "route"), /@\/routes\/__root/);
+    assert.match(profileRationale(RECOMMENDED_VOCABULARY, "route"), /@\/routes\/__root/);
   });
 });
 

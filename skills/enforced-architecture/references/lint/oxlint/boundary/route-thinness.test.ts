@@ -69,12 +69,7 @@ describeRule("boundary/route-thinness", routeThinnessRule, {
       errors: [{ messageId: "serverOnlyImportInRoute" }],
     },
     {
-      // The root route is its own SourceProfile, because boundary/import-policy
-      // grants it the adapter layer and grants no other route it. That split is
-      // about which providers may be CONSTRUCTED and says nothing about the
-      // bundle: this file ships to the browser like every other route. Keyed on
-      // `profile === "route"`, this rule would go quiet on exactly one file, and
-      // the quiet would read as a pass.
+      // The one file a wider import licence could plausibly have exempted.
       name: "the root route has a wider import licence and is not exempt from this one",
       filename: "/repo/src/routes/__root.tsx",
       code: IMPORT_DB,

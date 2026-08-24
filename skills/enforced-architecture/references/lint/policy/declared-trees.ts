@@ -288,7 +288,12 @@ function assertGovernedPositionsAreNotExempt(vocabulary: TreeVocabulary, treeRoo
     // server-only module in the tree out of the catalog at once.
     ["serverModuleSuffix", `${unit}/charge${vocabulary.serverModuleSuffix}.ts`],
     ["themeModuleName", `${themeModule(vocabulary)}.ts`],
-    ["rootRouteName", `${rootRouteModule(vocabulary)}.tsx`],
+    // Only when the tree HAS one. A tree that declared no root route has no such
+    // position to check, and probing `routes/null.tsx` would assert something
+    // about a path no vocabulary produces.
+    ...(rootRouteModule(vocabulary) === undefined
+      ? []
+      : [["rootRouteName", `${rootRouteModule(vocabulary)}.tsx`] as const]),
     // The composites. Each is a position two rules key on, and each is spelled
     // from a field the top-level loop above never reaches on its own — so these
     // four and the env modules below have to be listed here by hand.

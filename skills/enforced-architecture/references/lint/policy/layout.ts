@@ -300,15 +300,35 @@ export type TreeVocabulary = {
   browserStorageName: string;
 
   /**
-   * The module holding the design tokens, and the route module that mounts the
-   * app's render tree. Both are exemptions the style rules need and neither is a
-   * layer: the token source DEFINES the raw values a token resolves to, and the
-   * root route is where the primitives are first composed.
+   * The token source inside `sharedUiDir()`, as a single segment. `themeModule()`
+   * joins them.
+   *
+   * An exemption the style rules need, and not a layer: this module DEFINES the
+   * raw values a token resolves to, so it is the one place a raw value is not a
+   * finding.
    */
-  /** The token source inside `sharedUiDir()`, as a single segment. `themeModule()` joins them. */
   themeModuleName: string;
-  /** The root route inside `routesDir`, as a single segment. `rootRouteModule()` joins them. */
-  rootRouteName: string;
+
+  /**
+   * The root route inside `routesDir`, as a single segment, or `null` in a tree
+   * that has none. `rootRouteModule()` joins them.
+   *
+   * NOT merely a style exemption, though it is that too. This name is what
+   * `classifySourcePath` matches to produce the `root-route` profile, and that
+   * profile carries the widest import licence in the routes tree — the adapter
+   * layer and the client env, which the `route` row grants to nothing else. A
+   * tree that sets it is saying "this exact file is my composition root, and it
+   * may construct providers".
+   *
+   * WHICH IS WHY `null` HAS TO BE SPELLABLE. A server tree or a library has no
+   * composition root, and before this name governed anything, leaving the
+   * recommended `__root` in place was harmless — it named a file that would
+   * never exist. Now the same inheritance would leave a licence lying in the
+   * routes directory of every tree that never thought about it, collectable by
+   * anyone who creates a file with that name. `null` is the tree SAYING it has
+   * no such position, which is the difference between a decision and a default.
+   */
+  rootRouteName: string | null;
 };
 
 /**
@@ -798,6 +818,11 @@ function vocabularyNames(
   const names: Record<string, string> = {};
   for (const [field, kind] of Object.entries(VOCABULARY_FIELD_KINDS)) {
     const value = vocabulary[field as keyof TreeVocabulary];
+    // A field a tree declared ABSENT has no name to validate, and there is
+    // exactly one — `rootRouteName`. Skipping it here is what lets the absence
+    // be spelled at all: run through the segment check, `null` is not one
+    // segment and the tree is refused for saying it has no composition root.
+    if (value === null) continue;
     if (kind === subject) {
       names[field] = value as string;
     } else if (subject === "segment" && kind === "segment-record") {
@@ -941,6 +966,12 @@ export function isServerModule(vocabulary: TreeVocabulary, pathFromSourceRoot: s
  * and `env-client` are DESTINATIONS with different exposure; as sources they are
  * two files in the source root with one row between them, because what an env
  * module may import is the same question for both.
+ *
+ * The asymmetry runs the other way too, and once: `root-route` is a profile with
+ * no area. What that file may IMPORT is the whole reason it is a position, and
+ * importing IT is an ordinary route import — any route may name it, and does,
+ * because that is how a router mounts. Splitting a `root-route` area would be
+ * claiming its consumers need governing, and they are the framework.
  */
 export type TargetArea =
   | "route"
@@ -1010,7 +1041,17 @@ export function themeModule(vocabulary: TreeVocabulary): string {
   return `${sharedUiDir(vocabulary)}/${vocabulary.themeModuleName}`;
 }
 
-export function rootRouteModule(vocabulary: TreeVocabulary): string {
+/**
+ * `undefined` in a tree with no root route, and every caller has to answer for
+ * that case rather than receive a plausible path.
+ *
+ * Returning something like `routes/null` would be the fail-open spelling: it is
+ * a path, it compares equal to nothing, and the classifier would look correct
+ * while the position it names could never be reached. The absence is a real
+ * state of a real tree, so it is in the type.
+ */
+export function rootRouteModule(vocabulary: TreeVocabulary): string | undefined {
+  if (vocabulary.rootRouteName === null) return undefined;
   return `${vocabulary.routesDir}/${vocabulary.rootRouteName}`;
 }
 
@@ -1251,15 +1292,25 @@ export function classifySourcePath(
 
   // The root route is matched EXACTLY, and before the routes arm below it. A
   // framework with nested layouts spells every one of them with the same
-  // filename — `app/(tabs)/_layout.tsx` is a layout and is not the composition
-  // root — so a suffix or basename comparison would hand each of them the
+  // filename, so a suffix or basename comparison would hand each of them the
   // provider licence and leave the fence naming nothing in particular.
   //
   // Same UNIT as every other route, deliberately: the root route importing the
   // screen it mounts crosses no boundary, and giving it a unit of its own would
   // send that edge through the table and report it as a crossing to be spelled
   // differently.
-  if (path === rootRouteModule(vocabulary)) {
+  //
+  // NEGATIVE SPACE: a PLATFORM-SPLIT root route is not handled, and errs closed.
+  // `withoutSourceExtension` strips one extension, so a tree that ships
+  // `_layout.web.tsx` beside `_layout.native.tsx` has two files that are both
+  // the composition root and neither of which matches here — both classify as
+  // ordinary routes and both lose the licence. That is the safe direction, and
+  // it is still the wrong answer: the fix is to teach this comparison the tree's
+  // platform suffixes, in ONE place, and not to widen the match to a basename.
+  // A project that hits it before then keeps the split root layout thin and
+  // mounts the providers from a single module the two share.
+  const rootRoute = rootRouteModule(vocabulary);
+  if (rootRoute !== undefined && path === rootRoute) {
     return { profile: "root-route", unit: vocabulary.routesDir };
   }
   if (top === vocabulary.routesDir) return { profile: "route", unit: vocabulary.routesDir };

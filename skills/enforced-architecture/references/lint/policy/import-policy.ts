@@ -172,11 +172,12 @@ const DEFAULT_SURFACE: Record<TargetArea, ImportSurface> = {
  * claim — a feature root is not a kind of service layer. `root-route` is a
  * genuine SUPERSET of `route`, and it is the harder case precisely because the
  * claim would be true: a root route IS a route. It still restates the five
- * cells, because the five are what makes the row readable whole, and because
- * `extends` turns a change to `route` into a silent change to a position whose
- * whole reason for existing is that its licence is different. The default map
- * is the sharing that is true: every row deviates from the same stated
- * baseline, and from nothing else.
+ * shared cells, because `extends` would turn an edit to `route` into a silent
+ * edit to the position whose whole reason for existing is that its licence
+ * differs — and the narrowing of `route` that created `root-route` would have
+ * silently narrowed `root-route` with it, which is the one thing that must not
+ * happen quietly. The default map is the sharing that is true: every row
+ * deviates from the same stated baseline, and from nothing else.
  */
 type ProfileRow = Partial<Record<TargetArea, ImportSurface>>;
 
@@ -215,14 +216,10 @@ const IMPORT_POLICY: Record<SourceProfile, ProfileRow> = {
   // app. Neither env module is in it either, and a stylesheet is not a module
   // edge and never reaches the table.
   //
-  // NOR the adapter layer, NOR the client env, and those two absences are the
-  // `root-route` row's whole subject — see it below. Both were in this row and
-  // were moved, not deleted: an ordinary route reaching `infrastructure/` used
-  // to be narrowed to the client-safe modules by
-  // `boundary/client-server-infra` and never to one FILE, so every route could
-  // build a second query client or mount a second analytics provider. A route
-  // that needs a client-safe adapter now reaches it through the feature that
-  // owns it, and a route that needs the client env reads it the same way.
+  // NOR the adapter layer, NOR the client env. Those two absences are the
+  // `root-route` row's subject — see it below. A route that needs what an
+  // adapter offers reaches it through the feature that owns it, and a route
+  // that needs a configuration value reads it the same way.
   //
   // NEGATIVE SPACE: that denial covers a TYPE import too, so
   // `import type { FileRouteTypes } from "@/routeTree.gen"` is denied from a
@@ -242,19 +239,21 @@ const IMPORT_POLICY: Record<SourceProfile, ProfileRow> = {
     package: "any",
   },
 
-  // The `route` row plus two cells, written out rather than inherited, because
-  // there is no `extends` here and the reason is the same one the type gives:
-  // a row states what a position may reach, in full, so the grid can be read
-  // off one row. The five it restates are not duplication to be factored out —
-  // they are the claim that the root route is still a route.
-  //
-  // The two it adds are the app's composition root. A provider is CONSTRUCTED
-  // here and nowhere else: a second `createQueryClient()` is a second cache
-  // that silently diverges from the first, and a second analytics provider
+  // The two cells this adds over `route` are the app's composition root. A
+  // provider constructed in a SECOND ROUTE is a second provider: a second query
+  // cache that silently diverges from the first, a second analytics client that
   // double-counts every event. Neither fails, which is why the fence is a
-  // position rather than a convention — and why it is this file rather than the
-  // routes directory, which the `route` row above no longer grants either cell
-  // to.
+  // position rather than a convention.
+  //
+  // WHAT THIS DOES NOT CLAIM, and the claim is easy to overstate: not that a
+  // provider can be constructed nowhere else in the app. `feature-ui`,
+  // `feature-controllers`, `feature-repo`, `infrastructure` and `source-root`
+  // all hold `infrastructure: "any"` too, so a feature component calling the
+  // query-client factory is permitted by this table and always was. What is
+  // fenced is the ROUTES tree, where a second composition root is both invisible
+  // and easy to reach for — every route file is a plausible place to "just wrap
+  // this bit in a provider". Widening the fence past that means narrowing the
+  // feature rows, which is a different decision about a different position.
   //
   // `infrastructure` is `any` here and is narrowed to the client-safe modules
   // by `boundary/client-server-infra`, the same way it is narrowed for every
@@ -420,7 +419,10 @@ export function profileLabel(vocabulary: TreeVocabulary, profile: SourceProfile)
     case "route":
       return `a route in ${alias(vocabulary.routesDir)}`;
     case "root-route":
-      return `the root route, ${alias(rootRouteModule(vocabulary))}`;
+      // Unreachable in a tree that declared no root route — nothing classifies
+      // as this profile there — so the fallback is a label no diagnostic ever
+      // renders rather than a case with an answer.
+      return `the root route, ${alias(rootRouteModule(vocabulary) ?? vocabulary.routesDir)}`;
     case "feature-barrel":
       return "a feature barrel";
     case "feature-root":
@@ -498,11 +500,22 @@ export function profileRationale(vocabulary: TreeVocabulary, profile: SourceProf
   const barrel = `${vocabulary.clientBarrelModule}.ts`;
 
   switch (profile) {
-    case "route":
-      return `A route is a thin transport adapter: it composes feature UI and calls the feature's client-safe barrel. It is ISOMORPHIC — the same file runs on the server and ships to the browser — so a route that names the database, the server env or a domain has put server-only code, or business logic, in the one place that has to be safe in both. Reach it through the feature that owns it. It reaches no adapter and no env module of either kind, including the client one: those are ${alias(rootRouteModule(vocabulary))}'s, because a provider constructed in a second route is a second provider — a second cache, a second telemetry client — and nothing about that fails. A route that needs what an adapter offers takes it from the feature that owns the adapter, and a route that needs a configuration value takes it the same way.`;
+    case "route": {
+      // Where the adapter licence WENT, in this tree's spelling — or that the
+      // tree has nowhere for it to go. A message telling the reader to mount it
+      // in a root route is worth less than nothing in a tree that declared it
+      // has none: they would go looking for a file the vocabulary says does not
+      // exist.
+      const rootRoute = rootRouteModule(vocabulary);
+      const licence =
+        rootRoute === undefined
+          ? `This tree declares no root route, so no route here composes the app and none of them may name an adapter or an env module.`
+          : `It reaches no adapter and no env module of either kind, including the client one: those are ${alias(rootRoute)}'s, because a provider constructed in a second route is a second provider — a second cache, a second telemetry client — and nothing about that fails.`;
+      return `A route is a thin transport adapter: it composes feature UI and calls the feature's client-safe barrel. It is ISOMORPHIC — the same file runs on the server and ships to the browser — so a route that names the database, the server env or a domain has put server-only code, or business logic, in the one place that has to be safe in both. Reach it through the feature that owns it. ${licence} A route that needs what an adapter offers takes it from the feature that owns the adapter, and a route that needs a configuration value takes it the same way. In a tree with no ${vocabulary.featuresDir}/ to reach through, that is the finding: the call belongs behind one, or in the entrypoint that already composes the app.`;
+    }
 
     case "root-route":
-      return `${alias(rootRouteModule(vocabulary))} is the app's composition root: the one route that constructs the providers every other route runs inside, which is why it — alone among the routes — may name ${infrastructure} and the client env. That licence is for MOUNTING. It is not a licence to hold screen logic, to fetch, or to reach a domain, and every other route's limits still apply to it, because it is still a route. If a second route needs what this one built, it should be READING it through context, not building its own.`;
+      return `${alias(rootRouteModule(vocabulary) ?? vocabulary.routesDir)} is the app's composition root: the one route that constructs the providers every other route runs inside, which is why it — alone among the routes — may name ${infrastructure} and the client env. That licence is for MOUNTING. It is not a licence to hold screen logic, to fetch, or to reach a domain, and every other route's limits still apply to it, because it is still a route. If a second route needs what this one built, it should be READING it through context, not building its own.`;
 
     case "feature-barrel":
       return `A barrel is a feature's public surface and nothing else: a short list of what the feature offers, re-exported from its own modules. An import here of anything OUTSIDE the feature makes the barrel a place code lives rather than a place it is announced, and every consumer of the feature silently takes the dependency on. Whatever this needs belongs in the layer that uses it — and if a consumer needs another unit's export, it should name that unit rather than receive it laundered through this one.`;

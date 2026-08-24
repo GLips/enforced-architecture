@@ -68,19 +68,14 @@ describeRule("boundary/import-policy", importPolicyRule, {
       errors: [{ messageId: "deniedDirection" }],
     },
     {
-      // The half of the composition-root fence that fires. The other half — the
-      // root route doing the same thing and passing — is in `legal` below, and
-      // neither half proves the fence alone: a rule that denied both would pass
-      // this case, and a rule that denied neither would pass that one.
+      // Pairs with the `legal` case where the ROOT route does exactly this and
+      // passes. Neither half proves the fence alone.
       name: "an ordinary route constructing a provider, which is a second one of whatever it built",
       filename: ROUTE,
       code: `import { createQueryClient } from "@/infrastructure/query-client";`,
       errors: [{ messageId: "deniedDirection" }],
     },
     {
-      // A layout at any other depth is an ordinary route. Frameworks with nested
-      // layouts spell every one of them with the same filename, so a fence keyed
-      // on the basename would grant the licence to all of them.
       name: "a nested layout sharing the root route's filename and none of its licence",
       filename: `${SRC}/routes/_authed/__root.tsx`,
       code: `import { createQueryClient } from "@/infrastructure/query-client";`,
@@ -294,11 +289,8 @@ describeRule("boundary/import-policy", importPolicyRule, {
       code: `import { useInvoices } from "@/features/billing";\nimport { InvoiceTable } from "@/features/billing/ui/InvoiceTable";`,
     },
     {
-      // The root route mounting the app: the adapter layer and the client env,
-      // both denied to every other route by the two `obvious` cases above.
-      // WHICH adapters the browser may take is boundary/client-server-infra's
-      // question and not this rule's — this one answers which POSITION may take
-      // one at all.
+      // The passing half of the fence. Which adapters the browser may take is
+      // boundary/client-server-infra's question, not this rule's.
       name: "the root route mounting the providers, which is the one position that may",
       filename: ROOT_ROUTE,
       code: `import { createQueryClient } from "@/infrastructure/query-client";\nimport { AnalyticsProvider } from "@/infrastructure/analytics";\nimport { clientEnv } from "@/env.client";`,
