@@ -510,10 +510,10 @@ export function profileRationale(vocabulary: TreeVocabulary, profile: SourceProf
  */
 export const POLICY_MESSAGES = {
   unclassifiedSource:
-    "{{path}} sits inside a declared tree and matches no part of the architecture, so no import policy applies to it — nothing this file imports is checked, and nothing reports that. Either move it into an area that exists ({{areas}}) or, if this really is a new area, give it a SourceProfile in lint/policy/layout.ts and fill in its row in lint/policy/import-policy.ts. Filling the row is the point: an area with no policy is one nobody decided.",
+    "{{path}} sits inside a declared tree and matches no part of the architecture, so no import policy applies to it — nothing this file imports is checked, and nothing reports that. Either move it into an area that exists ({{areas}}) or, if this really is a new area, give it a SourceProfile in lint/policy/layout.ts and a row in lint/policy/import-policy.ts. Writing the row is the point: it names every area the new position may reach, and an area it leaves out is denied — so an empty row is a position that reaches nothing, and no row at all is a compile error.",
 
   unclassifiedTarget:
-    '"{{specifier}}" resolves to {{target}}, which is in no known area. A directory inside a declared tree that no TargetArea claims is an unpoliced destination: every rule about what may import it is vacuous, in both directions. Add it to lint/policy/layout.ts and to every row of the table in lint/policy/import-policy.ts, which is where deciding it happens.',
+    '"{{specifier}}" resolves to {{target}}, which is in no known area. A directory inside a declared tree that no TargetArea claims is an unpoliced destination: every rule about what may import it is vacuous, in both directions. Add it to lint/policy/layout.ts, then give it a verdict in DEFAULT_SURFACE in lint/policy/import-policy.ts — that is the compile error you will get — and name it in the row of each profile allowed to reach it. Deciding it happens in those two places; an area a row does not name is denied, so there is no row to go and fill in with a denial.',
 
   deniedDirection:
     '{{profile}} may not import {{area}} — "{{specifier}}" lands in {{target}}. {{rationale}}',

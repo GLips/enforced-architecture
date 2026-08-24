@@ -104,9 +104,8 @@ function testCase(name: string, body: () => void): void {
 // It is exhaustive by TYPE, and that is the half no comparison can give. The
 // annotation is the full `Record<SourceProfile, Record<TargetArea, …>>` the
 // source used to carry, so adding a profile or an area fails to compile HERE
-// until every new cell is written out — which is also why this is the only
-// place left that enumerates either at runtime, and why the loop below can
-// take its keys from the fixture rather than from a hand-kept list.
+// until every new cell is written out — which is what lets the loop below take
+// its keys off the fixture rather than off a hand-kept list.
 //
 // WHEN A VERDICT IS MEANT TO CHANGE, this changes with it, in the same commit,
 // one line per cell. That is the cost and it is the point: a policy change that
