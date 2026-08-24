@@ -4,7 +4,7 @@
 // structural fixture tree proves the structural check. This proves the ENGINE
 // both of them read, in three halves.
 //
-// The first is the MATERIALISED grid — all 120 resolved cells, written by hand.
+// The first is the MATERIALISED grid — all 130 resolved cells, written by hand.
 // It is the one place a case per cell earns its keep, and the reason is that the
 // source table no longer holds one: a row declares only where it deviates from
 // `DEFAULT_SURFACE`, so what the evaluator reads is a resolution rather than a
@@ -44,6 +44,7 @@ import {
   describeKnownAreas,
   evaluateImportPolicy,
   importSurfaceFor,
+  profileLabel,
   profileRationale,
   type PolicyVerdict,
   type ImportSurface,
@@ -925,6 +926,16 @@ describeSuite("a tree can say it has no composition root, and then it has none",
     assert.match(profileRationale(NO_ROOT_ROUTE, "route"), /declares no root route/);
     assert.doesNotMatch(profileRationale(NO_ROOT_ROUTE, "route"), /@\/routes\/__root/);
     assert.match(profileRationale(RECOMMENDED_VOCABULARY, "route"), /@\/routes\/__root/);
+  });
+
+  testCase("and the profile's own label and rationale name the absence, not the directory", () => {
+    // No diagnostic renders these — nothing classifies as `root-route` here —
+    // but an enumeration of the profiles does, and the fail-open spelling would
+    // print `@/routes` as though it were the module.
+    assert.doesNotMatch(profileLabel(NO_ROOT_ROUTE, "root-route"), /@\/routes/);
+    assert.doesNotMatch(profileRationale(NO_ROOT_ROUTE, "root-route"), /@\/routes/);
+    assert.match(profileLabel(RECOMMENDED_VOCABULARY, "root-route"), /@\/routes\/__root/);
+    assert.match(profileRationale(RECOMMENDED_VOCABULARY, "root-route"), /@\/routes\/__root/);
   });
 });
 

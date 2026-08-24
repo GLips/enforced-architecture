@@ -418,11 +418,16 @@ export function profileLabel(vocabulary: TreeVocabulary, profile: SourceProfile)
   switch (profile) {
     case "route":
       return `a route in ${alias(vocabulary.routesDir)}`;
-    case "root-route":
-      // Unreachable in a tree that declared no root route — nothing classifies
-      // as this profile there — so the fallback is a label no diagnostic ever
-      // renders rather than a case with an answer.
-      return `the root route, ${alias(rootRouteModule(vocabulary) ?? vocabulary.routesDir)}`;
+    case "root-route": {
+      // No DIAGNOSTIC reaches the absent case — nothing classifies as this
+      // profile in a tree that declared no root route — but an enumeration of
+      // the profiles does, and there the honest answer is the absence. Falling
+      // back to the routes DIRECTORY would print a directory as though it were
+      // the module, in the one tree where that module does not exist.
+      const rootRoute = rootRouteModule(vocabulary);
+      if (rootRoute === undefined) return "the root route, which this tree declares it has none of";
+      return `the root route, ${alias(rootRoute)}`;
+    }
     case "feature-barrel":
       return "a feature barrel";
     case "feature-root":
@@ -514,8 +519,15 @@ export function profileRationale(vocabulary: TreeVocabulary, profile: SourceProf
       return `A route is a thin transport adapter: it composes feature UI and calls the feature's client-safe barrel. It is ISOMORPHIC — the same file runs on the server and ships to the browser — so a route that names the database, the server env or a domain has put server-only code, or business logic, in the one place that has to be safe in both. Reach it through the feature that owns it. ${licence} A route that needs what an adapter offers takes it from the feature that owns the adapter, and a route that needs a configuration value takes it the same way. In a tree with no ${vocabulary.featuresDir}/ to reach through, that is the finding: the call belongs behind one, or in the entrypoint that already composes the app.`;
     }
 
-    case "root-route":
-      return `${alias(rootRouteModule(vocabulary) ?? vocabulary.routesDir)} is the app's composition root: the one route that constructs the providers every other route runs inside, which is why it — alone among the routes — may name ${infrastructure} and the client env. That licence is for MOUNTING. It is not a licence to hold screen logic, to fetch, or to reach a domain, and every other route's limits still apply to it, because it is still a route. If a second route needs what this one built, it should be READING it through context, not building its own.`;
+    case "root-route": {
+      // Same absence as `profileLabel`, and stated rather than papered over: a
+      // tree with no composition root has no position this paragraph is about.
+      const rootRoute = rootRouteModule(vocabulary);
+      if (rootRoute === undefined) {
+        return `This tree declares no root route, so it has no composition root and nothing occupies this position.`;
+      }
+      return `${alias(rootRoute)} is the app's composition root: the one route that constructs the providers every other route runs inside, which is why it — alone among the routes — may name ${infrastructure} and the client env. That licence is for MOUNTING. It is not a licence to hold screen logic, to fetch, or to reach a domain, and every other route's limits still apply to it, because it is still a route. If a second route needs what this one built, it should be READING it through context, not building its own.`;
+    }
 
     case "feature-barrel":
       return `A barrel is a feature's public surface and nothing else: a short list of what the feature offers, re-exported from its own modules. An import here of anything OUTSIDE the feature makes the barrel a place code lives rather than a place it is announced, and every consumer of the feature silently takes the dependency on. Whatever this needs belongs in the layer that uses it — and if a consumer needs another unit's export, it should name that unit rather than receive it laundered through this one.`;
