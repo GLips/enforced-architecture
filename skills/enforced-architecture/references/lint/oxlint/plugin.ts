@@ -6,6 +6,7 @@ import { dbIsolationRule } from "./boundary/db-isolation.ts";
 import { importPolicyRule } from "./boundary/import-policy.ts";
 import { deprecatedPathsRule } from "./placement/deprecated-paths.ts";
 import { hookCountRule } from "./react/hook-count.ts";
+import { noLongCommentsRule } from "./health/no-long-comments.ts";
 import { noArbitraryClassValuesRule } from "./style/no-arbitrary-class-values.ts";
 import { noAsyncEffectRule } from "./react/no-async-effect.ts";
 import { noDeprecatedInputValidatorRule } from "./placement/no-deprecated-input-validator.ts";
@@ -76,6 +77,7 @@ export default definePlugin({
     "no-chained-type-assertions": noChainedTypeAssertionsRule,
     "no-conditional-empty-object-spread": noConditionalEmptyObjectSpreadRule,
     "no-module-mocking": noModuleMockingRule,
+    "no-long-comments": noLongCommentsRule,
     "no-vacant-symbol-names": noVacantSymbolNamesRule,
     "no-reflect-access": noReflectAccessRule,
     "no-type-argument-assertion": noTypeArgumentAssertionRule,

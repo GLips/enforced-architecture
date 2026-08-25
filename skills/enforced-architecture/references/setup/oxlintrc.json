@@ -147,6 +147,15 @@
   // becomes a dozen globs an adopter widens, instead of one vocabulary table.
   //
   // ── health, naming, testing ──
+  // `no-inline-comments`, `capitalized-comments`: the only two shipped rules whose
+  //   subject is a comment at all, and neither measures one. Head to head on a file
+  //   holding an 82-word run plus a short trailing note, `no-inline-comments` reports
+  //   the trailing note and nothing else — position, and it fires on the case
+  //   `arch/no-long-comments` blesses — while `capitalized-comments` reports five
+  //   times on that one legal run, once per continuation line, for its casing.
+  //   Neither sees the essay. `max-lines` counts a FILE's lines, which is
+  //   `health/file-size`'s question; `multiline-comment-style`, `line-comment-position`
+  //   and `max-len` are not bundled at all.
   // `id-denylist`, `id-match`, `id-length`: `id-denylist` compares the WHOLE
   //   identifier, so it bans `data` and allows `InvoiceData` — it reports none of
   //   `arch/no-vacant-symbol-names`' eleven violations. `id-match` cannot express the
@@ -587,6 +596,21 @@
       // Turning this one off does not fall back to `arch/no-type-argument-assertion`:
       // it is the only rule that holds the `sql` name, so off here is off everywhere.
       "arch/no-sql-type-parameter": "error",
+
+      // ── health: what a reader has to hold in one screenful ──
+      // The other three health checks are whole-tree and run in the structural
+      // tier. This one is per-file because a comment's length is visible in the
+      // file that holds it, and it blocks: a comment nobody re-reads is a comment
+      // that goes stale, and a warning here is one an agent writes past.
+      //
+      // Three numbers, and the defaults are `{ maxWords: 60, maxLines: 15,
+      // headerMultiple: 2 }` — the run opening a file introduces the module and
+      // gets twice the room. Set them from this codebase rather than taking them,
+      // the same way `health/file-size`'s two are set: a project that writes its
+      // rationale in the file header raises `headerMultiple`, and one whose prose
+      // is legitimately denser raises `maxWords`, in one visible place. What is
+      // not on offer is a list of files that may be long.
+      "arch/no-long-comments": "error",
 
       // ── naming: an exported name is an address you can search for ──
       "arch/no-vacant-symbol-names": "error",

@@ -129,7 +129,7 @@ What is still not covered, for either tier: whether a rule survives **adaptation
 
 `npm run check:doc-budgets` runs the shipped `health/doc-budgets` check against this repository, with ceilings in `docs/doc-budgets.manifest.json`. It imports the shipped check rather than counting words itself, so the ratchet the catalog ships and the ratchet the catalog lives under cannot disagree.
 
-It budgets the standing prose: `CLAUDE.md`, `README.md`, this file, `SKILL.md` and the eight files under `references/`. It deliberately budgets neither the per-tag `references/lint/**/overview.md` indexes, whose length is a function of the rule count rather than of prose, nor rule header comments, which are code and belong to `health/file-size`.
+It budgets the standing prose: `CLAUDE.md`, `README.md`, this file, `SKILL.md` and the eight files under `references/`. It deliberately budgets neither the per-tag `references/lint/**/overview.md` indexes, whose length tracks the rule count rather than prose, nor rule header comments, which are code and belong to `health/file-size` and `health/no-long-comments`.
 
 The ratchet fires in both directions: a doc that grows past its ceiling fails, and a doc that shrinks without its ceiling following fails as well. All three failing statuses — over, slack, and a ceiling over a file that is not there — were probed live against this manifest, not assumed.
 

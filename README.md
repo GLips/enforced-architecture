@@ -73,7 +73,7 @@ One boundary like that kills an entire class of bugs, because the import can't e
 | **api** | 5 | Public API surface—barrel conventions, no deep imports past a barrel, no server-only code leaking client-side |
 | **react** | 6 | Code smells—derived state, direct `fetch` in components, async effects without cleanup, oversized components |
 | **effect** | 6 | Effect-TS policy—no silent error swallowing, no unvalidated Schema opt-outs, no `sql<Row>` claims without a decoder |
-| **health** | 4 | Quality metrics—file size, doc word ceilings, nested ternaries, pass-through wrappers |
+| **health** | 4 | Quality metrics—file size, comment length, doc word ceilings, pass-through wrappers |
 | **naming** | 3 | Searchability—no `export *`, no renamed re-exports, no names like `UserShape` that describe a category instead of a role |
 | **graph** | 2 | Cross-file dependency analysis—dependency cycles, feature coupling thresholds |
 | **testing** | 1 | Test design—no module mocking, so tests couple to behaviour rather than to import paths |

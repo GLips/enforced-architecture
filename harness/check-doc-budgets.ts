@@ -22,8 +22,8 @@
 //     a function of how many rules the tag holds, so a ceiling on one is a
 //     ceiling on the rule count, and the fix for an overrun would be deleting a
 //     row rather than deleting words.
-//   - Rule file header comments. They are code, and `health/file-size` is the
-//     check with a claim on them.
+//   - Rule file header comments. They are code, and the checks with a claim on
+//     them are `health/file-size` and `health/no-long-comments`.
 //   - Anything under `docs/plans/`. Written once, appended to by design.
 //
 // ── Adapt ─────────────────────────────────────────────────────────────
