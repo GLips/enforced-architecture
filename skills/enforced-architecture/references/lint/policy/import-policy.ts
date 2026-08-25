@@ -248,8 +248,8 @@ const IMPORT_POLICY: Record<SourceProfile, ProfileRow> = {
   // WHAT THIS DOES NOT CLAIM, and the claim is easy to overstate: not that a
   // provider can be constructed nowhere else in the app. `feature-ui`,
   // `feature-controllers`, `feature-repo`, `infrastructure` and `source-root`
-  // all hold `infrastructure: "any"` too, so a feature component calling the
-  // query-client factory is permitted by this table and always was. What is
+  // all hold `infrastructure: "any"` too, so a feature component constructing
+  // its own provider is permitted by this table and always was. What is
   // fenced is the ROUTES tree, where a second composition root is both invisible
   // and easy to reach for — every route file is a plausible place to "just wrap
   // this bit in a provider". Widening the fence past that means narrowing the
