@@ -51,6 +51,12 @@
 // argument holds the scale is how a reader starts matching the wrong one; give
 // that shape its object as a named export and point this at that.
 //
+// `as const` and `satisfies` are unwrapped wherever they sit, and reading the
+// `as const` form is not optional politeness: it is how a token scale is written
+// in TypeScript, because it is what makes the token names literal types instead
+// of `string`. Both erase at compile time, so neither can change a value this
+// reads.
+//
 // A property whose value is not a string or number literal is REFUSED, by name,
 // rather than skipped. A spread, a computed key, a reference to another token, a
 // StyleX responsive value (`{ default: "1rem", "@media …": "2rem" }`) — none of
@@ -145,13 +151,30 @@ function findScaleObject(
   return undefined;
 }
 
-/** The object literal an initializer holds, directly or as a call's only argument. */
+/**
+ * The object literal an initializer holds, directly or as a call's only argument.
+ *
+ * `as const` and `satisfies` are unwrapped first, and that is not politeness
+ * toward two spellings — `as const` is how a token scale is written in
+ * TypeScript at all. It is what gives the token NAMES literal types, so
+ * `spacing.m` narrows and a typo in a style prop is a compile error rather than
+ * `number`. A reader that stops at `TSAsExpression` refuses the idiomatic scale
+ * and reads only the untyped one, which is the shape a project moves away from
+ * as it matures.
+ *
+ * Both wrappers erase at compile time and neither can change a literal, so
+ * unwrapping cannot make this read a value the module does not write.
+ */
 function scaleObjectOf(init: Expression | null): ObjectExpression | undefined {
   if (init === null) return undefined;
+  if (init.type === "TSAsExpression" || init.type === "TSSatisfiesExpression") {
+    return scaleObjectOf(init.expression);
+  }
   if (init.type === "ObjectExpression") return init;
   if (init.type !== "CallExpression" || init.arguments.length !== 1) return undefined;
   const [argument] = init.arguments;
-  return argument?.type === "ObjectExpression" ? argument : undefined;
+  if (argument === undefined || argument.type === "SpreadElement") return undefined;
+  return scaleObjectOf(argument);
 }
 
 /**

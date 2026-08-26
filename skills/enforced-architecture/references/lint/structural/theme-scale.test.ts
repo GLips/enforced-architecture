@@ -69,6 +69,31 @@ describeSuite("the literals a human wrote, whatever wraps them", () => {
     });
   });
 
+  testCase("`as const`, which is how a token scale is written in TypeScript at all", () => {
+    // Not one spelling among several. `as const` is what makes the token NAMES
+    // literal types, so `spacing.m` narrows and a typo in a style prop is a
+    // compile error — a reader that stops at TSAsExpression refuses the scale
+    // every maturing design system converges on.
+    assert.deepEqual(readScale(`export const spacing = { sm: "0.5rem", md: "1rem" } as const;`), {
+      sm: "0.5rem",
+      md: "1rem",
+    });
+  });
+
+  testCase("`satisfies`, which types the scale without widening its values", () => {
+    assert.deepEqual(
+      readScale(`export const spacing = { md: "1rem" } satisfies Record<string, string>;`),
+      { md: "1rem" },
+    );
+  });
+
+  testCase("both wrappers at once, around a call that has no runtime", () => {
+    assert.deepEqual(
+      readScale(`export const spacing = defineTokens({ md: 16 } as const) as const;`),
+      { md: 16 },
+    );
+  });
+
   testCase("one module holds every scale, and each export is asked for by name", () => {
     const source =
       `export const spacing = { md: "1rem" };\nexport const radius = { md: "6px" };`;
