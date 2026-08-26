@@ -94,6 +94,19 @@ describeSuite("the literals a human wrote, whatever wraps them", () => {
     );
   });
 
+  testCase("a SECOND call is not read through, because a call can transform", () => {
+    // The type wrappers unwrap however deep they stack; calls do not, and the
+    // asymmetry is the point. `as const` erases and cannot change a literal, so
+    // reading through it reports what the module writes. A call is a transform:
+    // read through `pickHalf` and the scale reported is not the scale in the
+    // file, and it would be wrong silently. Refusing sends the adopter to a
+    // named export of the object instead.
+    assert.throws(
+      () => readScale(`export const spacing = defineVars(pickHalf({ sm: 4, md: 8 }));`),
+      /no top-level `export const spacing` with an object literal/,
+    );
+  });
+
   testCase("one module holds every scale, and each export is asked for by name", () => {
     const source =
       `export const spacing = { md: "1rem" };\nexport const radius = { md: "6px" };`;

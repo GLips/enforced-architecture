@@ -163,18 +163,31 @@ function findScaleObject(
  * as it matures.
  *
  * Both wrappers erase at compile time and neither can change a literal, so
- * unwrapping cannot make this read a value the module does not write.
+ * unwrapping cannot make this read a value the module does not write. That is
+ * the property the CALL arm does not have, which is why it is not recursive:
+ * exactly one call may sit between the export and its object. A call is a
+ * transform, so reading through a nested one — `defineVars(pickHalf({ … }))` —
+ * would report a scale the module does not write, and it would do it silently,
+ * which is the one outcome this module is built to refuse.
  */
 function scaleObjectOf(init: Expression | null): ObjectExpression | undefined {
   if (init === null) return undefined;
-  if (init.type === "TSAsExpression" || init.type === "TSSatisfiesExpression") {
-    return scaleObjectOf(init.expression);
-  }
-  if (init.type === "ObjectExpression") return init;
-  if (init.type !== "CallExpression" || init.arguments.length !== 1) return undefined;
-  const [argument] = init.arguments;
+  const unwrapped = withoutTypeWrappers(init);
+  if (unwrapped.type === "ObjectExpression") return unwrapped;
+  if (unwrapped.type !== "CallExpression" || unwrapped.arguments.length !== 1) return undefined;
+  const [argument] = unwrapped.arguments;
   if (argument === undefined || argument.type === "SpreadElement") return undefined;
-  return scaleObjectOf(argument);
+  const inner = withoutTypeWrappers(argument);
+  return inner.type === "ObjectExpression" ? inner : undefined;
+}
+
+/** `as const` and `satisfies` peeled off, however many of them are stacked. */
+function withoutTypeWrappers(node: Expression): Expression {
+  let cursor = node;
+  while (cursor.type === "TSAsExpression" || cursor.type === "TSSatisfiesExpression") {
+    cursor = cursor.expression;
+  }
+  return cursor;
 }
 
 /**
