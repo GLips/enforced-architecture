@@ -203,6 +203,10 @@ on what counts as an import, and neither copy reports that it has.
   lazily so a project running no `types/` check never spawns it. The tier's dev dependencies are
   `oxc-parser`, `oxc-resolver` and `typescript` 7, whose `unstable/sync` API this is the one file to
   import.
+- **`theme-scale.ts`** — one token scale, as the literals a theme module's source writes, over the
+  same `oxc-parser`. It reads rather than imports because a compile-time token module has no
+  runtime: `stylex.defineVars` throws, taking the tier down at config load. Every miss throws too —
+  a scale short one token is a check quiet on that token, green.
 - **`registry.ts`** — the check list, copied whole. **`run-structural-checks.ts`** — the orchestrator.
 
 Centralising a *pattern* reduces duplication and fixes no correctness. Reach for the reader at the

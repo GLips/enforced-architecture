@@ -31,14 +31,24 @@ import { aliasSpecifierFor, sharedUiDir } from "../../policy/layout.ts";
 import { defineTreeRule } from "../lib/define-tree-rule.ts";
 import { visitModuleSources } from "../lib/module-source-visitor.ts";
 
-// Anchored at the head of the specifier and closed on the trailing slash, so a live directory whose
-// name merely starts the same way — `@/components-registry/` — does not inherit the deprecation.
+// Anchored at the head of the specifier and closed on a slash OR the end of it. Both alternatives
+// are load-bearing, and the end one is the half that looks like it could be simplified away.
+//
+// A directory worth deprecating usually had a barrel, so `@/components` with no subpath resolved
+// right up until the move, and it is the spelling reproduced from memory. Worse, a pattern closed
+// on the slash alone teaches its own bypass: once `@/components/button` reports, the shortest edit
+// that clears the diagnostic without moving a file is to drop the subpath and take the name off the
+// directory — landing on the one form that pattern cannot see. Cutting `(\/|$)` back to `\/`
+// reopens that hole silently, so the spec pins the bare directory as an adversarial case.
+//
+// Requiring a separator at all is what keeps a live directory whose name merely starts the same way
+// — `@/components-registry` — out of the deprecation: a hyphen is neither a slash nor the end.
 //
 // Only the alias form is fenced. A relative specifier (`../../components/card`) resolves against the
 // importing file's own directory, and a per-file lint has no project root to resolve it against; the
 // alias is what agents actually reproduce from memory anyway.
 const DEPRECATED_PATHS = [
-  { pattern: /^@\/components\//, messageId: "componentsDirectoryRemoved" },
+  { pattern: /^@\/components(\/|$)/, messageId: "componentsDirectoryRemoved" },
 ] as const;
 
 export const deprecatedPathsRule = defineTreeRule({

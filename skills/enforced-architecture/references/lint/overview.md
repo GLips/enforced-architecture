@@ -61,8 +61,10 @@ adapter on each side. The tag says what a rule is *about*; the tier says what it
 The files at the root of `structural/` are **not** rules and none is registered. `import-scanning.ts`
 finds the quoted paths in a file and the names it re-exports; `module-resolution.ts` turns one quoted
 path into the file it means; `import-graph.ts` does that across a tree and keeps the pairs;
-`type-checker.ts` asks TypeScript what a declaration's type is. Beside them sit `config.ts`,
-`check-context.ts`, `registry.ts` and `run-structural-checks.ts`. Copy the directory whole.
+`type-checker.ts` asks TypeScript what a declaration's type is; `theme-scale.ts` reads a token scale
+out of a theme module's source, which a compile-time token module has no runtime to be imported for.
+Beside them sit `config.ts`, `check-context.ts`, `registry.ts` and `run-structural-checks.ts`. Copy
+the directory whole.
 
 ## What each rule's subject is
 

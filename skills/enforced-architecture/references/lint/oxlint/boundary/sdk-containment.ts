@@ -17,6 +17,12 @@
 // mechanical proxy flags React and still misses the first bad import. A new SDK
 // needs its row, and nothing reminds you.
 //
+// A row naming NO owner is the total ban, and the rule needs no special case to
+// enforce it — no file's path is on an empty list, so every file is contained.
+// The message is where it matters: a package with no owner gets a sentence that
+// says nothing may import it, rather than the owned sentence with an empty list
+// dropped into the middle of it.
+//
 // NEGATIVE SPACE: there is no entrypoint exemption and no way to spell one. An
 // entrypoint that genuinely has to set an SDK up owns it, and says so on that
 // package's `owners` list — a decision one row records, rather than a category of
@@ -47,6 +53,16 @@ export const sdkContainmentRule = defineTreeRule({
       // forbid the other's fix is an edit loop. Read with the purity message,
       // this resolves to "the dependency has to be supplied from above".
       rawSdkOutsideOwner: "{{package}} may only be imported by {{ownerNames}}. {{why}}",
+      // A row with no owners is a total ban, and it gets its own sentence rather
+      // than the one above with an empty list interpolated. That renders "may
+      // only be imported by ." — a dangling clause, and worse, a sentence that
+      // asserts an owner exists and sends the reader to go find it, which is the
+      // opposite of what the row says. The middle clause is aimed at the fix an
+      // agent reaches for first: the shortest edit that clears this diagnostic is
+      // to put your own path on the row, and that is the policy deleted rather
+      // than obeyed.
+      packageBannedOutright:
+        "{{package}} may not be imported. Its row on the owner table names no owner, which is a total ban rather than an unfinished row — adding yourself to it is a policy change, not the fix for this diagnostic. {{why}}",
     },
   },
   create(context, role) {
@@ -76,6 +92,20 @@ export const sdkContainmentRule = defineTreeRule({
 
       for (const row of contained) {
         if (row.package !== target.name) continue;
+
+        // An empty `owners` is a legal, meaningful row rather than a row someone
+        // has not finished: the filter above leaves it contained in every file,
+        // which is the total ban working. Only the message has to know, because
+        // it is the half with an owner to name.
+        if (row.owners.length === 0) {
+          context.report({
+            node: source,
+            messageId: "packageBannedOutright",
+            data: { package: specifier, why: row.why },
+          });
+          continue;
+        }
+
         context.report({
           node: source,
           messageId: "rawSdkOutsideOwner",

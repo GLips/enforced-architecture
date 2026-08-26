@@ -13,7 +13,7 @@ Enforcement runs in three tiers, and choosing the right one per axis is most of 
 The per-file half is below; the axes needing the token source, cross-file knowledge, or the CSS
 surface are in [../../structural/style/overview.md](../../structural/style/overview.md).
 
-Every rule below keys off two project facts: where the primitives layer lives (what the rules exempt) and which module owns each closed scale (what `token-equality` imports). Settle both before adapting anything here. If there is no design system yet, this tag is a later phase rather than a rule set to adapt now.
+Every rule below keys off two project facts: where the primitives layer lives (what the rules exempt) and which module owns each closed scale (what `token-equality` reads). Settle both before adapting anything here. If there is no design system yet, this tag is a later phase rather than a rule set to adapt now.
 
 | Rule | Blocking | What it buys |
 |---|---|---|

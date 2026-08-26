@@ -346,8 +346,13 @@ function isRequireCallee(callee: unknown): boolean {
  *
  * `path` decides the grammar by its extension and names the file if the parse
  * fails — a diagnostic against `input.tsx` names a file nobody has.
+ *
+ * Exported because it is the tier's ONE parse. `theme-scale.ts` reads a
+ * different question off the same syntax, and a second `parseSync` call site
+ * would be a second answer to which grammar a `.tsx` file is written in and to
+ * what counts as a fatal diagnostic.
  */
-function parseModule(options: { path: string; source: string }): ParseResult {
+export function parseSourceModule(options: { path: string; source: string }): ParseResult {
   const { path, source } = options;
   const parsed = parseSync(path, source, { lang: grammarFor(path) });
 
@@ -362,7 +367,7 @@ function parseModule(options: { path: string; source: string }): ParseResult {
  * and the only supported way to read a file's imports.
  */
 export function scanDeclaredImports(options: { path: string; source: string }): ScannedImport[] {
-  const parsed = parseModule(options);
+  const parsed = parseSourceModule(options);
 
   const found: ScannedImport[] = [];
 
@@ -424,7 +429,7 @@ export function scanDeclaredImports(options: { path: string; source: string }): 
  * a second answer to this question, and it is the narrower one.
  */
 export function scanDeclaredExports(options: { path: string; source: string }): ScannedExport[] {
-  const parsed = parseModule(options);
+  const parsed = parseSourceModule(options);
 
   const found: ScannedExport[] = [];
 

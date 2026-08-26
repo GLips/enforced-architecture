@@ -87,6 +87,30 @@ describeRule("boundary/sdk-containment", sdkContainmentRule, {
       code: IMPORT_STRIPE,
       errors: [{ messageId: "rawSdkOutsideOwner" }],
     },
+    {
+      // A row with no owners contains the package EVERYWHERE, and it is the one
+      // shape whose message has no owner to name. Asserted in full, because the
+      // owned template renders "may only be imported by ." here — a dangling
+      // sentence that also sends the reader off to find an owner, when the row
+      // exists to say that none is coming.
+      name: "a row with no owners bans the package outright, and the message says so",
+      filename: "/repo/src/infrastructure/telemetry/sentry.ts",
+      code: `import * as Sentry from "@sentry/browser";`,
+      errors: [
+        {
+          message:
+            "@sentry/browser may not be imported. Its row on the owner table names no owner, which is a total ban rather than an unfinished row — adding yourself to it is a policy change, not the fix for this diagnostic. Telemetry leaves this app through the one adapter that owns @sentry/node, and no module initialises a second SDK beside it. The browser build carries its own DSN into the client bundle and reports the same error again under a different release string, so the dashboard disagrees with itself and neither number is the true one. There is no file that should hold this import, which is why the row names none.",
+        },
+      ],
+    },
+    {
+      // The owner of the SIBLING row is the sharpest file to prove it from: a
+      // total ban is not weakened by owning something adjacent.
+      name: "owning the neighbouring package is not an exemption from a total ban",
+      filename: "/repo/src/infrastructure/telemetry/sentry.ts",
+      code: `export { withScope } from "@sentry/browser";`,
+      errors: [{ messageId: "packageBannedOutright" }],
+    },
   ],
 
   legal: [

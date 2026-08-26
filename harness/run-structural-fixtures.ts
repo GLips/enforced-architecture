@@ -462,7 +462,7 @@ assertEveryCheckRanOnEveryTree("misread", PDF_TREE_MISREAD);
 
 // ── The specs beside the modules ─────────────────────────────────────────────
 //
-// The four files at this tier's root answer questions about CODE rather than
+// The files at this tier's root answer questions about CODE rather than
 // about a tree, so their proofs are unit specs rather than fixtures — and they ship beside the modules for the
 // same reason `policy/import-policy.test.ts` does: a project copies the module
 // and has to get the proof with it. Running them from here rather than from

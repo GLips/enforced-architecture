@@ -13,9 +13,11 @@
 //     A check pointed at a root that does not exist returns cleanly by design,
 //     so an unexercised root is indistinguishable from a working one; the tree
 //     carries a generated fixture in that root for exactly that reason.
-//   - `style/token-equality` imports its scales from the tree's own theme module
-//     rather than restating them. That import IS the seam the rule exists for:
-//     the enforcer cannot drift from the scale it guards if it reads it.
+//   - `style/token-equality` READS its scales out of the tree's own theme module
+//     rather than restating them or importing it. That seam is the whole reason
+//     the rule is a script — an enforcer that reads the scale cannot drift from
+//     it — and reading beats importing because a compile-time token module has
+//     no runtime to import at all. See `structural/theme-scale.ts`.
 //   - the tree list below is TWO lists, and the difference between them is the
 //     whole of what declaring a tree buys. `run-structural-fixtures.ts` runs the
 //     suite under `DECLARED_FIXTURE_TREES` and probes the second list; see the
@@ -35,9 +37,11 @@ import {
   type ArchitectureConfig,
   defaultCheckConfigs,
 } from "../../skills/enforced-architecture/references/lint/structural/config.ts";
-import { radius, spacing } from "./tree/src/shared/ui/theme.ts";
+import { readThemeScaleFromSource } from "../../skills/enforced-architecture/references/lint/structural/theme-scale.ts";
 
 export const FIXTURE_TREE = resolve(import.meta.dirname, "tree");
+
+const FIXTURE_THEME_MODULE = resolve(FIXTURE_TREE, "src/shared/ui/theme.ts");
 
 /** The tree every fixture in `tree/src` belongs to. */
 export const APP_TREE: DeclaredTree = { root: "src", vocabulary: RECOMMENDED_VOCABULARY, tsconfig: "tsconfig.json" };
@@ -132,8 +136,8 @@ export const fixtureConfig: ArchitectureConfig = {
 
     "style/token-equality": {
       ...defaultCheckConfigs["style/token-equality"],
-      spacingScale: spacing,
-      radiusScale: radius,
+      spacingScale: readThemeScaleFromSource({ path: FIXTURE_THEME_MODULE, exportName: "spacing" }),
+      radiusScale: readThemeScaleFromSource({ path: FIXTURE_THEME_MODULE, exportName: "radius" }),
     },
   },
 };

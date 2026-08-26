@@ -37,6 +37,15 @@
 // and the criterion is the decision rather than the vendor — a platform or
 // stdlib-shaped package counts.
 //
+// A row may name NO owner. `owners: []` is the total ban — the FIRST import site
+// is already wrong, so there is no owner to name — and it is the right row for a
+// package that is present in the tree and must never be reached from it: the
+// second half of an SDK the project has standardised away from, or a sibling
+// workspace package that this tree may not depend on. The rule contains such a
+// package everywhere and says so in its own sentence. An empty list is never a
+// row someone forgot to fill in; a package with nothing to say about it has no
+// row at all.
+//
 // What does NOT belong is a library with no credential, no IO and no
 // per-environment config: date maths, schema validation, immutable helpers.
 // Wrapping those buys an indirection and nothing else, and a list that grows past
@@ -63,6 +72,13 @@ export type PackageOwnership = {
    * The modules allowed to import it, source-root-relative and with the real
    * extension. A LIST because two modules can jointly own one capability, and an
    * explicit list is what makes "does any owner still import this?" answerable.
+   *
+   * EMPTY IS A VALUE, and it means the opposite of what an empty list usually
+   * means here: `[]` bans the package in every file of every declared tree,
+   * because no file's path can be on a list with nothing on it. It is not an
+   * unfinished row, and the rule prints a different sentence for it — one that
+   * says nothing may import the package, rather than naming owners it does not
+   * have.
    */
   owners: string[];
   /** Which decisions the wrapper already made, and what a second caller would get wrong. */
@@ -92,6 +108,13 @@ export const PACKAGE_OWNERS: PackageOwnership[] = [
     package: "@sentry/node",
     owners: ["infrastructure/telemetry/sentry.ts"],
     why: "The DSN, the environment name, the release identifier and the sample rate describe the deployment rather than anything a request is doing, and they are read where the deployment is already described. A second initialisation double-reports every event and splits the dashboard across two release strings — which shows up as a graph that looks wrong rather than as an error.",
+  },
+  {
+    // The zero-owner form, and the reason `owners` is a list rather than a
+    // single module: `[]` is a TOTAL BAN, not an unfinished row.
+    package: "@sentry/browser",
+    owners: [],
+    why: "Telemetry leaves this app through the one adapter that owns @sentry/node, and no module initialises a second SDK beside it. The browser build carries its own DSN into the client bundle and reports the same error again under a different release string, so the dashboard disagrees with itself and neither number is the true one. There is no file that should hold this import, which is why the row names none.",
   },
   {
     package: "@loops-so/loops-js",

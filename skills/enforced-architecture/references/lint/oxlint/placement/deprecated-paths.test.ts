@@ -59,6 +59,15 @@ describeRule("placement/deprecated-paths", deprecatedPathsRule, {
       errors: [{ messageId: "componentsDirectoryRemoved" }],
     },
     {
+      // A directory worth deprecating usually had a barrel, so the bare spelling resolved right up
+      // until the move — and it is the shortest edit that silences the subpath diagnostic without
+      // moving any code.
+      name: "the bare directory with no trailing slash, which a slash-closed pattern approves",
+      filename: UI,
+      code: `import { Button } from "@/components";`,
+      errors: [{ messageId: "componentsDirectoryRemoved" }],
+    },
+    {
       name: "two removed-directory imports in one file are two separate fixes",
       filename: UI,
       code: `import { Button } from "@/components/button";\nimport { Card } from "@/components/card";`,
@@ -84,6 +93,19 @@ describeRule("placement/deprecated-paths", deprecatedPathsRule, {
       name: "a live directory whose name merely starts with the removed one",
       filename: UI,
       code: `import { registry } from "@/components-registry/index";`,
+    },
+    {
+      // The prefix near-miss with NOTHING after it. Writing the anchor as an optional slash
+      // rather than as an alternative to one — `(\/)?` — approves the subpath form and this one
+      // together, and every case above still passes.
+      name: "a live directory whose name extends the removed one, reached through its barrel",
+      filename: UI,
+      code: `import { legacy } from "@/components-legacy";`,
+    },
+    {
+      name: "a live directory that merely shares a stem with the removed one",
+      filename: UI,
+      code: `import { assemble } from "@/componentry/assemble";`,
     },
     {
       name: "a node_modules package called components is not the alias path",

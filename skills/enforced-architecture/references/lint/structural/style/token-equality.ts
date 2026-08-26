@@ -16,9 +16,12 @@
 // file. A copy of the design system in the enforcer goes out of date, and then
 // the check reports nothing while the scale moves.
 //
-// An empty scale gives no findings, and empty is the default. A project that
-// does not point the check at its theme module gets a run with no findings.
-// Test adoption with a finding you see, never with a clean run.
+// An empty scale would give no findings on that axis, which is this check
+// switched off with the run green. Nothing here guards against it and nothing
+// here can — an empty map is a working map with no tokens in it. Both guards sit
+// upstream, where the value is built: `assertGoverningConfig` refuses an empty
+// scale in the config, and `theme-scale.ts` refuses a theme module it can read
+// only part of. Test adoption with a finding you see, never with a clean run.
 //
 // Do not add an ignore-comment convention. A raw value that is equal to a token
 // is almost always the token with the wrong spelling. A true exception is a

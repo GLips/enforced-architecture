@@ -43,20 +43,31 @@
 //
 //   // lint/structural/arch.config.ts
 //   import { resolve } from "node:path";
-//   import { radius, spacing } from "../../src/shared/ui/theme.ts";
 //   import { type ArchitectureConfig, defaultCheckConfigs } from "./config.ts";
+//   import { readThemeScaleFromSource } from "./theme-scale.ts";
+//
+//   const projectRoot = resolve(import.meta.dirname, "../..");
+//   const themeModule = resolve(projectRoot, "src/shared/ui/theme.ts");
 //
 //   export const architectureConfig: ArchitectureConfig = {
-//     projectRoot: resolve(import.meta.dirname, "../.."),
+//     projectRoot,
 //     checks: {
 //       ...defaultCheckConfigs,
 //       "style/token-equality": {
 //         ...defaultCheckConfigs["style/token-equality"],
-//         spacingScale: spacing,
-//         radiusScale: radius,
+//         spacingScale: readThemeScaleFromSource({ path: themeModule, exportName: "spacing" }),
+//         radiusScale: readThemeScaleFromSource({ path: themeModule, exportName: "radius" }),
 //       },
 //     },
 //   };
+//
+// The scales are READ out of the theme module's source rather than imported from
+// it. Do not "simplify" that back to an import. A theme module of plain
+// constants would survive one, but a COMPILE-TIME token module does not exist at
+// runtime: `@stylexjs/stylex`'s `defineVars` is a function that throws, so an
+// import here does not produce bad scales — it takes the whole tier down at
+// config load, before `assertGoverningConfig` reaches anything. `theme-scale.ts`
+// carries the rest of that argument, vanilla-extract and Panda included.
 //
 // Spreads rather than a deep merge, deliberately: an override is then visible in
 // the diff as the whole value it replaces, and there is no merge semantics to
@@ -185,10 +196,19 @@ export type ShadowSourceConfig = {
 
 export type TokenEqualityConfig = {
   /**
-   * The scales, taken from the project's theme module by the config file that
-   * imports it. Values are CSS lengths (`"1rem"`, `"16px"`) or px numbers. Never
-   * restate a scale here — importing it is what stops the enforcer drifting from
-   * the thing it guards, and is the whole reason this axis is a script.
+   * The scales, taken from the project's theme module by the config file, with
+   * `readThemeScaleFromSource`. Values are CSS lengths (`"1rem"`, `"16px"`) or px
+   * numbers.
+   *
+   * Never restate a scale here. Reading it from the theme module is what stops
+   * the enforcer drifting from the thing it guards, and is the whole reason this
+   * axis is a script rather than a lint rule.
+   *
+   * Read from the SOURCE rather than imported, because a compile-time token
+   * module has no runtime: `theme-scale.ts` has the argument. Neither may be
+   * empty — `assertGoverningConfig` refuses an empty scale, since a check
+   * comparing every style surface against nothing is a green run that means
+   * nothing.
    */
   spacingScale: Record<string, string | number>;
   radiusScale: Record<string, string | number>;
@@ -251,11 +271,30 @@ export function assertGoverningConfig(config: ArchitectureConfig): void {
   }
 
   const {
+    spacingScale,
+    radiusScale,
     spacingProps,
     radiusProps,
     spacingKeys,
     radiusKeys,
   } = config.checks["style/token-equality"];
+  // The scale is what every raw value is compared AGAINST, so an empty one is
+  // the whole check off: it walks every style surface and reports nothing, and
+  // the empty object is what the defaults ship. Refused here for the same reason
+  // the four name lists below are — the difference being that this is the field
+  // an adopter reaches an empty state through by doing nothing at all, which is
+  // why it cannot be left as the one value in this object that means "quiet".
+  for (const [field, scale] of Object.entries({ spacingScale, radiusScale })) {
+    if (Object.keys(scale).length > 0) continue;
+    throw new Error(
+      `style/token-equality has an empty ${field}, so every value on that axis is compared ` +
+        `against nothing and the check reports on the other axis alone. Build it with ` +
+        `\`readThemeScaleFromSource\` from \`theme-scale.ts\`, which reads the token names and ` +
+        `values out of the theme module's SOURCE — a compile-time token module (StyleX, ` +
+        `vanilla-extract, Panda) throws if this config imports it, and post-compile it holds ` +
+        `\`var(--…)\` references rather than the lengths this check compares.`,
+    );
+  }
   for (const [field, names] of Object.entries({
     spacingProps,
     radiusProps,
@@ -386,8 +425,11 @@ export const defaultCheckConfigs: CheckConfigs = {
     allowedFile: "shadows.css",
   },
 
-  // Empty scales mean the check has nothing to compare against and stays silent.
-  // The project's config file imports the real ones from its theme module.
+  // The two scales are the one pair of defaults that CANNOT be run as shipped:
+  // `assertGoverningConfig` refuses an empty scale, so a project that forgets to
+  // point them at its theme module gets a startup error rather than a green run
+  // over an empty comparison. Spelled `{}` rather than omitted because the field
+  // is required and a placeholder that fails loudly is the honest default.
   "style/token-equality": {
     spacingScale: {},
     radiusScale: {},
