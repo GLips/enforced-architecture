@@ -115,10 +115,15 @@ what each tier rejects that is sometimes correct.
 ## Adopting the catalog
 
 The order of the copy, the dev dependencies and the config files are Phase 4 of
-[SKILL.md](../../SKILL.md). Four facts about the catalog's own shape belong here.
+[SKILL.md](../../SKILL.md). Five facts about the catalog's own shape belong here.
 
 **The project mirrors this tree.** A `lint/` directory at the repo root holds `policy/`, `oxlint/`
 and `structural/`, so copying a rule is copying a path and a rule's tier stays visible.
+
+**No `overview.md` is copied, this one included.** They are written for someone adopting or extending
+the catalog, and every tag overview footers a link back here — copied into a project they arrive
+dangling, with nothing there linking in and no check watching them. "Copy the directory whole" below
+means the code. A rule's own header travels with the rule, and is what a project reads.
 
 **`lint/policy/` goes first, whole, before either tier.** It is four modules and a spec, and the only
 one that changes is `declared-trees.ts`. Both tiers import it, so a declaration that lands there

@@ -42,7 +42,8 @@ The catalog is split by **tier** first and **tag** second: `lint/oxlint/` is the
 `lint/structural/` the whole-tree tier, `lint/policy/` the runtime-neutral tables both read. It is
 three levels deep. [lint/overview.md](references/lint/overview.md) maps the tags, each
 `lint/<tier>/<tag>/overview.md` holds one tier's half of one tag, and each rule's own header states
-what it buys and where its blind spots are.
+what it buys and where its blind spots are. **No overview is copied into a project** — they link to
+each other, so they arrive dangling with nothing linking in. Only the rule header travels.
 
 **No rule file has an adaptation section, because no rule is adapted in its own file.** An oxlint
 rule reads its whole layout from `lint/policy/declared-trees.ts`. A structural check takes its
@@ -206,6 +207,8 @@ lint/
                 the one file you write
   with-real-node.sh  — both tiers run through it
 ```
+
+No `overview.md` appears in that tree, and "whole" below never includes one.
 
 In a monorepo that `lint/` still sits once at the repo root, and `declared-trees.ts` holds one entry
 per governed package — two packages spelling their directories differently get one each, with their
