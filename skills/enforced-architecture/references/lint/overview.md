@@ -69,12 +69,12 @@ the directory whole.
 ## What each rule's subject is
 
 Every rule here is adopted. This table says which part of the tree owns each rule's subject, so you
-know what a rule is pointed at and what it is waiting for. A row this project has nothing matching is
-a rule staying silent until it does, and that silence is the rule doing its job: the day the tree
-grows a `domains/` directory, the fence is already standing.
+know what a rule is pointed at and what it waits for. A row this project has nothing matching is a
+rule staying silent until it does, and that silence is the rule working: the day the tree grows a
+`domains/` directory, the fence is already standing.
 
-Audit findings tell you which rows are live today, and so what the rollout has to sweep. They do not
-decide which rules ship.
+Audit findings say which rows are live today, and so what the rollout must sweep. They do not decide
+which rules ship.
 
 | If the project has... | ...these rules have a subject in it |
 |---|---|
