@@ -274,7 +274,11 @@ if (import.meta.main) {
       writeFileSync(join(process.cwd(), manifestPath), `${JSON.stringify(next, null, 2)}\n`);
       for (const { path, ceiling, words, status } of manifest.rows) {
         if (status === "slack" && words !== undefined) {
-          console.log(`${path}: ${ceiling} -> ${maxCeiling(words)} (${words} words)`);
+          // `ceiling` is `unknown` on the row — a `slack` status implies a number,
+          // but only to a reader. `JSON.stringify` prints one unquoted anyway.
+          console.log(
+            `${path}: ${JSON.stringify(ceiling)} -> ${maxCeiling(words)} (${words} words)`,
+          );
         }
       }
     }
