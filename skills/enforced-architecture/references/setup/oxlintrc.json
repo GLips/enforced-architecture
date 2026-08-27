@@ -417,9 +417,17 @@
     // body. This is the shape an agent leaves behind when it did not find the
     // code path that already existed and wrote a second one beside it.
     //
-    // The duplication/identity subset only. sonarjs also ships complexity and
-    // style opinions; those are taste, and taste does not belong in a gate.
-    // Duplication too large for one rule's window is jscpd's job — setup/jscpd.json.
+    // The duplication/identity subset only. sonarjs also ships style opinions,
+    // and taste does not belong in a gate. Duplication too large for one rule's
+    // window is jscpd's job — setup/jscpd.json.
+    //
+    // `sonarjs/cognitive-complexity` is deliberately NOT here, and it is the one
+    // omission that is not about taste: `arch/cognitive-complexity` measures the
+    // same thing with three subtractive adjustments, so the two disagree on
+    // exactly the functions that were written well. Two rules speaking to one
+    // edge with different numbers is the "one invariant, one owner" break the
+    // catalog names. Take one. This catalog takes its own, and the reasons are
+    // in that rule's header.
     "sonarjs/duplicates-in-character-class": "error",
     "sonarjs/no-all-duplicated-branches": "error",
     "sonarjs/no-duplicate-in-composite": "error",
@@ -611,6 +619,32 @@
       // is legitimately denser raises `maxWords`, in one visible place. What is
       // not on offer is a list of files that may be long.
       "arch/no-long-comments": "error",
+      // Two numbers about one function, and neither can be derived from the other:
+      // how much CONTROL FLOW a reader holds to follow one path through it, and how
+      // much STATE is in flight while they do. A function can be bad at either
+      // independently — the worst function measured while these were built had
+      // nesting of two and five accumulators, which the flow number cannot see.
+      //
+      // Both WARN, unlike the comment rule above, and for the reason `arch/hook-count`
+      // does: a parser, a scheduler and a diff are legitimately these shapes, and
+      // the fix is a decision about what the function's phases are rather than an
+      // edit that fits in the change that tripped the count. Blocking here stops the
+      // work mid-change instead of shaping it.
+      //
+      // Defaults are 20 and 4, and both were measured rather than picked — see each
+      // rule's header for what against. Set them from this codebase the way
+      // `health/file-size`'s two are set. What is not on offer is a list of
+      // functions that may be complicated.
+      "arch/cognitive-complexity": "warn",
+      "arch/accumulator-count": "warn",
+      // The third number, and the only one of the three about a function's SHAPE
+      // rather than its insides: a long body handing back a wide object is a module
+      // that never got split, and its members are the exports it would have had.
+      // Both thresholds have to be met — `{ minMembers: 10, minLines: 150 }` — because
+      // neither means anything alone. A wide return from a SHORT function is a token
+      // map or a marshaller and is right as it is; a long function returning one value
+      // belongs to the two rules above.
+      "arch/return-width": "warn",
 
       // ── naming: an exported name is an address you can search for ──
       "arch/no-vacant-symbol-names": "error",

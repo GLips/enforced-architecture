@@ -50,7 +50,7 @@ adapter on each side. The tag says what a rule is *about*; the tier says what it
 | **effect** | [6](oxlint/effect/overview.md) | — | Effect-TS policy bans — the syntactic residue after @effect/language-service, which owns everything type-aware |
 | **react** | [4](oxlint/react/overview.md) | — | Component-level smells that survive review because each one looks reasonable |
 | **api** | [2](oxlint/api/overview.md) | [2](structural/api/overview.md) | How deep a permitted import may reach. Barrels and public surface |
-| **health** | [1](oxlint/health/overview.md) | [3](structural/health/overview.md) | Size and shape signals. Nothing here is a correctness defect |
+| **health** | [4](oxlint/health/overview.md) | [3](structural/health/overview.md) | Size and shape signals. Nothing here is a correctness defect |
 | **naming** | [1](oxlint/naming/overview.md) | [2](structural/naming/overview.md) | Keeping the public surface findable by plain text search |
 | **graph** | — | [2](structural/graph/overview.md) | Questions no single file can answer: cycles, coupling |
 | **testing** | [1](oxlint/testing/overview.md) | — | Tests that pass while the thing they cover is broken |
@@ -100,7 +100,7 @@ which rules ship.
 | Effect | Every `effect/` rule. Adopt `@effect/language-service` first; the `effect/` overview explains why that is step zero and these are only what it leaves on the table |
 | A boundary where external data enters (API, queue, file) | `types/no-broad-parameters`, `types/no-unknown-returns`, `types/no-unknown-type-aliases`. These push `unknown` back to the parse site instead of letting it spread inward |
 | TypeScript 4.9+ | `types/no-known-value-widening`. The fix it names, `satisfies`, does not exist before that |
-| Any TypeScript project | `boundary/import-policy` in both tiers — two halves of one rule — plus `boundary/ambient-globals`, `boundary/no-test-imports`, `placement/topology`, `naming/no-vacant-symbol-names`, `health/file-size`, `health/no-long-comments`, `types/no-opaque-record`, `types/no-reflect-access` |
+| Any TypeScript project | `boundary/import-policy` in both tiers — two halves of one rule — plus `boundary/ambient-globals`, `boundary/no-test-imports`, `placement/topology`, `naming/no-vacant-symbol-names`, `health/file-size`, `health/no-long-comments`, `health/cognitive-complexity`, `health/accumulator-count`, `health/return-width`, `types/no-opaque-record`, `types/no-reflect-access` |
 
 Two rules appear in no row, because their subject is any TypeScript file rather than a structure a
 project either has or lacks: `types/no-runtime-typeof` and `types/no-conditional-empty-object-spread`.
