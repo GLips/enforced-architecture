@@ -1,14 +1,27 @@
 // ─── health/doc-budgets ───────────────────────────────────────────────
 //
-// Makes sure: Every doc in the manifest is at or below its word ceiling, and
-// each ceiling is no more than 5% above the word count. When you add a
+// Makes sure: Every doc in the manifest is at or below its word ceiling, and no
+// ceiling sits further above the count than the deadband — 40 words, or 5% of
+// the count for a doc long enough that 5% is the larger. When you add a
 // paragraph to a budgeted doc, the same commit makes you cut one, move the
-// text, or raise the number. You do not have to check whether CLAUDE.md is
-// still short enough for an agent to read all of it.
+// text, or raise the number.
 //
 // A doc below its ceiling can still fail. A ceiling only moves down on its own.
 // Do not delete the slack status to let a small doc pass. The words between a
 // doc and an old ceiling are words the next agent adds with no manifest diff.
+//
+// `--ratchet` writes those reclaims instead of reporting them, and the commit
+// hook is where it runs. Shrinking a doc is the behaviour this check exists to
+// encourage, and failing the build for it taxes the wrong direction; the
+// manifest diff the flag produces says everything the finding said. Growth is
+// untouched — `--ratchet` never raises a ceiling, so adding words still costs a
+// hand-edit somebody approves.
+//
+// The floor is what makes the deadband usable on a short doc. Under 5% alone a
+// 360-word CLAUDE.md banks 18 words, so deleting one sentence fails the build.
+// Do not replace it with a larger percentage: the drift a deadband absorbs is a
+// reworded sentence, which costs the same words at any length, and 10% of a long
+// doc is a section's worth of room the ratchet exists to deny.
 //
 // countWords counts tables, code fences and front matter. Do not make the count
 // more exact with a Markdown parse that skips fenced blocks. A count that skips
@@ -28,16 +41,20 @@
 //
 // ──────────────────────────────────────────────────────────────────────
 
-import { existsSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { readFile, type Finding, type StructuralCheck } from "../check-context.ts";
 
 /**
- * How far a ceiling may sit above the doc it governs. Deliberately not a config
- * knob: it is the ratchet's tightness, and a project that can tune it tunes it
+ * How far a ceiling may sit above the doc it governs, as a fraction of the count
+ * and as a floor in words, whichever is larger. Deliberately not config knobs:
+ * they are the ratchet's tightness, and a project that can tune that tunes it
  * upward on the first commit the ratchet inconveniences.
+ *
+ * The floor binds below 800 words, the fraction above it.
  */
 const RATCHET_HEADROOM = 0.05;
+const RATCHET_FLOOR = 40;
 
 export type DocBudgetStatus = "ok" | "over" | "slack" | "missing" | "invalid";
 
@@ -62,7 +79,32 @@ export function countWords(text: string): number {
 
 /** The highest ceiling a doc of this size may carry before the ratchet fires. */
 export function maxCeiling(words: number): number {
-  return Math.ceil(words * (1 + RATCHET_HEADROOM));
+  return words + Math.max(RATCHET_FLOOR, Math.ceil(words * RATCHET_HEADROOM));
+}
+
+/**
+ * The manifest `--ratchet` would write, or `undefined` when nothing moves.
+ *
+ * Only `slack` rows are touched, and only downward. An `over` row is a doc that
+ * outgrew its budget and a decision somebody owes; `missing` and `invalid` are
+ * typos. Writing any of the three would be this flag deciding the thing it was
+ * added to stop deciding.
+ */
+export function ratchetCeilings(rows: DocBudgetRow[]): Record<string, unknown> | undefined {
+  let moved = false;
+  // Every row is copied, including the unusable ones. Dropping a row this flag
+  // cannot fix would delete a budget silently, which is the one outcome worse
+  // than the finding it was meant to replace.
+  const next: Record<string, unknown> = {};
+  for (const { path, ceiling, words, status } of rows) {
+    if (status === "slack" && words !== undefined) {
+      next[path] = maxCeiling(words);
+      moved = true;
+    } else {
+      next[path] = ceiling;
+    }
+  }
+  return moved ? next : undefined;
 }
 
 /**
@@ -174,10 +216,10 @@ export const docBudgetsCheck: StructuralCheck = {
           severity: "error",
           file: path,
           message:
-            `${words} words against a ${ceiling}-word ceiling: more than ${RATCHET_HEADROOM * 100}% slack.\n` +
-            `The doc shrank and its ceiling did not. Lower it to ${maxCeiling(words)} or below in\n` +
-            `this same change — unclaimed slack is room the next agent expands into with\n` +
-            `no diff anyone reads.`,
+            `${words} words against a ${ceiling}-word ceiling: ${ceiling - words} words of slack,\n` +
+            `past the ${maxCeiling(words) - words} this doc is allowed. The doc shrank and its ceiling did not.\n` +
+            `Run the ratchet to lower it to ${maxCeiling(words)}, or edit ${manifestPath} by hand —\n` +
+            `unclaimed slack is room the next agent expands into with no diff anyone reads.`,
         });
       }
     }
@@ -213,8 +255,8 @@ function listRow({ path, ceiling, words, status }: DocBudgetRow): string {
 // from the project root.
 if (import.meta.main) {
   const [flag, manifestPath] = process.argv.slice(2);
-  if (flag !== "--list" || manifestPath === undefined) {
-    console.error("usage: node doc-budgets.ts --list <manifest-path>");
+  if ((flag !== "--list" && flag !== "--ratchet") || manifestPath === undefined) {
+    console.error("usage: node doc-budgets.ts --list|--ratchet <manifest-path>");
     process.exit(1);
   }
 
@@ -223,5 +265,18 @@ if (import.meta.main) {
     console.error(`${manifestPath}: ${manifest.reason}`);
     process.exit(1);
   }
-  console.log(manifest.rows.map(listRow).join("\n"));
+
+  if (flag === "--list") {
+    console.log(manifest.rows.map(listRow).join("\n"));
+  } else {
+    const next = ratchetCeilings(manifest.rows);
+    if (next !== undefined) {
+      writeFileSync(join(process.cwd(), manifestPath), `${JSON.stringify(next, null, 2)}\n`);
+      for (const { path, ceiling, words, status } of manifest.rows) {
+        if (status === "slack" && words !== undefined) {
+          console.log(`${path}: ${ceiling} -> ${maxCeiling(words)} (${words} words)`);
+        }
+      }
+    }
+  }
 }

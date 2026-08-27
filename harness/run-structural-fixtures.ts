@@ -462,17 +462,24 @@ assertEveryCheckRanOnEveryTree("misread", PDF_TREE_MISREAD);
 
 // ── The specs beside the modules ─────────────────────────────────────────────
 //
-// The files at this tier's root answer questions about CODE rather than
-// about a tree, so their proofs are unit specs rather than fixtures — and they ship beside the modules for the
-// same reason `policy/import-policy.test.ts` does: a project copies the module
-// and has to get the proof with it. Running them from here rather than from
-// `check:rules` keeps a tier's proofs in the tier's own command.
+// Some questions in this tier are about CODE rather than about a tree, so their
+// proofs are unit specs rather than fixtures — and they ship beside the modules
+// for the same reason `policy/import-policy.test.ts` does: a project copies the
+// module and has to get the proof with it. Running them from here rather than
+// from `check:rules` keeps a tier's proofs in the tier's own command.
+//
+// The glob is RECURSIVE, and the depth is load-bearing. A check under a tag
+// directory can own an exported function no fixture reaches — `maxCeiling` in
+// `health/doc-budgets.ts` is one, since which arm of its clamp binds is a
+// property of the number rather than of any tree. Matched at the root only, a
+// spec written for one of those never runs and reports nothing, which reads
+// exactly like a passing one.
 //
 // The refusal below is the load-bearing half. There is no per-module
-// requirement — one entry point can prove several — but the tier's root holding
-// no specs at all is a hole with nothing to name it.
+// requirement — one entry point can prove several — but the tier holding no
+// specs at all is a hole with nothing to name it.
 {
-  const specs = globSync("*.test.ts", { cwd: STRUCTURAL_ROOT })
+  const specs = globSync("**/*.test.ts", { cwd: STRUCTURAL_ROOT })
     .map((found) => join(STRUCTURAL_ROOT, found))
     .sort();
 
