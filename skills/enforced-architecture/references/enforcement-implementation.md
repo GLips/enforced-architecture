@@ -13,6 +13,7 @@ gotcha sits on the line it governs. Two are parsed as strict JSON and die on the
 | Rule catalog | [lint/](lint/overview.md) | `lint/` — mirrors the catalog's tier split |
 | oxlint config | [setup/oxlintrc.json](setup/oxlintrc.json) | `.oxlintrc.json` at the repo root |
 | Pre-commit hook | [setup/lefthook.yml](setup/lefthook.yml) | `lefthook.yml` |
+| Formatter config | [setup/oxfmt.config.ts](setup/oxfmt.config.ts) | `oxfmt.config.ts` at the repo root |
 | Duplication config | [setup/jscpd.json](setup/jscpd.json) | `.jscpd.json` |
 | Doc word ceilings | [setup/doc-budgets.manifest.json](setup/doc-budgets.manifest.json) | `docs/doc-budgets.manifest.json` |
 | oxlint tier program | [setup/oxlint.tsconfig.json](setup/oxlint.tsconfig.json) | `lint/oxlint/tsconfig.json` |

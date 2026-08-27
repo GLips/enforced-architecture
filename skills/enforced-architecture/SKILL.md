@@ -13,7 +13,7 @@ document that agents execute in later sessions.
 ## Stack Assumptions
 
 The enforcement tier needs Node 24, oxlint and TypeScript 7 and nothing else. The examples and rule
-templates additionally assume TanStack Start, Drizzle, Postgres, React, Zod and lefthook, and name
+templates additionally assume TanStack Start, Drizzle, Postgres, React, Zod, oxfmt and lefthook, and name
 those packages directly. On a different stack the invariants still hold — translate the patterns to
 that framework.
 
@@ -231,7 +231,7 @@ own vocabulary. A single-package repo is the same shape with one entry.
    match `declared-trees.ts`. `arch/no-module-mocking` stays in the global `rules` block; scoping it
    to a tree switches it off for every test outside one. The dev dependencies are
    unversioned, so the project gets current releases:
-   `npm i -D oxlint oxlint-tsgolint @oxlint/plugins eslint-plugin-sonarjs jscpd`
+   `npm i -D oxlint oxlint-tsgolint @oxlint/plugins eslint-plugin-sonarjs oxfmt jscpd`
 3. **`lint/structural/`** — copied whole and unmodified, plus
    `npm i -D oxc-parser oxc-resolver typescript`. **Whole or not at all** — finding a file's quoted
    paths, turning one into the file it means, and the graph over both are one chain. The `types/`
@@ -251,7 +251,11 @@ own vocabulary. A single-package repo is the same shape with one entry.
    bare `node`. Plus `duplication` and `.jscpd.json` from
    [references/setup/jscpd.json](references/setup/jscpd.json) for the CI-only jscpd pass. The hook
    also calls `test`, which is the project's own.
-7. **`lefthook.yml`** from [references/setup/lefthook.yml](references/setup/lefthook.yml).
+7. **`lefthook.yml`** from [references/setup/lefthook.yml](references/setup/lefthook.yml), plus
+   `oxfmt.config.ts` from [references/setup/oxfmt.config.ts](references/setup/oxfmt.config.ts) — the
+   hook's one writer. Its `sortImports` block is the only part that is enforcement rather than
+   taste: for unlayered CSS the last stylesheet in wins, so side-effect import order decides which
+   rule paints the pixel, and `sortSideEffects` is off by default.
 8. **Framework import protection** in `vite.config.ts`.
 9. **The directory tree**, with empty barrels.
 10. **Documentation** per [documentation-model.md](references/documentation-model.md): the CLAUDE.md

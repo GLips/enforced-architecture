@@ -20,15 +20,18 @@ pre-commit:
       # someone runs the formatter by hand and it reformats files from earlier
       # commits, sweeping unrelated changes into the diff.
       #
-      # Nothing in this stack sorts imports — oxfmt formats without sorting and
-      # oxlint has no organize-imports rule. Pick a formatter that sorts, or
-      # accept unsorted. What matters architecturally is one writer, running first.
+      # oxfmt rather than prettier, because it also SORTS, and one of the groups
+      # it sorts is load-bearing rather than cosmetic — see `oxfmt.config.ts` for
+      # why stylesheet import order is a cascade question. One writer that both
+      # formats and orders beats two tools disagreeing about who owns the top of
+      # the file. It shares oxlint's parser, so the stack gains no dependency it
+      # did not already have.
       #
       # In a monorepo where the formatter is installed per workspace, add
       # `root: "packages/<name>/"` — it scopes {staged_files} to that subtree,
       # relativizes the paths, and runs from that dir so npx resolves the
       # workspace-local version.
-      run: npx prettier --write --ignore-unknown {staged_files}
+      run: npx oxfmt --write {staged_files}
       # Re-stages only what the command rewrote. `git add {staged_files}` would
       # re-stage whole files, silently completing a deliberately partial
       # `git add -p` — the diff the author reviewed is not the diff they commit.
