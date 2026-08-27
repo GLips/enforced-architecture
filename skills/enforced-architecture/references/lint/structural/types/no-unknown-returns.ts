@@ -10,7 +10,7 @@
 // JSON.parse(s) }` is `tsc`'s complaint rather than this one — the shipped
 // `typescript/no-unsafe-return` is the rule for a returned `any` VALUE, and it is
 // deliberately a different subject. See the `types` section of the shipped
-// `oxlintrc.json`.
+// `oxlint.config.ts`.
 //
 // A function that returns unparsed transport data is the one honest case. Parse
 // at that boundary and return a named type, which is what the message asks for.

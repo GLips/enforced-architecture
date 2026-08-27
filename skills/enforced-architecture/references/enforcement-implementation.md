@@ -11,7 +11,7 @@ gotcha sits on the line it governs. Two are parsed as strict JSON and die on the
 |---|---|---|
 | Shared policy tables | [lint/policy/](lint/policy/overview.md) | `lint/policy/` — copied whole; `declared-trees.ts` is the one file you edit |
 | Rule catalog | [lint/](lint/overview.md) | `lint/` — mirrors the catalog's tier split |
-| oxlint config | [setup/oxlintrc.json](setup/oxlintrc.json) | `.oxlintrc.json` at the repo root |
+| oxlint config | [setup/oxlint.config.ts](setup/oxlint.config.ts) | `oxlint.config.ts` at the repo root |
 | Pre-commit hook | [setup/lefthook.yml](setup/lefthook.yml) | `lefthook.yml` |
 | Formatter config | [setup/oxfmt.config.ts](setup/oxfmt.config.ts) | `oxfmt.config.ts` at the repo root |
 | Duplication config | [setup/jscpd.json](setup/jscpd.json) | `.jscpd.json` |
@@ -87,17 +87,23 @@ A tree declaration may vary **names and numbers**: the source root, the alias pr
 directories and feature layers are called, the thresholds. It may not vary which rules apply. There
 is no per-tree rule list, and adding one would turn the catalog back into a menu.
 
-The declaration list is also the scoping list. `.oxlintrc.json` scopes the `arch/` rules to the same
-roots with one `<root>/**` glob per root, and `harness/run-rule-fixtures.ts` fails the build when the
-two disagree either way. A nested `.oxlintrc.json` per workspace that `extends` the root config
-expresses the same scoping as file placement; `declared-trees.ts` stays the source of truth.
+The declaration list is also the scoping list, and it is READ rather than copied. `oxlint.config.ts`
+imports `DECLARED_TREES` and builds one `<root>/**` glob per root from it, along with the
+`ignorePatterns` for each tree's `generatedDir`. Declaring a second root is the whole edit; there is
+no second list to keep equal, and no way to scope a rule at a path this file did not derive.
+
+A nested `oxlint.config.ts` per workspace that `extends` the root config expresses the same scoping
+as file placement. Note that `extends` rejects a RELATIVE `jsPlugins` specifier — "Use a package name
+or an absolute path instead" — which is why the shipped config resolves the plugin through
+`import.meta.url` rather than writing `./lint/oxlint/plugin.ts`. A JSON config cannot express that,
+and a monorepo that adds its first nested config is where the relative form would have failed.
 
 ---
 
 ## The oxlint Tier
 
 Per-file rules are oxlint JS plugins: one `.ts` file per rule, every rule registered in one plugin
-module, that module named in `.oxlintrc.json`. Organize the rule files by tag on disk
+module, that module named in `oxlint.config.ts`. Organize the rule files by tag on disk
 (`lint/oxlint/boundary/db-isolation.ts`), the same tier-then-tag tree the catalog ships.
 
 Four dev dependencies beyond `oxlint` itself:
@@ -109,7 +115,7 @@ Four dev dependencies beyond `oxlint` itself:
 - **`jscpd`** — a separate binary, not a plugin. See *Scripts* below.
 
 What each buys, and what breaks without it, is on the lines that switch them on in
-[setup/oxlintrc.json](setup/oxlintrc.json).
+[setup/oxlint.config.ts](setup/oxlint.config.ts).
 
 Rules share `lint/oxlint/lib/`, and the sharing is load-bearing rather than tidy: one module owns
 each concern, so a new rule inherits the fix rather than a copy of the bug. Every module documents
@@ -268,7 +274,8 @@ surface repo-wide. Two design constraints make that possible, and both bind any 
    holds the client-safe module allowlist, deliberately out of config's reach, and
    `placement/deprecated-paths` holds the paths this project moved away from, which is its subject.
 3. Register it in the plugin module under its file name.
-4. Switch it on in `.oxlintrc.json`. Registered but unlisted is loaded and never run.
+4. Give it a severity in `oxlint.config.ts`'s `TREE_SCOPED` table. Registering without one no longer
+   runs silently — it fails the config — but it still fails, so the two land in one commit.
 5. Extend the three-kind spec. The adversarial case is what decides whether the rule works.
 6. Run it through the real-Node launcher.
 7. **Revert-probe it.** Misspell the visitor key or invert a guard, and watch the adversarial kind
@@ -441,5 +448,6 @@ otherwise leave a green run behind a rule nothing exercises:
 - Every kind actually ran. A spec that throws while loading announces nothing, so its three kinds are
   absent rather than failing.
 - Every rule header opens with its `Makes sure:` or `Shows:` claim.
-- The `.oxlintrc.json` scoping agrees with `declared-trees.ts`, in both directions.
+- `oxlint.config.ts` loads without throwing — its assertion is the plugin/config agreement, and its
+  tree globs are derived from `declared-trees.ts` rather than compared against it.
 - The pre-commit lint glob covers exactly the extensions the layout calls source.

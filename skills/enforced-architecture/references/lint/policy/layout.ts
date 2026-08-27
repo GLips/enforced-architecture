@@ -260,10 +260,10 @@ export type TreeVocabulary = {
    * there, in both tiers — a file the linter ignores and the structural tier
    * reports is one file with two verdicts, and that is exactly what happened
    * while only the ignore pattern read this. The third is the shipped
-   * `oxlintrc.json`, whose `ignorePatterns` the harness derives from this name so
-   * the BUILT-IN `typescript/` and `sonarjs/` rules stay quiet too — they know
-   * nothing about either predicate, so without it an adopting project lints its
-   * own generator's output on day one.
+   * `oxlint.config.ts`, which builds its `ignorePatterns` from this name — one
+   * `<root>/<generatedDir>/**` per declared tree — so the BUILT-IN `typescript/`
+   * and `sonarjs/` rules stay quiet too. They know nothing about either predicate,
+   * so without it an adopting project lints its own generator's output on day one.
    *
    * One directory NAME, checked at module load: the harness builds
    * `<root>/<dir>/**` from it, so a value carrying glob syntax writes the pattern

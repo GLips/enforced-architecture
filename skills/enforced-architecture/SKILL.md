@@ -143,12 +143,15 @@ Read [lint/overview.md](references/lint/overview.md) for the tag map, and *Rule 
 
 **The catalog comes in whole.** This phase decides where each rule points and what its numbers are.
 It never decides which rules run. `lint/oxlint/plugin.ts` and
-[references/setup/oxlintrc.json](references/setup/oxlintrc.json) are one list in two files, and they
-are copied together. In the config that list spans two blocks: 48 tree-scoped rules in
-`overrides[0].rules` under the source-root globs, and `arch/no-module-mocking` in the top-level
-`rules` block. Check the plugin against both, or 48 rules read as missing. A config key naming a rule
-the plugin does not export is fatal, so registering a subset and then copying the shipped config
-takes the whole lint run down.
+[references/setup/oxlint.config.ts](references/setup/oxlint.config.ts) are one list, and the config
+derives its half from the plugin rather than restating it: the severity table is keyed by
+`keyof typeof archPlugin.rules`, and a load-time assertion refuses a config where the two disagree in
+either direction. The split is by scope, not by hand — every rule is tree-scoped under the declared
+roots except `arch/no-module-mocking`, which reads no tree and is global.
+
+Copy the two together anyway. A rule registered in the plugin and missing from the severity table no
+longer runs silently — it now fails the config, which is the point — but it still fails, so a partial
+copy takes the lint run down rather than quietly shrinking it.
 
 **Process:**
 
@@ -223,14 +226,17 @@ own vocabulary. A single-package repo is the same shape with one entry.
    respell each spec's fixture filenames in the declared roots and vocabulary — `describeRule`
    catches a missed root, not a vocabulary miss.
 2. **`lint/oxlint/`** — the rules and their specs under `<tag>/`, plus `lib/`, all registered in
-   `lint/oxlint/plugin.ts`. Then `.oxlintrc.json` at the root, from
-   [references/setup/oxlintrc.json](references/setup/oxlintrc.json). That file is the whole manifest, not a
-   sample: every registered rule is already named there at a deliberate severity. Its
-   `overrides` block scopes the tree-scoped `arch/` rules to the declared roots — one `<root>/**`
-   glob per root, or a nested `.oxlintrc.json` per workspace that `extends` it — and those globs must
-   match `declared-trees.ts`. `arch/no-module-mocking` stays in the global `rules` block; scoping it
-   to a tree switches it off for every test outside one. The dev dependencies are
-   unversioned, so the project gets current releases:
+   `lint/oxlint/plugin.ts`. Then `oxlint.config.ts` at the root, from
+   [references/setup/oxlint.config.ts](references/setup/oxlint.config.ts). That file is the whole
+   manifest, not a sample: every registered rule is already named there at a deliberate severity.
+   **Copy it unedited.** It imports `declared-trees.ts` and builds its own tree globs and
+   `ignorePatterns` from the roots you declared in step 1, so a monorepo needs no edit here — declare
+   the second root and the glob appears. `arch/no-module-mocking` stays global; scoping it to a tree
+   switches it off for every test outside one.
+   **Delete any `.oxlintrc.json`** — oxlint refuses to start with both in one directory. A workspace
+   that needs its own rule set gets a nested `oxlint.config.ts` that `extends` the root one; note that
+   `extends` rejects a relative `jsPlugins` specifier, which is why the shipped config resolves the
+   plugin path absolutely. The dev dependencies are unversioned, so the project gets current releases:
    `npm i -D oxlint oxlint-tsgolint @oxlint/plugins eslint-plugin-sonarjs oxfmt jscpd`
 3. **`lint/structural/`** — copied whole and unmodified, plus
    `npm i -D oxc-parser oxc-resolver typescript`. **Whole or not at all** — finding a file's quoted
@@ -245,7 +251,9 @@ own vocabulary. A single-package repo is the same shape with one entry.
 5. **One tsconfig per tier** — [references/setup/oxlint.tsconfig.json](references/setup/oxlint.tsconfig.json)
    and [references/setup/structural.tsconfig.json](references/setup/structural.tsconfig.json) — added
    to the typecheck script by path. Separate programs, because each tier is copied as a directory
-   that has to typecheck on its own.
+   that has to typecheck on its own. Add `oxlint.config.ts` to the oxlint tier's program: its
+   severity table is typed against the plugin's exports, so a typecheck catches a missing or
+   misspelt rule before the linter has to.
 6. **Package.json scripts** — `check:arch` and the two the shipped hook calls by name,
    `check:structural` and `typecheck`, each routed through `lint/with-real-node.sh` rather than a
    bare `node`. Plus `duplication` and `.jscpd.json` from
@@ -323,8 +331,8 @@ for rule implementation:
 > `health/file-size` and `health/doc-budgets` still run over it.
 >
 > **oxlint rules:** copy the template and its spec into `lint/oxlint/<tag>/`, register it in
-> `lint/oxlint/plugin.ts`, switch it on in `.oxlintrc.json`. Never repoint one at a path: tree
-> scoping comes from `declared-trees.ts` through the `.oxlintrc.json` overrides.
+> `lint/oxlint/plugin.ts`, switch it on in `oxlint.config.ts`. Never repoint one at a path: tree
+> scoping comes from `declared-trees.ts` through the `oxlint.config.ts` overrides.
 >
 > **Structural checks:** copy `lint/structural/` whole and unmodified, register each check
 > in `lint/structural/registry.ts`, and put every project-specific value in

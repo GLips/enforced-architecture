@@ -38,7 +38,7 @@
 // question — the defect this catalog most reliably produces. So the tier takes
 // the TypeScript 7 generation and says so, rather than carrying both.
 //
-// The bet is mostly already placed elsewhere: the shipped `.oxlintrc.json` turns
+// The bet is mostly already placed elsewhere: the shipped `oxlint.config.ts` turns
 // on `typeAware`, which needs `oxlint-tsgolint`, which IS TypeScript 7's checker.
 // What is new here is the version floor on the `typescript` package itself.
 //

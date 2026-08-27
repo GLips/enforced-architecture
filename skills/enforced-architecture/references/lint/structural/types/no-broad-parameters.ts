@@ -55,7 +55,7 @@
 //   - The shipped `typescript/no-unsafe-argument` is NOT this check with a
 //     different name: it reports an `any` VALUE arriving at a typed parameter,
 //     the exact mirror. Neither can see the other's case. See the `types` section
-//     of the shipped `oxlintrc.json`.
+//     of the shipped `oxlint.config.ts`.
 //
 // SCOPE: this is a TREE-SCOPED check. It walks the declared trees and the
 // type-carrying files inside them, minus what `isArchitectureExemptSourcePath`

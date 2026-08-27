@@ -46,7 +46,7 @@
 //   - Nothing here reads WHAT the test compares against, so `typeof v ===
 //     "sting"` is a typo this check does not catch. `typescript/no-unnecessary-
 //     condition` is the near neighbour and is deliberately off; see the `types`
-//     section of the shipped `oxlintrc.json`.
+//     section of the shipped `oxlint.config.ts`.
 //
 // SCOPE: this is a TREE-SCOPED check. It walks the declared trees and the
 // type-carrying files inside them, minus what `isArchitectureExemptSourcePath`

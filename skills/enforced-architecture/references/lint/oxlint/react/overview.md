@@ -33,7 +33,7 @@ module is where one belongs and an extension gate there would silence the rule o
 
 NEGATIVE SPACE: apart from that count, a `use*.ts` hook module holds no JSX and nothing else in this
 folder reads one. State derived in an effect there is the shipped `react/set-state-in-effect`'s
-finding, not this folder's — see `setup/oxlintrc.json`. And a PascalCase export in a `.ts` file is
+finding, not this folder's — see `setup/oxlint.config.ts`. And a PascalCase export in a `.ts` file is
 read by nothing here: far more often a factory than a component, so counting it would report a shape
 none of these rules has advice for.
 

@@ -45,25 +45,24 @@ import { serverNoUpwardRule } from "./boundary/server-no-upward.ts";
 import { vendorComponentContainmentRule } from "./style/vendor-component-containment.ts";
 
 // The catalog's rules, registered as one oxlint JS plugin. Copy this file into the project
-// alongside the rules, and point `.oxlintrc.json` at it:
+// alongside the rules; `oxlint.config.ts` imports it and reads the list below.
 //
-//   { "jsPlugins": ["./oxlint/plugin.ts"],
-//     "rules": { "arch/db-isolation": "error", … } }
+// THIS FILE IS THE SOURCE OF THE RULE LIST, and the config no longer restates it. Its severity
+// table is keyed by `keyof typeof archPlugin.rules`, so a rule added here and not given a severity
+// is a type error, and a severity given to a name absent here cannot be written. A load-time
+// assertion repeats both checks for a project that never typechecks its config.
 //
-// This list and the `rules` block of `setup/oxlintrc.json` are one list wearing two hats. The
-// shipped config names every key below. So the two are copied together and neither is pruned:
-// dropping a registration here is dropping a rule from the project, which is a decision about the
-// architecture, and a config key naming a rule absent from this file is FATAL — oxlint refuses the
-// whole config and the run lints nothing.
+// Registration and activation are still separate, and the failure that used to be SILENT is the one
+// that changed. A rule registered here and never enabled was loaded and never run — no warning, no
+// output, exit 0. It now refuses the config. The other direction was always fatal.
 //
-// Registration and activation are separate, and both are silent when missed: a rule absent from
-// this file is a rule the linter never loads, and a rule present here but missing from
-// `.oxlintrc.json` never runs either. `harness/run-rule-fixtures.ts` fails the build on the first;
-// the second is the project's own to watch.
+// So the two are copied together and neither is pruned: dropping a registration here is dropping a
+// rule from the project, which is a decision about the architecture rather than a config edit.
 //
 // Rule keys match their file names, so a diagnostic id (`arch(db-isolation)`) is also the path to
 // the rule that raised it. Rename `meta.name` to whatever prefix reads best in the project's
-// diagnostics; every rule key in `.oxlintrc.json` inherits it.
+// diagnostics; the config reads the prefix from `meta.name` rather than spelling it, so every key
+// follows.
 export default definePlugin({
   meta: { name: "arch" },
   rules: {

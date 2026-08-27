@@ -8,10 +8,11 @@ verify.
 ## What a Migration Sequences
 
 **It does not sequence which rules run.** The catalog arrives whole. `lint/oxlint/plugin.ts` and
-[setup/oxlintrc.json](setup/oxlintrc.json) are one list wearing two hats — 48 rules in the config's
-`overrides[0].rules`, and `arch/no-module-mocking` in its top-level `rules` block — and a config key
-naming a rule the plugin does not export is fatal: oxlint refuses the whole config and lints nothing.
-So you cannot stage adoption by registering a subset.
+[setup/oxlint.config.ts](setup/oxlint.config.ts) are one list: the config's severity table is keyed by
+the plugin's own rule names, and a load-time assertion refuses a config where the two disagree in
+either direction — a rule registered and never enabled, or enabled and never registered. Either way
+oxlint refuses the whole config and lints nothing. So you cannot stage adoption by registering a
+subset.
 
 A migration sequences **which violations you clear**. Every rule is on from the first commit, and the
 first `check:arch` run prints the whole list. That list is the migration plan. Work it inside-out,
@@ -28,7 +29,7 @@ knows. Moving files into areas is therefore the first work, not an afterthought.
 No violations are fixed here. The tools exist and print a list.
 
 1. Copy `lint/policy/` and declare this project's source roots in `lint/policy/declared-trees.ts`.
-2. Copy `lint/oxlint/` and `lint/structural/` whole, and copy `.oxlintrc.json` from the shipped
+2. Copy `lint/oxlint/` and `lint/structural/` whole, and copy `oxlint.config.ts` from the shipped
    manifest.
 3. Add `check:arch` to `package.json`. Run `oxlint` and the structural checks as two independent
    commands and aggregate their exit codes. Do not chain them with `&&`: the first failure would

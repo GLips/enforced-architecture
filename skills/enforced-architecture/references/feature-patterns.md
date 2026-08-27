@@ -169,7 +169,7 @@ Know what that costs before planning one.
 - **An oxlint rule cannot carry its own prefix inside the shipped plugin.** `plugin.ts` is one
   `definePlugin` with one `meta.name`, and every rule registered in it inherits that prefix. A rule
   id of the form `editor-boundary/no-canvas-sidebar-import` needs a **second plugin module**, added
-  to `jsPlugins` in `.oxlintrc.json`. Registering it in the catalog's plugin instead gives it the
+  to `jsPlugins` in `oxlint.config.ts`. Registering it in the catalog's plugin instead gives it the
   catalog's prefix, which is exactly the thing the feature namespace exists to avoid.
 - **A structural check cannot be scoped to one feature's subtree.** Scope comes from
   `declared-trees.ts` and is a whole source root; the check config has no field for a directory, on

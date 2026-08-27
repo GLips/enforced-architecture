@@ -45,7 +45,7 @@
 //   what keeps this tag disjoint from the shipped `no-unsafe-*` family: those
 //   report an `any` value arriving somewhere typed, and these report a
 //   declaration that names nothing. See the `types` section of the shipped
-//   `oxlintrc.json` for why that gap is not a candidate for either side.
+//   `oxlint.config.ts` for why that gap is not a candidate for either side.
 // ──────────────────────────────────────────────────────────────────────
 
 import { TYPESCRIPT_FILE_GLOB } from "../../policy/layout.ts";

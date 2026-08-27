@@ -43,7 +43,7 @@
 // every fixture this rule reports, with this message text verbatim — the two are
 // interchangeable on the cases here. It is not enabled, and the reason is worth
 // keeping here rather than only in the config: taking it moves `MOCK_METHODS` out
-// of this file and into `.oxlintrc.json`. The spec beside this rule travels into
+// of this file and into `oxlint.config.ts`. The spec beside this rule travels into
 // the adopting repo, so today an adopter who drops `unstable_mockModule` breaks a
 // fixture in their own build; a config key dropped there breaks nothing anywhere,
 // and no guard in this catalog can reach them. The third spelling is missed by

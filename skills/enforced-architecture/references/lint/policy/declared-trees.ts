@@ -45,11 +45,11 @@
 // cannot declare is which INVARIANTS apply to it: there is no per-tree rule list
 // here, and adding one would turn this catalog back into a menu.
 //
-// Whatever this list says, the shipped `.oxlintrc.json` has to say too: its
-// `overrides` entry scopes the `arch/` rules to these roots, and
-// `harness/run-rule-fixtures.ts` fails the build when the two disagree.
-// Declaration and scoping are one list wearing two hats, exactly as registration
-// and enablement are.
+// This list IS the scoping list. The shipped `oxlint.config.ts` imports
+// `DECLARED_TREES` and builds its `overrides` globs and its `ignorePatterns` from
+// it, so there is no second spelling to keep equal — declaring a root is the whole
+// edit. While the config restated these roots by hand, a tree named in one file and
+// missing from the other read as governed and was policed by nothing.
 //
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -390,17 +390,18 @@ export function assertDistinctDeclaredRoots(trees: readonly DeclaredTree[]): voi
     // Compared as WRITTEN, which is only sound because a root has one spelling.
     // Both tiers now measure from the project root, so `./src` never matches the
     // project-relative `src/...` a file resolves to and the tree it declares is
-    // reached by nothing. It also has to match the shipped `oxlintrc.json`
-    // override glob character for character — `harness/run-rule-fixtures.ts`
-    // compares the two lists — and `<root>/**` built from `./src` is a glob for a
-    // directory that does not exist.
+    // reached by nothing. The shipped `oxlint.config.ts` BUILDS its override glob
+    // from this string, so a non-canonical root no longer disagrees with the
+    // config — it produces `./src/**`, a glob for a directory that does not exist,
+    // in both places at once. Which is why this throws here rather than being
+    // compared for somewhere else.
     if (tree.root !== canonicalRoot(tree.root)) {
       throw new Error(
         `The tree at "${tree.root}" is not written canonically. A root is LITERAL directory ` +
           `names joined by single slashes — "src", "apps/web/src" — with no "./" or "../", no ` +
           `leading or trailing slash, no empty segment, and no glob syntax. Both tiers compare ` +
           `this string against a project-relative path rather than resolving it, and the shipped ` +
-          `oxlintrc builds "<root>/**" from it. A second spelling of one directory is a root ` +
+          `oxlint.config.ts builds "<root>/**" from it. A second spelling of one directory is a root ` +
           `nothing resolves to. A PATTERN is worse: "src*/**" still lints files under "src" while ` +
           `the classifier and the structural walk both look for a directory literally named ` +
           `"src*" and find none, so the tree reads as declared and is policed by nothing.`,

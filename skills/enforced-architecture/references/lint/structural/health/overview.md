@@ -4,7 +4,7 @@ The whole-tree half. Set thresholds from the codebase, not the defaults. One tha
 of the repo on day one teaches everyone the linter cries wolf, which costs you the boundary rules
 too. The per-file half is one rule about comment length:
 [../../oxlint/health/overview.md](../../oxlint/health/overview.md). Nested-ternary depth is not a
-rule in either half — the shipped `no-nested-ternary` owns it, enabled in `setup/oxlintrc.json`.
+rule in either half — the shipped `no-nested-ternary` owns it, enabled in `setup/oxlint.config.ts`.
 
 | Rule | Blocking | What it buys |
 |---|---|---|
