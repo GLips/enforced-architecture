@@ -50,7 +50,7 @@
 import { defineTreeRule } from "../lib/define-tree-rule.ts";
 import { type ESTree } from "@oxlint/plugins";
 import { isComponentFile } from "../../policy/declared-trees.ts";
-import { exportedComponents, type ComponentFunction } from "../lib/component-declarations.ts";
+import { exportedComponents, type ReactSubjectFunction } from "../lib/component-declarations.ts";
 import { numericRuleOption } from "../lib/rule-options.ts";
 import { staticKeyName } from "../lib/static-key-name.ts";
 import { parameterAnnotation, parameterObjectPattern } from "../lib/parameter-shapes.ts";
@@ -176,7 +176,7 @@ function collectTypeDeclarations(program: ESTree.Program): TypeDeclarations {
  * component's. A component annotated `props: RowProps` is read the same as one annotated
  * `props: XProps`, and a project spelling the convention `ComponentAttrs` needs no adapting.
  */
-function propSurface(fn: ComponentFunction, declarations: TypeDeclarations): PropSurface | null {
+function propSurface(fn: ReactSubjectFunction, declarations: TypeDeclarations): PropSurface | null {
   const [parameter] = fn.params;
   if (parameter === undefined) return null;
 

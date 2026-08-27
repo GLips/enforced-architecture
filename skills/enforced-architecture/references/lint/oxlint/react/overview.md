@@ -9,10 +9,10 @@ computed and cast host spellings are. This folder holds no second fetch rule and
 |---|---|---|
 | [single-component-export](single-component-export.ts) | No | Which components a search by name finds only at their call sites |
 | [no-async-effect](no-async-effect.ts) | Yes | Every async effect has one place to cancel, and no useCallback is async |
-| [hook-count](hook-count.ts) | No | The number of hooks a test of the component must set up |
+| [hook-count](hook-count.ts) | No | The number of hooks a test must set up — per component, and per custom hook against a higher limit |
 | [prop-count](prop-count.ts) | No | Which components make every call site supply many values, and which one to split next |
 
-`hook-count`, `prop-count` and `single-component-export` read one component classifier,
+`hook-count`, `prop-count` and `single-component-export` read one subject classifier,
 [lib/component-declarations.ts](../lib/component-declarations.ts). Take one of the three, and copy
 that file with it. A declaration form the classifier does not read is a component that all three
 rules skip, with no report. A project with an unusual component wrapper, `observer` from mobx for
@@ -25,11 +25,17 @@ one, copy that file with it. The spelling that split them before it existed was 
 `hook-count` counted it and `no-async-effect` did not, so a file that namespaces its hooks drew a
 warning about how many it had and nothing about the leak inside it.
 
-Every rule here gates on the file being able to hold JSX, which is `.tsx` and `.jsx` both — one
-owner, `JSX_SOURCE_EXTENSIONS` in `policy/layout.ts`, derived from the source extension list so the
-two cannot drift apart. NEGATIVE SPACE: a `use*.ts` hook module holds no JSX, so nothing in this
+Every rule here gates its COMPONENT subject on the file being able to hold JSX, which is `.tsx` and
+`.jsx` both — one owner, `JSX_SOURCE_EXTENSIONS` in `policy/layout.ts`, derived from the source
+extension list so the two cannot drift apart. `hook-count` is the one rule with a second subject
+that is not a component: a custom hook is counted wherever it is declared, because a `use*.ts`
+module is where one belongs and an extension gate there would silence the rule on its own subject.
+
+NEGATIVE SPACE: apart from that count, a `use*.ts` hook module holds no JSX and nothing else in this
 folder reads one. State derived in an effect there is the shipped `react/set-state-in-effect`'s
-finding, not this folder's — see `setup/oxlintrc.json`.
+finding, not this folder's — see `setup/oxlintrc.json`. And a PascalCase export in a `.ts` file is
+read by nothing here: far more often a factory than a component, so counting it would report a shape
+none of these rules has advice for.
 
 `hook-count` and `prop-count` warn and never block, and that severity is a decision. A component
 that assembles a complex view collects many independent hooks by design. A design-system primitive,

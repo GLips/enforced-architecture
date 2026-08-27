@@ -4,6 +4,8 @@ import { hookCountRule } from "./hook-count.ts";
 const UI = "/repo/src/features/alpha/ui/panel.tsx";
 const UI_JSX = "/repo/src/features/alpha/ui/panel.jsx";
 const SHARED = "/repo/src/shared/ui/panel.tsx";
+/** A custom hook's natural home: a plain module, which `isComponentFile` does not claim. */
+const HOOK_MODULE = "/repo/src/features/alpha/ui/use-annotation.ts";
 
 describeRule("react/hook-count", hookCountRule, {
   obvious: [
@@ -24,6 +26,29 @@ describeRule("react/hook-count", hookCountRule, {
   return <div ref={node} data-count={count} onClick={open ? onShut : onOpen}>{label}</div>;
 }`,
       errors: [{ messageId: "tooManyHooks" }],
+    },
+    {
+      name: "a custom hook making twelve hook calls, in a plain .ts module",
+      filename: HOOK_MODULE,
+      // The hook half's own obvious case. The filename is the point as much as the count: a hook
+      // lives in a `.ts`, which `isComponentFile` does not claim, so a rule that gated the whole
+      // body on that predicate reports nothing here and reads as a clean file.
+      code: `export function useAnnotationSurface(id: string) {
+  const [a, setA] = useState(id);
+  const [b, setB] = useState(id);
+  const [c, setC] = useState(0);
+  const box = useRef(null);
+  const label = useMemo(() => a + b, [a, b]);
+  const other = useMemo(() => a.length, [a]);
+  const onA = useCallback(() => setA(id), [id]);
+  const onB = useCallback(() => setB(id), [id]);
+  const onC = useCallback(() => setC(1), []);
+  useEffect(() => setA(id), [id]);
+  useEffect(() => setB(id), [id]);
+  useEffect(() => setC(0), []);
+  return { label, other, box, onA, onB, onC, c };
+}`,
+      errors: [{ messageId: "tooManyHooksInHook" }],
     },
   ],
 
@@ -137,6 +162,82 @@ export function DefaultImportedHookPanel({ id }: { id: string }) {
 }`,
       errors: [{ messageId: "tooManyHooks" }],
     },
+    {
+      name: "a twelve-hook custom hook reached through an export list, and the message does not prescribe extraction",
+      filename: HOOK_MODULE,
+      // Two claims in one case. The declaration form is the one a hook-only reader would miss —
+      // `export { useX }` sits below the declaration and resolves through scope analysis, which is
+      // exactly the shared reading this rule now leans on.
+      //
+      // The message is asserted WHOLE because its wording carries what the messageId cannot. The
+      // absent half is the load-bearing one: the component message's "Group the related ones into
+      // a purpose-named custom hook" must NOT appear here. Prescribing that edit to something that
+      // already is a custom hook is the loop the two thresholds exist to prevent, and at the
+      // `messageId` level a rule that reported the component text would read identically.
+      code: `const useAnnotationSurface = (id: string) => {
+  const [a, setA] = useState(id);
+  const [b, setB] = useState(id);
+  const [c, setC] = useState(0);
+  const box = useRef(null);
+  const label = useMemo(() => a + b, [a, b]);
+  const other = useMemo(() => a.length, [a]);
+  const onA = useCallback(() => setA(id), [id]);
+  const onB = useCallback(() => setB(id), [id]);
+  const onC = useCallback(() => setC(1), []);
+  useEffect(() => setA(id), [id]);
+  useEffect(() => setB(id), [id]);
+  useEffect(() => setC(0), []);
+  return { label, other, box, onA, onB, onC, c };
+};
+
+export { useAnnotationSurface };`,
+      errors: [
+        {
+          message:
+            "useAnnotationSurface is a custom hook calling 12 hooks (threshold: 12). That threshold is higher than a component's on purpose, so this is not the extraction asking to be undone — it is a hook that became a module, and every consumer pays for all of it. Split it into several hooks named for what each one owns and let the caller compose them, or move the parts that do not need React state out into plain functions the hook calls. This warns rather than fails: a hook wrapping one genuinely large machine is a real shape.",
+        },
+      ],
+    },
+    {
+      name: "four hooks in a custom hook, against a hookThreshold of 4 set in the project's config",
+      filename: HOOK_MODULE,
+      options: [{ hookThreshold: 4 }],
+      // The hook knob, proved in the direction that cannot pass by accident. Four hook calls is
+      // silent at the default of 12, so this fires only if the configured value reached the
+      // comparison — a rule that declared `hookThreshold` in its schema and never read it reports
+      // nothing here and looks exactly like one that works.
+      code: `export function useConfiguredSurface(id: string) {
+  const [name, setName] = useState(id);
+  const [open, setOpen] = useState(false);
+  const label = useMemo(() => name, [name]);
+  useEffect(() => setName(id), [id]);
+  return { label, open, setOpen };
+}`,
+      errors: [{ messageId: "tooManyHooksInHook" }],
+    },
+    {
+      name: "twelve hooks in a custom hook, against a hookThreshold the component threshold does not move",
+      filename: HOOK_MODULE,
+      options: [{ threshold: 20 }],
+      // The two knobs are separate, proved in the direction that cannot pass by accident. A rule
+      // reading one option for both subjects raises the hook limit to 20 here and goes silent.
+      code: `export function useWideSurface(id: string) {
+  const [a, setA] = useState(id);
+  const [b, setB] = useState(id);
+  const [c, setC] = useState(0);
+  const box = useRef(null);
+  const label = useMemo(() => a + b, [a, b]);
+  const other = useMemo(() => a.length, [a]);
+  const onA = useCallback(() => setA(id), [id]);
+  const onB = useCallback(() => setB(id), [id]);
+  const onC = useCallback(() => setC(1), []);
+  useEffect(() => setA(id), [id]);
+  useEffect(() => setB(id), [id]);
+  useEffect(() => setC(0), []);
+  return { label, other, box, onA, onB, onC, c };
+}`,
+      errors: [{ messageId: "tooManyHooksInHook" }],
+    },
   ],
 
   legal: [
@@ -210,6 +311,144 @@ export function AliasedFactories({ id }: { id: string }) {
   const onToggle = useCallback(() => setOpen((was) => !was), []);
   useEffect(() => setName(id), [id]);
   return <div ref={node} data-count={count} onClick={onToggle}>{open ? label : id}</div>;
+}`,
+    },
+    {
+      name: "eleven hooks in a custom hook is one under the hook threshold",
+      filename: HOOK_MODULE,
+      // The off-by-one, on the hook side. It also proves the hook limit is not the component's:
+      // eleven is well over 7, so a rule sharing one number reports here.
+      code: `export function useNearlyWide(id: string) {
+  const [a, setA] = useState(id);
+  const [b, setB] = useState(id);
+  const [c, setC] = useState(0);
+  const box = useRef(null);
+  const label = useMemo(() => a + b, [a, b]);
+  const other = useMemo(() => a.length, [a]);
+  const onA = useCallback(() => setA(id), [id]);
+  const onB = useCallback(() => setB(id), [id]);
+  const onC = useCallback(() => setC(1), []);
+  useEffect(() => setA(id), [id]);
+  useEffect(() => setB(id), [id]);
+  return { label, other, box, onA, onB, onC, c };
+}`,
+    },
+    {
+      name: "a hook-shaped name bound to a factory, with twelve hook calls in the file",
+      filename: HOOK_MODULE,
+      // The bound VALUE is tested, never the name alone — the same over-match guard the component
+      // reading has, on the half that is new. `useAnnotationStore` is a store, and the twelve hook
+      // calls beside it belong to a function this rule is right to leave alone: a name-only test
+      // reports the store and attributes someone else's hooks to it.
+      code: `export const useAnnotationStore = createStore({ open: false });
+
+function surfaceInternals(id: string) {
+  const [a, setA] = useState(id);
+  const [b, setB] = useState(id);
+  const [c, setC] = useState(0);
+  const box = useRef(null);
+  const label = useMemo(() => a + b, [a, b]);
+  const other = useMemo(() => a.length, [a]);
+  const onA = useCallback(() => setA(id), [id]);
+  const onB = useCallback(() => setB(id), [id]);
+  const onC = useCallback(() => setC(1), []);
+  useEffect(() => setA(id), [id]);
+  useEffect(() => setB(id), [id]);
+  useEffect(() => setC(0), []);
+  return { label, other, box, onA, onB, onC, c };
+}`,
+    },
+    {
+      name: "twelve hooks in a custom hook, against a hookThreshold of 13 set in the project's config",
+      filename: HOOK_MODULE,
+      options: [{ hookThreshold: 13 }],
+      // The other direction. Twelve fires at the default, so a raised hook threshold that never
+      // reached the comparison shows up as a failure here rather than as a knob nobody notices is
+      // dead.
+      code: `export function useRaisedSurface(id: string) {
+  const [a, setA] = useState(id);
+  const [b, setB] = useState(id);
+  const [c, setC] = useState(0);
+  const box = useRef(null);
+  const label = useMemo(() => a + b, [a, b]);
+  const other = useMemo(() => a.length, [a]);
+  const onA = useCallback(() => setA(id), [id]);
+  const onB = useCallback(() => setB(id), [id]);
+  const onC = useCallback(() => setC(1), []);
+  useEffect(() => setA(id), [id]);
+  useEffect(() => setB(id), [id]);
+  useEffect(() => setC(0), []);
+  return { label, other, box, onA, onB, onC, c };
+}`,
+    },
+    {
+      name: "a hook-shaped name bound to memo, wrapping twelve hook calls",
+      filename: HOOK_MODULE,
+      // Wrappers are unwrapped for components and NOT for hooks, and this is the only case that
+      // says so. `memo` takes a component and gives back a component; nothing wraps a hook that
+      // way, so `useThing = memo(fn)` is a memoised component with a misleading name, not a hook.
+      // A reader that unwrapped for both subjects reads the arrow as this hook's body and reports
+      // twelve — and every positive case here passes either way.
+      code: `export const useAnnotationSurface = memo((id: string) => {
+  const [a, setA] = useState(id);
+  const [b, setB] = useState(id);
+  const [c, setC] = useState(0);
+  const box = useRef(null);
+  const label = useMemo(() => a + b, [a, b]);
+  const other = useMemo(() => a.length, [a]);
+  const onA = useCallback(() => setA(id), [id]);
+  const onB = useCallback(() => setB(id), [id]);
+  const onC = useCallback(() => setC(1), []);
+  useEffect(() => setA(id), [id]);
+  useEffect(() => setB(id), [id]);
+  useEffect(() => setC(0), []);
+  return { label, other, box, onA, onB, onC, c };
+});`,
+    },
+    {
+      name: "twelve hook calls under a name starting with use and no capital after it",
+      filename: HOOK_MODULE,
+      // The capital is the whole classifier, and only a legal neighbour can prove it is read.
+      // `userAnnotations` is an ordinary function whose name happens to open with those three
+      // letters; React does not treat it as a hook and neither does this rule. A classifier
+      // loosened to `^use` reports here, and reports nothing different anywhere else in this file.
+      code: `export function userAnnotations(id: string) {
+  const [a, setA] = useState(id);
+  const [b, setB] = useState(id);
+  const [c, setC] = useState(0);
+  const box = useRef(null);
+  const label = useMemo(() => a + b, [a, b]);
+  const other = useMemo(() => a.length, [a]);
+  const onA = useCallback(() => setA(id), [id]);
+  const onB = useCallback(() => setB(id), [id]);
+  const onC = useCallback(() => setC(1), []);
+  useEffect(() => setA(id), [id]);
+  useEffect(() => setB(id), [id]);
+  useEffect(() => setC(0), []);
+  return { label, other, box, onA, onB, onC, c };
+}`,
+    },
+    {
+      name: "twelve hooks behind a PascalCase export in a plain .ts module",
+      filename: HOOK_MODULE,
+      // The negative space the header names, asserted rather than assumed. A component is counted
+      // only where the project renders, so this file's PascalCase export is not a subject — and a
+      // change that dropped the `isComponentFile` gate entirely turns every factory into a
+      // component and shows up here rather than in a positive case.
+      code: `export function AnnotationSurfaceFactory(id: string) {
+  const [a, setA] = useState(id);
+  const [b, setB] = useState(id);
+  const [c, setC] = useState(0);
+  const box = useRef(null);
+  const label = useMemo(() => a + b, [a, b]);
+  const other = useMemo(() => a.length, [a]);
+  const onA = useCallback(() => setA(id), [id]);
+  const onB = useCallback(() => setB(id), [id]);
+  const onC = useCallback(() => setC(1), []);
+  useEffect(() => setA(id), [id]);
+  useEffect(() => setB(id), [id]);
+  useEffect(() => setC(0), []);
+  return { label, other, box, onA, onB, onC, c };
 }`,
     },
   ],
