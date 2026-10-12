@@ -48,7 +48,7 @@ adapter on each side. The tag says what a rule is *about*; the tier says what it
 | **placement** | [7](oxlint/placement/overview.md) | [2](structural/placement/overview.md) | Where code may *live*, so the paths other rules match are the paths code is in |
 | **style** | [6](oxlint/style/overview.md) | [3](structural/style/overview.md) | Design-system adherence: tokens, primitives, no raw values |
 | **effect** | [6](oxlint/effect/overview.md) | — | Effect-TS policy bans — the syntactic residue after @effect/language-service, which owns everything type-aware |
-| **react** | [4](oxlint/react/overview.md) | — | Component-level smells that survive review because each one looks reasonable |
+| **react** | [5](oxlint/react/overview.md) | — | Component-level smells that survive review because each one looks reasonable |
 | **api** | [2](oxlint/api/overview.md) | [2](structural/api/overview.md) | How deep a permitted import may reach. Barrels and public surface |
 | **health** | [4](oxlint/health/overview.md) | [3](structural/health/overview.md) | Size and shape signals. Nothing here is a correctness defect |
 | **naming** | [1](oxlint/naming/overview.md) | [2](structural/naming/overview.md) | Keeping the public surface findable by plain text search |
@@ -85,7 +85,7 @@ which rules ship.
 | `createServerFn` or `createMiddleware` | `placement/server-fn-placement` and `placement/server-fn-validation` for server functions; `placement/no-deprecated-input-validator` and `placement/no-plain-export-in-server-fn-module` for both |
 | Intra-feature layers | `placement/layer-direction`, `boundary/layer-occupancy`, `boundary/server-no-upward`, `health/trampolines` |
 | A routes layer | `boundary/route-thinness` |
-| React UI | Every `react/` rule, including `no-async-effect` if the project uses TanStack Query or similar |
+| React UI | Every `react/` rule, including `no-async-effect` and `mutation-refresh-keys` if the project uses TanStack Query or similar |
 | A design system or component library | `style/no-raw-primitives`, `style/no-inline-color`, `style/no-inline-font-size`, `style/token-equality`, `style/shadow-source` |
 | Stylesheets (`.css`, CSS modules) | `style/css-tokens` |
 | Utility CSS (Tailwind or similar) | `style/no-arbitrary-class-values` |

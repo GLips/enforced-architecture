@@ -310,6 +310,17 @@ export type TreeVocabulary = {
   themeModuleName: string;
 
   /**
+   * The two server-cache owners inside `sharedDir`, as single segments.
+   * `queryKeysModule()` and `refreshAfterWriteModule()` join them.
+   *
+   * `react/mutation-refresh-keys` reads them: every write refreshes through the
+   * helper the second exports, handing it a bundle the first exports. A position
+   * rather than a rule-local constant so the rule fences what this tree calls them.
+   */
+  queryKeysName: string;
+  refreshAfterWriteName: string;
+
+  /**
    * The root route inside `routesDir`, as a single segment, or `null` in a tree
    * that has none. `rootRouteModule()` joins them.
    *
@@ -402,6 +413,8 @@ export const RECOMMENDED_VOCABULARY: TreeVocabulary = {
   browserStorageName: "browser-storage",
 
   themeModuleName: "theme",
+  queryKeysName: "query-keys",
+  refreshAfterWriteName: "refresh-after-write",
   rootRouteName: "__root",
 };
 
@@ -781,6 +794,8 @@ const VOCABULARY_FIELD_KINDS: Record<
   apiClientName: "module",
   browserStorageName: "module",
   themeModuleName: "module",
+  queryKeysName: "module",
+  refreshAfterWriteName: "module",
   rootRouteName: "module",
   featureRootPositions: "module-record",
   sourceRootPositions: "module-record",
@@ -1035,6 +1050,14 @@ export function apiClientModule(vocabulary: TreeVocabulary): string {
 
 export function browserStorageModule(vocabulary: TreeVocabulary): string {
   return `${vocabulary.infrastructureDir}/${vocabulary.browserStorageName}`;
+}
+
+export function queryKeysModule(vocabulary: TreeVocabulary): string {
+  return `${vocabulary.sharedDir}/${vocabulary.queryKeysName}`;
+}
+
+export function refreshAfterWriteModule(vocabulary: TreeVocabulary): string {
+  return `${vocabulary.sharedDir}/${vocabulary.refreshAfterWriteName}`;
 }
 
 export function themeModule(vocabulary: TreeVocabulary): string {

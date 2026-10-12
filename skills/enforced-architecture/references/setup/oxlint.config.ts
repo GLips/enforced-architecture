@@ -250,6 +250,9 @@ const TREE_SCOPED: Record<Exclude<ArchRuleName, typeof GLOBAL_ARCH_RULE>, "error
   // State derivation is NOT here: `react/set-state-in-effect` and
   // `react/no-deriving-state-in-effects` own it, in the global block below.
   "no-async-effect": "error",
+  // Every write names the bundle of keys it stales, from the tree's query-keys
+  // module. Name genuinely read-only mutations in `readOnlyMutations`, each with why.
+  "mutation-refresh-keys": ["error", { readOnlyMutations: {} }],
   // Counts, not properties. Each reports a number a reader uses to decide what to
   // split next, and a component that collects many hooks or many props by design is
   // not a defect.

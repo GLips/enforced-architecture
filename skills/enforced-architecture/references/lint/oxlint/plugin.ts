@@ -6,6 +6,7 @@ import { dbIsolationRule } from "./boundary/db-isolation.ts";
 import { importPolicyRule } from "./boundary/import-policy.ts";
 import { deprecatedPathsRule } from "./placement/deprecated-paths.ts";
 import { hookCountRule } from "./react/hook-count.ts";
+import { mutationRefreshKeysRule } from "./react/mutation-refresh-keys.ts";
 import { accumulatorCountRule } from "./health/accumulator-count.ts";
 import { cognitiveComplexityRule } from "./health/cognitive-complexity.ts";
 import { noLongCommentsRule } from "./health/no-long-comments.ts";
@@ -88,6 +89,7 @@ export default definePlugin({
     "no-type-argument-assertion": noTypeArgumentAssertionRule,
     "require-safety-comment": requireSafetyCommentRule,
     "hook-count": hookCountRule,
+    "mutation-refresh-keys": mutationRefreshKeysRule,
     "no-async-effect": noAsyncEffectRule,
     "prop-count": propCountRule,
     "single-component-export": singleComponentExportRule,

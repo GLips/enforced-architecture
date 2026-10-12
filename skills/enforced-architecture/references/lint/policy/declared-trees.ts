@@ -71,7 +71,9 @@ import {
   isServerModule,
   JSX_SOURCE_EXTENSIONS,
   isUnderPath,
+  queryKeysModule,
   RECOMMENDED_VOCABULARY,
+  refreshAfterWriteModule,
   runsOnServer,
   type SourcePlace,
   type TreeVocabulary,
@@ -301,6 +303,8 @@ function assertGovernedPositionsAreNotExempt(vocabulary: TreeVocabulary, treeRoo
     ["dbSchemaSubdir", `${dbSchemaPath(vocabulary)}/invoices.ts`],
     ["apiClientName", `${apiClientModule(vocabulary)}.ts`],
     ["browserStorageName", `${browserStorageModule(vocabulary)}.ts`],
+    ["queryKeysName", `${queryKeysModule(vocabulary)}.ts`],
+    ["refreshAfterWriteName", `${refreshAfterWriteModule(vocabulary)}.ts`],
     ...Object.keys(vocabulary.envModules).map(
       (module) => [`an envModules key`, `${module}.ts`] as const,
     ),
