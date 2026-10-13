@@ -321,6 +321,12 @@ export type TreeVocabulary = {
   refreshAfterWriteName: string;
 
   /**
+   * The primed-read wrapper inside `sharedDir`, as a single segment. `primedQueryModule()` joins
+   * them. `react/primed-suspense-reads` lets this module alone import the suspense hooks.
+   */
+  primedQueryName: string;
+
+  /**
    * The root route inside `routesDir`, as a single segment, or `null` in a tree
    * that has none. `rootRouteModule()` joins them.
    *
@@ -415,6 +421,7 @@ export const RECOMMENDED_VOCABULARY: TreeVocabulary = {
   themeModuleName: "theme",
   queryKeysName: "query-keys",
   refreshAfterWriteName: "refresh-after-write",
+  primedQueryName: "primed-query",
   rootRouteName: "__root",
 };
 
@@ -796,6 +803,7 @@ const VOCABULARY_FIELD_KINDS: Record<
   themeModuleName: "module",
   queryKeysName: "module",
   refreshAfterWriteName: "module",
+  primedQueryName: "module",
   rootRouteName: "module",
   featureRootPositions: "module-record",
   sourceRootPositions: "module-record",
@@ -1058,6 +1066,10 @@ export function queryKeysModule(vocabulary: TreeVocabulary): string {
 
 export function refreshAfterWriteModule(vocabulary: TreeVocabulary): string {
   return `${vocabulary.sharedDir}/${vocabulary.refreshAfterWriteName}`;
+}
+
+export function primedQueryModule(vocabulary: TreeVocabulary): string {
+  return `${vocabulary.sharedDir}/${vocabulary.primedQueryName}`;
 }
 
 export function themeModule(vocabulary: TreeVocabulary): string {

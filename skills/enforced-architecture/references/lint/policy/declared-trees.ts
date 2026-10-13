@@ -73,6 +73,7 @@ import {
   isUnderPath,
   queryKeysModule,
   RECOMMENDED_VOCABULARY,
+  primedQueryModule,
   refreshAfterWriteModule,
   runsOnServer,
   type SourcePlace,
@@ -305,6 +306,7 @@ function assertGovernedPositionsAreNotExempt(vocabulary: TreeVocabulary, treeRoo
     ["browserStorageName", `${browserStorageModule(vocabulary)}.ts`],
     ["queryKeysName", `${queryKeysModule(vocabulary)}.ts`],
     ["refreshAfterWriteName", `${refreshAfterWriteModule(vocabulary)}.ts`],
+    ["primedQueryName", `${primedQueryModule(vocabulary)}.ts`],
     ...Object.keys(vocabulary.envModules).map(
       (module) => [`an envModules key`, `${module}.ts`] as const,
     ),

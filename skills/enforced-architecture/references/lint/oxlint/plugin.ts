@@ -13,6 +13,7 @@ import { noLongCommentsRule } from "./health/no-long-comments.ts";
 import { returnWidthRule } from "./health/return-width.ts";
 import { noArbitraryClassValuesRule } from "./style/no-arbitrary-class-values.ts";
 import { noAsyncEffectRule } from "./react/no-async-effect.ts";
+import { primedSuspenseReadsRule } from "./react/primed-suspense-reads.ts";
 import { noDeprecatedInputValidatorRule } from "./placement/no-deprecated-input-validator.ts";
 import { propCountRule } from "./react/prop-count.ts";
 import { singleComponentExportRule } from "./react/single-component-export.ts";
@@ -90,6 +91,7 @@ export default definePlugin({
     "require-safety-comment": requireSafetyCommentRule,
     "hook-count": hookCountRule,
     "mutation-refresh-keys": mutationRefreshKeysRule,
+    "primed-suspense-reads": primedSuspenseReadsRule,
     "no-async-effect": noAsyncEffectRule,
     "prop-count": propCountRule,
     "single-component-export": singleComponentExportRule,

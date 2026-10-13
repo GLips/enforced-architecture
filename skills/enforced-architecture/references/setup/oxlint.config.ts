@@ -253,6 +253,9 @@ const TREE_SCOPED: Record<Exclude<ArchRuleName, typeof GLOBAL_ARCH_RULE>, "error
   // Every write names the bundle of keys it stales, from the tree's query-keys
   // module. Name genuinely read-only mutations in `readOnlyMutations`, each with why.
   "mutation-refresh-keys": ["error", { readOnlyMutations: {} }],
+  // Every suspense read goes through the tree's primed-read wrapper, whose dev report names a
+  // read no route loader primed: on a cold navigation it holds the page for React's 300ms throttle.
+  "primed-suspense-reads": "error",
   // Counts, not properties. Each reports a number a reader uses to decide what to
   // split next, and a component that collects many hooks or many props by design is
   // not a defect.

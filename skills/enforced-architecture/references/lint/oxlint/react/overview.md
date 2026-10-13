@@ -10,6 +10,7 @@ computed and cast host spellings are. This folder holds no second fetch rule and
 | [single-component-export](single-component-export.ts) | No | Which components a search by name finds only at their call sites |
 | [no-async-effect](no-async-effect.ts) | Yes | Every async effect has one place to cancel, and no useCallback is async |
 | [mutation-refresh-keys](mutation-refresh-keys.ts) | Yes | What each write stales is one named bundle in the query-keys module, so sibling writes cannot disagree |
+| [primed-suspense-reads](primed-suspense-reads.ts) | Yes | Every suspense read goes through the wrapper whose dev report names one no loader primed, which costs a cold navigation 300ms |
 | [hook-count](hook-count.ts) | No | The number of hooks a test must set up — per component, and per custom hook against a higher limit |
 | [prop-count](prop-count.ts) | No | Which components make every call site supply many values, and which one to split next |
 
@@ -31,10 +32,11 @@ Every rule here gates its COMPONENT subject on the file being able to hold JSX, 
 extension list so the two cannot drift apart. `hook-count` is the one rule with a second subject
 that is not a component: a custom hook is counted wherever it is declared, because a `use*.ts`
 module is where one belongs and an extension gate there would silence the rule on its own subject.
-`mutation-refresh-keys` has no component subject at all and reads every file in the tree, for the
-same reason: a mutation lives in a `use*.ts` hook module.
+`mutation-refresh-keys` and `primed-suspense-reads` have no component subject at all and read every
+file in the tree, for the same reason: a mutation or a read lives in a `use*.ts` hook module as often
+as in a component.
 
-NEGATIVE SPACE: apart from those two, a `use*.ts` hook module holds no JSX and nothing else in this
+NEGATIVE SPACE: apart from those three, a `use*.ts` hook module holds no JSX and nothing else in this
 folder reads one. State derived in an effect there is the shipped `react/set-state-in-effect`'s
 finding, not this folder's — see `setup/oxlint.config.ts`. And a PascalCase export in a `.ts` file is
 read by nothing here: far more often a factory than a component, so counting it would report a shape
