@@ -33,6 +33,7 @@ import { spawnSync } from "node:child_process";
 import { readFile, readdir } from "node:fs/promises";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { loadShippedOxlintConfig } from "./load-shipped-oxlint-config.ts";
 import {
   defineTreeRule,
   isTreeScopedRule,
@@ -60,13 +61,6 @@ const PLUGIN_PATH = join(OXLINT_ROOT, "plugin.ts");
  * the vocabulary it reads is the right shape rather than an omission.
  */
 const POLICY_ROOT = join(REPO_ROOT, "skills/enforced-architecture/references/lint/policy");
-/**
- * The shipped oxlint config. Read here for ONE claim: that the trees it scopes
- * the `arch/` rules to are the trees `policy/declared-trees.ts` declares.
- * Declaration and scoping are one list wearing two hats, and a root in one and
- * not the other is a tree that reads as governed and is not.
- */
-const OXLINTRC_PATH = join(REPO_ROOT, "skills/enforced-architecture/references/setup/oxlintrc.json");
 const LEFTHOOK_PATH = join(REPO_ROOT, "skills/enforced-architecture/references/setup/lefthook.yml");
 
 type RuleFailure = { rule: string; detail: string };
@@ -443,42 +437,6 @@ function statesWhatItBuys(source: string): boolean {
 }
 
 /**
- * Strip `//` comments so `JSON.parse` can read the shipped JSONC config.
- *
- * String-aware rather than a regex, because `"arch/db-isolation"` is a key with
- * a slash in it and a naive cut would truncate the object at the first one. Block
- * comments are not handled: the config uses none, and a stripper that quietly
- * accepted a form the file never takes would be untested code.
- */
-function stripLineComments(source: string): string {
-  let out = "";
-  let inString = false;
-  let escaped = false;
-  for (let index = 0; index < source.length; index += 1) {
-    const character = source[index];
-    if (inString) {
-      out += character;
-      if (escaped) escaped = false;
-      else if (character === "\\") escaped = true;
-      else if (character === '"') inString = false;
-      continue;
-    }
-    if (character === '"') {
-      inString = true;
-      out += character;
-      continue;
-    }
-    if (character === "/" && source[index + 1] === "/") {
-      while (index < source.length && source[index] !== "\n") index += 1;
-      out += "\n";
-      continue;
-    }
-    out += character;
-  }
-  return out;
-}
-
-/**
  * The tree-scoping guard: the shipped config's `arch/` scope equals the declared
  * tree list, one `<root>/**` glob per root.
  *
@@ -510,25 +468,16 @@ function stripLineComments(source: string): string {
  * rule source cannot, because the same line that makes a rule tree-dependent is
  * the line the guard looks for.
  *
- * NEGATIVE SPACE: this asks WHICH block a rule is in, never whether it is in one
- * at all. A rule the plugin registers and this config never names is loaded and
- * never run, and NOTHING here catches that — not this guard, not the per-rule
- * checks above. The shipped config currently names every rule, so the hole is
- * invisible: it opens the next time one is added to `plugin.ts` alone. The one
- * exception is `arch/no-reflect-access`, whose enablement
- * `harness/prove-no-reflect-access-live.ts` pins — that file lints through the
- * real CLI, so a key missing from the shipped config leaves it proving a rule no
- * adopting project runs.
+ * This asks WHICH block a rule is in, never whether it is in one at all. That
+ * question belongs to the config's own load-time assertion, which throws on a
+ * rule `plugin.ts` registers and no block enables — and loading the config here
+ * runs it, so a gap fails this runner before any guard below.
  */
 async function checkTreeScoping(): Promise<string[]> {
   const { DECLARED_TREES } = (await import(join(POLICY_ROOT, "declared-trees.ts"))) as {
     DECLARED_TREES: { root: string; vocabulary: { generatedDir: string } }[];
   };
-  const config = JSON.parse(stripLineComments(await readFile(OXLINTRC_PATH, "utf8"))) as {
-    rules?: Record<string, unknown>;
-    ignorePatterns?: string[];
-    overrides?: { files?: string[]; excludeFiles?: string[]; rules?: Record<string, unknown> }[];
-  };
+  const config = await loadShippedOxlintConfig();
 
   const failures: string[] = [];
 
@@ -562,7 +511,7 @@ async function checkTreeScoping(): Promise<string[]> {
   const actualIgnores = [...(config.ignorePatterns ?? [])].sort();
   if (expectedIgnores.join("|") !== actualIgnores.join("|")) {
     failures.push(
-      `setup/oxlintrc.json's ignorePatterns is [${actualIgnores.join(", ")}], but the declared ` +
+      `setup/oxlint.config.ts's ignorePatterns is [${actualIgnores.join(", ")}], but the declared ` +
         `trees and their generatedDir imply [${expectedIgnores.join(", ")}] — a hand-written ` +
         `entry is an exemption nothing declared, and a missing one lints generated output`,
     );
@@ -572,7 +521,7 @@ async function checkTreeScoping(): Promise<string[]> {
   const misplacedGlobal = globalArchKeys.filter((key) => treeDependent.has(key));
   if (misplacedGlobal.length > 0) {
     failures.push(
-      `setup/oxlintrc.json enables ${misplacedGlobal.join(", ")} outside any tree-scoped override, ` +
+      `setup/oxlint.config.ts enables ${misplacedGlobal.join(", ")} outside any tree-scoped override, ` +
         `so those rules are loaded for files no declared tree owns and return early on all of them`,
     );
   }
@@ -591,7 +540,7 @@ async function checkTreeScoping(): Promise<string[]> {
   const excluding = scopedEntries.filter((entry) => (entry.excludeFiles ?? []).length > 0);
   if (excluding.length > 0) {
     failures.push(
-      `setup/oxlintrc.json gives an arch/ override an excludeFiles of ` +
+      `setup/oxlint.config.ts gives an arch/ override an excludeFiles of ` +
         `[${(excluding[0]?.excludeFiles ?? []).join(", ")}], which carves a hole inside a declared ` +
         `tree that the rule/tree matrix cannot see — every pairing still reads as scoped. A tree ` +
         `that should not be policed is a tree policy/declared-trees.ts should not declare`,
@@ -604,7 +553,7 @@ async function checkTreeScoping(): Promise<string[]> {
   const misplacedScoped = scopedArchKeys.filter((key) => !treeDependent.has(key));
   if (misplacedScoped.length > 0) {
     failures.push(
-      `setup/oxlintrc.json scopes ${misplacedScoped.join(", ")} to the declared trees, but ` +
+      `setup/oxlint.config.ts scopes ${misplacedScoped.join(", ")} to the declared trees, but ` +
         `${misplacedScoped.length === 1 ? "that rule reads" : "those rules read"} no tree — so the ` +
         `glob is the only thing bounding ${misplacedScoped.length === 1 ? "it" : "them"}, and every ` +
         `file outside a declared tree goes unreported with nothing saying so. Enable ` +
@@ -623,7 +572,7 @@ async function checkTreeScoping(): Promise<string[]> {
   //
   // Built from the rules this config ENABLES, not from every rule that exists:
   // whether a rule is enabled at all is the separate registration-versus-
-  // enablement question, which nothing in this runner owns (see the header).
+  // enablement question, which the config's load-time assertion owns.
   // This guard asks only that a rule enabled for one declared tree is enabled
   // for all of them.
   const enabledTreeRules = [...new Set(scopedArchKeys)].filter((key) => treeDependent.has(key));
@@ -646,14 +595,14 @@ async function checkTreeScoping(): Promise<string[]> {
   );
   for (const glob of rootsWithNothing) {
     failures.push(
-      `policy/declared-trees.ts declares a tree setup/oxlintrc.json never scopes the rules to ` +
+      `policy/declared-trees.ts declares a tree setup/oxlint.config.ts never scopes the rules to ` +
         `(no "${glob}" glob), so oxlint runs no architecture rule over it`,
     );
   }
   const partial = unscoped.filter((pair) => !rootsWithNothing.some((glob) => pair.endsWith(` @ ${glob}`)));
   if (partial.length > 0) {
     failures.push(
-      `setup/oxlintrc.json never runs ${partial.length} rule/tree ${partial.length === 1 ? "pairing" : "pairings"} ` +
+      `setup/oxlint.config.ts never runs ${partial.length} rule/tree ${partial.length === 1 ? "pairing" : "pairings"} ` +
         `its declared trees imply — e.g. ${partial.slice(0, 3).join(", ")}. Every tree-dependent rule ` +
         `must be enabled for every declared root; a rule present for one tree and absent for another ` +
         `is a rule that tree adopted and never runs`,
@@ -662,7 +611,7 @@ async function checkTreeScoping(): Promise<string[]> {
   const unowned = actualPairs.filter((pair) => !expectedPairs.includes(pair));
   if (unowned.length > 0) {
     failures.push(
-      `setup/oxlintrc.json scopes ${unowned.slice(0, 3).join(", ")} — a rule/tree pairing no ` +
+      `setup/oxlint.config.ts scopes ${unowned.slice(0, 3).join(", ")} — a rule/tree pairing no ` +
         `declared tree and tree-dependent rule imply, so either the glob names a root nothing ` +
         `declares or the rule reads no tree`,
     );

@@ -50,7 +50,7 @@
  * NEGATIVE SPACE, and it is why this file is named after one rule rather than
  * after the technique:
  *
- *   - It is not the shipped `setup/oxlintrc.json`. That config names
+ *   - It is not the shipped `setup/oxlint.config.ts`. That config names
  *     `eslint-plugin-sonarjs` and turns `typeAware` on, and this repo depends on
  *     neither — the CLI refuses to parse it here. The config below is a minimum
  *     that loads the same `plugin.ts` and scopes the same rule to the same
@@ -68,16 +68,15 @@
 
 import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { DECLARED_TREES } from "../skills/enforced-architecture/references/lint/policy/declared-trees.ts";
+import { loadShippedOxlintConfig } from "./load-shipped-oxlint-config.ts";
 
 const HARNESS_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HARNESS_DIR, "..");
 const PLUGIN_PATH = join(REPO_ROOT, "skills/enforced-architecture/references/lint/oxlint/plugin.ts");
-const OXLINTRC_PATH = join(REPO_ROOT, "skills/enforced-architecture/references/setup/oxlintrc.json");
 const OXLINT_BIN = join(REPO_ROOT, "node_modules/.bin/oxlint");
 
 /** The config key, and the `code` field the CLI stamps on every diagnostic it raises. */
@@ -214,30 +213,27 @@ try {
  *
  * Everything below runs a config of this file's own making, so on its own it
  * would prove a rule that works and say nothing about whether an adopting
- * project ever runs it. `run-rule-fixtures.ts` does not close that: its
- * tree-scoping guard asks which BLOCK an enabled rule sits in and deliberately
- * declines to ask whether a rule is enabled at all. So a rule the plugin loads
- * and the manifest enables nowhere leaves both files green.
- *
- * The string match below is the ONLY thing that asks the enablement question, so
- * it stays. A harness pass that ran the shipped config over every rule's fixtures
- * would answer the same question by construction and make this redundant; that
- * pass was proposed and DISMISSED, so nothing else asks it.
+ * project ever runs it. The shipped config's load-time assertion refuses a rule
+ * enabled nowhere, but a key set to `"off"` passes it. So this asks the
+ * narrower question: that the key is on at `error` or `warn`, in a block that
+ * reaches the declared tree.
  */
 async function assertShippedConfigEnablesTheRule(): Promise<void> {
-  const shipped = await readFile(OXLINTRC_PATH, "utf8");
+  const shipped = await loadShippedOxlintConfig();
   // The SEVERITY, not just the key. A key present and set to `"off"` is the
   // worse half of a key that is missing: it reads as coverage from every angle
   // except a run, and it is the shape a softer version of this rule arrives in.
-  //
-  // A substring rather than a parse: the shipped file is JSONC and the only
-  // stripper for it lives in the other runner, where it is one guard's private
-  // helper. A commented-out key does not survive this either — `// "arch/…"` has
-  // no `":"` after the closing quote.
-  if (!new RegExp(String.raw`^\s*"${RULE_KEY}"\s*:\s*"(error|warn)"`, "m").test(shipped)) {
+  const blocks = [
+    shipped.rules ?? {},
+    ...(shipped.overrides ?? [])
+      .filter((entry) => (entry.files ?? []).includes(`${TREE.root}/**`))
+      .map((entry) => entry.rules ?? {}),
+  ];
+  const severity = (value: unknown): unknown => (Array.isArray(value) ? value[0] : value);
+  if (!blocks.some((rules) => ["error", "warn"].includes(String(severity(rules[RULE_KEY]))))) {
     console.log(
-      `  FAIL  setup/oxlintrc.json does not enable ${RULE_KEY} at error or warn, so this file ` +
-        `proves a rule no adopting project runs`,
+      `  FAIL  setup/oxlint.config.ts does not enable ${RULE_KEY} at error or warn for ` +
+        `${TREE.root}/**, so this file proves a rule no adopting project runs`,
     );
     process.exit(1);
   }
