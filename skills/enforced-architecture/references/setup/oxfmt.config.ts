@@ -80,5 +80,6 @@ export default defineConfig({
   // authoritative list for the LINTER via each tree's `generatedDir`; this is
   // the formatter's own copy, and the two are allowed to differ — a generated
   // file that is never linted may still want formatting.
-  ignorePatterns: ["*.d.ts", "*.md", "*.mdx"],
+  // `.claude/` is installed skills and agents, vendored like node_modules.
+  ignorePatterns: ["*.d.ts", "*.md", "*.mdx", ".claude/**"],
 });

@@ -4,7 +4,7 @@
   "mode": "mild",
   "format": ["typescript", "tsx"],
   "pattern": "**/*.{ts,tsx}",
-  "ignore": ["**/*.test.ts", "**/*.test.tsx", "**/__tests__/**", "**/src/test/**"],
+  "ignore": ["**/*.test.ts", "**/*.test.tsx", "**/__tests__/**", "**/src/test/**", ".claude/**"],
   "ignorePattern": [
     "(?s)/\\* jscpd:ignore-start \\*/.*?/\\* jscpd:ignore-end \\*/"
   ],

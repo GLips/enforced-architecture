@@ -593,7 +593,10 @@ export default defineConfig({
 
   plugins: BUILTIN_PLUGINS,
 
-  ignorePatterns: GENERATED_GLOBS,
+  // `.claude/` holds installed skills and agents: third-party code, often bundled
+  // or minified, that is vendored like node_modules rather than written here. The
+  // hook lints staged files, so committing a skill would otherwise lint all of it.
+  ignorePatterns: [...GENERATED_GLOBS, ".claude/**"],
 
   // `typeAware` needs the `oxlint-tsgolint` dev dependency. Without it oxlint
   // aborts — "Failed to find tsgolint executable", exit 1, nothing linted — so a
