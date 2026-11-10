@@ -14,3 +14,16 @@ export function numericRuleOption(option: unknown, key: string, fallback: number
   const value = (option as Record<string, unknown>)[key];
   return typeof value === "number" ? value : fallback;
 }
+
+/** The string-list option named `key` on a rule's first option object, or `fallback` when absent. */
+export function stringListRuleOption(
+  option: unknown,
+  key: string,
+  fallback: readonly string[],
+): readonly string[] {
+  if (typeof option !== "object" || option === null || !(key in option)) return fallback;
+  const value = (option as Record<string, unknown>)[key];
+  return Array.isArray(value) && value.every((entry) => typeof entry === "string")
+    ? value
+    : fallback;
+}

@@ -259,7 +259,9 @@ const TREE_SCOPED: Record<Exclude<ArchRuleName, typeof GLOBAL_ARCH_RULE>, "error
   // Counts, not properties. Each reports a number a reader uses to decide what to
   // split next, and a component that collects many hooks or many props by design is
   // not a defect.
-  "hook-count": "warn",
+  // `wiringModules` names the project's own hook modules that only subscribe — the module
+  // `createFormHook` builds the form hook in — so they count as wiring, as `@tanstack/*` does.
+  "hook-count": ["warn", { wiringModules: [] }],
   "prop-count": "warn",
   "single-component-export": "warn",
 

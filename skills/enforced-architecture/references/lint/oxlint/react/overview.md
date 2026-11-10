@@ -11,7 +11,7 @@ computed and cast host spellings are. This folder holds no second fetch rule and
 | [no-async-effect](no-async-effect.ts) | Yes | Every async effect has one place to cancel, and no useCallback is async |
 | [mutation-refresh-keys](mutation-refresh-keys.ts) | Yes | What each write stales is one named bundle in the query-keys module, so sibling writes cannot disagree |
 | [primed-suspense-reads](primed-suspense-reads.ts) | Yes | Every suspense read goes through the wrapper whose dev report names one no loader primed, which costs a cold navigation 300ms |
-| [hook-count](hook-count.ts) | No | The number of hooks a test must set up — per component, and per custom hook against a higher limit |
+| [hook-count](hook-count.ts) | No | How much local logic a subject holds — state, refs, effects and custom hooks — per component, and per custom hook against a higher limit. Data, form and router reads are wiring and not counted |
 | [prop-count](prop-count.ts) | No | Which components make every call site supply many values, and which one to split next |
 
 `hook-count`, `prop-count` and `single-component-export` read one subject classifier,

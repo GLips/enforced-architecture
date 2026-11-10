@@ -221,8 +221,8 @@ Find the row for the work, and put the file in the directory it names.
 | A one-off script | `scripts/` |
 
 A component moves out to `shared/ui/` when three features need it and it carries no business
-imports. Two features needing it is a coincidence. Nothing enforces that number, so the promotion is
-a judgment the reviewer makes.
+imports: the rule of three in
+[architecture-principles.md](architecture-principles.md#growing-the-architecture).
 
 ---
 

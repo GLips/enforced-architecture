@@ -1,10 +1,28 @@
 // ─── react/hook-count ─────────────────────────────────────────────────
 //
-// Shows: Each exported component that makes 7 or more hook calls, and each
-// exported custom hook that makes 12 or more, with the count. To test such a
-// subject, a developer must set up every one of its hooks, and this count is
-// that number. The rule warns and does not fail the build, because some
-// components collect independent hooks by design.
+// Shows: Each exported component that makes 7 or more calls to hooks that hold
+// local logic, and each exported custom hook that makes 12 or more, with the
+// count. Local logic is state, refs and effects — `useState`, `useReducer`,
+// `useRef`, `useEffect` and their kin — and every custom hook, since one wraps
+// some of those. Many of them in one subject is a workflow nobody named: flags,
+// refs and effects stepping each other along. The rule warns and does not fail
+// the build, because some components collect independent state by design.
+//
+// Data and form wiring does NOT count. A hook from `@tanstack/*` (query,
+// router, form, store), a route object's reads (`Route.useLoaderData()`), the
+// tree's primed-read wrapper and any module listed in `wiringModules` is a
+// subscription to state something else owns. Three queries and a form are a
+// screen, not a tangle, and splitting them only adds a hook that forwards.
+// React's derivations (`useMemo`, `useCallback`, `useId`, `useContext`,
+// `useDeferredValue`, `useDebugValue`) hold nothing either. A React state or
+// effect name counts wherever it was imported from, so TanStack Router's
+// isomorphic `useLayoutEffect` is an effect like React's.
+//
+// NEGATIVE SPACE: a project hook that only wraps a TanStack read is counted
+// unless its module is the primed-read wrapper or is listed in
+// `wiringModules`. One file cannot see what another module's hook does, so the
+// project names its wiring modules — the module `createFormHook` builds the
+// form hook in is the usual entry.
 //
 // The count is per subject and not per file. A file that holds a component
 // and the custom hook extracted out of it is the shape this rule asks for. A
@@ -20,10 +38,10 @@
 // extraction is silent.
 //
 // What the hook threshold catches is the other thing: a custom hook that grew
-// into a module. Twenty-eight hook calls behind one `use` name is not an
+// into a module. Twenty-eight stateful hooks behind one `use` name is not an
 // extraction, it is a second component with no JSX, and every consumer pays
-// for all of it. Measured against real code, the extraction products cluster at
-// seven to ten and the modules-in-disguise start at fourteen; 12 is the gap.
+// for all of it. Extraction products land just above the component's number and
+// modules-in-disguise well past it; 12 sits in the gap.
 //
 // The two messages differ, and that difference is load-bearing rather than
 // cosmetic. A component is told to group hooks into a custom hook. Telling a
@@ -39,9 +57,9 @@
 // more correct, because the rules of hooks do not permit them there. But then
 // this rule and the React lint plugin disagree about what a hook call is.
 //
-// No kind of hook counts for more than another. Seven `useState` calls and
-// seven different hooks are the same finding, and which hooks matter most is
-// a judgement for the reader.
+// No counted hook counts for more than another. Seven `useState` calls and
+// seven different hooks are the same finding, and which matter most is a
+// judgement for the reader.
 //
 // Which calls ARE hooks is `lib/hook-calls.ts`'s answer, shared with
 // react/no-async-effect — `React.useEffect(…)` counts,
@@ -72,8 +90,9 @@ import { defineTreeRule } from "../lib/define-tree-rule.ts";
 import { type Range } from "@oxlint/plugins";
 import { isComponentFile } from "../../policy/declared-trees.ts";
 import { exportedComponents, exportedCustomHooks } from "../lib/component-declarations.ts";
-import { hookCallName } from "../lib/hook-calls.ts";
-import { numericRuleOption } from "../lib/rule-options.ts";
+import { hookCallOrigin } from "../lib/hook-calls.ts";
+import { numericRuleOption, stringListRuleOption } from "../lib/rule-options.ts";
+import { aliasSpecifierFor, primedQueryModule } from "../../policy/layout.ts";
 
 const DEFAULT_THRESHOLD = 7;
 
@@ -84,6 +103,33 @@ const DEFAULT_THRESHOLD = 7;
  */
 const DEFAULT_HOOK_THRESHOLD = 12;
 
+/** React's hooks that hold state or run effects: local logic wherever the name was imported from. */
+const LOCAL_LOGIC_HOOKS = new Set([
+  "useState",
+  "useReducer",
+  "useRef",
+  "useEffect",
+  "useLayoutEffect",
+  "useInsertionEffect",
+  "useSyncExternalStore",
+  "useTransition",
+  "useOptimistic",
+  "useActionState",
+  "useImperativeHandle",
+]);
+
+/** React's hooks that derive or read, holding nothing of their own. */
+const REACT_DERIVATION_HOOKS = new Set([
+  "useMemo",
+  "useCallback",
+  "useId",
+  "useContext",
+  "useDeferredValue",
+  "useDebugValue",
+]);
+
+const WIRING_PACKAGE_PREFIX = "@tanstack/";
+
 export const hookCountRule = defineTreeRule({
   meta: {
     type: "suggestion",
@@ -93,25 +139,41 @@ export const hookCountRule = defineTreeRule({
         properties: {
           threshold: { type: "integer", minimum: 1 },
           hookThreshold: { type: "integer", minimum: 1 },
+          wiringModules: { type: "array", items: { type: "string" } },
         },
         additionalProperties: false,
       },
     ],
-    defaultOptions: [{ threshold: DEFAULT_THRESHOLD, hookThreshold: DEFAULT_HOOK_THRESHOLD }],
+    defaultOptions: [
+      { threshold: DEFAULT_THRESHOLD, hookThreshold: DEFAULT_HOOK_THRESHOLD, wiringModules: [] },
+    ],
     messages: {
       tooManyHooks:
-        "{{name}} calls {{hooks}} hooks (threshold: {{threshold}}). Group the related ones into a purpose-named custom hook — the hooks that move together, not the ones that share a type — and put it in a sibling use*.ts file. If the component is genuinely an orchestrator gathering independent hooks, leave it: this is a warning for that reason.",
+        "{{name}} calls {{hooks}} state, ref, effect or custom hooks (threshold: {{threshold}}; data, form and router reads are not counted). That much local logic is usually a workflow nobody named: give it a machine or reducer, or group the hooks that move together into a purpose-named custom hook in a sibling use*.ts file. If the component genuinely gathers independent state, leave it: this is a warning for that reason.",
       tooManyHooksInHook:
-        "{{name}} is a custom hook calling {{hooks}} hooks (threshold: {{threshold}}). That threshold is higher than a component's on purpose, so this is not the extraction asking to be undone — it is a hook that became a module, and every consumer pays for all of it. Split it into several hooks named for what each one owns and let the caller compose them, or move the parts that do not need React state out into plain functions the hook calls. This warns rather than fails: a hook wrapping one genuinely large machine is a real shape.",
+        "{{name}} is a custom hook calling {{hooks}} state, ref, effect or custom hooks (threshold: {{threshold}}). That threshold is higher than a component's on purpose, so this is not the extraction asking to be undone — it is a hook that became a module, and every consumer pays for all of it. Split it into several hooks named for what each one owns and let the caller compose them, or move the parts that do not need React state out into plain functions the hook calls. This warns rather than fails: a hook wrapping one genuinely large machine is a real shape.",
     },
   },
-  create(context) {
+  create(context, role) {
     const threshold = numericRuleOption(context.options[0], "threshold", DEFAULT_THRESHOLD);
     const hookThreshold = numericRuleOption(
       context.options[0],
       "hookThreshold",
       DEFAULT_HOOK_THRESHOLD,
     );
+    const wiringModules = new Set([
+      aliasSpecifierFor(role.tree.vocabulary, primedQueryModule(role.tree.vocabulary)),
+      ...stringListRuleOption(context.options[0], "wiringModules", []),
+    ]);
+    const holdsLocalLogic = (origin: {
+      readonly name: string;
+      readonly module: string | undefined;
+    }) => {
+      if (LOCAL_LOGIC_HOOKS.has(origin.name)) return true;
+      if (REACT_DERIVATION_HOOKS.has(origin.name)) return false;
+      if (origin.module === undefined) return true;
+      return !origin.module.startsWith(WIRING_PACKAGE_PREFIX) && !wiringModules.has(origin.module);
+    };
     // Recorded on the way past and attributed at the end: a visitor reaches a subject's function
     // before the hook calls inside it, so "how many hooks are in this subtree" cannot be answered
     // when the subject is visited.
@@ -119,7 +181,8 @@ export const hookCountRule = defineTreeRule({
 
     return {
       CallExpression(node) {
-        if (hookCallName(node.callee, context.sourceCode) !== undefined) {
+        const origin = hookCallOrigin(node.callee, context.sourceCode);
+        if (origin !== undefined && holdsLocalLogic(origin)) {
           hookCalls.push(node.range);
         }
       },

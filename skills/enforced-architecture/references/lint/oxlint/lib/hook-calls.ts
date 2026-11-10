@@ -1,5 +1,6 @@
 // The one answer to "which React hook does this call name", for the sites in `react/` that ask it:
-// `hook-count` counts every hook call and `no-async-effect` watches `useEffect` and `useCallback`.
+// `hook-count` sorts hook calls by where they come from and `no-async-effect` watches `useEffect`
+// and `useCallback`.
 //
 // A copy of the question per caller is an answer per caller, and the disagreement is not exotic —
 // it is `React.useEffect`. A `hook-count` that counts the namespaced spelling, beside an
@@ -56,35 +57,100 @@ export function hookCallName(
   callee: ESTree.CallExpression["callee"],
   sourceCode: SourceCode,
 ): string | undefined {
-  const name = calleeName(callee, sourceCode);
-  return name !== undefined && HOOK_NAME.test(name) ? name : undefined;
+  return hookCallOrigin(callee, sourceCode)?.name;
 }
 
-function calleeName(
+/**
+ * A hook call's name and the module that supplied it: the import's source for `useQuery(…)`, the
+ * namespace's for `React.useEffect(…)`, and for `Route.useLoaderData(…)` the module whose import
+ * roots the call chain `Route` was built from (`createFileRoute(…)(…)`). `module` is undefined for
+ * a hook this file defines, or a receiver no import roots.
+ */
+export function hookCallOrigin(
   callee: ESTree.CallExpression["callee"],
   sourceCode: SourceCode,
-): string | undefined {
-  if (callee.type === "Identifier") return importedNameOf(callee, sourceCode) ?? callee.name;
+): { readonly name: string; readonly module: string | undefined } | undefined {
+  if (callee.type === "Identifier") {
+    const imported = importOf(callee, sourceCode);
+    // `{ default as useAuth }` binds the module's default export, which has no name — so there is
+    // nothing here to prefer over the local spelling, and returning the string "default" would
+    // make the one spelling of a default import that carries a specifier stop being a hook.
+    const name =
+      imported?.name === undefined || imported.name === "default" ? callee.name : imported.name;
+    return HOOK_NAME.test(name) ? { name, module: imported?.module } : undefined;
+  }
   // `staticKeyName` resolves the quoted spelling too, so the computed arm needs no branch here.
-  if (callee.type === "MemberExpression") return staticKeyName(callee.property, callee.computed);
+  if (callee.type === "MemberExpression") {
+    const name = staticKeyName(callee.property, callee.computed);
+    if (name === undefined || !HOOK_NAME.test(name)) return undefined;
+    return { name, module: rootModuleOf(callee.object, sourceCode) };
+  }
   return undefined;
 }
 
 /**
- * The name the exporting module gave an identifier, or undefined when this file did not import it.
- *
- * Asks the RESOLVED reference rather than the scope chain by name, for the reason
- * `lib/imported-names.ts` gives: a local `const useEffect` inside a function shadowing an import is
- * a different Variable and is not a use of it.
+ * The module an expression's value comes from: an imported binding's source, or, for a local
+ * `const` built by calling into an import, that import's. One level of local binding is followed,
+ * which is the whole of `export const Route = createFileRoute("/x")({…})`.
  */
-function importedNameOf(
+function rootModuleOf(expression: ESTree.Node, sourceCode: SourceCode): string | undefined {
+  let root: ESTree.Node = expression;
+  while (root.type === "CallExpression" || root.type === "MemberExpression") {
+    root = root.type === "CallExpression" ? root.callee : root.object;
+  }
+  if (root.type !== "Identifier") return undefined;
+  const variable = resolvedVariable(root, sourceCode);
+  for (const definition of variable?.defs ?? []) {
+    const node: ESTree.Node = definition.node;
+    const imported = importDeclarationSource(node);
+    if (imported !== undefined) return imported;
+    if (node.type === "VariableDeclarator" && node.init !== null && node.init !== undefined) {
+      let init: ESTree.Node = node.init;
+      while (init.type === "CallExpression" || init.type === "MemberExpression") {
+        init = init.type === "CallExpression" ? init.callee : init.object;
+      }
+      if (init.type !== "Identifier") return undefined;
+      for (const inner of resolvedVariable(init, sourceCode)?.defs ?? []) {
+        const source = importDeclarationSource(inner.node);
+        if (source !== undefined) return source;
+      }
+    }
+  }
+  return undefined;
+}
+
+/** The source of the import declaration a specifier node belongs to, if it is one. */
+function importDeclarationSource(node: ESTree.Node): string | undefined {
+  if (
+    node.type !== "ImportSpecifier" &&
+    node.type !== "ImportDefaultSpecifier" &&
+    node.type !== "ImportNamespaceSpecifier"
+  ) {
+    return undefined;
+  }
+  const declaration = node.parent;
+  return declaration?.type === "ImportDeclaration" ? declaration.source.value : undefined;
+}
+
+/**
+ * The Variable an identifier resolves to. Asks the RESOLVED reference rather than the scope chain
+ * by name, for the reason `lib/imported-names.ts` gives: a local `const useEffect` inside a
+ * function shadowing an import is a different Variable and is not a use of it.
+ */
+function resolvedVariable(identifier: ESTree.Node, sourceCode: SourceCode) {
+  const scope = sourceCode.getScope(identifier);
+  return scope.references.find((candidate) => candidate.identifier.range[0] === identifier.range[0])
+    ?.resolved;
+}
+
+/**
+ * The name the exporting module gave an identifier, and that module, or undefined when this file
+ * did not import it by a named specifier.
+ */
+function importOf(
   identifier: ESTree.IdentifierReference,
   sourceCode: SourceCode,
-): string | undefined {
-  const scope = sourceCode.getScope(identifier);
-  const reference = scope.references.find(
-    (candidate) => candidate.identifier.range[0] === identifier.range[0],
-  );
+): { readonly name: string; readonly module: string | undefined } | undefined {
   // The DEFINITION'S NODE is the whole test, as in `lib/component-declarations.ts`: every other
   // way a name can be bound — a `const`, a parameter, a namespace or default import — has a node
   // that is not an `ImportSpecifier`, and a second filter on the definition's KIND would say the
@@ -95,14 +161,13 @@ function importedNameOf(
   // file READS from a module and a type-only read is not one. Here the node is already a callee, so
   // an erased binding in that position is code that cannot run — whichever name this returns for it
   // describes nothing that happens.
-  for (const definition of reference?.resolved?.defs ?? []) {
+  for (const definition of resolvedVariable(identifier, sourceCode)?.defs ?? []) {
     const specifier: ESTree.Node = definition.node;
+    if (specifier.type === "ImportDefaultSpecifier") {
+      return { name: "default", module: importDeclarationSource(specifier) };
+    }
     if (specifier.type !== "ImportSpecifier") continue;
-    const name = exportedName(specifier.imported);
-    // `{ default as useAuth }` binds the module's default export, which has no name — so there is
-    // nothing here to prefer over the local spelling, and returning the string "default" would
-    // make the one spelling of a default import that carries a specifier stop being a hook.
-    return name === "default" ? undefined : name;
+    return { name: exportedName(specifier.imported), module: importDeclarationSource(specifier) };
   }
   return undefined;
 }

@@ -10,7 +10,7 @@ const HOOK_MODULE = "/repo/src/features/alpha/ui/use-annotation.ts";
 describeRule("react/hook-count", hookCountRule, {
   obvious: [
     {
-      name: "eight hooks, one per line, none annotated",
+      name: "eight state, ref and effect hooks, one per line, none annotated",
       filename: UI,
       // Nothing about this is clever, which is the point: a miss here is a rule that stopped
       // running rather than one that met a spelling it could not read.
@@ -19,11 +19,11 @@ describeRule("react/hook-count", hookCountRule, {
   const [open, setOpen] = useState(false);
   const [count, bump] = useReducer((n: number) => n + 1, 0);
   const node = useRef(null);
-  const label = useMemo(() => name, [name]);
-  const onOpen = useCallback(() => setOpen(true), []);
-  const onShut = useCallback(() => setOpen(false), []);
+  const timer = useRef(0);
+  const [draft, setDraft] = useState("");
   useEffect(() => setName(id), [id]);
-  return <div ref={node} data-count={count} onClick={open ? onShut : onOpen}>{label}</div>;
+  useLayoutEffect(() => setDraft(name), [name]);
+  return <div ref={node} data-count={count} data-timer={timer.current} onClick={() => setOpen(!open)}>{draft}</div>;
 }`,
       errors: [{ messageId: "tooManyHooks" }],
     },
@@ -38,11 +38,11 @@ describeRule("react/hook-count", hookCountRule, {
   const [b, setB] = useState(id);
   const [c, setC] = useState(0);
   const box = useRef(null);
-  const label = useMemo(() => a + b, [a, b]);
-  const other = useMemo(() => a.length, [a]);
-  const onA = useCallback(() => setA(id), [id]);
-  const onB = useCallback(() => setB(id), [id]);
-  const onC = useCallback(() => setC(1), []);
+  const label = useRef(a + b);
+  const other = useRef(a.length);
+  const onA = useRef(() => setA(id));
+  const onB = useRef(() => setB(id));
+  const onC = useRef(() => setC(1));
   useEffect(() => setA(id), [id]);
   useEffect(() => setB(id), [id]);
   useEffect(() => setC(0), []);
@@ -56,17 +56,17 @@ describeRule("react/hook-count", hookCountRule, {
     {
       name: "two hooks share one line, and two more carry generic type arguments",
       filename: UI,
-      // Seven, reached only if BOTH hooks on the `onOpen`/`onShut` line count and the type
-      // arguments on `useState<string | null>` and `useRef<HTMLDivElement>` are tolerated. Either
-      // gap alone scores six and the file goes silent — indistinguishable from a pass.
+      // Seven, reached only if BOTH hooks on the shared line count and the type arguments on
+      // `useState<string | null>` and `useRef<HTMLDivElement>` are tolerated. Either gap alone
+      // scores six and the file goes silent — indistinguishable from a pass.
       code: `export function ManyHooks({ id }: { id: string }) {
   const [name, setName] = useState<string | null>(null);
   const node = useRef<HTMLDivElement>(null);
-  const label = useMemo(() => name, [name]);
-  useEffect(() => setName(id), [id]);
-  const onOpen = useCallback(() => setName(id), [id]), onShut = useCallback(() => setName(null), []);
   const [open, setOpen] = useState(false);
-  return <div ref={node} onClick={open ? onShut : onOpen}>{label}</div>;
+  useEffect(() => setName(id), [id]);
+  const first = useRef(0), second = useRef(1);
+  useLayoutEffect(() => setOpen(true), []);
+  return <div ref={node} data-a={first.current} data-b={second.current}>{open ? name : id}</div>;
 }`,
       errors: [{ messageId: "tooManyHooks" }],
     },
@@ -78,12 +78,12 @@ describeRule("react/hook-count", hookCountRule, {
       code: `export const WrappedPanel = memo(({ id }: { id: string }) => {
   const [a, setA] = React.useState(id);
   const [b, setB] = React.useState(id);
-  const c = React.useMemo(() => a + b, [a, b]);
+  const [c, setC] = React.useState(id);
   const d = React.useRef(null);
-  const e = React.useCallback(() => setA(id), [id]);
-  const f = React.useCallback(() => setB(id), [id]);
+  const e = React.useRef(null);
   React.useEffect(() => setA(id), [id]);
-  return <div ref={d} onClick={e} data-f={String(f)}>{c}</div>;
+  React.useLayoutEffect(() => setB(id), [id]);
+  return <div ref={d} data-e={String(e)} onClick={() => setC(id)}>{a + b + c}</div>;
 });`,
       errors: [{ messageId: "tooManyHooks" }],
     },
@@ -91,19 +91,38 @@ describeRule("react/hook-count", hookCountRule, {
       name: "seven hooks imported under names that are not hook-shaped",
       filename: UI,
       // The hook is whatever the MODULE exported, not what this file decided to call it. Read on
-      // the local spelling alone, `derive` and `bind` are ordinary function calls and this
-      // component makes one hook call.
-      code: `import { useState as pull, useEffect as run, useMemo as derive, useRef as slot, useCallback as bind } from "react";
+      // the local spelling alone, `pull` and `slot` are ordinary function calls and this
+      // component makes no hook call.
+      code: `import { useState as pull, useEffect as run, useRef as slot } from "react";
 
 export function AliasedPanel({ id }: { id: string }) {
   const [name, setName] = pull(id);
   const [open, setOpen] = pull(false);
-  const label = derive(() => name, [name]);
+  const [draft, setDraft] = pull("");
   const node = slot(null);
-  const onOpen = bind(() => setOpen(true), []);
-  const onShut = bind(() => setOpen(false), []);
+  const timer = slot(0);
   run(() => setName(id), [id]);
-  return <div ref={node} onClick={open ? onShut : onOpen}>{label}</div>;
+  run(() => setDraft(name), [name]);
+  return <div ref={node} data-timer={timer.current} onClick={() => setOpen(!open)}>{draft}</div>;
+}`,
+      errors: [{ messageId: "tooManyHooks" }],
+    },
+    {
+      name: "TanStack Router's isomorphic layout effect is an effect, not wiring",
+      filename: UI,
+      // Imported from `@tanstack/*`, whose reads are wiring — but an effect is local logic
+      // wherever it was imported from. Exempting by package alone scores this three.
+      code: `import { useLayoutEffect as useServerSafeLayoutEffect } from "@tanstack/react-router";
+
+export function MeasuredPanel({ id }: { id: string }) {
+  const [height, setHeight] = useState(0);
+  const [width, setWidth] = useState(0);
+  const node = useRef<HTMLDivElement>(null);
+  useServerSafeLayoutEffect(() => setHeight(1), [id]);
+  useServerSafeLayoutEffect(() => setWidth(1), [id]);
+  useServerSafeLayoutEffect(() => node.current?.focus(), [id]);
+  useServerSafeLayoutEffect(() => setHeight(2), [width]);
+  return <div ref={node}>{height}</div>;
 }`,
       errors: [{ messageId: "tooManyHooks" }],
     },
@@ -119,30 +138,28 @@ export function AliasedPanel({ id }: { id: string }) {
 export function DefaultImportedHookPanel({ id }: { id: string }) {
   const { open, toggle } = usePanelState(id);
   const [name, setName] = useState(id);
-  const label = useMemo(() => name, [name]);
+  const [draft, setDraft] = useState("");
   const node = useRef(null);
-  const onOpen = useCallback(() => toggle(true), [toggle]);
-  const onShut = useCallback(() => toggle(false), [toggle]);
+  const timer = useRef(0);
   useEffect(() => setName(id), [id]);
-  return <div ref={node} onClick={open ? onShut : onOpen}>{label}</div>;
+  useEffect(() => setDraft(name), [name]);
+  return <div ref={node} data-timer={timer.current} onClick={() => toggle(!open)}>{draft}</div>;
 }`,
       errors: [{ messageId: "tooManyHooks" }],
     },
     {
       name: "seven hooks in a .jsx file",
       filename: UI_JSX,
-      // The extension, not the syntax: a `.jsx` component is a component. Every rule in this
-      // catalog governed this file already except the five keyed on rendering, which read one
-      // extension out of the eight.
+      // The extension, not the syntax: a `.jsx` component is a component.
       code: `export function PlainPanel({ id }) {
   const [name, setName] = useState(id);
   const [open, setOpen] = useState(false);
   const [count, bump] = useReducer((n) => n + 1, 0);
   const node = useRef(null);
-  const label = useMemo(() => name, [name]);
-  const onOpen = useCallback(() => setOpen(true), []);
+  const timer = useRef(0);
   useEffect(() => setName(id), [id]);
-  return <div ref={node} data-count={count} onClick={onOpen}>{open ? label : id}</div>;
+  useEffect(() => bump(), [open]);
+  return <div ref={node} data-count={count} data-timer={timer.current} onClick={() => setOpen(true)}>{name}</div>;
 }`,
       errors: [{ messageId: "tooManyHooks" }],
     },
@@ -151,14 +168,13 @@ export function DefaultImportedHookPanel({ id }: { id: string }) {
       filename: UI,
       options: [{ threshold: 4 }],
       // The option, proved in the direction that cannot pass by accident. Four hooks is silent at
-      // the default of 7, so this fires only if the configured value reached the comparison — a
-      // rule that ignored `options` reports nothing here and looks exactly like one that works.
+      // the default of 7, so this fires only if the configured value reached the comparison.
       code: `export function ConfiguredPanel({ id }: { id: string }) {
   const [name, setName] = useState(id);
   const [open, setOpen] = useState(false);
-  const label = useMemo(() => name, [name]);
+  const node = useRef(null);
   useEffect(() => setName(id), [id]);
-  return <div data-open={open} onClick={() => setOpen(true)}>{label}</div>;
+  return <div ref={node} data-open={open} onClick={() => setOpen(true)}>{name}</div>;
 }`,
       errors: [{ messageId: "tooManyHooks" }],
     },
@@ -179,11 +195,11 @@ export function DefaultImportedHookPanel({ id }: { id: string }) {
   const [b, setB] = useState(id);
   const [c, setC] = useState(0);
   const box = useRef(null);
-  const label = useMemo(() => a + b, [a, b]);
-  const other = useMemo(() => a.length, [a]);
-  const onA = useCallback(() => setA(id), [id]);
-  const onB = useCallback(() => setB(id), [id]);
-  const onC = useCallback(() => setC(1), []);
+  const label = useRef(a + b);
+  const other = useRef(a.length);
+  const onA = useRef(() => setA(id));
+  const onB = useRef(() => setB(id));
+  const onC = useRef(() => setC(1));
   useEffect(() => setA(id), [id]);
   useEffect(() => setB(id), [id]);
   useEffect(() => setC(0), []);
@@ -194,7 +210,7 @@ export { useAnnotationSurface };`,
       errors: [
         {
           message:
-            "useAnnotationSurface is a custom hook calling 12 hooks (threshold: 12). That threshold is higher than a component's on purpose, so this is not the extraction asking to be undone — it is a hook that became a module, and every consumer pays for all of it. Split it into several hooks named for what each one owns and let the caller compose them, or move the parts that do not need React state out into plain functions the hook calls. This warns rather than fails: a hook wrapping one genuinely large machine is a real shape.",
+            "useAnnotationSurface is a custom hook calling 12 state, ref, effect or custom hooks (threshold: 12). That threshold is higher than a component's on purpose, so this is not the extraction asking to be undone — it is a hook that became a module, and every consumer pays for all of it. Split it into several hooks named for what each one owns and let the caller compose them, or move the parts that do not need React state out into plain functions the hook calls. This warns rather than fails: a hook wrapping one genuinely large machine is a real shape.",
         },
       ],
     },
@@ -209,7 +225,7 @@ export { useAnnotationSurface };`,
       code: `export function useConfiguredSurface(id: string) {
   const [name, setName] = useState(id);
   const [open, setOpen] = useState(false);
-  const label = useMemo(() => name, [name]);
+  const label = useRef(name);
   useEffect(() => setName(id), [id]);
   return { label, open, setOpen };
 }`,
@@ -226,11 +242,11 @@ export { useAnnotationSurface };`,
   const [b, setB] = useState(id);
   const [c, setC] = useState(0);
   const box = useRef(null);
-  const label = useMemo(() => a + b, [a, b]);
-  const other = useMemo(() => a.length, [a]);
-  const onA = useCallback(() => setA(id), [id]);
-  const onB = useCallback(() => setB(id), [id]);
-  const onC = useCallback(() => setC(1), []);
+  const label = useRef(a + b);
+  const other = useRef(a.length);
+  const onA = useRef(() => setA(id));
+  const onB = useRef(() => setB(id));
+  const onC = useRef(() => setC(1));
   useEffect(() => setA(id), [id]);
   useEffect(() => setB(id), [id]);
   useEffect(() => setC(0), []);
@@ -242,22 +258,52 @@ export { useAnnotationSurface };`,
 
   legal: [
     {
-      name: "six hooks is one under the threshold",
+      name: "six state and effect hooks is one under the threshold",
       filename: UI,
       // An over-count of exactly one is the likeliest arithmetic mistake, and no positive case
       // can see it.
       code: `export function SixHooksNeighbour({ id }: { id: string }) {
   const [name, setName] = useState(id);
   const [open, setOpen] = useState(false);
-  const label = useMemo(() => name, [name]);
-  const onOpen = useCallback(() => setOpen(true), []);
-  const onShut = useCallback(() => setOpen(false), []);
+  const [draft, setDraft] = useState("");
+  const node = useRef(null);
   useEffect(() => setName(id), [id]);
-  return <button type="button" onClick={open ? onShut : onOpen}>{label}</button>;
+  useEffect(() => setDraft(name), [name]);
+  return <button type="button" ref={node} onClick={() => setOpen(!open)}>{draft}</button>;
 }`,
     },
     {
-      name: "eight hook calls in the file, seven of them consolidated into a custom hook",
+      name: "a screen of data, form and router reads with two pieces of state",
+      filename: UI,
+      options: [{ wiringModules: ["@/shared/ui/form/form-hook"] }],
+      // Thirteen hook calls, two of them local logic. Every other one subscribes to state a query
+      // cache, the router or a form store owns, or derives without holding anything; counting
+      // them makes this screen the finding, and the fix it asks for is a hook that forwards.
+      code: `import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { usePrimedSuspenseQuery } from "@/shared/primed-query";
+import { useAppForm } from "@/shared/ui/form/form-hook";
+
+export const Route = createFileRoute("/agents/$id")({ component: AgentScreen });
+
+export function AgentScreen() {
+  const { id } = Route.useParams();
+  const search = Route.useSearch();
+  const { data: agent } = usePrimedSuspenseQuery(agentQuery(id));
+  const { data: connections } = useQuery(connectionsQuery());
+  const client = useQueryClient();
+  const save = useMutation({ mutationFn: saveAgent });
+  const navigate = useNavigate();
+  const form = useAppForm({ defaultValues: agent });
+  const title = useMemo(() => agent.name, [agent]);
+  const onDone = useCallback(() => navigate({ to: "/agents" }), [navigate]);
+  const [preset, setPreset] = useState(search.preset);
+  const [confirming, setConfirming] = useState(false);
+  return <form data-c={connections?.length} data-q={String(client)} onSubmit={() => save.mutate(form.state.values, { onSuccess: onDone })}>{title}{preset}{String(confirming)}</form>;
+}`,
+    },
+    {
+      name: "eight local hooks in the file, seven of them consolidated into a custom hook",
       filename: UI,
       // The fix this rule asks for. Counting per FILE reports it, which is the over-match that
       // teaches people the warning is noise.
@@ -266,23 +312,22 @@ export { useAnnotationSurface };`,
   const [open, setOpen] = useState(false);
   const [count, bump] = useReducer((n: number) => n + 1, 0);
   const node = useRef(null);
-  const label = useMemo(() => name, [name]);
-  const onToggle = useCallback(() => setOpen((was) => !was), []);
+  const timer = useRef(0);
   useEffect(() => setName(id), [id]);
-  return { count, bump, label, node, onToggle, open };
+  useEffect(() => bump(), [open]);
+  return { count, name, node, timer, setOpen, open };
 }
 
 export function ExtractedHookPanel({ id }: { id: string }) {
-  const { count, bump, label, node, onToggle, open } = usePanelState(id);
-  return <div ref={node} data-count={count} onClick={onToggle}>{open ? label : id}</div>;
+  const { count, name, node, setOpen, open } = usePanelState(id);
+  return <div ref={node} data-count={count} onClick={() => setOpen(!open)}>{open ? name : id}</div>;
 }`,
     },
     {
       name: "seven calls that are hook-shaped locally and are not hooks at the module that exports them",
       filename: UI,
-      // The other direction of the same decision, and the one that can only over-match. A project
-      // that aliases a factory into hook clothing has not written seven hooks, and reporting it
-      // would make the count something other than what the message says it is.
+      // A project that aliases a factory into hook clothing has not written seven hooks, and
+      // reporting it would make the count something other than what the message says it is.
       code: `import { createStore as useStore, makeAtom as useAtom } from "@/shared/state";
 
 export function AliasedFactories({ id }: { id: string }) {
@@ -307,10 +352,10 @@ export function AliasedFactories({ id }: { id: string }) {
   const [open, setOpen] = useState(false);
   const [count, bump] = useReducer((n: number) => n + 1, 0);
   const node = useRef(null);
-  const label = useMemo(() => name, [name]);
-  const onToggle = useCallback(() => setOpen((was) => !was), []);
+  const timer = useRef(0);
   useEffect(() => setName(id), [id]);
-  return <div ref={node} data-count={count} onClick={onToggle}>{open ? label : id}</div>;
+  useEffect(() => bump(), [open]);
+  return <div ref={node} data-count={count} data-timer={timer.current} onClick={() => setOpen(true)}>{name}</div>;
 }`,
     },
     {
@@ -323,11 +368,11 @@ export function AliasedFactories({ id }: { id: string }) {
   const [b, setB] = useState(id);
   const [c, setC] = useState(0);
   const box = useRef(null);
-  const label = useMemo(() => a + b, [a, b]);
-  const other = useMemo(() => a.length, [a]);
-  const onA = useCallback(() => setA(id), [id]);
-  const onB = useCallback(() => setB(id), [id]);
-  const onC = useCallback(() => setC(1), []);
+  const label = useRef(a + b);
+  const other = useRef(a.length);
+  const onA = useRef(() => setA(id));
+  const onB = useRef(() => setB(id));
+  const onC = useRef(() => setC(1));
   useEffect(() => setA(id), [id]);
   useEffect(() => setB(id), [id]);
   return { label, other, box, onA, onB, onC, c };
@@ -347,11 +392,11 @@ function surfaceInternals(id: string) {
   const [b, setB] = useState(id);
   const [c, setC] = useState(0);
   const box = useRef(null);
-  const label = useMemo(() => a + b, [a, b]);
-  const other = useMemo(() => a.length, [a]);
-  const onA = useCallback(() => setA(id), [id]);
-  const onB = useCallback(() => setB(id), [id]);
-  const onC = useCallback(() => setC(1), []);
+  const label = useRef(a + b);
+  const other = useRef(a.length);
+  const onA = useRef(() => setA(id));
+  const onB = useRef(() => setB(id));
+  const onC = useRef(() => setC(1));
   useEffect(() => setA(id), [id]);
   useEffect(() => setB(id), [id]);
   useEffect(() => setC(0), []);
@@ -370,11 +415,11 @@ function surfaceInternals(id: string) {
   const [b, setB] = useState(id);
   const [c, setC] = useState(0);
   const box = useRef(null);
-  const label = useMemo(() => a + b, [a, b]);
-  const other = useMemo(() => a.length, [a]);
-  const onA = useCallback(() => setA(id), [id]);
-  const onB = useCallback(() => setB(id), [id]);
-  const onC = useCallback(() => setC(1), []);
+  const label = useRef(a + b);
+  const other = useRef(a.length);
+  const onA = useRef(() => setA(id));
+  const onB = useRef(() => setB(id));
+  const onC = useRef(() => setC(1));
   useEffect(() => setA(id), [id]);
   useEffect(() => setB(id), [id]);
   useEffect(() => setC(0), []);
@@ -394,11 +439,11 @@ function surfaceInternals(id: string) {
   const [b, setB] = useState(id);
   const [c, setC] = useState(0);
   const box = useRef(null);
-  const label = useMemo(() => a + b, [a, b]);
-  const other = useMemo(() => a.length, [a]);
-  const onA = useCallback(() => setA(id), [id]);
-  const onB = useCallback(() => setB(id), [id]);
-  const onC = useCallback(() => setC(1), []);
+  const label = useRef(a + b);
+  const other = useRef(a.length);
+  const onA = useRef(() => setA(id));
+  const onB = useRef(() => setB(id));
+  const onC = useRef(() => setC(1));
   useEffect(() => setA(id), [id]);
   useEffect(() => setB(id), [id]);
   useEffect(() => setC(0), []);
@@ -417,11 +462,11 @@ function surfaceInternals(id: string) {
   const [b, setB] = useState(id);
   const [c, setC] = useState(0);
   const box = useRef(null);
-  const label = useMemo(() => a + b, [a, b]);
-  const other = useMemo(() => a.length, [a]);
-  const onA = useCallback(() => setA(id), [id]);
-  const onB = useCallback(() => setB(id), [id]);
-  const onC = useCallback(() => setC(1), []);
+  const label = useRef(a + b);
+  const other = useRef(a.length);
+  const onA = useRef(() => setA(id));
+  const onB = useRef(() => setB(id));
+  const onC = useRef(() => setC(1));
   useEffect(() => setA(id), [id]);
   useEffect(() => setB(id), [id]);
   useEffect(() => setC(0), []);
@@ -440,11 +485,11 @@ function surfaceInternals(id: string) {
   const [b, setB] = useState(id);
   const [c, setC] = useState(0);
   const box = useRef(null);
-  const label = useMemo(() => a + b, [a, b]);
-  const other = useMemo(() => a.length, [a]);
-  const onA = useCallback(() => setA(id), [id]);
-  const onB = useCallback(() => setB(id), [id]);
-  const onC = useCallback(() => setC(1), []);
+  const label = useRef(a + b);
+  const other = useRef(a.length);
+  const onA = useRef(() => setA(id));
+  const onB = useRef(() => setB(id));
+  const onC = useRef(() => setC(1));
   useEffect(() => setA(id), [id]);
   useEffect(() => setB(id), [id]);
   useEffect(() => setC(0), []);

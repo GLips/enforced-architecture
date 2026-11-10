@@ -330,11 +330,11 @@ because it might. Tiers and their triggers:
 [feature-patterns.md](feature-patterns.md#graduation-triggers).
 
 **Code moves outward when a pattern emerges, and the number is three.** Two occurrences is
-coincidence. It applies uniformly: UI to `shared/ui/`, a utility to `shared/`, business logic to a
-domain, repeated controller orchestration down into a service. Nothing enforces the number, so it is
-the reviewer's to hold, and holding it is what prevents premature abstraction — the most expensive
-form of over-engineering, because it constrains every future change to a shape designed before anyone
-knew enough.
+coincidence. Uniformly: UI to `shared/ui/`, a utility to `shared/`, business logic to a domain,
+controller orchestration down into a service. Search before writing a pattern: the change
+adding a third copy extracts instead, moving every copy onto it. Nothing enforces the number, so
+author and reviewer hold it. Extracting earlier is the most expensive over-engineering — a shape
+fixed before anyone knew enough.
 
 **Cross-feature UI is banned.** When feature A needs something in feature B's `ui/`, either
 **duplicate it** — cheaper than premature abstraction when the two features' needs will diverge — or
